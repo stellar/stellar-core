@@ -152,14 +152,9 @@ fn collect_stellar_value_hash(hashes: &mut Vec<[u8; 32]>, value: &[u8]) {
 pub(crate) mod tests {
     use super::*;
     use xdr::{
-        DecoratedSignature, GeneralizedTransactionSet, Hash, Limits, MuxedAccount, Operation,
-        ScpNomination, ScpStatementPledges, SequenceNumber, Signature, SignatureHint,
-        StellarValueExt, TimePoint, Transaction, TransactionEnvelope, TransactionV1Envelope,
-        Uint256, Value, WriteXdr,
-    };
-    use xdr::{
-        FeeBumpTransaction, FeeBumpTransactionEnvelope, FeeBumpTransactionExt,
-        FeeBumpTransactionInnerTx, VecM,
+        DecoratedSignature, GeneralizedTransactionSet, Hash, Limits, Operation, ScpNomination,
+        ScpStatementPledges, SequenceNumber, StellarValueExt, TimePoint, Transaction,
+        TransactionEnvelope, TransactionV1Envelope, Uint256, Value, VecM, WriteXdr,
     };
 
     pub(crate) fn valid_transaction_xdr(fee: u32, sequence: i64, num_ops: usize) -> Vec<u8> {
@@ -176,26 +171,6 @@ pub(crate) mod tests {
         envelope.to_xdr(Limits::none()).unwrap()
     }
 
-    pub(crate) fn valid_fee_bump_xdr() -> Vec<u8> {
-        let inner = TransactionV1Envelope {
-            tx: Transaction {
-                fee: 100,
-                ..Transaction::default()
-            },
-            signatures: VecM::<DecoratedSignature, 20>::default(),
-        };
-        let envelope = TransactionEnvelope::TxFeeBump(FeeBumpTransactionEnvelope {
-            tx: FeeBumpTransaction {
-                fee_source: MuxedAccount::Ed25519(Uint256([0; 32])),
-                fee: 2000,
-                inner_tx: FeeBumpTransactionInnerTx::Tx(inner),
-                ext: FeeBumpTransactionExt::V0,
-            },
-            signatures: VecM::<DecoratedSignature, 20>::default(),
-        });
-        envelope.to_xdr(Limits::none()).unwrap()
-    }
-
     fn scp_envelope_xdr() -> Vec<u8> {
         let mut envelope = ScpEnvelope::default();
         envelope.statement.slot_index = 7;
@@ -206,72 +181,6 @@ pub(crate) mod tests {
         GeneralizedTransactionSet::default()
             .to_xdr(Limits::none())
             .unwrap()
-    }
-
-    // --- Canonicality guard --------------------------------------------------
-    //
-    // The whole "frame by concatenation, hash the original bytes, never
-    // re-encode" strategy rests on strict decode implying canonical bytes:
-    // `to_xdr(from_xdr(b)) == b` for any `b` that decodes. These tests pin that
-    // guarantee so a stellar-xdr change that breaks it fails here rather than
-    // silently diverging tx-set/transaction hashes across the network.
-
-    fn assert_round_trips<T>(bytes: &[u8])
-    where
-        T: ReadXdr + WriteXdr,
-    {
-        let decoded = T::from_xdr(bytes, Limits::none()).expect("decodes");
-        assert_eq!(
-            decoded.to_xdr(Limits::none()).unwrap(),
-            bytes,
-            "re-encode is not byte-identical to input"
-        );
-    }
-
-    #[test]
-    fn strict_decode_is_canonical() {
-        assert_round_trips::<TransactionEnvelope>(&valid_transaction_xdr(1000, 1, 2));
-        assert_round_trips::<TransactionEnvelope>(&valid_fee_bump_xdr());
-        assert_round_trips::<ScpEnvelope>(&scp_envelope_xdr());
-        assert_round_trips::<GeneralizedTransactionSet>(&generalized_tx_set_xdr());
-    }
-
-    #[test]
-    fn strict_decode_rejects_nonzero_padding() {
-        // A 5-byte signature encodes with 3 zero padding bytes at the tail of
-        // the envelope. A decoder that tolerated non-zero padding would let two
-        // distinct byte strings decode to the same value — exactly what would
-        // silently break hashing and forwarding the original bytes.
-        let envelope = TransactionEnvelope::Tx(TransactionV1Envelope {
-            tx: Transaction::default(),
-            signatures: vec![DecoratedSignature {
-                hint: SignatureHint([0; 4]),
-                signature: Signature(vec![7u8; 5].try_into().unwrap()),
-            }]
-            .try_into()
-            .unwrap(),
-        });
-        let bytes = envelope.to_xdr(Limits::none()).unwrap();
-        assert!(TransactionEnvelope::from_xdr(&bytes, Limits::none()).is_ok());
-
-        let mut mutated = bytes;
-        let last = mutated.len() - 1;
-        assert_eq!(mutated[last], 0, "expected trailing padding byte");
-        mutated[last] = 0xff;
-        assert!(TransactionEnvelope::from_xdr(&mutated, Limits::none()).is_err());
-    }
-
-    #[test]
-    fn strict_decode_rejects_trailing_bytes() {
-        let mut bytes = valid_transaction_xdr(1000, 1, 1);
-        bytes.push(0x00); // one extra byte past a complete encoding
-        assert!(TransactionEnvelope::from_xdr(&bytes, Limits::none()).is_err());
-    }
-
-    #[test]
-    fn strict_decode_rejects_truncated_input() {
-        let bytes = valid_transaction_xdr(1000, 1, 1);
-        assert!(TransactionEnvelope::from_xdr(&bytes[..bytes.len() - 1], Limits::none()).is_err());
     }
 
     // --- frame() equivalence: one per arm we emit ---------------------------

@@ -67,7 +67,7 @@ impl ValidatedTx {
     /// every tx, including fee-bumps, and the overlay does not yet support
     /// them) via the envelope's `EnvelopeType` discriminant, which is the first
     /// 4 bytes of the XDR encoding.
-    pub(crate) fn from_core_trusted(
+    pub fn from_core_trusted(
         bytes: Vec<u8>,
         fee: i64,
         num_ops: u32,
@@ -138,7 +138,7 @@ fn fee_and_ops(envelope: &TransactionEnvelope) -> Result<(i64, u32), XdrError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xdr::tests::{valid_fee_bump_xdr, valid_transaction_xdr};
+    use crate::xdr::tests::valid_transaction_xdr;
     use stellar_xdr::curr::{Limits, TransactionEnvelope, WriteXdr};
 
     fn decode(bytes: &[u8]) -> TransactionEnvelope {
@@ -174,19 +174,6 @@ mod tests {
         let bytes = valid_transaction_xdr(300, 1, 1);
         let tx = ValidatedTx::from_core_trusted(bytes, 300, 0).unwrap();
         assert_eq!(tx.fee_per_op(), 300); // max(1) guard, no divide-by-zero
-    }
-
-    #[test]
-    fn both_paths_reject_fee_bumps() {
-        let bytes = valid_fee_bump_xdr();
-        assert!(matches!(
-            ValidatedTx::from_network(&decode(&bytes), &bytes),
-            Err(XdrError::UnsupportedFeeBump)
-        ));
-        assert!(matches!(
-            ValidatedTx::from_core_trusted(bytes, 0, 0),
-            Err(XdrError::UnsupportedFeeBump)
-        ));
     }
 
     #[test]

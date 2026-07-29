@@ -2076,14 +2076,9 @@ fn test_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
 }
 
 #[cfg(test)]
-fn test_tx_xdr(sequence: i64) -> Vec<u8> {
-    crate::xdr::tests::valid_transaction_xdr(1000, sequence, 1)
-}
-
-/// Wrap raw envelope bytes as a validated tx for tests that drive broadcast.
-#[cfg(test)]
-fn vtx(bytes: Vec<u8>) -> Arc<ValidatedTx> {
-    ValidatedTx::from_core_trusted(bytes, 0, 1).unwrap()
+fn test_tx(sequence: i64) -> Arc<ValidatedTx> {
+    let bytes = crate::xdr::tests::valid_transaction_xdr(1000, sequence, 1);
+    ValidatedTx::from_core_trusted(bytes, 1000, 1).unwrap()
 }
 
 #[cfg(test)]
@@ -2277,8 +2272,7 @@ mod tests {
 
         let tx_start = std::time::Instant::now();
         for i in 0..tx_count {
-            let tx = test_tx_xdr(i as i64);
-            handle1.broadcast_tx(vtx(tx)).await;
+            handle1.broadcast_tx(test_tx(i as i64)).await;
         }
 
         // Immediately send small SCP (should bypass TX queue)
@@ -2391,9 +2385,9 @@ mod tests {
         }
 
         // Immediately send TX (should bypass SCP queue)
-        let tx_msg = test_tx_xdr(10_000);
+        let tx_msg = test_tx(10_000);
         let tx_send_time = std::time::Instant::now();
-        handle1.broadcast_tx(vtx(tx_msg.clone())).await;
+        handle1.broadcast_tx(Arc::clone(&tx_msg)).await;
 
         // Track when TX arrives vs when all SCPs arrive
         // SCP comes on unbounded events channel, TX on bounded tx_events channel
@@ -2406,7 +2400,7 @@ mod tests {
             tokio::select! {
                 Some(event) = tx_events2.recv() => {
                     if let OverlayEvent::TxReceived { tx, .. } = event {
-                        if tx.bytes() == tx_msg.as_slice() && tx_received_at.is_none() {
+                        if tx.bytes() == tx_msg.bytes() && tx_received_at.is_none() {
                             tx_received_at = Some(std::time::Instant::now());
                         }
                     }
@@ -2489,8 +2483,8 @@ mod tests {
         while tx_events2.try_recv().is_ok() {}
 
         // Send TX
-        let tx_msg = test_tx_xdr(20_000);
-        handle1.broadcast_tx(vtx(tx_msg.clone())).await;
+        let tx_msg = test_tx(20_000);
+        handle1.broadcast_tx(Arc::clone(&tx_msg)).await;
 
         // Wait for TX on the bounded TX events channel
         let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
@@ -2500,7 +2494,7 @@ mod tests {
             tokio::select! {
                 Some(event) = tx_events2.recv() => {
                     if let OverlayEvent::TxReceived { tx, .. } = event {
-                        assert_eq!(tx.bytes(), tx_msg.as_slice());
+                        assert_eq!(tx.bytes(), tx_msg.bytes());
                         received = true;
                     }
                 }
@@ -2631,8 +2625,7 @@ mod tests {
         // Send multiple TXs
         let tx_count = 10;
         for i in 0..tx_count {
-            let tx = test_tx_xdr(i as i64);
-            handle1.broadcast_tx(vtx(tx)).await;
+            handle1.broadcast_tx(test_tx(i as i64)).await;
         }
 
         // Wait for all TXs on bounded TX events channel
@@ -2692,10 +2685,10 @@ mod tests {
         while tx_events2.try_recv().is_ok() {}
 
         // Send same TX twice
-        let tx = test_tx_xdr(30_000);
-        handle1.broadcast_tx(vtx(tx.clone())).await;
+        let tx = test_tx(30_000);
+        handle1.broadcast_tx(Arc::clone(&tx)).await;
         tokio::time::sleep(Duration::from_millis(50)).await;
-        handle1.broadcast_tx(vtx(tx.clone())).await;
+        handle1.broadcast_tx(Arc::clone(&tx)).await;
 
         // Wait and count received TXs
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -2845,8 +2838,8 @@ mod tests {
         while tx_events_c.try_recv().is_ok() {}
 
         // A broadcasts TX
-        let tx_msg = test_tx_xdr(40_000);
-        handle_a.broadcast_tx(vtx(tx_msg.clone())).await;
+        let tx_msg = test_tx(40_000);
+        handle_a.broadcast_tx(Arc::clone(&tx_msg)).await;
 
         let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
         let mut b_received = false;
@@ -2856,14 +2849,14 @@ mod tests {
             tokio::select! {
                 Some(event) = tx_events_b.recv() => {
                     if let OverlayEvent::TxReceived { tx, .. } = event {
-                        if tx.bytes() == tx_msg.as_slice() {
+                        if tx.bytes() == tx_msg.bytes() {
                             b_received = true;
                         }
                     }
                 }
                 Some(event) = tx_events_c.recv() => {
                     if let OverlayEvent::TxReceived { tx, .. } = event {
-                        if tx.bytes() == tx_msg.as_slice() {
+                        if tx.bytes() == tx_msg.bytes() {
                             c_received = true;
                         }
                     }
@@ -2975,8 +2968,7 @@ mod tests {
         let tx_flood_task = tokio::spawn(async move {
             for i in 0..tx_flood_count {
                 // Each TX unique to avoid dedup
-                let tx = test_tx_xdr(i as i64);
-                handle1_clone.broadcast_tx(vtx(tx)).await;
+                handle1_clone.broadcast_tx(test_tx(i as i64)).await;
                 // Small yield to avoid overwhelming the command channel
                 if i % 1000 == 0 {
                     tokio::task::yield_now().await;
@@ -4000,8 +3992,8 @@ async fn test_inv_getdata_tx_propagation() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Node1 broadcasts a TX
-    let test_tx = test_tx_xdr(50_000);
-    handle1.broadcast_tx(vtx(test_tx.clone())).await;
+    let tx_msg = test_tx(50_000);
+    handle1.broadcast_tx(Arc::clone(&tx_msg)).await;
 
     // Wait for INV→GETDATA→TX flow (with batching delay + RTT)
     // - INV is batched for up to 100ms
@@ -4014,7 +4006,7 @@ async fn test_inv_getdata_tx_propagation() {
         tokio::select! {
             Some(event) = tx_events2.recv() => {
                 if let OverlayEvent::TxReceived { tx, from } = event {
-                    if tx.bytes() == test_tx.as_slice() && from == peer1_id {
+                    if tx.bytes() == tx_msg.bytes() && from == peer1_id {
                         tx_received = true;
                     }
                 }
@@ -4096,8 +4088,8 @@ async fn test_inv_getdata_three_node_relay() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Node1 broadcasts a TX
-    let test_tx = test_tx_xdr(60_000);
-    handle1.broadcast_tx(vtx(test_tx.clone())).await;
+    let tx_msg = test_tx(60_000);
+    handle1.broadcast_tx(Arc::clone(&tx_msg)).await;
 
     // First verify Node2 receives the TX from Node1
     let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
@@ -4111,7 +4103,7 @@ async fn test_inv_getdata_three_node_relay() {
                         from,
                         &tx.bytes()[..tx.bytes().len().min(8)]
                     );
-                    if tx.bytes() == test_tx.as_slice() && from == peer1_id {
+                    if tx.bytes() == tx_msg.bytes() && from == peer1_id {
                         node2_received = true;
                     }
                 }
@@ -4136,7 +4128,7 @@ async fn test_inv_getdata_three_node_relay() {
                         &tx.bytes()[..tx.bytes().len().min(8)]
                     );
                     // Node3 must receive TX from Node2 (relay), not Node1 (no direct connection)
-                    if tx.bytes() == test_tx.as_slice() && from == peer2_id {
+                    if tx.bytes() == tx_msg.bytes() && from == peer2_id {
                         tx_received = true;
                     }
                 }
