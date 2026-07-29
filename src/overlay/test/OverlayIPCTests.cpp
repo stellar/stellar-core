@@ -227,7 +227,7 @@ TEST_CASE("Two Cores communicate via Rust overlays", "[overlay-ipc][.]")
 // Include simulation headers for the E2E test
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerTxn.h"
+#include "main/AppConnector.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
 #include "simulation/TxGenerator.h"
@@ -329,7 +329,7 @@ TEST_CASE("Rust overlay get top transactions", "[overlay-ipc][.]")
     REQUIRE(ipc->start());
 
     // Get top transactions from empty mempool
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
 
     // With empty mempool, should get empty vector
     REQUIRE(txs.empty());
@@ -382,7 +382,7 @@ TEST_CASE("Rust overlay TX submission", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should contain our submitted TX
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 1);
 
     // Verify it's the same TX we submitted
@@ -452,7 +452,7 @@ TEST_CASE("Rust overlay TX inclusion", "[overlay-ipc][.]")
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 3);
 
     // Verify all 3 TXs are included
@@ -497,7 +497,7 @@ TEST_CASE("Rust overlay TX fee per op inclusion", "[overlay-ipc][.]")
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 2);
 
     // Both TXs should be included
@@ -548,7 +548,7 @@ TEST_CASE("Rust overlay mempool eviction", "[overlay-ipc][.]")
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
 
     // All 53 TXs should be included (mempool not at capacity)
     REQUIRE(txs.size() == 53);
@@ -593,7 +593,7 @@ TEST_CASE("Rust overlay TX deduplication", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should only have 1 TX (deduped)
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 1);
     REQUIRE(txs[0].v1().tx.fee == 1000);
 
@@ -625,7 +625,7 @@ TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should have 1 TX
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 1);
 
     // Compute TX hash from the submitted TX
@@ -642,7 +642,7 @@ TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // TX should now be cleared from mempool
-    auto txs2 = ipc->getTopTransactions(100, 5000);
+    auto txs2 = ipc->getTopTransactions(100);
     REQUIRE(txs2.empty());
 
     LOG_INFO(DEFAULT_LOG, "Mempool clear on externalize test passed");
@@ -700,7 +700,7 @@ TEST_CASE("Rust overlay TX flooding between peers", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // Get top transactions from overlay B - should have the flooded TX
-    auto txsB = ipcB->getTopTransactions(100, 5000);
+    auto txsB = ipcB->getTopTransactions(100);
 
     // Should have 1 TX (the flooded TX)
     REQUIRE(txsB.size() == 1);
@@ -795,18 +795,18 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
 
     REQUIRE(simulation->haveAllExternalized(targetLedger, 2));
 
-    // Verify the destination account exists (TX was applied)
+    // Verify the destination account exists (TX was applied).
     {
-        LedgerTxn ltx(node0->getLedgerTxnRoot());
-        auto destAccount = stellar::loadAccount(ltx, destKey.getPublicKey());
+        auto view = node0->getAppConnector().copyImmutableLedgerView();
+        auto destAccount = view.getAccount(destKey.getPublicKey());
         REQUIRE(destAccount);
         LOG_INFO(DEFAULT_LOG, "Destination account created successfully!");
     }
 
     // Also verify on node1 (TX propagated and was applied)
     {
-        LedgerTxn ltx(node1->getLedgerTxnRoot());
-        auto destAccount = stellar::loadAccount(ltx, destKey.getPublicKey());
+        auto view = node1->getAppConnector().copyImmutableLedgerView();
+        auto destAccount = view.getAccount(destKey.getPublicKey());
         REQUIRE(destAccount);
         LOG_INFO(DEFAULT_LOG, "Destination account exists on node1 too!");
     }
@@ -1040,9 +1040,8 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc-large]")
                 // Count included TXs by checking dest account balance
                 // (each payment adds 0.1 XLM = 1000000 stroops, starting from
                 // 100 XLM)
-                LedgerTxn ltx(node0->getLedgerTxnRoot());
-                auto destAccount =
-                    stellar::loadAccount(ltx, destKey.getPublicKey());
+                auto view = node0->getAppConnector().copyImmutableLedgerView();
+                auto destAccount = view.getAccount(destKey.getPublicKey());
                 if (destAccount)
                 {
                     // Each successful payment adds 1000000 stroops

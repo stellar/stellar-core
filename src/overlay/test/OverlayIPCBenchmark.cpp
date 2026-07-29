@@ -56,7 +56,7 @@ benchmarkPayloadSize(OverlayIPC& ipc, size_t payloadSize, int iterations)
 
         // Just call getTopTransactions to measure IPC latency
         // Payload size doesn't matter much here - mainly testing IPC overhead
-        auto txs = ipc.getTopTransactions(payloadSize / 300, 1000);
+        auto txs = ipc.getTopTransactions(payloadSize / 300);
 
         auto end = std::chrono::high_resolution_clock::now();
         double latencyMs =
@@ -269,7 +269,7 @@ TEST_CASE("IPC concurrent access benchmark", "[overlay-ipc-rust][.][benchmark]")
             for (size_t i = 0; i < callsPerThread; i++)
             {
                 std::lock_guard<std::mutex> lock(ipcMutex);
-                auto txs = ipc.getTopTransactions(10, 5000);
+                auto txs = ipc.getTopTransactions(10);
                 // Just query, don't validate results
             }
 

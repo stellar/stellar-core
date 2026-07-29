@@ -13,16 +13,20 @@ flooding.
 ## Stream wire format
 
 `/stellar/txset/1.0.0` uses **length-prefixed frames** (4-byte BE length,
-see [transport.md](transport.md#frame-formats)). The payload is
-distinguished by length:
+see [transport.md](transport.md#frame-formats)). The payload is a
+`StellarMessage`, strict-decoded on receipt:
 
-| Frame size | Meaning  | Payload                                |
-|-----------:|----------|----------------------------------------|
-| 32 bytes   | Request  | The 32-byte TX set hash                |
-| > 32 bytes | Response | `[hash:32][txset XDR ...]`             |
+| `StellarMessage` arm | Meaning  | Payload                           |
+|----------------------|----------|-----------------------------------|
+| `GetTxSet`           | Request  | The 32-byte TX set hash           |
+| `GeneralizedTxSet`   | Response | The full `GeneralizedTransactionSet` XDR |
 
-Inbound TxSet stream handler: `libp2p_overlay.rs:1670-1740`. The 32-byte
-heuristic at line 1680 is how the receiver tells request from response.
+Responses carry no explicit hash: because the decode is strict, the
+bytes after the 4-byte union discriminant are the canonical encoding,
+and the reader identifies the set by their sha256 — no re-encode. The
+inbound handler (`libp2p_overlay.rs:1855`) verifies/clears the pending
+request and measures fetch latency right there in the reader task, so
+the main loop receives an already-verified `TxSetReceived { hash, data }`.
 
 ## Two paths
 
@@ -42,11 +46,13 @@ Resolution order:
 
 ### Peer asks Overlay for a TX set
 
-A peer sends a 32-byte frame on its TxSet stream. The inbound handler
-emits a `TxSetRequested { hash, from }` event
-(`libp2p_overlay.rs:1691`). The main loop looks up the cache and, on
-hit, calls `send_txset_response(peer, hash, xdr)` which sends back
-`[hash][xdr]` on the TxSet stream (`libp2p_overlay.rs:913-940`).
+A peer sends a `GetTxSet(hash)` frame on its TxSet stream. The inbound
+handler emits a `TxSetRequested { hash, from }` event
+(`libp2p_overlay.rs:1882-1899`). The main loop looks up the cache and,
+on hit, calls `send_txset_response(peer, hash, xdr)`, which frames the
+cached canonical bytes as a `GeneralizedTxSet` message (discriminant
+prefix, no re-encode) and sends it on the TxSet stream
+(`libp2p_overlay.rs:994-1010`).
 
 On miss there is no reply — the requester is responsible for retrying
 to a different peer (which currently is not implemented; see
@@ -98,10 +104,14 @@ externalized TXs from the mempool — see [mempool.md](mempool.md)).
 ### Population sources
 
 - `CacheTxSet` IPC: Core has just built a TX set locally and pushes
-  the XDR + hash so the overlay can serve it to peers
-  (`main.rs:1067-1093`).
+  the XDR + hash so the overlay can serve it to peers. Core is trusted
+  for encoding, so the overlay does not decode — it only verifies that
+  the hash matches the bytes (`tx_set_hash_matches`, `main.rs:1059`),
+  guarding against a mismatch that would make the set unfetchable
+  network-wide.
 - `TxSetReceived` from libp2p: a peer answered our `fetch_txset`. The
-  XDR is stored and forwarded to Core via `TxSetAvailable`.
+  bytes were strict-decoded and content-hashed in the reader task, so
+  they are cached and forwarded to Core via `TxSetAvailable` as-is.
 
 ## Externalization handoff
 
