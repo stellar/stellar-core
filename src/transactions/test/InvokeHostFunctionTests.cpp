@@ -89,17 +89,6 @@ getParallelSorobanTestProtocolVersion()
     return testLedgerProtocolVersion;
 }
 
-bool
-isSorobanProtocolLinked(Config const& cfg, ProtocolVersion protocolVersion)
-{
-    auto sorobanProtocolCfg = cfg;
-    sorobanProtocolCfg.USE_CONFIG_FOR_GENESIS = true;
-    sorobanProtocolCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(protocolVersion);
-    return testutil::isTestApplicationProtocolVersionSupported(
-        sorobanProtocolCfg);
-}
-
 void
 overrideNetworkSettingsToMin(Application& app)
 {
@@ -7222,8 +7211,6 @@ TEST_CASE("Module cache", "[tx][soroban]")
     cfg.USE_CONFIG_FOR_GENESIS = false;
     if (!isSorobanProtocolLinked(cfg, SOROBAN_PROTOCOL_VERSION))
     {
-        SUCCEED("Skipping historical Soroban protocol test: requested "
-                "protocol is not linked in this build");
         return;
     }
 
@@ -7283,8 +7270,6 @@ TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
     cfg.USE_CONFIG_FOR_GENESIS = false;
     if (!isSorobanProtocolLinked(cfg, SOROBAN_PROTOCOL_VERSION))
     {
-        SUCCEED("Skipping historical Soroban protocol test: requested "
-                "protocol is not linked in this build");
         return;
     }
 

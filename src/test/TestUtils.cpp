@@ -9,6 +9,7 @@
 #include "rust/RustBridge.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
+#include "test/Catch2.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/test/SorobanTxTestUtils.h"
@@ -631,5 +632,22 @@ generateTransactions(Application& app, std::filesystem::path const& outputFile,
     out.close();
     LOG_INFO(DEFAULT_LOG, "Generated {} transactions in {}", numTransactions,
              outputFile);
+}
+
+bool
+isSorobanProtocolLinked(Config const& cfg, ProtocolVersion protocolVersion)
+{
+    auto sorobanProtocolCfg = cfg;
+    sorobanProtocolCfg.USE_CONFIG_FOR_GENESIS = true;
+    sorobanProtocolCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(protocolVersion);
+    auto res =
+        testutil::isTestApplicationProtocolVersionSupported(sorobanProtocolCfg);
+    if (!res)
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+    }
+    return res;
 }
 }

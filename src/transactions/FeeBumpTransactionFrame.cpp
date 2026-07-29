@@ -277,7 +277,9 @@ FeeBumpTransactionFrame::checkValidImpl(
     DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
     std::optional<uint32_t> validationLedgerSeq) const
 {
-    if (!xdr::check_xdr_depth(mEnvelope, 500) || !XDRProvidesValidFee())
+    auto ledgerVersion = ledgerView.getLedgerHeader().current().ledgerVersion;
+    if (!validateXDRForProtocol(ledgerVersion, app.getConfig(), mEnvelope) ||
+        !XDRProvidesValidFee())
     {
         return FeeBumpMutableTransactionResult::createTxError(txMALFORMED);
     }
@@ -292,7 +294,6 @@ FeeBumpTransactionFrame::checkValidImpl(
     auto txResult = FeeBumpMutableTransactionResult::createSuccess(
         *mInnerTx, feeCharged, 0);
 
-    auto ledgerVersion = ledgerView.getLedgerHeader().current().ledgerVersion;
     SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
                                       mEnvelope.feeBump().signatures,
                                       isOverlayValidation};
