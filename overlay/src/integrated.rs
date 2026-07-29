@@ -135,13 +135,18 @@ impl OverlayHandle {
     }
 
     /// Get top transactions by fee.
-    pub async fn get_top_txs(&self, count: usize) -> Vec<Arc<ValidatedTx>> {
+    ///
+    /// Returns `None` if the mempool manager is gone (shutdown); callers must
+    /// not answer Core with an empty list in that case.
+    pub async fn get_top_txs(&self, count: usize) -> Option<Vec<Arc<ValidatedTx>>> {
         let (reply_tx, mut reply_rx) = mpsc::channel(1);
-        let _ = self.cmd_tx.send(CoreCommand::GetTopTxs {
-            count,
-            reply: reply_tx,
-        });
-        reply_rx.recv().await.unwrap_or_default()
+        self.cmd_tx
+            .send(CoreCommand::GetTopTxs {
+                count,
+                reply: reply_tx,
+            })
+            .ok()?;
+        reply_rx.recv().await
     }
 
     /// Remove transactions from mempool and wait for completion.
@@ -203,7 +208,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Get top 2
-        let top = handle.get_top_txs(2).await;
+        let top = handle.get_top_txs(2).await.unwrap();
         assert_eq!(top.len(), 2);
         // First should be highest fee
         assert_eq!(top[0].bytes(), &tx2[..]);
@@ -229,7 +234,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Ask for 10
-        let top = handle.get_top_txs(10).await;
+        let top = handle.get_top_txs(10).await.unwrap();
 
         // Should return only 2
         assert_eq!(top.len(), 2);
@@ -247,7 +252,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let top = handle.get_top_txs(10).await;
+        let top = handle.get_top_txs(10).await.unwrap();
         assert!(top.is_empty());
     }
 
@@ -272,7 +277,7 @@ mod tests {
         handle.submit_tx(ValidatedTx::from_core_trusted(tx3.clone(), 300, 4).unwrap());
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let top = handle.get_top_txs(3).await;
+        let top = handle.get_top_txs(3).await.unwrap();
         assert_eq!(top.len(), 3);
 
         // Order should be: TX2 (150/op), TX1 (100/op), TX3 (75/op)

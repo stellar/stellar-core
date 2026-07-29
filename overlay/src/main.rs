@@ -982,17 +982,9 @@ impl App {
                 let overlay_handle = self.overlay_handle.clone();
 
                 tokio::spawn(async move {
-                    let txs = match tokio::time::timeout(
-                        std::time::Duration::from_millis(100),
-                        overlay_handle.get_top_txs(count),
-                    )
-                    .await
-                    {
-                        Ok(txs) => txs,
-                        Err(_) => {
-                            warn!("Timeout getting transactions from mempool");
-                            vec![]
-                        }
+                    let Some(txs) = overlay_handle.get_top_txs(count).await else {
+                        warn!("GetTopTxs: mempool manager gone (shutting down); not responding");
+                        return;
                     };
 
                     info!("Returning {} transactions to Core", txs.len());
