@@ -7774,7 +7774,9 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // work-in-progress next host, in which case there _is_ a separate module
     // cache and the following line of code should be commented-out.
     //
-    // moduleCacheProtocolCount -= 1;
+    // There is no work-in-progress next host right now: soroban_module_cache.rs
+    // directs protocol 29 to p28_cache, so 29 contributes no cache of its own.
+    moduleCacheProtocolCount -= 1;
 #endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()

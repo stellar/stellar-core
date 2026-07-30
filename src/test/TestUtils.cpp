@@ -48,6 +48,20 @@ isProtocolBackedByLinkedSorobanHost(uint32_t protocolVersion,
         return false;
     }
 
+    // The highest linked host may be a "next" build, which reports one protocol
+    // above its base and is designed to serve both: see the "next" bypasses in
+    // rs-soroban-env's Host::maybe_check_protocol_version ("a 'next' host can
+    // be used as the current host for both its base protocol and the next one")
+    // and in ParsedModule's meta-section check. Accept that host for its base
+    // protocol. Restricting this to the highest host keeps fastdev's collapse of
+    // historical protocols onto a newer host detectable, which is what the
+    // exact-match rule below exists to catch.
+    if (selectedHost + 1 == hostProtocols.end() &&
+        *selectedHost == protocolVersion + 1)
+    {
+        return true;
+    }
+
     // Protocol 20 is serviced by the p21 host. All later Soroban protocols
     // should have their own linked host in non-fastdev builds.
     return protocolVersion == static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)

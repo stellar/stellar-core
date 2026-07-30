@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 28,
+	"!cfg protocol version" : 29,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -33,7 +33,8 @@
 		25,
 		26,
 		27,
-		28
+		28,
+		29
 	],
 	"payment events|protocol version 0" : 
 	[
@@ -445,6 +446,25 @@
 	"payment events|protocol version 28|mint event (payer is issuer)" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=" ],
 	"payment events|protocol version 28|mint event with memo ID" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=" ],
 	"payment events|protocol version 28|with tx memo" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 29" : 
+	[
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s="
+	],
+	"payment events|protocol version 29|a pays b, a is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 29|a pays b, b is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 29|a pays b. Also validate fee event" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 29|burn event (payee is issuer)" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=", "urzqLiB3Ryo=" ],
+	"payment events|protocol version 29|memo order of precedence" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 29|mint event (payer is issuer)" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=" ],
+	"payment events|protocol version 29|mint event with memo ID" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=" ],
+	"payment events|protocol version 29|with tx memo" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
 	"payment events|protocol version 2|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
 	"payment events|protocol version 2|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
 	"payment events|protocol version 2|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
