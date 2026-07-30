@@ -119,7 +119,7 @@ tracy-client = { version = "=0.17.0", features = [
 version = "=28.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "65d7532bfff4eee2528ba3cb3024fcd3344e71ba"
+rev = "ba37ea5f76a10710835992fb90f9ec7a14eca499"
 optional = true
 # This dependency is only enabled by the `fastdev` feature, which implies
 # `next`, so the host is always wanted at its next-protocol number here. The
