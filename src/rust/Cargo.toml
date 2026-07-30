@@ -220,7 +220,16 @@ tcmalloc = []
 # but (b) are still under development, in between protocol releases. This
 # feature is not enabled by default, and is only intended for temporary use when
 # staging work across intra-protocol releases.
-next = []
+#
+# It forwards to the max-protocol host's own "next" so that host reports the
+# next protocol number rather than the current one. This matters for the fastdev
+# build, which takes the hosts from the optional dependencies above instead of
+# the per-protocol submodule rlibs, and so never sees the --features=next that
+# src/Makefile.am passes to SOROBAN_MAX_PROTOCOL. Without this, fastdev+next
+# aborts in check_sensible_soroban_config_for_protocol with
+# max_host_module_proto (28) < core_max_proto (29). The "?" keeps this a no-op
+# when the optional dependency is not enabled.
+next = ["soroban-env-host-p28?/next"]
 
 # The testutils feature turns on stuff that should only be available in a core
 # BUILD_TESTS build, such as the code to support transaction re-execution on a
