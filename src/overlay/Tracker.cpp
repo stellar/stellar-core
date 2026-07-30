@@ -19,20 +19,30 @@
 namespace stellar
 {
 
-std::chrono::milliseconds const Tracker::MS_TO_WAIT_FOR_FETCH_REPLY{1500};
+std::chrono::milliseconds const Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS{1500};
 int const Tracker::MAX_REBUILD_FETCH_LIST = 10;
 
-Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
+Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer,
+                 ItemFetcherKind kind)
     : mAskPeer(askPeer)
     , mApp(app)
     , mNumListRebuild(0)
     , mTimer(app)
     , mItemHash(hash)
+    , mKind(kind)
     , mTryNextPeer(
           app.getOverlayManager().getOverlayMetrics().mItemFetcherNextPeer)
     , mFetchTime("fetch-" + hexAbbrev(hash), LogSlowExecution::Mode::MANUAL)
 {
     releaseAssert(mAskPeer);
+
+    if (mKind == ItemFetcherKind::TxSet &&
+        mApp.getHerder().protocolAllowsEmptyTxSetValues())
+    {
+        mGraceEnabled = true;
+        mGraceStart = mApp.getClock().now();
+        mGraceDeadline = mGraceStart + MS_TO_WAIT_FOR_FETCH_PROGRESS;
+    }
 }
 
 Tracker::~Tracker()
@@ -87,8 +97,29 @@ Tracker::doesntHave(Peer::pointer peer)
     if (mLastAskedPeer == peer)
     {
         CLOG_TRACE(Overlay, "Does not have {}", hexAbbrev(mItemHash));
+        // Any claim this peer made was wrong.
+        mClaimingPeers.erase(peer);
         tryNextPeer();
     }
+}
+
+void
+Tracker::peerClaims(Peer::pointer peer)
+{
+    ZoneScoped;
+    mClaimingPeers.insert(peer);
+    if (!mLastAskedPeer)
+    {
+        // No ask is outstanding. Act on the claim immediately
+        mTimer.cancel();
+        tryNextPeer();
+    }
+}
+
+void
+Tracker::seedClaim(Peer::pointer peer)
+{
+    mClaimingPeers.insert(peer);
 }
 
 void
@@ -120,9 +151,10 @@ Tracker::tryNextPeer()
     //
     // We want to bias the candidates set towards peers that are close to us in
     // terms of network latency, so we repeatedly lower a "nearness threshold"
-    // in units of 500ms (1/3 of the MS_TO_WAIT_FOR_FETCH_REPLY) until we have a
-    // "closest peers" bucket that we have at least one peer for, and keep all
-    // the peers in that bucket, and then (later) randomly select from it.
+    // in units of 500ms (1/3 of the MS_TO_WAIT_FOR_FETCH_PROGRESS) until we
+    // have a "closest peers" bucket that we have at least one peer for, and
+    // keep all the peers in that bucket, and then (later) randomly select from
+    // it.
     //
     // if the map of peers passed in is for peers that claim to have the data we
     // need, `peersHave` is also set to true. in this case, the candidate list
@@ -138,7 +170,8 @@ Tracker::tryNextPeer()
             auto& p = mp.second;
             if (canAskPeer(p, peersHave))
             {
-                int64 GROUPSIZE_MS = (MS_TO_WAIT_FOR_FETCH_REPLY.count() / 3);
+                int64 GROUPSIZE_MS =
+                    (MS_TO_WAIT_FOR_FETCH_PROGRESS.count() / 3);
                 int64 plat = p->getPing().count() / GROUPSIZE_MS;
                 if (plat < curBest)
                 {
@@ -154,7 +187,18 @@ Tracker::tryNextPeer()
         }
     };
 
-    // build the set of peers we didn't ask yet that have this envelope
+    // Whether a peer that relayed an SCP envelope can be assumed to possess
+    // the item it references. For quorum sets, always: an envelope is never
+    // relayed without its qset.  For tx sets, this function returns true prior
+    // to the protocol that allows empty-tx-set values, as well as for peers
+    // running pre-HAVE_TX_SET overlay versions
+    auto relayerImpliesHave = [&](Peer::pointer const& p) {
+        return mKind == ItemFetcherKind::QuorumSet ||
+               !mApp.getHerder().protocolAllowsEmptyTxSetValues() ||
+               p->getRemoteOverlayVersion() <
+                   Peer::FIRST_OVERLAY_VERSION_SUPPORTING_HAVE_TX_SET;
+    };
+
     std::map<NodeID, Peer::pointer> newPeersWithEnvelope;
     for (auto const& e : mWaitingEnvelopes)
     {
@@ -162,20 +206,61 @@ Tracker::tryNextPeer()
         for (auto pit = s.begin(); pit != s.end(); ++pit)
         {
             auto& p = *pit;
-            if (canAskPeer(p, true))
+            if (relayerImpliesHave(p))
+            {
+                mClaimingPeers.insert(p);
+            }
+            else if (canAskPeer(p, false))
             {
                 newPeersWithEnvelope.emplace(p->getPeerID(), *pit);
             }
         }
     }
 
-    bool peerWithEnvelopeSelected = !newPeersWithEnvelope.empty();
-    if (peerWithEnvelopeSelected)
+    // Ask-able peers believed to hold the item
+    std::map<NodeID, Peer::pointer> claimingPeers;
+    for (auto const& p : mClaimingPeers)
     {
-        procPeers(newPeersWithEnvelope, true);
+        if (canAskPeer(p, true))
+        {
+            claimingPeers.emplace(p->getPeerID(), p);
+        }
+    }
+
+    // Claim grace period: with no peer known to hold the tx set, prefer waiting
+    // a bounded time for a HAVE_TX_SET claim over blind-asking a peer that
+    // likely does not have it yet. An arriving claim preempts the wait.  If the
+    // grace period has expired we fall through to the relayer/random tiers as
+    // usual.
+    auto const now = mApp.getClock().now();
+    if (claimingPeers.empty() && mGraceEnabled && now < mGraceDeadline)
+    {
+        auto const wait = std::chrono::duration_cast<std::chrono::milliseconds>(
+            mGraceDeadline - now);
+        mTimer.expires_from_now(wait);
+        mTimer.async_wait([this]() { this->tryNextPeer(); },
+                          VirtualTimer::onFailureNoop);
+        return;
+    }
+
+    bool claimTierSelected = false;
+    bool selectedPeersHave = false;
+    if (!claimingPeers.empty())
+    {
+        // Prefer peers who claim to have the item being fetched
+        claimTierSelected = true;
+        selectedPeersHave = true;
+        procPeers(claimingPeers, true);
+    }
+    else if (!newPeersWithEnvelope.empty())
+    {
+        // If no peers claim to have the item, fall back on those who claim to
+        // have at least heard of it via SCP messages
+        procPeers(newPeersWithEnvelope, false);
     }
     else
     {
+        // If all else fails, ask a random peer
         auto& inPeers = mApp.getOverlayManager().getInboundAuthenticatedPeers();
         auto& outPeers =
             mApp.getOverlayManager().getOutboundAuthenticatedPeers();
@@ -200,16 +285,39 @@ Tracker::tryNextPeer()
         CLOG_TRACE(Overlay, "tryNextPeer {} restarting fetch #{}",
                    hexAbbrev(mItemHash), mNumListRebuild);
 
-        nextTry = MS_TO_WAIT_FOR_FETCH_REPLY *
+        nextTry = MS_TO_WAIT_FOR_FETCH_PROGRESS *
                   std::min(MAX_REBUILD_FETCH_LIST, mNumListRebuild);
     }
     else
     {
-        mPeersAsked[mLastAskedPeer] = peerWithEnvelopeSelected;
+        auto& om = mApp.getOverlayManager().getOverlayMetrics();
+        if (claimTierSelected)
+        {
+            // Record that we requested from a peer who claims to have the data
+            // we want
+            om.mItemFetcherClaimAsk.Mark();
+        }
+        // Record the grace period outcome once, at the first ask: did waiting
+        // for a claim land us on a claimer, or did we fall back to a blind
+        // ask? mGraceEnabled is only set for TxSet fetches.
+        if (mGraceEnabled && !mGraceResolved)
+        {
+            mGraceResolved = true;
+            om.mItemFetcherClaimGraceWait.Update(now - mGraceStart);
+            if (claimTierSelected)
+            {
+                om.mItemFetcherClaimGraceSatisfied.Mark();
+            }
+            else
+            {
+                om.mItemFetcherClaimGraceExpired.Mark();
+            }
+        }
+        mPeersAsked[mLastAskedPeer] = selectedPeersHave;
         CLOG_TRACE(Overlay, "Asking for {} to {}", hexAbbrev(mItemHash),
                    mLastAskedPeer->toString());
         mAskPeer(mLastAskedPeer, mItemHash);
-        nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
+        nextTry = MS_TO_WAIT_FOR_FETCH_PROGRESS;
     }
 
     mTimer.expires_from_now(nextTry);
@@ -267,6 +375,7 @@ Tracker::cancel()
 {
     mTimer.cancel();
     mLastSeenSlotIndex = 0;
+    mClaimingPeers.clear();
 }
 
 std::chrono::milliseconds

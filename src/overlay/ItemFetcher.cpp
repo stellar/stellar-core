@@ -14,8 +14,16 @@
 namespace stellar
 {
 
-ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer)
-    : mApp(app), mAskPeer(askPeer)
+// Cap on the number of distinct hashes for which we buffer early HAVE_TX_SET
+// claims (claims for items not yet being tracked).
+static size_t const BUFFERED_CLAIMS_CACHE_SIZE = 1000;
+
+ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer,
+                         ItemFetcherKind kind)
+    : mApp(app)
+    , mAskPeer(askPeer)
+    , mKind(kind)
+    , mBufferedClaims(BUFFERED_CLAIMS_CACHE_SIZE)
 {
 }
 
@@ -28,10 +36,27 @@ ItemFetcher::fetch(Hash const& itemHash, SCPEnvelope const& envelope)
     if (entryIt == mTrackers.end())
     { // not being tracked
         TrackerPtr tracker =
-            std::make_shared<Tracker>(mApp, itemHash, mAskPeer);
+            std::make_shared<Tracker>(mApp, itemHash, mAskPeer, mKind);
         mTrackers[itemHash] = tracker;
 
         tracker->listen(envelope);
+
+        // Seed any HAVE_TX_SET claims that arrived before this tracker existed
+        // so the first ask can target a known holder rather than blind-asking.
+        auto* buffered = mBufferedClaims.maybeGet(itemHash);
+        if (buffered)
+        {
+            for (auto const& [nodeID, weak] : *buffered)
+            {
+                if (auto peer = weak.lock())
+                {
+                    tracker->seedClaim(peer);
+                }
+            }
+            // Clear the consumed claims
+            buffered->clear();
+        }
+
         tracker->tryNextPeer();
     }
     else
@@ -157,6 +182,33 @@ ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 }
 
 void
+ItemFetcher::peerClaimsItem(Hash const& itemHash, Peer::pointer peer)
+{
+    ZoneScoped;
+    auto const& iter = mTrackers.find(itemHash);
+    if (iter != mTrackers.end())
+    {
+        iter->second->peerClaims(peer);
+    }
+    else
+    {
+        // Not yet tracking this item. Buffer the claim so the tracker can
+        // be seeded when it is created
+        auto* buffered = mBufferedClaims.maybeGet(itemHash);
+        if (buffered)
+        {
+            (*buffered)[peer->getPeerID()] = peer;
+        }
+        else
+        {
+            mBufferedClaims.put(itemHash,
+                                UnorderedMap<NodeID, std::weak_ptr<Peer>>{
+                                    {peer->getPeerID(), peer}});
+        }
+    }
+}
+
+void
 ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
 {
     ZoneScoped;
@@ -196,6 +248,13 @@ ItemFetcher::getTracker(Hash const& h)
         return nullptr;
     }
     return it->second;
+}
+
+size_t
+ItemFetcher::getNumBufferedClaims(Hash const& itemHash)
+{
+    auto* buffered = mBufferedClaims.maybeGet(itemHash);
+    return buffered ? buffered->size() : 0;
 }
 #endif
 }

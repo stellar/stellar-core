@@ -39,6 +39,13 @@ class Application;
 
 using AskPeer = std::function<void(Peer::pointer, Hash)>;
 
+// Type of the object the Tracker is fetching
+enum class ItemFetcherKind
+{
+    TxSet,
+    QuorumSet
+};
+
 class Tracker
 {
   private:
@@ -49,21 +56,32 @@ class Tracker
     // keep track of which peer we asked, and if we thought if it had the data
     // or not at the time
     std::map<Peer::pointer, bool> mPeersAsked;
+    // Peers claiming to have the data
+    UnorderedSet<Peer::pointer> mClaimingPeers;
     VirtualTimer mTimer;
+    // Claim-grace bookkeeping (TxSet kind only). While within the grace window
+    // and with no claiming peer, the fetch waits for a HAVE_TX_SET claim rather
+    // than blind-asking an SCP message relayer
+    VirtualClock::time_point mGraceStart;
+    VirtualClock::time_point mGraceDeadline;
+    bool mGraceEnabled{false};
+    bool mGraceResolved{false};
     std::vector<std::pair<Hash, SCPEnvelope>> mWaitingEnvelopes;
     Hash mItemHash;
+    ItemFetcherKind mKind;
     medida::Meter& mTryNextPeer;
     uint64 mLastSeenSlotIndex{0};
     LogSlowExecution mFetchTime;
 
   public:
-    static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY;
+    static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_PROGRESS;
     static int const MAX_REBUILD_FETCH_LIST;
     /**
      * Create Tracker that tracks data identified by @p hash. @p askPeer
      * delegate is used to fetch the data.
      */
-    explicit Tracker(Application& app, Hash const& hash, AskPeer& askPeer);
+    explicit Tracker(Application& app, Hash const& hash, AskPeer& askPeer,
+                     ItemFetcherKind kind);
     virtual ~Tracker();
 
     /**
@@ -136,6 +154,16 @@ class Tracker
      * Next peer will be tried if available.
      */
     void doesntHave(Peer::pointer peer);
+
+    /**
+     * Peer @p peer claims to have the item this Tracker is trying to fetch
+     */
+    void peerClaims(Peer::pointer peer);
+
+    /**
+     * Record that @p peer is a claiming peer without triggering an ask.
+     */
+    void seedClaim(Peer::pointer peer);
 
     /**
      * Called either when @see doesntHave(Peer::pointer) was received or

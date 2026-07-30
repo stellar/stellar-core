@@ -5,11 +5,15 @@
 #pragma once
 
 #include "overlay/Peer.h"
+#include "overlay/Tracker.h"
 #include "util/NonCopyable.h"
+#include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
+#include "util/UnorderedMap.h"
 #include <functional>
 #include <map>
 #include <optional>
+#include <vector>
 
 namespace medida
 {
@@ -20,7 +24,6 @@ class Timer;
 namespace stellar
 {
 
-class Tracker;
 class TxSetXDRFrame;
 struct SCPQuorumSet;
 using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
@@ -41,9 +44,11 @@ class ItemFetcher : private NonMovableOrCopyable
     using TrackerPtr = std::shared_ptr<Tracker>;
 
     /**
-     * Create ItemFetcher that fetches data using @p askPeer delegate.
+     * Create ItemFetcher that fetches data using @p askPeer delegate. @p kind
+     * labels which fetcher this is.
      */
-    explicit ItemFetcher(Application& app, AskPeer askPeer);
+    explicit ItemFetcher(Application& app, AskPeer askPeer,
+                         ItemFetcherKind kind);
 
     /**
      * Fetch data identified by @p hash and needed by @p envelope. Multiple
@@ -93,6 +98,11 @@ class ItemFetcher : private NonMovableOrCopyable
     void doesntHave(Hash const& itemHash, Peer::pointer peer);
 
     /**
+     * Record that @p peer claims to have the data identified by @p itemHash.
+     */
+    void peerClaimsItem(Hash const& itemHash, Peer::pointer peer);
+
+    /**
      * Called when data with given @p itemHash was received. All envelopes
      * added before with @see fetch and the same @p itemHash will be resent
      * to Herder, matching @see Tracker will be cleaned up.
@@ -101,6 +111,7 @@ class ItemFetcher : private NonMovableOrCopyable
 
 #ifdef BUILD_TESTS
     std::shared_ptr<Tracker> getTracker(Hash const& h);
+    size_t getNumBufferedClaims(Hash const& itemHash);
 #endif
 
   protected:
@@ -113,5 +124,9 @@ class ItemFetcher : private NonMovableOrCopyable
 
   private:
     AskPeer mAskPeer;
+    ItemFetcherKind mKind;
+    // HAVE_TX_SET claims received for hashes not yet being tracked.
+    RandomEvictionCache<Hash, UnorderedMap<NodeID, std::weak_ptr<Peer>>>
+        mBufferedClaims;
 };
 }

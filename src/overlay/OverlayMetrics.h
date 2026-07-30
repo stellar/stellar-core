@@ -41,6 +41,11 @@ struct OverlayMetrics
     medida::Timer& mConnectionFloodThrottle;
 
     medida::Meter& mItemFetcherNextPeer;
+    medida::Meter& mItemFetcherClaimAsk;
+    medida::Meter& mItemFetcherClaimDropped;
+    medida::Timer& mItemFetcherClaimGraceWait;
+    medida::Meter& mItemFetcherClaimGraceSatisfied;
+    medida::Meter& mItemFetcherClaimGraceExpired;
 
     medida::Timer& mRecvErrorTimer;
     medida::Timer& mRecvHelloTimer;
@@ -73,6 +78,7 @@ struct OverlayMetrics
 
     medida::Timer& mRecvFloodAdvertTimer;
     medida::Timer& mRecvFloodDemandTimer;
+    medida::Timer& mRecvHaveTxSetTimer;
     medida::Timer& mRecvTxBatchTimer;
 
     medida::Timer& mMessageDelayInWriteQueueTimer;
@@ -108,6 +114,7 @@ struct OverlayMetrics
 
     medida::Meter& mSendFloodAdvertMeter;
     medida::Meter& mSendFloodDemandMeter;
+    medida::Meter& mSendHaveTxSetMeter;
     medida::Meter& mMessagesDemanded;
     medida::Meter& mMessagesFulfilledMeter;
     medida::Meter& mBannedMessageUnfulfilledMeter;

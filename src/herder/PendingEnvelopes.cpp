@@ -30,11 +30,15 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mHerder(herder)
     , mQsetCache(QSET_CACHE_SIZE)
     , mTxSetFetcher(
-          app, [](Peer::pointer peer, Hash hash) { peer->sendGetTxSet(hash); })
-    , mQuorumSetFetcher(app, [](Peer::pointer peer,
-                                Hash hash) { peer->sendGetQuorumSet(hash); })
+          app, [](Peer::pointer peer, Hash hash) { peer->sendGetTxSet(hash); },
+          ItemFetcherKind::TxSet)
+    , mQuorumSetFetcher(
+          app,
+          [](Peer::pointer peer, Hash hash) { peer->sendGetQuorumSet(hash); },
+          ItemFetcherKind::QuorumSet)
     , mTxSetCache(TXSET_CACHE_SIZE)
     , mValueSizeCache(TXSET_CACHE_SIZE + QSET_CACHE_SIZE)
+    , mAnnouncedTxSets(TXSET_CACHE_SIZE)
     , mRebuildQuorum(true)
     , mQuorumTracker(mApp.getConfig().NODE_SEED.getPublicKey())
     , mProcessedCount(
@@ -255,6 +259,82 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
 
     putTxSet(hash, lastSeenSlotIndex, txset);
     mTxSetFetcher.recv(hash, mFetchTxSetTimer);
+
+    if (lastSeenSlotIndex != 0)
+    {
+        // Announce tx set, so long as it was obtained via a live consensus path
+        // (not restored from the database; we would have already announced
+        // those)
+        maybeAnnounceHaveTxSet(hash);
+    }
+}
+
+void
+PendingEnvelopes::maybeAnnounceHaveTxSet(Hash const& hash)
+{
+    ZoneScoped;
+
+    if (mAnnouncedTxSets.exists(hash))
+    {
+        return;
+    }
+    mAnnouncedTxSets.put(hash, true);
+
+    auto msg = std::make_shared<StellarMessage>();
+    msg->type(HAVE_TX_SET);
+    msg->haveTxSet().txSetHash = hash;
+
+    for (auto const& peer : mApp.getOverlayManager().getAuthenticatedPeers())
+    {
+        // Send HAVE_TX_SET only if the peer supports it
+        if (peer.second->getRemoteOverlayVersion() >=
+            Peer::FIRST_OVERLAY_VERSION_SUPPORTING_HAVE_TX_SET)
+        {
+            peer.second->sendMessage(msg);
+        }
+    }
+}
+
+void
+PendingEnvelopes::sendHaveTxSetClaims(SCPEnvelope const& env,
+                                      Peer::pointer const& peer,
+                                      UnorderedSet<Hash>& alreadyClaimed)
+{
+    ZoneScoped;
+
+    // Peers on pre-HAVE_TX_SET overlay versions cannot parse the message
+    if (peer->getRemoteOverlayVersion() <
+        Peer::FIRST_OVERLAY_VERSION_SUPPORTING_HAVE_TX_SET)
+    {
+        return;
+    }
+
+    auto maybeHashes = getTxSetHashes(env);
+    if (!maybeHashes)
+    {
+        return;
+    }
+
+    for (auto const& hash : *maybeHashes)
+    {
+        if (hash == Herder::EMPTY_TX_SET_HASH || !hasTxSet(hash) ||
+            !alreadyClaimed.insert(hash).second)
+        {
+            continue;
+        }
+
+        auto msg = std::make_shared<StellarMessage>();
+        msg->type(HAVE_TX_SET);
+        msg->haveTxSet().txSetHash = hash;
+        peer->sendMessage(msg);
+    }
+}
+
+void
+PendingEnvelopes::recvHaveTxSet(Hash const& hash, Peer::pointer peer)
+{
+    ZoneScoped;
+    mTxSetFetcher.peerClaimsItem(hash, peer);
 }
 
 bool
