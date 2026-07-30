@@ -6640,7 +6640,7 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
     }
 }
 
-TEST_CASE("Soroban delegated signer authentication", "[tx][soroban]")
+TEST_CASE("Soroban delegated signer authentication", "[soroban]")
 {
     size_t const AUTH_CONTRACT_COUNT = 2;
     auto cfg = getTestConfig();
@@ -6862,8 +6862,9 @@ TEST_CASE("Soroban delegated signer authentication", "[tx][soroban]")
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         }
     }
-    // This test causes stack overflow on Windows, but works fine on Linux.
-#ifndef WIN32
+    // This test causes stack overflow on Windows and macOS, but works fine on
+    // Linux.
+#if !defined(WIN32) && !defined(__APPLE__)
     SECTION("deep delegate tree")
     {
         auto buildDelegateChain = [&](int depth) {
@@ -7773,7 +7774,9 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // work-in-progress next host, in which case there _is_ a separate module
     // cache and the following line of code should be commented-out.
     //
-    // moduleCacheProtocolCount -= 1;
+    // There is no work-in-progress next host right now: soroban_module_cache.rs
+    // directs protocol 29 to p28_cache, so 29 contributes no cache of its own.
+    moduleCacheProtocolCount -= 1;
 #endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()
@@ -11075,7 +11078,6 @@ TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
     });
 }
 
-#ifdef CAP_0085_EXECUTABLE_REF
 TEST_CASE("create and invoke external ref contract", "[tx][soroban]")
 {
     VirtualClock clock;
@@ -11169,4 +11171,3 @@ TEST_CASE("create and invoke external ref contract", "[tx][soroban]")
     REQUIRE(invocation.invoke());
     REQUIRE(invocation.getReturnValue().i32() == 7);
 }
-#endif // CAP_0085_EXECUTABLE_REF

@@ -32,9 +32,6 @@ use crate::RustBuf;
 // We also alias the latest soroban as soroban_curr to help reduce churn in code
 // that's just "always supposed to use the latest".
 
-#[cfg(not(feature = "next"))]
-pub(crate) use p27 as soroban_curr;
-#[cfg(feature = "next")]
 pub(crate) use p28 as soroban_curr;
 
 // We also pin some protocol _agnostic_ definitions that are technically
@@ -64,7 +61,6 @@ pub(crate) mod protocol_agnostic {
 // Each protocol module supports exactly one of them and has another one defined
 // as a never-called invoke_v1/2_unsupported stub.
 
-#[cfg(feature = "next")]
 macro_rules! invoke_v1_unsupported_stub {
     () => {
         #[allow(unused_variables)]
@@ -134,7 +130,6 @@ macro_rules! invoke_v2_unsupported_stub {
 // Similar to the invoke stubs, we have two versions of the
 // wasm_module_memory_cost with different interfaces: pre-p28, and p28+.
 
-#[cfg(feature = "next")]
 macro_rules! wasm_module_memory_cost_v1_unsupported_stub {
     () => {
         #[allow(unused_variables)]
@@ -181,7 +176,6 @@ macro_rules! ttl_ledger_entry_meta_stub {
     };
 }
 
-#[cfg(feature = "next")]
 #[path = "."]
 pub(crate) mod p28 {
     pub(crate) extern crate soroban_env_host_p28;
@@ -1868,7 +1862,6 @@ const HOST_MODULES: &'static [HostModule] = &[
     #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p26),
     proto_versioned_functions_for_module!(p27),
-    #[cfg(feature = "next")]
     proto_versioned_functions_for_module!(p28),
 ];
 
@@ -1913,9 +1906,16 @@ fn protocol_dispatches_as_expected() {
         assert_eq!(get_host_module_for_protocol(27, 27).unwrap().max_proto, 27);
     }
 
-    #[cfg(all(feature = "fastdev", feature = "next"))]
+    // p28 is now built unconditionally. Without the "next" feature it reports
+    // protocol 28; with it, the same submodule reports 29.
+    #[cfg(not(feature = "next"))]
     {
         assert_eq!(get_host_module_for_protocol(28, 28).unwrap().max_proto, 28);
+    }
+
+    #[cfg(feature = "next")]
+    {
+        assert_eq!(get_host_module_for_protocol(29, 29).unwrap().max_proto, 29);
     }
 
     // No protocols past the max known.

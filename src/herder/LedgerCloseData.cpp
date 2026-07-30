@@ -60,12 +60,10 @@ stellarValueToString(Config const& c, StellarValue const& sv)
     case STELLAR_VALUE_SIGNED:
         res << " SIGNED@" << c.toShortString(sv.ext.lcValueSignature().nodeID);
         break;
-#ifdef CAP_0083
     case STELLAR_VALUE_EMPTY_TX_SET:
         res << " EMPTY_TXSET@"
             << c.toShortString(sv.ext.proposedValue().lcValueSignature.nodeID);
         break;
-#endif
     default:
         res << " UNKNOWN";
         break;
