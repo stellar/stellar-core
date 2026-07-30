@@ -121,6 +121,11 @@ git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "65d7532bfff4eee2528ba3cb3024fcd3344e71ba"
 optional = true
+# This dependency is only enabled by the `fastdev` feature, which implies
+# `next`, so the host is always wanted at its next-protocol number here. The
+# non-fastdev build takes p28 from the submodule rlib instead, where
+# src/Makefile.am passes --features=next to SOROBAN_MAX_PROTOCOL.
+features = ["next"]
 
 [dependencies.soroban-env-host-p27]
 version = "=27.0.0"
@@ -220,16 +225,8 @@ tcmalloc = []
 # but (b) are still under development, in between protocol releases. This
 # feature is not enabled by default, and is only intended for temporary use when
 # staging work across intra-protocol releases.
-#
-# It forwards to the max-protocol host's own "next" so that host reports the
-# next protocol number rather than the current one. This matters for the fastdev
-# build, which takes the hosts from the optional dependencies above instead of
-# the per-protocol submodule rlibs, and so never sees the --features=next that
-# src/Makefile.am passes to SOROBAN_MAX_PROTOCOL. Without this, fastdev+next
-# aborts in check_sensible_soroban_config_for_protocol with
-# max_host_module_proto (28) < core_max_proto (29). The "?" keeps this a no-op
-# when the optional dependency is not enabled.
-next = ["soroban-env-host-p28?/next"]
+next = []
+
 
 # The testutils feature turns on stuff that should only be available in a core
 # BUILD_TESTS build, such as the code to support transaction re-execution on a

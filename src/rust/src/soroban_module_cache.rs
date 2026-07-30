@@ -69,6 +69,10 @@ impl SorobanModuleCache {
             26 => self.p26_cache.compile(_wasm),
             27 => self.p27_cache.compile(_wasm),
             28 => self.p28_cache.compile(_wasm),
+            // Under "next" the p28 host reports protocol 29, so route 29 to
+            // the same cache.
+            #[cfg(feature = "next")]
+            29 => self.p28_cache.compile(_wasm),
             // Add other protocols here as needed.
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
@@ -140,6 +144,8 @@ impl SorobanModuleCache {
             26 => self.p26_cache.contains_module(&_hash),
             27 => self.p27_cache.contains_module(&_hash),
             28 => self.p28_cache.contains_module(&_hash),
+            #[cfg(feature = "next")]
+            29 => self.p28_cache.contains_module(&_hash),
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
     }
@@ -160,6 +166,8 @@ impl SorobanModuleCache {
             26 => bytes = bytes.max(self.p26_cache.get_wasm_bytes_input()?),
             27 => bytes = bytes.max(self.p27_cache.get_wasm_bytes_input()?),
             28 => bytes = bytes.max(self.p28_cache.get_wasm_bytes_input()?),
+            #[cfg(feature = "next")]
+            29 => bytes = bytes.max(self.p28_cache.get_wasm_bytes_input()?),
             _ => return Err(protocol_agnostic::make_error("unsupported protocol")),
         }
         Ok(bytes)

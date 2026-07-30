@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 27,
+	"!cfg protocol version" : 28,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -32,7 +32,8 @@
 		24,
 		25,
 		26,
-		27
+		27,
+		28
 	],
 	"deauth removes offers on frozen account" : 
 	[
