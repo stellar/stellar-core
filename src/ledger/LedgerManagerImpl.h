@@ -457,15 +457,15 @@ class LedgerManagerImpl : public LedgerManager
         ANNOTATED_MUTEX(mMutex);
         UnorderedMap<Hash, VirtualClock::time_point>
             mTxSubmitTimes GUARDED_BY(mMutex);
-        // Each recorded submission -> meta-emission latency in ms
+        // Each recorded submission -> post-apply latency in ms
         std::vector<uint32_t> mSamples GUARDED_BY(mMutex);
 
         TxLatencyMetrics(MetricsRegistry& registry);
     } mTxLatencyMetrics;
 
-    // End point of the tx-latency metric: matches the ledger-close meta's
-    // txProcessing entries against mTxSubmitTimes and records each latency.
-    void recordTxMetaEmissionLatency(LedgerCloseMeta const& lcm);
+    // End point of the tx-latency metric: records the submission to post-apply
+    // latency for each externalized transaction.
+    void recordTxE2eLatency(ApplicableTxSetFrame const& txSet);
 #endif
 
     void setState(State s);
