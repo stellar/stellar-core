@@ -53,8 +53,8 @@ isProtocolBackedByLinkedSorobanHost(uint32_t protocolVersion,
     // rs-soroban-env's Host::maybe_check_protocol_version ("a 'next' host can
     // be used as the current host for both its base protocol and the next one")
     // and in ParsedModule's meta-section check. Accept that host for its base
-    // protocol. Restricting this to the highest host keeps fastdev's collapse of
-    // historical protocols onto a newer host detectable, which is what the
+    // protocol. Restricting this to the highest host keeps fastdev's collapse
+    // of historical protocols onto a newer host detectable, which is what the
     // exact-match rule below exists to catch.
     if (selectedHost + 1 == hostProtocols.end() &&
         *selectedHost == protocolVersion + 1)
