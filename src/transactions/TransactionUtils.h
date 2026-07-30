@@ -264,6 +264,13 @@ bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
+// Checks if the transaction XDR is parseable for the provided protocol version.
+// The 'parse-ability' check ensures that the XDR is not too deeply nested, and
+// that a Soroban host for the provided protocol version would be able to parse
+// the XDR.
+bool validateXDRForProtocol(uint32_t currProtocol, Config const& cfg,
+                            TransactionEnvelope const& envelope);
+
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);

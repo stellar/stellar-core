@@ -1934,11 +1934,13 @@ TransactionFrame::checkValidImpl(
     DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
     std::optional<uint32_t> validationLedgerSeq) const
 {
+    auto const& header = ledgerView.getLedgerHeader().current();
     // Subtle: this check has to happen in `checkValid` and not
     // `checkValidWithOptionallyChargedFee` in order to not validate the
     // envelope XDR twice for the fee bump transactions (they use
     // `checkValidWithOptionallyChargedFee` for the inner tx).
-    if (!xdr::check_xdr_depth(mEnvelope, 500))
+    if (!validateXDRForProtocol(header.ledgerVersion, app.getConfig(),
+                                mEnvelope))
     {
         return MutableTransactionResult::createTxError(txMALFORMED);
     }
@@ -1952,9 +1954,8 @@ TransactionFrame::checkValidImpl(
     // aren't the fees that would end up being applied. However, this is
     // what Core used to return for a while, and some users may rely on
     // this, so we maintain this logic for the time being.
-    int64_t minBaseFee = ledgerView.getLedgerHeader().current().baseFee;
-    auto feeCharged =
-        getFee(ledgerView.getLedgerHeader().current(), minBaseFee, false);
+    int64_t minBaseFee = header.baseFee;
+    auto feeCharged = getFee(header, minBaseFee, false);
     auto txResult = MutableTransactionResult::createSuccess(*this, feeCharged);
     checkValidWithOptionallyChargedFee(
         app, ledgerView, current, true, lowerBoundCloseTimeOffset,
