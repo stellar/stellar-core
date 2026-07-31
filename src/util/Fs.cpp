@@ -428,20 +428,23 @@ size(std::string const& filename)
     return stdfs::file_size(stdfs::path(filename));
 }
 
+#ifndef _WIN32
+
 // ----------------------------------------------------------------------
 // Helper function to make the limit calculation directly testable.
 // This extracts the core logic from getMaxHandles() so we can test
 // boundary cases (RLIM_INFINITY, large values, small remainders)
 // without depending on the system's actual rlimit.
+// This function is POSIX-only because it uses rlim_t and RLIM_INFINITY.
 // ----------------------------------------------------------------------
-static int64_t
+int64_t
 computeSafeMaxHandles(rlim_t limit)
 {
     // Check for infinity before any arithmetic to prevent overflow.
     if (limit == RLIM_INFINITY)
     {
-        // Return a bounded, safe value that prevents overflow.
-        // This value is well below 2^31-1.
+        // Log the capping of unlimited limit to help diagnose issues.
+        CLOG_DEBUG(Fs, "RLIMIT_NOFILE is unlimited. Capping to 1,000,000.");
         return 1000000;
     }
 
@@ -458,11 +461,15 @@ computeSafeMaxHandles(rlim_t limit)
     // when the value exceeds the maximum representable value.
     if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
     {
+        CLOG_DEBUG(Fs, "RLIMIT_NOFILE value {} exceeds int64_t max. Clamping.",
+                   safeLimit);
         return std::numeric_limits<int64_t>::max();
     }
 
     return static_cast<int64_t>(safeLimit);
 }
+
+#endif // !_WIN32
 
 #ifdef _WIN32
 
