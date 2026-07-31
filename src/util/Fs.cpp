@@ -474,54 +474,51 @@ getMaxHandles()
 }
 #endif
 
-#if defined(_WIN32)
+#ifdef _WIN32
+
 int64_t
-getOpenHandleCount()
+getMaxHandles()
 {
-    HANDLE proc =
-        OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, GetCurrentProcessId());
-    if (proc)
-    {
-        DWORD count{0};
-        if (GetProcessHandleCount(proc, &count))
-        {
-            return static_cast<int64_t>(count);
-        }
-        CloseHandle(proc);
-    }
-    return 0;
+    // On Windows, there is no system-imposed hard limit on handles.
+    // The effective limit is typically governed by ephemeral port availability
+    // and per-process resources. Returning a reasonably high, safe value.
+    return 32000;
 }
-#elif defined(__APPLE__)
-int64_t
-getOpenHandleCount()
-{
-    int64_t n{0};
-    for (auto const& _fd : std::filesystem::directory_iterator("/dev/fd"))
-    {
-        std::ignore = _fd;
-        ++n;
-    }
-    return n;
-}
-#elif defined(__linux__)
-int64_t
-getOpenHandleCount()
-{
-    int64_t n{0};
-    for (auto const& _fd : std::filesystem::directory_iterator("/proc/self/fd"))
-    {
-        std::ignore = _fd;
-        ++n;
-    }
-    return n;
-}
+
 #else
 int64_t
-getOpenHandleCount()
+getMaxHandles()
 {
-    return 0;
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
+    {
+        // Check for infinity before any arithmetic to prevent overflow.
+        if (rl.rlim_cur == RLIM_INFINITY)
+        {
+            // Return a bounded, safe value that prevents overflow.
+            return 1000000;
+        }
+
+        // Safe arithmetic: divide first to avoid overflow.
+        // Compute 75% of the limit using (limit / 4) * 3.
+        rlim_t safeLimit = (rl.rlim_cur / 4) * 3;
+
+        // Clamp to int64_t range to avoid implementation-defined conversion.
+        if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
+        {
+            return std::numeric_limits<int64_t>::max();
+        }
+
+        return static_cast<int64_t>(safeLimit);
+    }
+
+    // Fallback if getrlimit fails.
+    return 64;
 }
 #endif
+
+#if defined(_WIN32)
+int64_t
 getOpenHandleCount()
 {
     HANDLE proc =
