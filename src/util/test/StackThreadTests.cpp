@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/Catch2.h"
+#include "util/BatchExecutor.h"
 #include "util/StackThread.h"
 
 #include <atomic>
@@ -82,20 +83,21 @@ TEST_CASE("StackThread applies requested stack size and name", "[stackthread]")
 {
     std::size_t observed = 0;
     std::string name;
-    StackThread t(4 * 1024 * 1024, "deep-worker", [&observed, &name] {
-        pthread_attr_t a;
-        if (pthread_getattr_np(pthread_self(), &a) == 0)
-        {
-            void* base = nullptr;
-            pthread_attr_getstack(&a, &base, &observed);
-            pthread_attr_destroy(&a);
-        }
-        char nameBuf[32] = {0};
-        pthread_getname_np(pthread_self(), nameBuf, sizeof(nameBuf));
-        name = nameBuf;
-    });
+    StackThread t(
+        stellar::WORKER_STACK_BYTES, "deep-worker", [&observed, &name] {
+            pthread_attr_t a;
+            if (pthread_getattr_np(pthread_self(), &a) == 0)
+            {
+                void* base = nullptr;
+                pthread_attr_getstack(&a, &base, &observed);
+                pthread_attr_destroy(&a);
+            }
+            char nameBuf[32] = {0};
+            pthread_getname_np(pthread_self(), nameBuf, sizeof(nameBuf));
+            name = nameBuf;
+        });
     t.join();
-    REQUIRE(observed >= 4u * 1024 * 1024);
+    REQUIRE(observed >= stellar::WORKER_STACK_BYTES);
     REQUIRE(name == "deep-worker");
 }
 #endif
