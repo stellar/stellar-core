@@ -2599,6 +2599,9 @@
     <ClInclude Include="..\..\src\main\NtpProbe.h">
       <Filter>main</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\util\StackThread.h">
+      <Filter>util</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\COPYING" />

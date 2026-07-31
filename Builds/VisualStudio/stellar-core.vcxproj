@@ -1197,6 +1197,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\Scheduler.h" />
     <ClInclude Include="..\..\src\util\SecretManager.h" />
     <ClInclude Include="..\..\src\util\SimpleTimer.h" />
+    <ClInclude Include="..\..\src\util\StackThread.h" />
     <ClInclude Include="..\..\src\util\TxResource.h" />
     <ClInclude Include="..\..\src\util\UnorderedMap.h" />
     <ClInclude Include="..\..\src\util\UnorderedSet.h" />

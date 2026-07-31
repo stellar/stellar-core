@@ -6862,8 +6862,6 @@ TEST_CASE("Soroban delegated signer authentication", "[tx][soroban]")
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         }
     }
-    // This test causes stack overflow on Windows, but works fine on Linux.
-#ifndef WIN32
     SECTION("deep delegate tree")
     {
         auto buildDelegateChain = [&](int depth) {
@@ -6910,7 +6908,6 @@ TEST_CASE("Soroban delegated signer authentication", "[tx][soroban]")
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         }
     }
-#endif
 }
 
 TEST_CASE("Soroban authorization", "[tx][soroban]")
