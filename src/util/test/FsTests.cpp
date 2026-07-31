@@ -74,7 +74,11 @@ TEST_CASE("filesystem remoteName", "[fs]")
 
 // ------------------------------------------------------------------
 // Tests for computeSafeMaxHandles() helper - direct testing of boundary cases
+// These tests are POSIX-only because they use rlim_t and RLIM_INFINITY.
+// On Windows, computeSafeMaxHandles is not defined.
 // ------------------------------------------------------------------
+
+#ifndef _WIN32
 
 TEST_CASE("computeSafeMaxHandles handles RLIM_INFINITY", "[fs]")
 {
@@ -87,11 +91,22 @@ TEST_CASE("computeSafeMaxHandles handles RLIM_INFINITY", "[fs]")
 
 TEST_CASE("computeSafeMaxHandles handles very large finite limits", "[fs]")
 {
-    // Test with a limit larger than int64_t max.
-    // rlim_t is typically unsigned 64-bit, so this tests clamping behavior.
-    rlim_t largeLimit = static_cast<rlim_t>(std::numeric_limits<int64_t>::max()) + 1000;
+    // Test with a limit that actually triggers clamping.
+    // Need a value > 4 * INT64_MAX / 3 to force clamping.
+    // Using 2 * INT64_MAX is safely above the threshold.
+    rlim_t largeLimit = static_cast<rlim_t>(std::numeric_limits<int64_t>::max()) * 2;
     int64_t result = fs::computeSafeMaxHandles(largeLimit);
     REQUIRE(result == std::numeric_limits<int64_t>::max());
+}
+
+TEST_CASE("computeSafeMaxHandles handles value near clamping threshold", "[fs]")
+{
+    // Test with a value that is just below the clamping threshold.
+    // This should NOT clamp, but return the computed 75% value.
+    rlim_t nearLimit = static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 3 * 4) - 1;
+    int64_t result = fs::computeSafeMaxHandles(nearLimit);
+    REQUIRE(result > 0);
+    REQUIRE(result <= std::numeric_limits<int64_t>::max());
 }
 
 TEST_CASE("computeSafeMaxHandles preserves floor(limit * 3 / 4) for small values", "[fs]")
@@ -143,6 +158,8 @@ TEST_CASE("computeSafeMaxHandles handles zero", "[fs]")
     int64_t result = fs::computeSafeMaxHandles(0);
     REQUIRE(result == 0);
 }
+
+#endif // !_WIN32
 
 // ------------------------------------------------------------------
 // Integration tests for getMaxHandles() - verify it calls the helper
