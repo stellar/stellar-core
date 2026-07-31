@@ -15,7 +15,7 @@
 #include <map>
 #include <regex>
 #include <sstream>
-#include <limits>  // Added for std::numeric_limits
+#include <limits>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -428,6 +428,42 @@ size(std::string const& filename)
     return stdfs::file_size(stdfs::path(filename));
 }
 
+// ----------------------------------------------------------------------
+// Helper function to make the limit calculation directly testable.
+// This extracts the core logic from getMaxHandles() so we can test
+// boundary cases (RLIM_INFINITY, large values, small remainders)
+// without depending on the system's actual rlimit.
+// ----------------------------------------------------------------------
+static int64_t
+computeSafeMaxHandles(rlim_t limit)
+{
+    // Check for infinity before any arithmetic to prevent overflow.
+    if (limit == RLIM_INFINITY)
+    {
+        // Return a bounded, safe value that prevents overflow.
+        // This value is well below 2^31-1.
+        return 1000000;
+    }
+
+    // Compute floor(limit * 3 / 4) without overflow.
+    // Using (limit / 4) * 3 alone loses the remainder, which matters
+    // for small limits (e.g., limit=3 should yield 2, not 0).
+    // The correct safe formula is:
+    //   floor(limit * 3 / 4) = (limit / 4) * 3 + (limit % 4) * 3 / 4
+    rlim_t quotient = limit / 4;
+    rlim_t remainder = limit % 4;
+    rlim_t safeLimit = quotient * 3 + (remainder * 3) / 4;
+
+    // Clamp to int64_t range to avoid implementation-defined conversion
+    // when the value exceeds the maximum representable value.
+    if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
+    {
+        return std::numeric_limits<int64_t>::max();
+    }
+
+    return static_cast<int64_t>(safeLimit);
+}
+
 #ifdef _WIN32
 
 int64_t
@@ -446,31 +482,8 @@ getMaxHandles()
     struct rlimit rl;
     if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
     {
-        // Check for infinity before any arithmetic to prevent overflow.
-        if (rl.rlim_cur == RLIM_INFINITY)
-        {
-            // Log the capping of unlimited limit to help diagnose issues.
-            CLOG_DEBUG(Fs, "RLIMIT_NOFILE is unlimited. Capping to 1,000,000.");
-            // Return a bounded, safe value that prevents overflow.
-            return 1000000;
-        }
-
-        // Compute floor(limit * 3 / 4) without overflow.
-        // Using (limit / 4) * 3 loses the remainder, which matters for small limits.
-        // The correct safe formula is: (limit / 4) * 3 + (limit % 4) * 3 / 4.
-        rlim_t quotient = rl.rlim_cur / 4;
-        rlim_t remainder = rl.rlim_cur % 4;
-        rlim_t safeLimit = quotient * 3 + (remainder * 3) / 4;
-
-        // Clamp to int64_t range to avoid implementation-defined conversion.
-        if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
-        {
-            CLOG_DEBUG(Fs, "RLIMIT_NOFILE value {} exceeds int64_t max. Clamping.",
-                       safeLimit);
-            return std::numeric_limits<int64_t>::max();
-        }
-
-        return static_cast<int64_t>(safeLimit);
+        // Delegate to the testable helper function.
+        return computeSafeMaxHandles(rl.rlim_cur);
     }
 
     // Fallback if getrlimit fails.
