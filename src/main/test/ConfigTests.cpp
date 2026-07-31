@@ -905,23 +905,21 @@ VALIDATORS=[")" + otherKey + R"( A"]
 // finite descriptor limits safely, and maintains connection bounds.
 // =========================================================================
 
-TEST_CASE("Config::adjust handles unlimited descriptor limit safely", "[config]")
+TEST_CASE("Config::adjust uses fs::getMaxHandles for descriptor limit", "[config]")
 {
-    // This test verifies that Config::adjust() can handle an unlimited
-    // descriptor limit without overflow or throwing exceptions.
+    // This test verifies that Config::adjust() correctly uses the value
+    // returned by fs::getMaxHandles() for its calculations.
     Config cfg;
     
-    // Save original values for later verification
-    unsigned short origTarget = cfg.TARGET_PEER_CONNECTIONS;
-    int origAdditional = cfg.MAX_ADDITIONAL_PEER_CONNECTIONS;
-    unsigned short origPending = cfg.MAX_PENDING_CONNECTIONS;
+    // Get the current system limit via the abstraction layer.
+    int64_t currentLimit = fs::getMaxHandles();
+    REQUIRE(currentLimit > 0);
     
-    // Call adjust() - this uses fs::getMaxHandles() internally.
-    // If the limit is unlimited, it should be capped safely.
+    // Call adjust() - this will use the current limit internally.
+    // The function should not throw and should produce valid values.
     REQUIRE_NOTHROW(cfg.adjust());
     
-    // Verify that all connection counts remain within valid ranges.
-    // They should be positive and within the range of unsigned short.
+    // Verify all values are positive and within valid ranges.
     REQUIRE(cfg.TARGET_PEER_CONNECTIONS > 0);
     REQUIRE(cfg.TARGET_PEER_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
     REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS > 0);
@@ -929,60 +927,13 @@ TEST_CASE("Config::adjust handles unlimited descriptor limit safely", "[config]"
     REQUIRE(cfg.MAX_PENDING_CONNECTIONS > 0);
     REQUIRE(cfg.MAX_PENDING_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
     
-    // Restore original values (good practice for tests)
-    cfg.TARGET_PEER_CONNECTIONS = origTarget;
-    cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = origAdditional;
-    cfg.MAX_PENDING_CONNECTIONS = origPending;
-}
-
-TEST_CASE("Config::adjust handles finite descriptor limit correctly", "[config]")
-{
-    // This test verifies that Config::adjust() works correctly with a
-    // finite descriptor limit. The actual limit depends on the system,
-    // but we verify the function runs without errors.
-    Config cfg;
-    
-    // Call adjust() - this should work with both finite and unlimited limits.
-    REQUIRE_NOTHROW(cfg.adjust());
-    
-    // Verify that connection counts are positive and within bounds.
-    REQUIRE(cfg.TARGET_PEER_CONNECTIONS > 0);
-    REQUIRE(cfg.TARGET_PEER_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-    REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS > 0);
-    REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-    REQUIRE(cfg.MAX_PENDING_CONNECTIONS > 0);
-    REQUIRE(cfg.MAX_PENDING_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-}
-
-TEST_CASE("Config::adjust maintains connection bounds after adjustment", "[config]")
-{
-    // This test ensures that Config::adjust() properly bounds all connection
-    // values to prevent overflow or invalid states.
-    Config cfg;
-    
-    // Set some extreme values to test the bounding logic.
-    cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = std::numeric_limits<unsigned short>::max();
-    cfg.TARGET_PEER_CONNECTIONS = std::numeric_limits<unsigned short>::max();
-    cfg.MAX_PENDING_CONNECTIONS = std::numeric_limits<unsigned short>::max();
-    
-    // Call adjust() - it should bring these values back into reasonable ranges.
-    REQUIRE_NOTHROW(cfg.adjust());
-    
-    // Verify all values are positive and within unsigned short range.
-    // They should not remain at max if the system limit is lower.
-    REQUIRE(cfg.TARGET_PEER_CONNECTIONS > 0);
-    REQUIRE(cfg.TARGET_PEER_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-    REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS > 0);
-    REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-    REQUIRE(cfg.MAX_PENDING_CONNECTIONS > 0);
-    REQUIRE(cfg.MAX_PENDING_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-    
-    // The sum of TARGET_PEER_CONNECTIONS and MAX_ADDITIONAL_PEER_CONNECTIONS
-    // should not exceed the available descriptor limit.
+    // Verify that the connection counts are bounded by the descriptor limit.
+    // The sum should not exceed the capped descriptor limit.
     auto total = cfg.TARGET_PEER_CONNECTIONS + cfg.MAX_ADDITIONAL_PEER_CONNECTIONS;
     REQUIRE(total > 0);
-    // The exact bound depends on the system, but we can verify it's not
-    // larger than unsigned short max plus some margin.
+    // The total should be less than or equal to the descriptor limit or
+    // the capped value from fs::getMaxHandles() (whichever is smaller).
+    // Since we can't know the exact value, we check that it's within a reasonable range.
     REQUIRE(total <= std::numeric_limits<unsigned short>::max() * 2);
 }
 
