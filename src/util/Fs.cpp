@@ -15,6 +15,7 @@
 #include <map>
 #include <regex>
 #include <sstream>
+#include <limits>  // Added for std::numeric_limits
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -448,6 +449,8 @@ getMaxHandles()
         // Check for infinity before any arithmetic to prevent overflow.
         if (rl.rlim_cur == RLIM_INFINITY)
         {
+            // Log the capping of unlimited limit to help diagnose issues.
+            CLOG_DEBUG(Fs, "RLIMIT_NOFILE is unlimited. Capping to 1,000,000.");
             // Return a bounded, safe value that prevents overflow.
             return 1000000;
         }
@@ -462,6 +465,8 @@ getMaxHandles()
         // Clamp to int64_t range to avoid implementation-defined conversion.
         if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
         {
+            CLOG_DEBUG(Fs, "RLIMIT_NOFILE value {} exceeds int64_t max. Clamping.",
+                       safeLimit);
             return std::numeric_limits<int64_t>::max();
         }
 
@@ -469,6 +474,7 @@ getMaxHandles()
     }
 
     // Fallback if getrlimit fails.
+    CLOG_DEBUG(Fs, "getrlimit(RLIMIT_NOFILE) failed. Using fallback value 64.");
     return 64;
 }
 #endif
