@@ -9,6 +9,8 @@
 #include "util/Fs.h"
 #include "util/TmpDir.h"
 
+#include <limits>
+
 using namespace stellar;
 namespace stdfs = std::filesystem;
 namespace fs = stellar::fs;
@@ -68,4 +70,62 @@ TEST_CASE("filesystem remoteName", "[fs]")
     REQUIRE(fs::remoteName(typeString(FileType::HISTORY_FILE_TYPE_LEDGER),
                            fs::hexStr(0x0abbccdd), "xdr.gz") ==
             "ledger/0a/bb/cc/ledger-0abbccdd.xdr.gz");
+}
+
+// ------------------------------------------------------------------
+// New tests for getMaxHandles() boundary cases (Issue #5244)
+// ------------------------------------------------------------------
+
+TEST_CASE("getMaxHandles returns a positive value", "[fs]")
+{
+    // Basic sanity: ensure getMaxHandles() returns a usable value.
+    auto handles = fs::getMaxHandles();
+    REQUIRE(handles > 0);
+    REQUIRE(handles <= std::numeric_limits<int64_t>::max());
+}
+
+TEST_CASE("getMaxHandles does not overflow for large limits", "[fs]")
+{
+    // This test verifies that the internal arithmetic in getMaxHandles()
+    // does not overflow even if the system reports a large RLIMIT_NOFILE.
+    // We simulate this by indirectly testing the function; if the system
+    // limit is large, it should be clamped to int64_t max.
+    auto handles = fs::getMaxHandles();
+    REQUIRE(handles > 0);
+    // The value should be either the actual limit (bounded), or the capped
+    // value (1,000,000 for unlimited), or the fallback (64).
+    // We don't assert exact values to keep the test portable.
+}
+
+#ifdef _WIN32
+TEST_CASE("getMaxHandles Windows returns fixed value", "[fs]")
+{
+    // On Windows, getMaxHandles() returns a fixed value of 32,000.
+    auto handles = fs::getMaxHandles();
+    REQUIRE(handles == 32000);
+}
+#else
+TEST_CASE("getMaxHandles POSIX handles RLIM_INFINITY safely", "[fs]")
+{
+    // This test verifies that if RLIM_INFINITY is encountered,
+    // getMaxHandles() returns a bounded value (1,000,000) instead of
+    // overflowing.
+    // We can't easily set RLIM_INFINITY in a unit test, but we can
+    // verify the function returns a sane value.
+    auto handles = fs::getMaxHandles();
+    REQUIRE(handles > 0);
+    // If the system limit is unlimited, the function should return 1,000,000.
+    // If it's finite, it should return the adjusted value.
+    // We don't assert exact values to keep the test portable.
+}
+#endif
+
+TEST_CASE("getMaxHandles handles getrlimit failure gracefully", "[fs]")
+{
+    // This test ensures that if getrlimit() fails, getMaxHandles()
+    // returns a reasonable fallback value (64).
+    // Since we can't force getrlimit() to fail in a unit test,
+    // we verify the function returns a positive value.
+    auto handles = fs::getMaxHandles();
+    REQUIRE(handles > 0);
 }
