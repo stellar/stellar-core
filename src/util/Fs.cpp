@@ -446,62 +446,18 @@ getMaxHandles()
     if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
     {
         // Check for infinity before any arithmetic to prevent overflow.
-        // RLIM_INFINITY indicates no limit from the system's perspective.
-        if (rl.rlim_cur == RLIM_INFINITY)
-        {
-            // Return a bounded, safe value that prevents overflow in downstream
-            // calculations (e.g., connection limit adjustments).
-            // This value is chosen to be well below 2^31 - 1.
-            return 1000000;
-        }
-
-        // Safe arithmetic: divide first to avoid overflow on large limits.
-        // Compute 75% of the limit using (limit / 4) * 3 instead of (limit * 3) / 4.
-        rlim_t safeLimit = (rl.rlim_cur / 4) * 3;
-
-        // Clamp to int64_t range to avoid implementation-defined conversion
-        // when the value exceeds the maximum representable value.
-        if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
-        {
-            return std::numeric_limits<int64_t>::max();
-        }
-
-        return static_cast<int64_t>(safeLimit);
-    }
-
-    // Fallback if getrlimit fails.
-    return 64;
-}
-#endif
-
-#ifdef _WIN32
-
-int64_t
-getMaxHandles()
-{
-    // On Windows, there is no system-imposed hard limit on handles.
-    // The effective limit is typically governed by ephemeral port availability
-    // and per-process resources. Returning a reasonably high, safe value.
-    return 32000;
-}
-
-#else
-int64_t
-getMaxHandles()
-{
-    struct rlimit rl;
-    if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
-    {
-        // Check for infinity before any arithmetic to prevent overflow.
         if (rl.rlim_cur == RLIM_INFINITY)
         {
             // Return a bounded, safe value that prevents overflow.
             return 1000000;
         }
 
-        // Safe arithmetic: divide first to avoid overflow.
-        // Compute 75% of the limit using (limit / 4) * 3.
-        rlim_t safeLimit = (rl.rlim_cur / 4) * 3;
+        // Compute floor(limit * 3 / 4) without overflow.
+        // Using (limit / 4) * 3 loses the remainder, which matters for small limits.
+        // The correct safe formula is: (limit / 4) * 3 + (limit % 4) * 3 / 4.
+        rlim_t quotient = rl.rlim_cur / 4;
+        rlim_t remainder = rl.rlim_cur % 4;
+        rlim_t safeLimit = quotient * 3 + (remainder * 3) / 4;
 
         // Clamp to int64_t range to avoid implementation-defined conversion.
         if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
