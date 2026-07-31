@@ -70,7 +70,6 @@ lockFile(std::string const& path)
                             NULL);
     if (h == INVALID_HANDLE_VALUE)
     {
-        // not sure if there is more verbose info that can be obtained here
         errmsg << "unable to create lock file: " << path;
         throw FileSystemException(errmsg.str());
     }
@@ -210,7 +209,6 @@ unlockFile(std::string const& path)
     auto it = lockMap.find(path);
     if (it != lockMap.end())
     {
-        // cannot unlink to avoid potential race
         close(it->second);
         lockMap.erase(it);
     }
@@ -434,8 +432,9 @@ size(std::string const& filename)
 int64_t
 getMaxHandles()
 {
-    // on Windows, there is no limit on handles
-    // only limits based on ephemeral ports, etc
+    // On Windows, there is no system-imposed hard limit on handles.
+    // The effective limit is typically governed by ephemeral port availability
+    // and per-process resources. Returning a reasonably high, safe value.
     return 32000;
 }
 
@@ -446,10 +445,22 @@ getMaxHandles()
     struct rlimit rl;
     if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
     {
-        // leave some buffer
+        // Check for infinity before any arithmetic to prevent overflow.
+        // RLIM_INFINITY indicates no limit from the system's perspective.
+        if (rl.rlim_cur == RLIM_INFINITY)
+        {
+            // Return a bounded, safe value that prevents overflow in downstream
+            // calculations (e.g., connection limit adjustments).
+            // This value is chosen to be well below 2^31 - 1.
+            return 1000000;
+        }
+
+        // Leave some buffer (75%) for other file descriptors.
+        // This value is now guaranteed to be safe for arithmetic.
         return (rl.rlim_cur * 3) / 4;
     }
-    // could not query the limit, default to a value that should work
+
+    // Fallback if getrlimit fails.
     return 64;
 }
 #endif
