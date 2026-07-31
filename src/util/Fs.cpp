@@ -455,9 +455,18 @@ getMaxHandles()
             return 1000000;
         }
 
-        // Leave some buffer (75%) for other file descriptors.
-        // This value is now guaranteed to be safe for arithmetic.
-        return (rl.rlim_cur * 3) / 4;
+        // Safe arithmetic: divide first to avoid overflow on large limits.
+        // Compute 75% of the limit using (limit / 4) * 3 instead of (limit * 3) / 4.
+        rlim_t safeLimit = (rl.rlim_cur / 4) * 3;
+
+        // Clamp to int64_t range to avoid implementation-defined conversion
+        // when the value exceeds the maximum representable value.
+        if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
+        {
+            return std::numeric_limits<int64_t>::max();
+        }
+
+        return static_cast<int64_t>(safeLimit);
     }
 
     // Fallback if getrlimit fails.
@@ -467,6 +476,52 @@ getMaxHandles()
 
 #if defined(_WIN32)
 int64_t
+getOpenHandleCount()
+{
+    HANDLE proc =
+        OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, GetCurrentProcessId());
+    if (proc)
+    {
+        DWORD count{0};
+        if (GetProcessHandleCount(proc, &count))
+        {
+            return static_cast<int64_t>(count);
+        }
+        CloseHandle(proc);
+    }
+    return 0;
+}
+#elif defined(__APPLE__)
+int64_t
+getOpenHandleCount()
+{
+    int64_t n{0};
+    for (auto const& _fd : std::filesystem::directory_iterator("/dev/fd"))
+    {
+        std::ignore = _fd;
+        ++n;
+    }
+    return n;
+}
+#elif defined(__linux__)
+int64_t
+getOpenHandleCount()
+{
+    int64_t n{0};
+    for (auto const& _fd : std::filesystem::directory_iterator("/proc/self/fd"))
+    {
+        std::ignore = _fd;
+        ++n;
+    }
+    return n;
+}
+#else
+int64_t
+getOpenHandleCount()
+{
+    return 0;
+}
+#endif
 getOpenHandleCount()
 {
     HANDLE proc =
