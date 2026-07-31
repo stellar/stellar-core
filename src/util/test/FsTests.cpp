@@ -73,7 +73,79 @@ TEST_CASE("filesystem remoteName", "[fs]")
 }
 
 // ------------------------------------------------------------------
-// New tests for getMaxHandles() boundary cases (Issue #5244)
+// Tests for computeSafeMaxHandles() helper - direct testing of boundary cases
+// ------------------------------------------------------------------
+
+TEST_CASE("computeSafeMaxHandles handles RLIM_INFINITY", "[fs]")
+{
+    // Direct test of the helper function with RLIM_INFINITY.
+    // This does NOT depend on the system's actual limit.
+    // The helper should return the capped value of 1,000,000.
+    int64_t result = fs::computeSafeMaxHandles(RLIM_INFINITY);
+    REQUIRE(result == 1000000);
+}
+
+TEST_CASE("computeSafeMaxHandles handles very large finite limits", "[fs]")
+{
+    // Test with a limit larger than int64_t max.
+    // rlim_t is typically unsigned 64-bit, so this tests clamping behavior.
+    rlim_t largeLimit = static_cast<rlim_t>(std::numeric_limits<int64_t>::max()) + 1000;
+    int64_t result = fs::computeSafeMaxHandles(largeLimit);
+    REQUIRE(result == std::numeric_limits<int64_t>::max());
+}
+
+TEST_CASE("computeSafeMaxHandles preserves floor(limit * 3 / 4) for small values", "[fs]")
+{
+    // Test with small values to verify the remainder handling.
+    // This ensures the formula (limit / 4) * 3 + (limit % 4) * 3 / 4
+    // correctly computes floor(limit * 3 / 4) without overflow.
+    struct TestCase {
+        rlim_t input;
+        int64_t expected;
+    };
+
+    std::vector<TestCase> cases = {
+        {0, 0},
+        {1, 0},   // floor(1 * 0.75) = 0
+        {2, 1},   // floor(2 * 0.75) = 1
+        {3, 2},   // floor(3 * 0.75) = 2
+        {4, 3},   // floor(4 * 0.75) = 3
+        {5, 3},   // floor(5 * 0.75) = 3
+        {6, 4},   // floor(6 * 0.75) = 4
+        {7, 5},   // floor(7 * 0.75) = 5
+        {8, 6},   // floor(8 * 0.75) = 6
+        {10, 7},  // floor(10 * 0.75) = 7
+        {100, 75}, // floor(100 * 0.75) = 75
+        {1000, 750}, // floor(1000 * 0.75) = 750
+        {1000000, 750000}, // floor(1,000,000 * 0.75) = 750,000
+    };
+
+    for (const auto& tc : cases) {
+        int64_t result = fs::computeSafeMaxHandles(tc.input);
+        INFO("Input: " << tc.input << ", Expected: " << tc.expected << ", Got: " << result);
+        REQUIRE(result == tc.expected);
+    }
+}
+
+TEST_CASE("computeSafeMaxHandles handles value near int64_t max", "[fs]")
+{
+    // Test with a value that is close to the maximum but safe.
+    // This ensures the clamping logic works correctly at the boundary.
+    rlim_t safeLimit = static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 4) * 3;
+    int64_t result = fs::computeSafeMaxHandles(safeLimit);
+    REQUIRE(result > 0);
+    REQUIRE(result <= std::numeric_limits<int64_t>::max());
+}
+
+TEST_CASE("computeSafeMaxHandles handles zero", "[fs]")
+{
+    // Edge case: zero limit should return zero.
+    int64_t result = fs::computeSafeMaxHandles(0);
+    REQUIRE(result == 0);
+}
+
+// ------------------------------------------------------------------
+// Integration tests for getMaxHandles() - verify it calls the helper
 // ------------------------------------------------------------------
 
 TEST_CASE("getMaxHandles returns a positive value", "[fs]")
@@ -84,19 +156,6 @@ TEST_CASE("getMaxHandles returns a positive value", "[fs]")
     REQUIRE(handles <= std::numeric_limits<int64_t>::max());
 }
 
-TEST_CASE("getMaxHandles does not overflow for large limits", "[fs]")
-{
-    // This test verifies that the internal arithmetic in getMaxHandles()
-    // does not overflow even if the system reports a large RLIMIT_NOFILE.
-    // We simulate this by indirectly testing the function; if the system
-    // limit is large, it should be clamped to int64_t max.
-    auto handles = fs::getMaxHandles();
-    REQUIRE(handles > 0);
-    // The value should be either the actual limit (bounded), or the capped
-    // value (1,000,000 for unlimited), or the fallback (64).
-    // We don't assert exact values to keep the test portable.
-}
-
 #ifdef _WIN32
 TEST_CASE("getMaxHandles Windows returns fixed value", "[fs]")
 {
@@ -105,27 +164,14 @@ TEST_CASE("getMaxHandles Windows returns fixed value", "[fs]")
     REQUIRE(handles == 32000);
 }
 #else
-TEST_CASE("getMaxHandles POSIX handles RLIM_INFINITY safely", "[fs]")
+TEST_CASE("getMaxHandles POSIX integration test", "[fs]")
 {
-    // This test verifies that if RLIM_INFINITY is encountered,
-    // getMaxHandles() returns a bounded value (1,000,000) instead of
-    // overflowing.
-    // We can't easily set RLIM_INFINITY in a unit test, but we can
-    // verify the function returns a sane value.
+    // This test verifies that getMaxHandles() delegates to computeSafeMaxHandles()
+    // and returns a sane value on POSIX systems.
+    // The actual value depends on the system's RLIMIT_NOFILE, but we verify
+    // it's positive and within int64_t range.
     auto handles = fs::getMaxHandles();
     REQUIRE(handles > 0);
-    // If the system limit is unlimited, the function should return 1,000,000.
-    // If it's finite, it should return the adjusted value.
-    // We don't assert exact values to keep the test portable.
+    REQUIRE(handles <= std::numeric_limits<int64_t>::max());
 }
 #endif
-
-TEST_CASE("getMaxHandles handles getrlimit failure gracefully", "[fs]")
-{
-    // This test ensures that if getrlimit() fails, getMaxHandles()
-    // returns a reasonable fallback value (64).
-    // Since we can't force getrlimit() to fail in a unit test,
-    // we verify the function returns a positive value.
-    auto handles = fs::getMaxHandles();
-    REQUIRE(handles > 0);
-}
