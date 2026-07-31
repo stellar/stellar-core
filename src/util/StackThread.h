@@ -10,7 +10,7 @@
 // Differences from std::thread, all deliberate:
 //   * ctor takes a stack size in bytes as its first argument (0 = platform
 //   default)
-//   * optional thread name as an second argument, applied by the new thread
+//   * optional thread name as a second argument, applied by the new thread
 //   itself
 //     (macOS only permits naming the calling thread, so this is the only
 //     portable point)
@@ -107,8 +107,9 @@ setCurrentThreadName(std::string const& name)
         setDesc(::GetCurrentThread(), wide.c_str());
     }
 #elif defined(__APPLE__)
-    // Self-only, and silently truncates.
-    ::pthread_setname_np(name.c_str());
+    // Hard limit of 64 bytes including the NUL; longer names fail with ERANGE.
+    std::string const truncated = name.substr(0, 63);
+    ::pthread_setname_np(truncated.c_str());
 #elif defined(__linux__)
     // Hard limit of 16 bytes including the NUL; longer names fail with ERANGE.
     std::string const truncated = name.substr(0, 15);
@@ -393,6 +394,12 @@ class StackThread
                 "StackThread::join on a non-joinable thread");
         }
 #if defined(_WIN32)
+        if (mId == ::GetCurrentThreadId())
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::resource_deadlock_would_occur),
+                "StackThread::join on itself");
+        }
         DWORD const rc = ::WaitForSingleObject(mHandle, INFINITE);
         if (rc != WAIT_OBJECT_0)
         {
