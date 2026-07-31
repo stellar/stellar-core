@@ -2213,7 +2213,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
     }
 }
 
-vvoid
+void
 Config::adjust()
 {
     // Use the platform-abstraction function to get the current limit safely.
