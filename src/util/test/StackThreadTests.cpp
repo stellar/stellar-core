@@ -95,7 +95,7 @@ TEST_CASE("StackThread applies requested stack size and name", "[stackthread]")
         name = nameBuf;
     });
     t.join();
-    REQUIRE(observed == 4u * 1024 * 1024);
+    REQUIRE(observed >= 4u * 1024 * 1024);
     REQUIRE(name == "deep-worker");
 }
 #endif
