@@ -901,6 +901,8 @@ VALIDATORS=[")" + otherKey + R"( A"]
 
 // =========================================================================
 // New tests for Config::adjust() descriptor limit handling (Issue #5244)
+// These tests verify that Config::adjust() handles both unlimited and
+// finite descriptor limits safely, and maintains connection bounds.
 // =========================================================================
 
 TEST_CASE("Config::adjust handles unlimited descriptor limit safely", "[config]")
