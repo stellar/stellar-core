@@ -771,6 +771,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\Scheduler.cpp" />
     <ClCompile Include="..\..\src\util\SecretManager.cpp" />
     <ClCompile Include="..\..\src\util\SimpleTimer.cpp" />
+    <ClCompile Include="..\..\src\util\StackThread.cpp" />
     <ClCompile Include="..\..\src\util\test\BinaryFuseTests.cpp" />
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />

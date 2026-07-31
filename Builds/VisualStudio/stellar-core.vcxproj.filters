@@ -492,6 +492,9 @@
     <ClCompile Include="..\..\src\util\Thread.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\StackThread.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\BitSet.h">
       <Filter>util</Filter>
     </ClCompile>

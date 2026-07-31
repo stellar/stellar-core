@@ -21,6 +21,7 @@
 
 namespace stellar
 {
+inline constexpr size_t WORKER_STACK_BYTES = 1 << 23; // 8 MiB
 
 // Executes batches of CPU-bound tasks in parallel on a pool of worker threads.
 //
