@@ -2213,29 +2213,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
     }
 }
 
- void
+void
 Config::adjust()
 {
     // Use the platform-abstraction function to get the current limit safely.
-    // This handles both Windows and POSIX systems correctly.
-    long maxFsConnections = fs::getMaxHandles();
+    // It returns an int64_t to avoid narrowing on ILP32 platforms.
+    int64_t maxFsConnections = fs::getMaxHandles();
 
-    // Handle the case where the limit is unlimited to prevent overflow.
-    // The check inside fs::getMaxHandles() already handles RLIM_INFINITY
-    // by returning a bounded value, so this check is kept as an extra
-    // safety measure for any unexpected edge cases.
-    if (maxFsConnections == RLIM_INFINITY)
-    {
-        // Set a practical, safe high boundary.
-        maxFsConnections = 1000000;
-        LOG_DEBUG(DEFAULT_LOG,
-                  "RLIMIT_NOFILE is unlimited. Capping connection adjustments "
-                  "to {} for safety.",
-                  maxFsConnections);
-    }
+    // No need to check RLIM_INFINITY here; fs::getMaxHandles() already
+    // handles it and returns a bounded, safe value.
 
-    // --- Rest of the original adjust() logic, using the safe maxFsConnections
-    // value ---
     if (MAX_ADDITIONAL_PEER_CONNECTIONS == -1)
     {
         if (TARGET_PEER_CONNECTIONS <=
@@ -2263,25 +2250,27 @@ Config::adjust()
                     limit, MAX_ADDITIONAL_PEER_CONNECTIONS);
     }
 
-    // Adjust connection limits based on the safe maxFsConnections.
-    // Use a 64-bit comparison to avoid overflow when casting to int.
     auto const originalMaxAdditionalPeerConnections =
         MAX_ADDITIONAL_PEER_CONNECTIONS;
     auto const originalTargetPeerConnections = TARGET_PEER_CONNECTIONS;
     auto const originalMaxPendingConnections = MAX_PENDING_CONNECTIONS;
 
     // Safely cap the descriptor limit to the range of unsigned short.
-    int maxFs = static_cast<int>(std::min<int64_t>(
-        std::numeric_limits<unsigned short>::max(), maxFsConnections));
+    // Use std::min<int64_t> to preserve the full 64-bit value before casting.
+    int maxFs = static_cast<int>(
+        std::min<int64_t>(std::numeric_limits<unsigned short>::max(),
+                          maxFsConnections));
 
     auto totalAuthenticatedConnections =
         TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
+
     int maxPendingConnections = MAX_PENDING_CONNECTIONS;
 
     if (totalAuthenticatedConnections > 0)
     {
         auto outboundPendingRate =
             double(TARGET_PEER_CONNECTIONS) / totalAuthenticatedConnections;
+
         auto doubleToNonzeroUnsignedShort = [](double v) {
             auto rounded = static_cast<int>(std::ceil(v));
             auto cappedToUnsignedShort = std::min<int>(
@@ -2290,6 +2279,7 @@ Config::adjust()
                 std::max<int>(1, cappedToUnsignedShort));
         };
 
+        // see if we need to reduce maxPendingConnections
         if (totalAuthenticatedConnections + maxPendingConnections > maxFs)
         {
             maxPendingConnections =
@@ -2299,11 +2289,14 @@ Config::adjust()
                           maxFs - totalAuthenticatedConnections);
         }
 
+        // if we're still over, we scale everything
         if (totalAuthenticatedConnections + maxPendingConnections > maxFs)
         {
             maxPendingConnections = std::max<int>(MAX_PENDING_CONNECTIONS, 1);
+
             int totalRequiredConnections =
                 totalAuthenticatedConnections + maxPendingConnections;
+
             auto outboundRate =
                 (double)TARGET_PEER_CONNECTIONS / totalRequiredConnections;
             auto inboundRate = (double)MAX_ADDITIONAL_PEER_CONNECTIONS /
@@ -2316,15 +2309,19 @@ Config::adjust()
 
             auto authenticatedConnections =
                 TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
-            maxPendingConnections = authenticatedConnections >= maxFs
-                                        ? 1
-                                        : static_cast<unsigned short>(
-                                              maxFs - authenticatedConnections);
+            maxPendingConnections =
+                authenticatedConnections >= maxFs
+                    ? 1
+                    : static_cast<unsigned short>(maxFs -
+                                                  authenticatedConnections);
         }
 
         MAX_PENDING_CONNECTIONS = static_cast<unsigned short>(std::min<int>(
             std::numeric_limits<unsigned short>::max(), maxPendingConnections));
 
+        // derive outbound/inbound pending connections
+        // from MAX_PENDING_CONNECTIONS, using the ratio of inbound/outbound
+        // connections
         if (MAX_OUTBOUND_PENDING_CONNECTIONS == 0 &&
             MAX_INBOUND_PENDING_CONNECTIONS == 0)
         {
@@ -2358,6 +2355,187 @@ Config::adjust()
                   TARGET_PEER_CONNECTIONS);
     warnIfChanged("MAX_PENDING_CONNECTIONS", originalMaxPendingConnections,
                   MAX_PENDING_CONNECTIONS);
+}
+
+void
+Config::logBasicInfo() const
+{
+    LOG_INFO(DEFAULT_LOG, "Connection effective settings:");
+    LOG_INFO(DEFAULT_LOG, "TARGET_PEER_CONNECTIONS: {}",
+             TARGET_PEER_CONNECTIONS);
+    LOG_INFO(DEFAULT_LOG, "MAX_ADDITIONAL_PEER_CONNECTIONS: {}",
+             MAX_ADDITIONAL_PEER_CONNECTIONS);
+    LOG_INFO(DEFAULT_LOG, "MAX_PENDING_CONNECTIONS: {}",
+             MAX_PENDING_CONNECTIONS);
+    LOG_INFO(DEFAULT_LOG, "MAX_OUTBOUND_PENDING_CONNECTIONS: {}",
+             MAX_OUTBOUND_PENDING_CONNECTIONS);
+    LOG_INFO(DEFAULT_LOG, "MAX_INBOUND_PENDING_CONNECTIONS: {}",
+             MAX_INBOUND_PENDING_CONNECTIONS);
+    LOG_INFO(DEFAULT_LOG,
+             "BACKGROUND_OVERLAY_PROCESSING="
+             "{}",
+             BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
+    LOG_INFO(DEFAULT_LOG,
+             "PARALLEL_LEDGER_APPLY="
+             "{}",
+             PARALLEL_LEDGER_APPLY ? "true" : "false");
+}
+
+void
+Config::validateConfig(ValidationThresholdLevels thresholdLevel)
+{
+    std::set<NodeID> nodes;
+    LocalNode::forAllNodes(QUORUM_SET, [&](NodeID const& n) {
+        nodes.insert(n);
+        return true;
+    });
+
+    if (nodes.empty())
+    {
+        throw std::invalid_argument(
+            "no validators defined in VALIDATORS/QUORUM_SET");
+    }
+
+    // calculates nodes that would break quorum
+    auto selfID = NODE_SEED.getPublicKey();
+    auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes, nullptr);
+
+    unsigned int minSize = computeDefaultThreshold(QUORUM_SET, thresholdLevel);
+
+    if (FAILURE_SAFETY == -1)
+    {
+        // calculates default value for safety giving the top level entities
+        // the same weight
+        auto topLevelCount = static_cast<uint32>(QUORUM_SET.validators.size() +
+                                                 QUORUM_SET.innerSets.size());
+        FAILURE_SAFETY = topLevelCount - minSize;
+
+        LOG_INFO(DEFAULT_LOG,
+                 "Assigning calculated value of {} to FAILURE_SAFETY",
+                 FAILURE_SAFETY);
+    }
+
+    try
+    {
+        if (FAILURE_SAFETY >= static_cast<int32_t>(r.size()))
+        {
+            LOG_ERROR(DEFAULT_LOG,
+                      "Not enough nodes / thresholds too strict in your "
+                      "Quorum set to ensure your desired level of "
+                      "FAILURE_SAFETY. Reduce FAILURE_SAFETY or fix "
+                      "quorum set");
+            throw std::invalid_argument(
+                "FAILURE_SAFETY incompatible with QUORUM_SET");
+        }
+
+        if (!UNSAFE_QUORUM)
+        {
+            if (FAILURE_SAFETY == 0)
+            {
+                LOG_ERROR(DEFAULT_LOG,
+                          "Can't have FAILURE_SAFETY=0 unless you also set "
+                          "UNSAFE_QUORUM=true. Be sure you know what you are "
+                          "doing!");
+                throw std::invalid_argument("SCP unsafe");
+            }
+
+            if (QUORUM_SET.threshold < minSize)
+            {
+                LOG_ERROR(DEFAULT_LOG,
+                          "Your THRESHOLD_PERCENTAGE is too low. If you "
+                          "really want this set UNSAFE_QUORUM=true. Be "
+                          "sure you know what you are doing!");
+                throw std::invalid_argument("SCP unsafe");
+            }
+        }
+    }
+    catch (...)
+    {
+        LOG_INFO(DEFAULT_LOG, " Current QUORUM_SET breaks with {} failures",
+                 r.size());
+        throw;
+    }
+
+    char const* errString = nullptr;
+    if (!isQuorumSetSane(QUORUM_SET, !UNSAFE_QUORUM, errString))
+    {
+        LOG_FATAL(DEFAULT_LOG, "Invalid QUORUM_SET: {}", errString);
+        throw std::invalid_argument("Invalid QUORUM_SET");
+    }
+}
+
+void
+Config::parseNodeID(std::string configStr, PublicKey& retKey)
+{
+    SecretKey k;
+    parseNodeID(configStr, retKey, k, false);
+}
+
+void
+Config::addValidatorName(std::string const& pubKeyStr, std::string const& name)
+{
+    PublicKey k;
+    std::string cName = "$";
+    cName += name;
+    if (resolveNodeID(cName, k))
+    {
+        throw std::invalid_argument("name already used: " + name);
+    }
+
+    if (!VALIDATOR_NAMES.emplace(std::make_pair(pubKeyStr, name)).second)
+    {
+        throw std::invalid_argument("naming node twice: " + name);
+    }
+}
+
+void
+Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
+                    bool isSeed)
+{
+    if (configStr.size() < 2)
+    {
+        throw std::invalid_argument("invalid key: " + configStr);
+    }
+
+    // check if configStr is a PublicKey or a common name
+    if (configStr[0] == '$')
+    {
+        if (isSeed)
+        {
+            throw std::invalid_argument("aliases only store public keys: " +
+                                        configStr);
+        }
+        if (!resolveNodeID(configStr, retKey))
+        {
+            throw std::invalid_argument("unknown key in config: " + configStr);
+        }
+    }
+    else
+    {
+        std::istringstream iss(configStr);
+        std::string nodestr;
+        iss >> nodestr;
+        if (isSeed)
+        {
+            sKey = SecretKey::fromStrKeySeed(nodestr);
+            retKey = sKey.getPublicKey();
+            nodestr = sKey.getStrKeyPublic();
+        }
+        else
+        {
+            retKey = KeyUtils::fromStrKey<PublicKey>(nodestr);
+        }
+
+        if (iss)
+        { // get any common name they have added
+            std::string commonName;
+            iss >> commonName;
+            if (commonName.size())
+            {
+                addValidatorName(nodestr, commonName);
+            }
+        }
+    }
 }
 
 void
