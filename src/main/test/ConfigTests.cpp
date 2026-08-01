@@ -909,6 +909,8 @@ TEST_CASE("Config::adjust uses fs::getMaxHandles for descriptor limit", "[config
 {
     // This test verifies that Config::adjust() correctly uses the value
     // returned by fs::getMaxHandles() for its calculations.
+    // We verify this indirectly by checking that the connection counts
+    // are bounded by the system's descriptor limit.
     Config cfg;
     
     // Get the current system limit via the abstraction layer.
@@ -928,12 +930,14 @@ TEST_CASE("Config::adjust uses fs::getMaxHandles for descriptor limit", "[config
     REQUIRE(cfg.MAX_PENDING_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
     
     // Verify that the connection counts are bounded by the descriptor limit.
-    // The sum should not exceed the capped descriptor limit.
+    // The sum of target and additional connections should not exceed the
+    // capped descriptor limit or unsigned short max, whichever is smaller.
     auto total = cfg.TARGET_PEER_CONNECTIONS + cfg.MAX_ADDITIONAL_PEER_CONNECTIONS;
     REQUIRE(total > 0);
-    // The total should be less than or equal to the descriptor limit or
-    // the capped value from fs::getMaxHandles() (whichever is smaller).
-    // Since we can't know the exact value, we check that it's within a reasonable range.
+    
+    // The maximum possible value is capped by the descriptor limit.
+    // Since we can't know the exact limit, we verify that the total is
+    // within a reasonable range (at most 2 * USHRT_MAX, which is a safe upper bound).
     REQUIRE(total <= std::numeric_limits<unsigned short>::max() * 2);
 }
 
