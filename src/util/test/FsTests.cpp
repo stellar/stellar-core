@@ -91,19 +91,33 @@ TEST_CASE("computeSafeMaxHandles handles RLIM_INFINITY", "[fs]")
 
 TEST_CASE("computeSafeMaxHandles handles very large finite limits", "[fs]")
 {
-    // Test with a limit that actually triggers clamping.
-    // Need a value > 4 * INT64_MAX / 3 to force clamping.
-    // Using 2 * INT64_MAX is safely above the threshold.
-    rlim_t largeLimit = static_cast<rlim_t>(std::numeric_limits<int64_t>::max()) * 2;
+    // Only run this test if rlim_t is wide enough to hold values above INT64_MAX.
+    // On some platforms (e.g., 32-bit), rlim_t may be 32-bit and cannot represent
+    // values above INT64_MAX, so the clamping path cannot be exercised.
+#if defined(__LP64__) || defined(_LP64) || defined(__x86_64__) || defined(__aarch64__)
+    // On 64-bit platforms, rlim_t is typically 64-bit and can hold values above INT64_MAX.
+    // Use a value that safely exceeds the clamping threshold (4/3 * INT64_MAX).
+    // Using UINT64_MAX as the limit will definitely trigger clamping.
+    rlim_t largeLimit = std::numeric_limits<rlim_t>::max();
     int64_t result = fs::computeSafeMaxHandles(largeLimit);
     REQUIRE(result == std::numeric_limits<int64_t>::max());
+#else
+    // On 32-bit platforms, rlim_t is typically 32-bit and cannot exceed INT64_MAX.
+    // The clamping path won't be triggered, so we just verify the function returns
+    // a sane value for a large finite limit.
+    rlim_t largeLimit = std::numeric_limits<rlim_t>::max();
+    int64_t result = fs::computeSafeMaxHandles(largeLimit);
+    REQUIRE(result > 0);
+    REQUIRE(result <= std::numeric_limits<int64_t>::max());
+#endif
 }
 
 TEST_CASE("computeSafeMaxHandles handles value near clamping threshold", "[fs]")
 {
     // Test with a value that is just below the clamping threshold.
     // This should NOT clamp, but return the computed 75% value.
-    rlim_t nearLimit = static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 3 * 4) - 1;
+    // Cast to rlim_t BEFORE multiplication to avoid signed overflow.
+    rlim_t nearLimit = static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 3) * 4 - 1;
     int64_t result = fs::computeSafeMaxHandles(nearLimit);
     REQUIRE(result > 0);
     REQUIRE(result <= std::numeric_limits<int64_t>::max());
