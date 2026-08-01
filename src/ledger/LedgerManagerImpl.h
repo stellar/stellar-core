@@ -439,13 +439,15 @@ class LedgerManagerImpl : public LedgerManager
     // Local prng for OP_APPLY_SLEEP_TIME_*_FOR_TESTING.
     stellar_default_random_engine mApplySleepRng;
 
-    // Metrics for measuring tx e2e latency. Active only when
-    // Config::LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING is set.
     struct TxLatencyMetrics
     {
         // Lifetime totals (cumulative; not reset between runs).
         medida::Counter& mTxsSubmitted;
         medida::Counter& mTxsExternalized;
+        // Self-submitted txs externalized, split by phase; loadgen's
+        // completion check in overlay-only mode reads these.
+        medida::Counter& mPendingTxsSelfCount;
+        medida::Counter& mPendingSorobanTxsSelfCount;
         // Per-run "loadgen.tx-latency-run.*" statistics (ms), reset by
         // beginTxLatencyMeasurement.
         medida::Counter& mRunMin;
@@ -463,8 +465,7 @@ class LedgerManagerImpl : public LedgerManager
         TxLatencyMetrics(MetricsRegistry& registry);
     } mTxLatencyMetrics;
 
-    // End point of the tx-latency metric: records the submission to post-apply
-    // latency for each externalized transaction.
+    bool txSelfTrackingActive() const;
     void recordTxE2eLatency(ApplicableTxSetFrame const& txSet);
 #endif
 

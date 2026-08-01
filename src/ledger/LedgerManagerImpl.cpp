@@ -247,6 +247,10 @@ LedgerManagerImpl::TxLatencyMetrics::TxLatencyMetrics(MetricsRegistry& registry)
     : mTxsSubmitted(registry.NewCounter({"loadgen", "tx-latency", "submitted"}))
     , mTxsExternalized(
           registry.NewCounter({"loadgen", "tx-latency", "externalized"}))
+    , mPendingTxsSelfCount(
+          registry.NewCounter({"herder", "pending-txs", "self-count"}))
+    , mPendingSorobanTxsSelfCount(
+          registry.NewCounter({"herder", "pending-soroban-txs", "self-count"}))
     , mRunMin(registry.NewCounter({"loadgen", "tx-latency-run", "min-ms"}))
     , mRunMax(registry.NewCounter({"loadgen", "tx-latency-run", "max-ms"}))
     , mRunMean(registry.NewCounter({"loadgen", "tx-latency-run", "mean-ms"}))
@@ -1344,10 +1348,20 @@ LedgerManagerImpl::emitNextMeta()
 }
 
 #ifdef BUILD_TESTS
+bool
+LedgerManagerImpl::txSelfTrackingActive() const
+{
+    // Overlay-only loadgen's completion check relies on the self-count
+    // counters this tracking maintains, so it is active there regardless of
+    // whether latency measurement was requested.
+    return mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING ||
+           mApp.getRunInOverlayOnlyMode();
+}
+
 void
 LedgerManagerImpl::recordTxSubmission(Hash const& contentsHash)
 {
-    if (!mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING)
+    if (!txSelfTrackingActive())
     {
         return;
     }
@@ -1368,10 +1382,12 @@ LedgerManagerImpl::recordTxSubmission(Hash const& contentsHash)
 void
 LedgerManagerImpl::recordTxE2eLatency(ApplicableTxSetFrame const& txSet)
 {
-    if (!mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING)
+    if (!txSelfTrackingActive())
     {
         return;
     }
+    bool const recordLatency =
+        mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING;
     VirtualClock::time_point const applyEndTime = mApp.getClock().now();
     MutexLocker guard(mTxLatencyMetrics.mMutex);
     for (auto const& phase : txSet.getPhases())
@@ -1382,14 +1398,20 @@ LedgerManagerImpl::recordTxE2eLatency(ApplicableTxSetFrame const& txSet)
                     tx->getContentsHash());
                 submitted != mTxLatencyMetrics.mTxSubmitTimes.end())
             {
-                auto const latency = applyEndTime - submitted->second;
                 mTxLatencyMetrics.mTxsExternalized.inc();
-                int64_t const ms =
-                    std::chrono::duration_cast<std::chrono::milliseconds>(
-                        latency)
-                        .count();
-                mTxLatencyMetrics.mSamples.push_back(std::clamp<int64_t>(
-                    ms, 0, std::numeric_limits<uint32_t>::max()));
+                (tx->isSoroban() ? mTxLatencyMetrics.mPendingSorobanTxsSelfCount
+                                 : mTxLatencyMetrics.mPendingTxsSelfCount)
+                    .inc();
+                if (recordLatency)
+                {
+                    auto const latency = applyEndTime - submitted->second;
+                    int64_t const ms =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            latency)
+                            .count();
+                    mTxLatencyMetrics.mSamples.push_back(std::clamp<int64_t>(
+                        ms, 0, std::numeric_limits<uint32_t>::max()));
+                }
                 mTxLatencyMetrics.mTxSubmitTimes.erase(submitted);
             }
         }
@@ -1399,7 +1421,7 @@ LedgerManagerImpl::recordTxE2eLatency(ApplicableTxSetFrame const& txSet)
 void
 LedgerManagerImpl::beginTxLatencyMeasurement(uint32_t expectedTxCount)
 {
-    if (!mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING)
+    if (!txSelfTrackingActive())
     {
         return;
     }
