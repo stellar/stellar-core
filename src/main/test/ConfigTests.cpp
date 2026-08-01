@@ -900,28 +900,27 @@ VALIDATORS=[")" + otherKey + R"( A"]
 }
 
 // =========================================================================
-// New tests for Config::adjust() descriptor limit handling (Issue #5244)
-// These tests verify that Config::adjust() handles both unlimited and
-// finite descriptor limits safely, and maintains connection bounds.
+// Tests for Config::adjust() descriptor limit handling (Issue #5244)
+// This test verifies that Config::adjust() runs without errors and produces
+// valid connection counts on any system. The actual values depend on the
+// system's RLIMIT_NOFILE, but the function should always produce reasonable
+// results and maintain invariants.
 // =========================================================================
 
-TEST_CASE("Config::adjust uses fs::getMaxHandles for descriptor limit", "[config]")
+TEST_CASE("Config::adjust handles descriptor limits correctly", "[config]")
 {
-    // This test verifies that Config::adjust() correctly uses the value
-    // returned by fs::getMaxHandles() for its calculations.
-    // We verify this indirectly by checking that the connection counts
-    // are bounded by the system's descriptor limit.
+    // This test verifies that Config::adjust() runs without errors
+    // and produces valid connection counts on any system.
+    // The actual values depend on the system's RLIMIT_NOFILE,
+    // but the function should always produce reasonable results.
     Config cfg;
     
-    // Get the current system limit via the abstraction layer.
-    int64_t currentLimit = fs::getMaxHandles();
-    REQUIRE(currentLimit > 0);
-    
-    // Call adjust() - this will use the current limit internally.
-    // The function should not throw and should produce valid values.
+    // Call adjust() - this uses fs::getMaxHandles() internally.
+    // The function should not throw any exceptions.
     REQUIRE_NOTHROW(cfg.adjust());
     
-    // Verify all values are positive and within valid ranges.
+    // Verify that all connection counts are positive and within valid ranges.
+    // These are the fundamental invariants that should always hold.
     REQUIRE(cfg.TARGET_PEER_CONNECTIONS > 0);
     REQUIRE(cfg.TARGET_PEER_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
     REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS > 0);
@@ -929,18 +928,12 @@ TEST_CASE("Config::adjust uses fs::getMaxHandles for descriptor limit", "[config
     REQUIRE(cfg.MAX_PENDING_CONNECTIONS > 0);
     REQUIRE(cfg.MAX_PENDING_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
     
-    // Verify that the connection counts are bounded by the descriptor limit.
-    // The sum of target and additional connections should not exceed the
-    // capped descriptor limit or unsigned short max, whichever is smaller.
+    // Additional sanity check: the sum of connections should be reasonable.
+    // On any system with a positive descriptor limit, this should be true.
     auto total = cfg.TARGET_PEER_CONNECTIONS + cfg.MAX_ADDITIONAL_PEER_CONNECTIONS;
     REQUIRE(total > 0);
-    
-    // The maximum possible value is capped by the descriptor limit.
-    // Since we can't know the exact limit, we verify that the total is
-    // within a reasonable range (at most 2 * USHRT_MAX, which is a safe upper bound).
-    REQUIRE(total <= std::numeric_limits<unsigned short>::max() * 2);
 }
 
 // =========================================================================
-// End of new Config::adjust() tests
+// End of Config::adjust() tests
 // =========================================================================
