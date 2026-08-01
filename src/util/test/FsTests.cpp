@@ -95,17 +95,23 @@ TEST_CASE("computeSafeMaxHandles handles very large finite limits", "[fs]")
     // On some platforms (e.g., 32-bit), rlim_t may be 32-bit and cannot represent
     // values above INT64_MAX, so the clamping path cannot be exercised.
 #if defined(__LP64__) || defined(_LP64) || defined(__x86_64__) || defined(__aarch64__)
-    // On 64-bit platforms, rlim_t is typically 64-bit and can hold values above INT64_MAX.
-    // Use a value that safely exceeds the clamping threshold (4/3 * INT64_MAX).
-    // Using UINT64_MAX as the limit will definitely trigger clamping.
-    rlim_t largeLimit = std::numeric_limits<rlim_t>::max();
+    // On 64-bit platforms, construct a value that is:
+    // 1. Above the clamping threshold (4/3 * INT64_MAX)
+    // 2. Explicitly NOT equal to RLIM_INFINITY
+    rlim_t largeLimit =
+        static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 3) * 4 + 3;
+    
+    // Safety check: ensure we're not hitting RLIM_INFINITY by accident
+    REQUIRE(largeLimit != RLIM_INFINITY);
+    
     int64_t result = fs::computeSafeMaxHandles(largeLimit);
     REQUIRE(result == std::numeric_limits<int64_t>::max());
 #else
     // On 32-bit platforms, rlim_t is typically 32-bit and cannot exceed INT64_MAX.
     // The clamping path won't be triggered, so we just verify the function returns
     // a sane value for a large finite limit.
-    rlim_t largeLimit = std::numeric_limits<rlim_t>::max();
+    // Use a value that is not RLIM_INFINITY.
+    rlim_t largeLimit = 1000000;
     int64_t result = fs::computeSafeMaxHandles(largeLimit);
     REQUIRE(result > 0);
     REQUIRE(result <= std::numeric_limits<int64_t>::max());
