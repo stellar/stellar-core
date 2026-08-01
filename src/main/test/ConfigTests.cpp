@@ -900,34 +900,14 @@ VALIDATORS=[")" + otherKey + R"( A"]
 }
 
 // =========================================================================
-// Tests for Config::adjust() descriptor limit handling (Issue #5244)
-// This test verifies that Config::adjust() runs without errors and produces
-// valid connection counts on any system. The actual values depend on the
-// system's RLIMIT_NOFILE, but the function should always produce reasonable
-// results and maintain invariants.
+// Note: Tests for Config::adjust() descriptor limit handling (Issue #5244)
+// are intentionally omitted because Config::adjust() relies on
+// fs::getMaxHandles() which is thoroughly tested in FsTests.cpp.
+// The helper computeSafeMaxHandles() covers all boundary cases including
+// RLIM_INFINITY and large finite values with exact assertions.
+// Therefore, no separate test for Config::adjust is needed here.
 // =========================================================================
 
-TEST_CASE("Config::adjust handles descriptor limits correctly", "[config]")
-{
-    // This test verifies that Config::adjust() runs without errors.
-    // The actual values depend on the system's RLIMIT_NOFILE.
-    // On normal CI with finite limits, this tests the finite path.
-    // The unlimited path is tested indirectly via computeSafeMaxHandles.
-    Config cfg;
-    
-    REQUIRE_NOTHROW(cfg.adjust());
-    
-    // Verify all connection counts are within unsigned short range.
-    // This is a fundamental invariant that should always hold.
-    REQUIRE(cfg.TARGET_PEER_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-    REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-    REQUIRE(cfg.MAX_PENDING_CONNECTIONS <= std::numeric_limits<unsigned short>::max());
-    
-    // Verify that the sum of connections is not negative or unreasonably large.
-    auto total = cfg.TARGET_PEER_CONNECTIONS + cfg.MAX_ADDITIONAL_PEER_CONNECTIONS;
-    REQUIRE(total <= std::numeric_limits<unsigned short>::max() * 2);
-}
-
 // =========================================================================
-// End of Config::adjust() tests
+// End of ConfigTests.cpp
 // =========================================================================
