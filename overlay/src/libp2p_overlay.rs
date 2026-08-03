@@ -1638,8 +1638,8 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         for hash in to_request {
             getdata.push(hash);
         }
-        let encoded = match getdata.encode() {
-            Ok(encoded) => encoded,
+        let encoded_chunks = match getdata.encode_chunked() {
+            Ok(chunks) => chunks,
             Err(e) => {
                 warn!("Failed to encode GETDATA for {}: {}", peer_id, e);
                 return;
@@ -1649,10 +1649,12 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         let state_clone = Arc::clone(state);
         let peer_clone = *peer_id;
         tokio::spawn(async move {
-            if let Err(e) =
-                send_to_peer_stream(&state_clone, peer_clone, StreamType::Tx, &encoded).await
-            {
-                warn!("Failed to send GETDATA to {}: {}", peer_clone, e);
+            for encoded in encoded_chunks {
+                if let Err(e) =
+                    send_to_peer_stream(&state_clone, peer_clone, StreamType::Tx, &encoded).await
+                {
+                    warn!("Failed to send GETDATA to {}: {}", peer_clone, e);
+                }
             }
         });
     }
@@ -2030,7 +2032,9 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                 }
             }
 
-            // Send one batched GETDATA per peer
+            // Send batched GETDATA per peer, chunked to the XDR demand-vector
+            // bound (a retry round can accumulate far more than one message's
+            // worth of hashes)
             for (peer, hashes) in per_peer {
                 debug!(
                     "GETDATA_RETRY: Retrying {} TXs to peer {}",
@@ -2038,19 +2042,21 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                     peer
                 );
                 let getdata = GetData { hashes };
-                let encoded = match getdata.encode() {
-                    Ok(encoded) => encoded,
+                let chunks = match getdata.encode_chunked() {
+                    Ok(chunks) => chunks,
                     Err(e) => {
                         warn!("Failed to encode GETDATA retry to {}: {}", peer, e);
                         continue;
                     }
                 };
 
-                if let Err(e) =
-                    try_send_to_existing_stream(&state, peer.clone(), StreamType::Tx, &encoded)
-                        .await
-                {
-                    warn!("Failed to send GETDATA retry to {}: {:?}", peer, e);
+                for encoded in chunks {
+                    if let Err(e) =
+                        try_send_to_existing_stream(&state, peer.clone(), StreamType::Tx, &encoded)
+                            .await
+                    {
+                        warn!("Failed to send GETDATA retry to {}: {:?}", peer, e);
+                    }
                 }
             }
         }

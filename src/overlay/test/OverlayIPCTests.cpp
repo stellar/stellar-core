@@ -1238,9 +1238,12 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test", "[overlay-ipc-large]")
             }
         }
 
-        // High throughput configuration
-        cfg.GENESIS_TEST_ACCOUNT_COUNT = 30000;
-        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 15000;
+        // High throughput configuration. One genesis account per transaction
+        // so every tx has a unique source: the mempool is fee-ordered and
+        // seqnum-oblivious, so multiple txs chained on one account can be
+        // sampled out of order and trimmed as invalid at nomination.
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = totalTxs;
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 30000;
 
         auto node = simulation->addNode(keys[i], qSet, &cfg);
         nodes.push_back(node);
@@ -1308,7 +1311,7 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test", "[overlay-ipc-large]")
                        .NewMeter({"loadgen", "run", "complete"}, "run")
                        .count() == 1;
         },
-        500 * simulation->getExpectedLedgerCloseTime(), false);
+        20 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto endTime = std::chrono::steady_clock::now();
     auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
