@@ -2979,7 +2979,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 checkInvalidMismatch(sv);
             }
 
-#ifdef CAP_0083
             SECTION("empty-tx-set value without empty-tx-set hash")
             {
                 auto p = makeTxPair(herder, txSet0, ct);
@@ -2990,10 +2989,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 sv.txSetHash = txSet0->getContentsHash();
                 checkInvalidMismatch(sv);
             }
-#endif // CAP_0083
         }
 
-#ifdef CAP_0083
         SECTION("valid empty-tx-set value")
         {
             auto p = makeTxPair(herder, txSet0, ct);
@@ -3015,7 +3012,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                                       /*nomination=*/true) ==
                     SCPDriver::kInvalidValue);
         }
-#endif // CAP_0083
     }
 
     SECTION("validateValue closeTimes")
@@ -3118,14 +3114,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
         // Triggering next ledger will construct and cache the block
         herder.triggerNextLedger(seq, true);
-#ifdef CAP_0083
-        // All hits during the whole SCP round. If CAP-0083 support is compiled
-        // in, we expect 1 more cache hit for the validity check that determines
-        // whether or not to replace the transaction set with an empty one.
+        // All hits during the whole SCP round. One of them is the validity
+        // check that determines whether or not to replace the transaction set
+        // with an empty one (CAP-0083).
         uint64_t const expectedHits = 11;
-#else
-        uint64_t const expectedHits = 10;
-#endif
         REQUIRE(cache.getCounters().mHits == expectedHits);
         // One miss from the initial makeTxSetFromTransactions
         REQUIRE(cache.getCounters().mMisses == 1);
@@ -9109,7 +9101,6 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
         });
 }
 
-#ifdef CAP_0083
 // This tests that the network externalizes an empty-tx-set value when a
 // voted-for value is not available on the network.
 TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
@@ -9280,7 +9271,6 @@ TEST_CASE("SCP state restore with missing tx set", "[herder]")
         REQUIRE(prep.ballot.value == emptyValue);
     }
 }
-#endif // CAP_0083
 
 static bool
 triggerTimerProtocolSupported()

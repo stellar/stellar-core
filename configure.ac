@@ -57,6 +57,13 @@ AX_APPEND_COMPILE_FLAGS([-pthread])
 # additional defines
 AX_APPEND_COMPILE_FLAGS([-DFMT_HEADER_ONLY=1])
 
+# xdrpp's operator<=> return type depends on XDRPP_STRONG_ORDER, so it must be
+# set identically program-wide. At the time of writing, xdrpp doesn't seem to
+# internally use <=>, but to avoid future footguns, we build all subprojects
+# with the same value of XDRPP_STRONG_ORDER (see the CXXFLAGS propagation to
+# ac_configure_args below).
+AX_APPEND_COMPILE_FLAGS([-DXDRPP_STRONG_ORDER=1])
+
 AC_MSG_CHECKING([whether defect report N4387 is resolved])
 AC_COMPILE_IFELSE([AC_LANG_SOURCE([[#include <tuple>
 std::tuple<int, int> f()
@@ -579,12 +586,6 @@ AS_IF([test "x$enable_fastdev_unsafe_for_production" = "xyes"], [
   enable_next_protocol_version_unsafe_for_production=yes
 ])
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
-    [test x$enable_next_protocol_version_unsafe_for_production = xyes])
-
-AM_CONDITIONAL(CAP_0083,
-    [test x$enable_next_protocol_version_unsafe_for_production = xyes])
-
-AM_CONDITIONAL(CAP_0085_EXECUTABLE_REF,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
 AC_PATH_PROG(CARGO, cargo)

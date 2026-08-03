@@ -398,6 +398,11 @@ class BucketManager : NonMovableOrCopyable
     void assumeState(Application& app, HistoryArchiveState const& has,
                      uint32_t maxProtocolVersion, bool restartMerges);
 
+    // Restart any in-progress merges captured in `has`. Safe to call only
+    // after `assumeState` has populated the BucketList from the same `has`.
+    void restartMerges(Application& app, HistoryArchiveState const& has,
+                       uint32_t maxProtocolVersion);
+
     void shutdown();
 
     bool isShutdown() const;

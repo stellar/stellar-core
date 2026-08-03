@@ -41,11 +41,7 @@ namespace
 bool
 isEmptyTxSetStellarValue(StellarValue const& sv)
 {
-#ifdef CAP_0083
     return sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET;
-#else
-    return false;
-#endif
 }
 }
 
@@ -315,7 +311,6 @@ HerderSCPDriver::validatePastOrFutureValue(
                        slotIndex, b.closeTime, lcl.header.scpValue.closeTime);
             return SCPDriver::kInvalidValue;
         }
-#ifdef CAP_0083
         if (isEmptyTxSetStellarValue(b))
         {
             if (!protocolAllowsEmptyTxSetValues())
@@ -338,7 +333,6 @@ HerderSCPDriver::validatePastOrFutureValue(
                 return SCPDriver::kInvalidValue;
             }
         }
-#endif // CAP_0083
     }
     else if (slotIndex < lcl.header.ledgerSeq)
     {
@@ -423,7 +417,6 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
             return SCPDriver::kInvalidValue;
         }
 
-#ifdef CAP_0083
         // For empty-tx-set values, validate that the previous ledger context
         // matches our LCL. Empty-tx-set values don't have a real tx set to
         // validate.
@@ -456,7 +449,6 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
             }
             return SCPDriver::kFullyValidatedValue;
         }
-#endif // CAP_0083
 
         Hash const& txSetHash = b.txSetHash;
         // Empty-tx-set values return early above, so this only runs for
@@ -688,7 +680,6 @@ HerderSCPDriver::getValueString(Value const& v) const
     }
 }
 
-#ifdef CAP_0083
 Value
 HerderSCPDriver::makeEmptyTxSetValueFromValue(Value const& v) const
 {
@@ -709,7 +700,6 @@ HerderSCPDriver::makeEmptyTxSetValueFromValue(Value const& v) const
         proposedValue.ext.lcValueSignature();
     return xdr::xdr_to_opaque(sv);
 }
-#endif
 
 bool
 HerderSCPDriver::isEmptyTxSetValue(Value const& v) const

@@ -119,8 +119,13 @@ tracy-client = { version = "=0.17.0", features = [
 version = "=28.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "88cadc320cd2030bae2110036b361ff474776db1"
+rev = "ba37ea5f76a10710835992fb90f9ec7a14eca499"
 optional = true
+# This dependency is only enabled by the `fastdev` feature, which implies
+# `next`, so the host is always wanted at its next-protocol number here. The
+# non-fastdev build takes p28 from the submodule rlib instead, where
+# src/Makefile.am passes --features=next to SOROBAN_MAX_PROTOCOL.
+features = ["next"]
 
 [dependencies.soroban-env-host-p27]
 version = "=27.0.0"
@@ -198,7 +203,7 @@ optional = true
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
 git = "https://github.com/stellar/stellar-quorum-analyzer"
-rev = "b422b366ede667c030c78ffe18b2010194698dbd"
+rev = "502a354eb9a31cf86098be84aa1b3081767fa3c7"
 
 [features]
 
@@ -221,6 +226,7 @@ tcmalloc = []
 # feature is not enabled by default, and is only intended for temporary use when
 # staging work across intra-protocol releases.
 next = []
+
 
 # The testutils feature turns on stuff that should only be available in a core
 # BUILD_TESTS build, such as the code to support transaction re-execution on a

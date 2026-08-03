@@ -376,7 +376,6 @@ BallotProtocol::abandonBallot(uint32 n)
 bool
 BallotProtocol::maybeReplaceValueWithEmptyTxSet(Value& v) const
 {
-#ifdef CAP_0083
     if (mPhase != SCP_PHASE_PREPARE)
     {
         // Can only replace with an empty-tx-set value in the PREPARE phase
@@ -425,10 +424,6 @@ BallotProtocol::maybeReplaceValueWithEmptyTxSet(Value& v) const
     mSlot.getSCPDriver().noteEmptyTxSetValueReplaced(mSlot.getSlotIndex());
 
     return true;
-#else
-    // Empty-tx-set values require CAP-0083
-    return false;
-#endif // CAP_0083
 }
 
 bool
