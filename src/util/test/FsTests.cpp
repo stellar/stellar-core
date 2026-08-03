@@ -204,10 +204,20 @@ TEST_CASE("getMaxHandles Windows returns fixed value", "[fs]")
 TEST_CASE("getMaxHandles POSIX integration test", "[fs]")
 {
     // This test verifies that getMaxHandles() delegates to computeSafeMaxHandles()
-    // and returns a sane value on POSIX systems.
-    // The value depends on RLIMIT_NOFILE; it may be 0 if the limit is 0 or 1,
-    // which is valid behavior for the helper.
-    auto handles = fs::getMaxHandles();
-    REQUIRE(handles <= std::numeric_limits<int64_t>::max());
+    // and returns the expected value based on the system's RLIMIT_NOFILE.
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
+    {
+        // The value should match computeSafeMaxHandles(rl.rlim_cur)
+        int64_t expected = fs::computeSafeMaxHandles(rl.rlim_cur);
+        int64_t actual = fs::getMaxHandles();
+        REQUIRE(actual == expected);
+    }
+    else
+    {
+        // If getrlimit fails, getMaxHandles() should return 64.
+        int64_t actual = fs::getMaxHandles();
+        REQUIRE(actual == 64);
+    }
 }
 #endif
