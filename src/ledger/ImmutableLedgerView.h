@@ -219,6 +219,39 @@ class ApplyLedgerView : private ImmutableLedgerView,
     using ImmutableLedgerView::scanLiveEntriesOfType;
 };
 
+// An ledger view used by the read-only phase of the Soroban pre-apply.
+//
+// It's a thin wrapper around the LTX representing the current ledger state,
+// and the LCL view, which allows the pre-apply phase to observe the changes
+// that happened in the classic phase.
+//
+// Lookups are first attempted in the LTX *newest version* only (which is thread
+// safe as long as we don't mutate the LTX), and only then in the LCL view.
+class SorobanPreApplyLedgerView : public AbstractLedgerView
+{
+  public:
+    SorobanPreApplyLedgerView(std::shared_ptr<LedgerHeader const> header,
+                              AbstractLedgerTxn& ltx,
+                              ApplyLedgerView const& lclView);
+
+    LedgerHeaderWrapper getLedgerHeader() const override;
+    LedgerEntryWrapper getAccount(AccountID const& account) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx,
+                                  AccountID const& accountID) const override;
+    LedgerEntryWrapper load(LedgerKey const& key) const override;
+    void executeWithMaybeInnerSnapshot(
+        std::function<void(CheckValidLedgerViewWrapper const&)> f)
+        const override;
+
+  private:
+    std::shared_ptr<LedgerHeader const> mHeader;
+    AbstractLedgerTxn& mLtx;
+    ApplyLedgerView mLclView;
+};
+
 // A helper class to create and query read-only snapshots
 // Automatically decides whether to create a BucketList (recommended), or SQL
 // snapshot (deprecated, but currently supported)
@@ -235,6 +268,8 @@ class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
     CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx);
     CheckValidLedgerViewWrapper(Application& app);
     explicit CheckValidLedgerViewWrapper(ImmutableLedgerView const& ledgerView);
+    explicit CheckValidLedgerViewWrapper(
+        std::unique_ptr<AbstractLedgerView const> getter);
 #ifdef BUILD_TESTS
     // Set by overlay-only mode call sites so commonValid skips the seqnum
     // equality check: on-disk seqnums are frozen at genesis while
