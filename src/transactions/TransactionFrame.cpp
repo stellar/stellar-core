@@ -99,6 +99,26 @@ getNumDiskReadEntries(SorobanResources const& resources,
 
     return count;
 }
+
+// Returns true if the transaction result indicates that the source account
+// sequence number should be updated for that transaction.
+// There are only a few possible reasons for why we would *not* update the
+// sequence number:
+// - There is no source account at all at this point (due to another transaction
+//   in the same ledger deleting the source account)
+// - The sequence number is bad (due to another transaction in the same ledger
+//   performing a sequence bump)
+// In any other scenario we should update the sequence number, and its highly
+// unlikely that there would be any new reasons in the future.
+// Note, that this logic makes sense for the apply step only where the
+// transactions are already expected to be valid w.r.t LCL (so that they can
+// only be invalidated by the other transactions in the same ledger).
+bool
+shouldUpdateSeqNumInPreApply(MutableTransactionResultBase const& txResult)
+{
+    auto code = txResult.getInnermostResultCode();
+    return code != txBAD_SEQ && code != txNO_ACCOUNT;
+}
 } // namespace
 
 using namespace std;
@@ -1545,11 +1565,14 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx) const
 bool
 TransactionFrame::processSignatures(
     ValidationType cv, SignatureChecker& signatureChecker,
-    AbstractLedgerTxn& ltxOuter, MutableTransactionResultBase& txResult) const
+    CheckValidLedgerViewWrapper const& ledgerView,
+    MutableTransactionResultBase& txResult,
+    AbstractLedgerTxn* ltxForWrites) const
 {
     ZoneScoped;
     bool maybeValid = (cv == ValidationType::kMaybeValid);
-    uint32_t ledgerVersion = ltxOuter.loadHeader().current().ledgerVersion;
+    uint32_t ledgerVersion =
+        ledgerView.getLedgerHeader().current().ledgerVersion;
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
     {
         return maybeValid;
@@ -1559,7 +1582,10 @@ TransactionFrame::processSignatures(
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13) &&
         !maybeValid)
     {
-        removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
+        if (ltxForWrites)
+        {
+            removeOneTimeSignerFromAllSourceAccounts(*ltxForWrites);
+        }
         return false;
     }
     // older versions of the protocol only fast fail in a subset of cases
@@ -1576,12 +1602,14 @@ TransactionFrame::processSignatures(
     if (auto code = txResult.getInnermostResultCode();
         code == txSUCCESS || code == txFAILED)
     {
-        CheckValidLedgerViewWrapper ledgerView(ltxOuter);
         allOpsValid =
             checkOperationSignatures(signatureChecker, ledgerView, &txResult);
     }
 
-    removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
+    if (ltxForWrites)
+    {
+        removeOneTimeSignerFromAllSourceAccounts(*ltxForWrites);
+    }
 
     if (!allOpsValid)
     {
@@ -2041,14 +2069,16 @@ maybeTriggerTestInternalError(TransactionEnvelope const& env)
 
 std::unique_ptr<SignatureChecker>
 TransactionFrame::commonPreApply(bool chargeFee, AppConnector& app,
-                                 AbstractLedgerTxn& ltx,
+                                 CheckValidLedgerViewWrapper const& ledgerView,
                                  TransactionMetaBuilder& meta,
                                  MutableTransactionResultBase& txResult,
                                  SorobanNetworkConfig const* sorobanConfig,
-                                 Hash const& envelopeContentsHash) const
+                                 Hash const& envelopeContentsHash,
+                                 AbstractLedgerTxn* ltxForWrites) const
 {
     mCachedAccountPreProtocol8.reset();
-    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    uint32_t ledgerVersion =
+        ledgerView.getLedgerHeader().current().ledgerVersion;
     std::unique_ptr<SignatureChecker> signatureChecker;
 #ifdef BUILD_TESTS
     // If the txResult has a replay result (catchup in skip mode is
@@ -2087,23 +2117,18 @@ TransactionFrame::commonPreApply(bool chargeFee, AppConnector& app,
 
     // Pass in nullopt, we always use the header ledgerSeq in the apply path for
     // validation.
-    LedgerTxn ltxTx(ltx);
-    CheckValidLedgerViewWrapper lsTx(ltxTx);
     auto cv =
-        commonValid(app, sorobanConfig, *signatureChecker, lsTx, 0, true,
+        commonValid(app, sorobanConfig, *signatureChecker, ledgerView, 0, true,
                     chargeFee, 0, 0, envelopeContentsHash, sorobanResourceFee,
                     txResult, meta.getDiagnosticEventManager(),
                     /*validationLedgerSeq=*/std::nullopt);
-    if (cv >= ValidationType::kInvalidUpdateSeqNum)
+    if (ltxForWrites && cv >= ValidationType::kInvalidUpdateSeqNum)
     {
-        processSeqNum(ltxTx);
+        processSeqNum(*ltxForWrites);
     }
 
-    bool signaturesValid =
-        processSignatures(cv, *signatureChecker, ltxTx, txResult);
-
-    meta.pushTxChangesBefore(ltxTx);
-    ltxTx.commit();
+    bool signaturesValid = processSignatures(cv, *signatureChecker, ledgerView,
+                                             txResult, ltxForWrites);
 
     if (signaturesValid && cv == ValidationType::kMaybeValid)
     {
@@ -2116,67 +2141,92 @@ TransactionFrame::commonPreApply(bool chargeFee, AppConnector& app,
 }
 
 void
-TransactionFrame::preParallelApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& resPayload,
+TransactionFrame::preParallelApplyReadOnly(
+    AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
     SorobanNetworkConfig const& sorobanConfig) const
 {
-    preParallelApply(true, app, ltx, meta, resPayload, sorobanConfig,
-                     getContentsHash());
+    try
+    {
+        preParallelApplyReadOnlyWithOptionallyChargedFee(
+            /*chargeFee=*/true, app, ls, meta, txResult, sorobanConfig,
+            getContentsHash());
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception during read-only preParallelApply: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort(
+            "Unknown exception during read-only preParallelApply");
+    }
 }
 
 void
-TransactionFrame::preParallelApply(bool chargeFee, AppConnector& app,
-                                   AbstractLedgerTxn& ltx,
-                                   TransactionMetaBuilder& meta,
-                                   MutableTransactionResultBase& txResult,
-                                   SorobanNetworkConfig const& sorobanConfig,
-                                   Hash const& envelopeContentsHash) const
+TransactionFrame::preParallelApplyReadOnlyWithOptionallyChargedFee(
+    bool chargeFee, AppConnector& app,
+    CheckValidLedgerViewWrapper const& ledgerView, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig,
+    Hash const& envelopeContentsHash) const
+{
+    ZoneScoped;
+
+    releaseAssertOrThrow(isSoroban());
+
+    auto signatureChecker =
+        commonPreApply(chargeFee, app, ledgerView, meta, txResult,
+                       &sorobanConfig, envelopeContentsHash,
+                       /*ltxForWrites=*/nullptr);
+    bool ok = signatureChecker != nullptr;
+    if (ok)
+    {
+        updateSorobanMetrics(app);
+
+        auto& opResult = txResult.getOpResultAt(0);
+        ok = mOperations.front()->checkValid(
+            app, *signatureChecker, &sorobanConfig, ledgerView, true, opResult,
+            meta.getDiagnosticEventManager());
+        if (!ok)
+        {
+            txResult.setInnermostError(txFAILED);
+        }
+    }
+
+    // If validation fails, we check the result code in the parallel
+    // step to make sure we don't apply the transaction.
+    releaseAssertOrThrow(ok == txResult.isSuccess());
+}
+
+void
+TransactionFrame::preParallelApplyWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase const& txResult) const
 {
     ZoneScoped;
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
     try
     {
-        releaseAssertOrThrow(isSoroban());
-
-        auto signatureChecker =
-            commonPreApply(chargeFee, app, ltx, meta, txResult, &sorobanConfig,
-                           envelopeContentsHash);
-        bool ok = signatureChecker != nullptr;
-        if (ok)
+        LedgerTxn ltxTx(ltx);
+        if (shouldUpdateSeqNumInPreApply(txResult))
         {
-            updateSorobanMetrics(app);
-
-            auto& opResult = txResult.getOpResultAt(0);
-
-            // Pre parallel soroban, OperationFrame::checkValid is called
-            // right before OperationFrame::doApply, but we do it here
-            // instead to avoid making OperationFrame::checkValid thread
-            // safe.
-            ok = mOperations.front()->checkValid(
-                app, *signatureChecker, &sorobanConfig, ltx, true, opResult,
-                meta.getDiagnosticEventManager());
-            if (!ok)
-            {
-                txResult.setInnermostError(txFAILED);
-            }
+            processSeqNum(ltxTx);
         }
-
-        // If validation fails, we check the result code in the parallel
-        // step to make sure we don't apply the transaction.
-        releaseAssertOrThrow(ok == txResult.isSuccess());
+        removeOneTimeSignerFromAllSourceAccounts(ltxTx);
+        meta.pushTxChangesBefore(ltxTx);
+        ltxTx.commit();
     }
     catch (std::exception& e)
     {
-        printErrorAndAbort("Exception after processing fees but before "
-                           "processing sequence number: ",
+        printErrorAndAbort("Exception during preParallelApply writes: ",
                            e.what());
     }
     catch (...)
     {
-        printErrorAndAbort("Unknown exception after processing fees but before "
-                           "processing sequence number");
+        printErrorAndAbort("Unknown exception during preParallelApply writes");
     }
 }
 
@@ -2497,10 +2547,17 @@ TransactionFrame::apply(
     ZoneScoped;
     try
     {
-        auto signatureChecker =
-            commonPreApply(chargeFee, app, ltx, meta, txResult,
-                           sorobanConfig ? &sorobanConfig.value() : nullptr,
-                           envelopeContentsHash);
+        auto signatureChecker = [&] {
+            LedgerTxn ltxTx(ltx);
+            CheckValidLedgerViewWrapper lsTx(ltxTx);
+            auto checker =
+                commonPreApply(chargeFee, app, lsTx, meta, txResult,
+                               sorobanConfig ? &sorobanConfig.value() : nullptr,
+                               envelopeContentsHash, &ltxTx);
+            meta.pushTxChangesBefore(ltxTx);
+            ltxTx.commit();
+            return checker;
+        }();
         bool ok = signatureChecker != nullptr;
         try
         {
