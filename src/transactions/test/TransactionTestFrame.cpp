@@ -372,13 +372,21 @@ TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 }
 
 void
-TransactionTestFrame::preParallelApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& resPayload,
+TransactionTestFrame::preParallelApplyReadOnly(
+    AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& resPayload,
     SorobanNetworkConfig const& sorobanConfig) const
 {
-    mTransactionFrame->preParallelApply(app, ltx, meta, resPayload,
-                                        sorobanConfig);
+    mTransactionFrame->preParallelApplyReadOnly(app, ls, meta, resPayload,
+                                                sorobanConfig);
+}
+
+void
+TransactionTestFrame::preParallelApplyWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase const& txResult) const
+{
+    mTransactionFrame->preParallelApplyWrite(app, ltx, meta, txResult);
 }
 
 std::optional<ParallelTxSuccessVal>

@@ -188,6 +188,12 @@ CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
 {
 }
 
+CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
+    std::unique_ptr<AbstractLedgerView const> getter)
+    : mGetter(std::move(getter))
+{
+}
+
 LedgerHeaderWrapper
 CheckValidLedgerViewWrapper::getLedgerHeader() const
 {
@@ -354,6 +360,70 @@ ImmutableLedgerView::executeWithMaybeInnerSnapshot(
     throw std::runtime_error(
         "ImmutableLedgerView::executeWithMaybeInnerSnapshot is illegal: "
         "ImmutableLedgerView has no nested snapshots");
+}
+SorobanPreApplyLedgerView::SorobanPreApplyLedgerView(
+    std::shared_ptr<LedgerHeader const> header, AbstractLedgerTxn& ltx,
+    ApplyLedgerView const& lclView)
+    : mHeader(std::move(header)), mLtx(ltx), mLclView(lclView)
+{
+}
+
+LedgerHeaderWrapper
+SorobanPreApplyLedgerView::getLedgerHeader() const
+{
+    return LedgerHeaderWrapper(mHeader);
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(AccountID const& account) const
+{
+    return load(accountKey(account));
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(LedgerHeaderWrapper const& header,
+                                      TransactionFrame const& tx) const
+{
+    return getAccount(tx.getSourceID());
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(LedgerHeaderWrapper const& header,
+                                      TransactionFrame const& tx,
+                                      AccountID const& accountID) const
+{
+    return getAccount(accountID);
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::load(LedgerKey const& key) const
+{
+    auto entryPair = mLtx.getNewestVersionBelowRoot(key);
+    if (entryPair.first)
+    {
+        // Modified in this ledger, so the ltx has the authoritative version.
+        // A null entry means it has been deleted.
+        if (!entryPair.second)
+        {
+            return LedgerEntryWrapper(nullptr);
+        }
+        // Alias the entry owned by the ltx instead of copying it: the aliasing
+        // constructor shares ownership with the InternalLedgerEntry while
+        // pointing at the LedgerEntry nested inside it.
+        return LedgerEntryWrapper(std::shared_ptr<LedgerEntry const>(
+            entryPair.second, &entryPair.second->ledgerEntry()));
+    }
+    // Not modified in this ledger, so the last closed ledger snapshot is
+    // up to date.
+    return LedgerEntryWrapper(mLclView.loadLiveEntry(key));
+}
+
+void
+SorobanPreApplyLedgerView::executeWithMaybeInnerSnapshot(
+    std::function<void(CheckValidLedgerViewWrapper const& ledgerView)> f) const
+{
+    throw std::runtime_error("SorobanPreApplyLedgerView::"
+                             "executeWithMaybeInnerSnapshot is not supported");
 }
 
 // === Live BucketList wrapper methods ===

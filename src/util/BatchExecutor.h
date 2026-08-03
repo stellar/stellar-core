@@ -15,6 +15,7 @@
 #include <exception>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -56,6 +57,18 @@ class BatchExecutor : private NonMovableOrCopyable
     template <typename T>
     std::vector<T> executeBatch(std::vector<std::function<T()>> tasks);
 
+    // Returns the maximum number of tasks to use in `executeBatch` without
+    // oversubscribing physical cores.
+    // Use this many tasks whenever possible to maximize parallelism and avoid
+    // oversubscription.
+    size_t preferredTaskCount() const;
+
+#ifdef BUILD_TESTS
+    // Overrides the value returned by `preferredTaskCount`, so that tests can
+    // pin the parallelism independently of the machine they run on.
+    void setPreferredTaskCountForTesting(size_t count);
+#endif
+
   private:
     // Runs `runTask(0)..runTask(numTasks-1)` across `numTasks` pinned workers
     // and blocks until all complete. Rethrows the first exception captured from
@@ -96,6 +109,10 @@ class BatchExecutor : private NonMovableOrCopyable
     // Marks that a batch is currently running, to prevent concurrent
     // executeBatch calls.
     std::atomic<bool> mBatchRunning{false};
+
+#ifdef BUILD_TESTS
+    std::optional<size_t> mPreferredTaskCountForTesting;
+#endif
 };
 
 template <typename T>
