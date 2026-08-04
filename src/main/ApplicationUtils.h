@@ -52,7 +52,8 @@ int rebuildLedgerFromBuckets(Config cfg);
 #endif
 void genSeed();
 int initializeHistories(Config cfg,
-                        std::vector<std::string> const& newHistories);
+                        std::vector<std::string> const& newHistories,
+                        bool idempotent = false);
 void writeCatchupInfo(Json::Value const& catchupInfo,
                       std::string const& outputFile);
 int catchup(Application::pointer app, CatchupConfiguration cc,
