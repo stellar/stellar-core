@@ -198,7 +198,6 @@ class PendingEnvelopes
     // Returns true if every tx set referenced by `env` is available locally
     bool areTxSetsFetched(SCPEnvelope const& env) const;
 
-
     SCPEnvelopeWrapperPtr pop(uint64 slotIndex);
 
     // erases data for all slots outside the range [minSlot, maxSlot].

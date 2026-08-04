@@ -90,9 +90,9 @@
 //         auto c1 = TestAccount{*app, getAccount("C")};
 //
 //         auto txfee = app->getLedgerManager().getLastTxFee();
-//         int64_t const minBalance = app->getLedgerManager().getLastMinBalance(0);
-//         int64_t const paymentAmount = 100;
-//         int64_t const startingBalance =
+//         int64_t const minBalance =
+//         app->getLedgerManager().getLastMinBalance(0); int64_t const
+//         paymentAmount = 100; int64_t const startingBalance =
 //             minBalance + (paymentAmount + txfee) * 3;
 //
 //         SECTION("basic ledger close on valid txs")
@@ -119,7 +119,8 @@
 //                 // create accounts
 //                 auto txFrame = root->tx({createAccount(a1, startingBalance),
 //                                          createAccount(b1, startingBalance),
-//                                          createAccount(c1, startingBalance)});
+//                                          createAccount(c1,
+//                                          startingBalance)});
 //
 //                 feedTx(txFrame,
 //                        TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
@@ -150,7 +151,8 @@
 //                 txAs.emplace_back(b1.tx({payment(*root, paymentAmount)}));
 //                 if (hasC)
 //                 {
-//                     txAs.emplace_back(c1.tx({payment(*root, paymentAmount)}));
+//                     txAs.emplace_back(c1.tx({payment(*root,
+//                     paymentAmount)}));
 //                 }
 //
 //                 for (auto a : txAs)
@@ -201,8 +203,8 @@
 //
 //                 if (hasC)
 //                 {
-//                     // c1's last transaction failed due to wrong sequence number
-//                     int64 expectedCBalance =
+//                     // c1's last transaction failed due to wrong sequence
+//                     number int64 expectedCBalance =
 //                         startingBalance - paymentAmount - 2 * txfee;
 //                     REQUIRE(c1.getBalance() == expectedCBalance);
 //                     REQUIRE(c1.loadSequenceNumber() == expectedC1Seq);
@@ -213,8 +215,10 @@
 // }
 //
 // static TransactionTestFramePtr
-// makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
-//                  int nbOps, int64 paymentBase, uint32 extraFee, uint32 feeMult)
+// makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount&
+// src,
+//                  int nbOps, int64 paymentBase, uint32 extraFee, uint32
+//                  feeMult)
 // {
 //     std::vector<stellar::Operation> ops;
 //     for (int i = 0; i < nbOps; i++)
@@ -269,8 +273,8 @@
 //     std::vector<TransactionFrameBasePtr> txs;
 //     auto genTx = [&]() {
 //         std::string accountName = fmt::format("A{}", accounts.size());
-//         accounts.push_back(root->create(accountName.c_str(), accountBalance));
-//         auto& account = accounts.back();
+//         accounts.push_back(root->create(accountName.c_str(),
+//         accountBalance)); auto& account = accounts.back();
 //
 //         // payment to self
 //         txs.push_back(account.tx({payment(account.getPublicKey(), 10000)}));
@@ -291,7 +295,8 @@
 //                              *app, ledgerHash)
 //                              .second;
 //             REQUIRE(txSet);
-//             REQUIRE(txSet->checkValidWithResult(*app, 0, 0) == expectedResult);
+//             REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+//             expectedResult);
 //         };
 //
 //     SECTION("valid set")
@@ -326,7 +331,8 @@
 //
 //             // Individual tx check: account doesn't exist
 //             REQUIRE(badTx
-//                         ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//                         ->checkValid(app->getAppConnector(), ledgerView, 0,
+//                         0,
 //                                      0, diagnostics)
 //                         ->getResultCode() == txNO_ACCOUNT);
 //
@@ -334,7 +340,8 @@
 //             {
 //                 TxFrameList removed;
 //                 auto txSet =
-//                     makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+//                     makeTxSetFromTransactions(txs, *app, 0, 0,
+//                     removed).second;
 //                 REQUIRE(removed.size() == 1);
 //                 REQUIRE(removed.back() == badTx);
 //                 REQUIRE(txSet->sizeTxTotal() == nbAccounts);
@@ -349,14 +356,16 @@
 //         }
 //         SECTION("sequence gap")
 //         {
-//             auto txPtr = std::const_pointer_cast<TransactionFrameBase>(txs[0]);
+//             auto txPtr =
+//             std::const_pointer_cast<TransactionFrameBase>(txs[0]);
 //             setSeqNum(std::static_pointer_cast<TransactionTestFrame>(txPtr),
 //                       txs[0]->getSeqNum() + 5);
 //             auto badTx = txs[0];
 //
 //             // Individual tx check: bad sequence number
 //             REQUIRE(badTx
-//                         ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//                         ->checkValid(app->getAppConnector(), ledgerView, 0,
+//                         0,
 //                                      0, diagnostics)
 //                         ->getResultCode() == txBAD_SEQ);
 //
@@ -364,7 +373,8 @@
 //             {
 //                 TxFrameList removed;
 //                 auto txSet =
-//                     makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+//                     makeTxSetFromTransactions(txs, *app, 0, 0,
+//                     removed).second;
 //                 REQUIRE(removed.size() == 1);
 //                 REQUIRE(removed.back() == badTx);
 //                 REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
@@ -397,7 +407,8 @@
 //             {
 //                 TxFrameList removed;
 //                 auto txSet =
-//                     makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+//                     makeTxSetFromTransactions(txs, *app, 0, 0,
+//                     removed).second;
 //                 REQUIRE(removed.size() == 1);
 //                 REQUIRE(removed.back() == badTx);
 //                 REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
@@ -418,10 +429,12 @@
 //             tx->clearCached();
 //             auto badTx = txs[0];
 //
-//             // Individual tx check: bad auth (signature invalidated by maxTime
+//             // Individual tx check: bad auth (signature invalidated by
+//             maxTime
 //             // change)
 //             REQUIRE(badTx
-//                         ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//                         ->checkValid(app->getAppConnector(), ledgerView, 0,
+//                         0,
 //                                      0, diagnostics)
 //                         ->getResultCode() == txBAD_AUTH);
 //
@@ -429,7 +442,8 @@
 //             {
 //                 TxFrameList removed;
 //                 auto txSet =
-//                     makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+//                     makeTxSetFromTransactions(txs, *app, 0, 0,
+//                     removed).second;
 //                 REQUIRE(removed.size() == 1);
 //                 REQUIRE(removed.back() == badTx);
 //                 REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
@@ -449,12 +463,15 @@
 //
 //             auto tx =
 //                 transactionFromOperations(*app, root->getSecretKey(),
-//                                           root->nextSequenceNumber(), {}, 1000);
+//                                           root->nextSequenceNumber(), {},
+//                                           1000);
 //
 //             SECTION("legacy tx set")
 //             {
-//                 // This is a regression test - legacy tx sets are not allowed in
-//                 // new protocols, but Core still accepts them and it does some
+//                 // This is a regression test - legacy tx sets are not allowed
+//                 in
+//                 // new protocols, but Core still accepts them and it does
+//                 some
 //                 // tx-related validation before reaching the
 //                 // `GENERALIZED_TXSET_MISMATCH` check.
 //                 TransactionSet txSet;
@@ -486,7 +503,8 @@
 //         SECTION("negative inclusion fee tx")
 //         {
 //             auto sorobanTx =
-//                 createUploadWasmTx(*app, *root, 100, 1000, SorobanResources{});
+//                 createUploadWasmTx(*app, *root, 100, 1000,
+//                 SorobanResources{});
 //             auto negFeeSorobanTxEnvelope = sorobanTx->getEnvelope();
 //             negFeeSorobanTxEnvelope.v1().tx.fee = 1;
 //             auto negFeeBump = feeBump(*app, *root, sorobanTx, 1,
@@ -495,8 +513,10 @@
 //                 app->getLedgerManager().getLastClosedLedgerHeader();
 //             SECTION("legacy tx set")
 //             {
-//                 // This is a regression test - legacy tx sets are not allowed in
-//                 // new protocols, but Core still accepts them and it does some
+//                 // This is a regression test - legacy tx sets are not allowed
+//                 in
+//                 // new protocols, but Core still accepts them and it does
+//                 some
 //                 // tx-related validation before reaching the
 //                 // `GENERALIZED_TXSET_MISMATCH` check.
 //                 TransactionSet txSet;
@@ -589,7 +609,8 @@
 //                              *app, ledgerHash)
 //                              .second;
 //             REQUIRE(txSet);
-//             REQUIRE(txSet->checkValidWithResult(*app, 0, 0) == expectedResult);
+//             REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+//             expectedResult);
 //         };
 //
 //     auto diagnostics = DiagnosticEventManager::createDisabled();
@@ -603,7 +624,8 @@
 //             auto fb1 = feeBump(*app, account2, tx1, minBalance2);
 //
 //             // Individual tx check: fee bump exceeds fee source balance
-//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->getResultCode() == txINSUFFICIENT_BALANCE);
 //
@@ -629,17 +651,20 @@
 //             auto fb2 = feeBump(*app, account2, tx2, 200);
 //
 //             // Individual tx checks: first exceeds balance, second is valid
-//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->getResultCode() == txINSUFFICIENT_BALANCE);
-//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->isSuccess());
 //
 //             SECTION("build block")
 //             {
 //                 TxFrameList invalidTxs;
-//                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
+//                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0,
+//                 0,
 //                                                        invalidTxs);
 //                 // fb1 is rejected
 //                 compareTxs(invalidTxs, {fb1});
@@ -657,17 +682,20 @@
 //             auto tx2 = transaction(*app, account3, 1, 1, 100);
 //             auto fb2 = feeBump(*app, account2, tx2, minBalance2);
 //
-//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->isSuccess());
-//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->getResultCode() == txINSUFFICIENT_BALANCE);
 //
 //             SECTION("build block")
 //             {
 //                 TxFrameList invalidTxs;
-//                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
+//                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0,
+//                 0,
 //                                                        invalidTxs);
 //                 compareTxs(invalidTxs, {fb2});
 //             }
@@ -686,17 +714,20 @@
 //             auto fb2 = feeBump(*app, account2, tx2, 200);
 //
 //             // Individual tx checks
-//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->isSuccess());
-//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->getResultCode() == txFEE_BUMP_INNER_FAILED);
 //
 //             SECTION("build block")
 //             {
 //                 TxFrameList invalidTxs;
-//                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
+//                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0,
+//                 0,
 //                                                        invalidTxs);
 //                 compareTxs(invalidTxs, {fb2});
 //             }
@@ -715,24 +746,29 @@
 //             auto fb2 = feeBump(*app, account2, tx2, 200);
 //             auto tx3 = transaction(*app, account4, 1, 1, 100);
 //             auto fb3 =
-//                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
+//                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 -
+//                 199);
 //
 //             // Individual tx checks
-//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->isSuccess());
-//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->getResultCode() == txFEE_BUMP_INNER_FAILED);
-//             // Individually, fb2 is valid, but with fb1 it would exceed balance
-//             REQUIRE(fb3->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             // Individually, fb2 is valid, but with fb1 it would exceed
+//             balance REQUIRE(fb3->checkValid(app->getAppConnector(),
+//             ledgerView, 0, 0, 0,
 //                                     diagnostics)
 //                         ->isSuccess());
 //
 //             SECTION("build block")
 //             {
 //                 TxFrameList invalidTxs;
-//                 auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0,
+//                 auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app,
+//                 0,
 //                                                        0, invalidTxs);
 //                 compareTxs(invalidTxs, {fb1, fb2, fb3});
 //             }
@@ -743,7 +779,8 @@
 //                     TxSetValidationResult::TX_VALIDATION_FAILED);
 //             }
 //         }
-//         SECTION("two fee bumps, same fee source, valid individually, combined "
+//         SECTION("two fee bumps, same fee source, valid individually, combined
+//         "
 //                 "exceed balance")
 //         {
 //             CheckValidLedgerViewWrapper ledgerView(*app);
@@ -765,17 +802,20 @@
 //             auto fb2 = feeBump(*app, account2, tx2, fee2);
 //             // Individual txs are valid
 //             auto diagnostics = DiagnosticEventManager::createDisabled();
-//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->isSuccess());
-//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->isSuccess());
 //
 //             TxFrameList invalidTxs;
 //             SECTION("build block")
 //             {
-//                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
+//                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0,
+//                 0,
 //                                                        invalidTxs);
 //                 // Both are marked invalid because their combined fees exceed
 //                 // account2's balance
@@ -787,7 +827,8 @@
 //                     {fb1, fb2}, TxSetValidationResult::ACCOUNT_CANT_PAY_FEE);
 //             }
 //         }
-//         SECTION("two Soroban fee bumps, same fee source, valid individually, "
+//         SECTION("two Soroban fee bumps, same fee source, valid individually,
+//         "
 //                 "combined exceed balance")
 //         {
 //             // Increase Soroban limits to allow multiple transactions
@@ -834,16 +875,19 @@
 //             auto fb2 = feeBump(*app, feeSourceAccount, sorobanTx2, fee2,
 //                                /* useInclusionAsFullFee */ true);
 //
-//             REQUIRE(balanceOfFbAccount < fb1->getFullFee() + fb2->getFullFee());
-//             REQUIRE(fb1->getFullFee() < balanceOfFbAccount);
-//             REQUIRE(fb2->getFullFee() < balanceOfFbAccount);
+//             REQUIRE(balanceOfFbAccount < fb1->getFullFee() +
+//             fb2->getFullFee()); REQUIRE(fb1->getFullFee() <
+//             balanceOfFbAccount); REQUIRE(fb2->getFullFee() <
+//             balanceOfFbAccount);
 //
 //             // Individual txs are valid
 //             auto diagnostics = DiagnosticEventManager::createDisabled();
-//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->isSuccess());
-//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+//             REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//             0,
 //                                     diagnostics)
 //                         ->isSuccess());
 //
@@ -851,8 +895,10 @@
 //             invalidPerPhase.resize(2);
 //             SECTION("build block")
 //             {
-//                 auto txSet = makeTxSetFromTransactions({{}, {fb1, fb2}}, *app,
-//                                                        0, 0, invalidPerPhase);
+//                 auto txSet = makeTxSetFromTransactions({{}, {fb1, fb2}},
+//                 *app,
+//                                                        0, 0,
+//                                                        invalidPerPhase);
 //                 // Both are marked invalid because their combined fees exceed
 //                 // feeSourceAccount's balance
 //                 compareTxs(invalidPerPhase[1], {fb1, fb2});
@@ -866,7 +912,8 @@
 //                         {{},
 //                          {std::make_pair(
 //                              std::nullopt,
-//                              std::vector<TransactionFrameBasePtr>{fb1, fb2})}},
+//                              std::vector<TransactionFrameBasePtr>{fb1,
+//                              fb2})}},
 //                         *app, ledgerHash)
 //                         .second;
 //                 REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
@@ -912,11 +959,13 @@
 //
 //             auto diagnostics = DiagnosticEventManager::createDisabled();
 //             REQUIRE(classicFb
-//                         ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//                         ->checkValid(app->getAppConnector(), ledgerView, 0,
+//                         0,
 //                                      0, diagnostics)
 //                         ->isSuccess());
 //             REQUIRE(sorobanFb
-//                         ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+//                         ->checkValid(app->getAppConnector(), ledgerView, 0,
+//                         0,
 //                                      0, diagnostics)
 //                         ->isSuccess());
 //
@@ -1024,7 +1073,8 @@
 //     TxFrameList txs = {fb1, fb2, fb3};
 //     UnorderedMap<AccountID, int64_t> accountFeeMap;
 //     auto invalidTxs =
-//         TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap, 0, 0)
+//         TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap, 0,
+//         0)
 //             .first;
 //
 //     // Check for no duplicates by comparing size with unique count
@@ -1048,7 +1098,8 @@
 //         uint32_t generalizedTxSetProtocolVersion =
 //             static_cast<uint32>(SOROBAN_PROTOCOL_VERSION);
 // #ifdef ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
-//         // Fastdev only links recent Soroban hosts, and this test just needs a
+//         // Fastdev only links recent Soroban hosts, and this test just needs
+//         a
 //         // generalized-txset-capable protocol.
 //         generalizedTxSetProtocolVersion =
 //             Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1;
@@ -1091,8 +1142,8 @@
 //                 // run a v19 op so a1's seqLedger is set
 //                 a1.bumpSequence(0);
 //                 closeLedgerOn(
-//                     *app, app->getLedgerManager().getLastClosedLedgerNum() + 1,
-//                     app->getLedgerManager()
+//                     *app, app->getLedgerManager().getLastClosedLedgerNum() +
+//                     1, app->getLedgerManager()
 //                             .getLastClosedLedgerHeader()
 //                             .header.scpValue.closeTime +
 //                         1);
@@ -1140,13 +1191,15 @@
 //             removed.clear();
 //             if (minSeqNumTxIsFeeBump)
 //             {
-//                 txSet = makeTxSetFromTransactions({fb1, fb2Invalid}, *app, 0, 0,
+//                 txSet = makeTxSetFromTransactions({fb1, fb2Invalid}, *app, 0,
+//                 0,
 //                                                   removed)
 //                             .second;
 //             }
 //             else
 //             {
-//                 txSet = makeTxSetFromTransactions({tx1, tx2Invalid}, *app, 0, 0,
+//                 txSet = makeTxSetFromTransactions({tx1, tx2Invalid}, *app, 0,
+//                 0,
 //                                                   removed)
 //                             .second;
 //             }
@@ -1161,11 +1214,12 @@
 //             {
 //                 auto ledgerHash =
 //                     app->getLedgerManager().getLastClosedLedgerHeader().hash;
-//                 auto invalidTx = minSeqNumTxIsFeeBump ? fb2Invalid : tx2Invalid;
-//                 auto validTx = minSeqNumTxIsFeeBump ? fb1 : tx1;
+//                 auto invalidTx = minSeqNumTxIsFeeBump ? fb2Invalid :
+//                 tx2Invalid; auto validTx = minSeqNumTxIsFeeBump ? fb1 : tx1;
 //                 auto invalidTxSet =
 //                     testtxset::makeNonValidatedGeneralizedTxSet(
-//                         {{std::make_pair(100, TxFrameList{validTx, invalidTx})},
+//                         {{std::make_pair(100, TxFrameList{validTx,
+//                         invalidTx})},
 //                          {}},
 //                         *app, ledgerHash)
 //                         .second;
@@ -1209,7 +1263,8 @@
 //             SECTION("build block")
 //             {
 //                 TxFrameList removed;
-//                 auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app,
+//                 auto txSet = makeTxSetFromTransactions({tx1, txInvalid},
+//                 *app,
 //                                                        0, 0, removed);
 //                 REQUIRE(removed.back() == txInvalid);
 //             }
@@ -1243,7 +1298,8 @@
 //             SECTION("build block")
 //             {
 //                 TxFrameList removed;
-//                 auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app,
+//                 auto txSet = makeTxSetFromTransactions({tx1, txInvalid},
+//                 *app,
 //                                                        0, 0, removed);
 //                 REQUIRE(removed.back() == txInvalid);
 //             }
@@ -1307,9 +1363,8 @@
 //                                           .hash;
 //                     auto invalidTxSet =
 //                         testtxset::makeNonValidatedGeneralizedTxSet(
-//                             {{std::make_pair(100, TxFrameList{tx})}, {}}, *app,
-//                             ledgerHash)
-//                             .second;
+//                             {{std::make_pair(100, TxFrameList{tx})}, {}},
+//                             *app, ledgerHash) .second;
 //                     REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
 //                             TxSetValidationResult::TX_VALIDATION_FAILED);
 //                 }
@@ -1349,9 +1404,8 @@
 //                                           .hash;
 //                     auto invalidTxSet =
 //                         testtxset::makeNonValidatedGeneralizedTxSet(
-//                             {{std::make_pair(100, TxFrameList{tx})}, {}}, *app,
-//                             ledgerHash)
-//                             .second;
+//                             {{std::make_pair(100, TxFrameList{tx})}, {}},
+//                             *app, ledgerHash) .second;
 //                     REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
 //                             TxSetValidationResult::TX_VALIDATION_FAILED);
 //                 }
@@ -1366,7 +1420,8 @@
 //             SECTION("build block")
 //             {
 //                 TxFrameList removed;
-//                 auto txSet = makeTxSetFromTransactions({txDupeSigner}, *app, 0,
+//                 auto txSet = makeTxSetFromTransactions({txDupeSigner}, *app,
+//                 0,
 //                                                        0, removed);
 //                 REQUIRE(removed.back() == txDupeSigner);
 //                 REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
@@ -1377,9 +1432,8 @@
 //                     app->getLedgerManager().getLastClosedLedgerHeader().hash;
 //                 auto invalidTxSet =
 //                     testtxset::makeNonValidatedGeneralizedTxSet(
-//                         {{std::make_pair(100, TxFrameList{txDupeSigner})}, {}},
-//                         *app, ledgerHash)
-//                         .second;
+//                         {{std::make_pair(100, TxFrameList{txDupeSigner})},
+//                         {}}, *app, ledgerHash) .second;
 //                 REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
 //                         TxSetValidationResult::TX_VALIDATION_FAILED);
 //             }
@@ -1424,9 +1478,8 @@
 //                                           .hash;
 //                     auto invalidTxSet =
 //                         testtxset::makeNonValidatedGeneralizedTxSet(
-//                             {{std::make_pair(100, TxFrameList{tx})}, {}}, *app,
-//                             ledgerHash)
-//                             .second;
+//                             {{std::make_pair(100, TxFrameList{tx})}, {}},
+//                             *app, ledgerHash) .second;
 //                     REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
 //                             TxSetValidationResult::TX_VALIDATION_FAILED);
 //                 }
@@ -1443,8 +1496,8 @@
 //                                               {*root}, cond);
 //
 //             TxFrameList removed;
-//             auto txSet = makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-//             REQUIRE(removed.empty());
+//             auto txSet = makeTxSetFromTransactions({tx}, *app, 0, 0,
+//             removed); REQUIRE(removed.empty());
 //         }
 //     }
 // }
@@ -1456,9 +1509,9 @@
 //     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
 //
 //     auto testBaseFee = [&](uint32_t protocolVersion, uint32 nbTransactions,
-//                            uint32 extraAccounts, size_t lim, int64_t expLowFee,
-//                            int64_t expHighFee,
-//                            uint32_t expNotChargedAccounts = 0) {
+//                            uint32 extraAccounts, size_t lim, int64_t
+//                            expLowFee, int64_t expHighFee, uint32_t
+//                            expNotChargedAccounts = 0) {
 //         cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
 //         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
 //         if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
@@ -1600,15 +1653,15 @@
 //                     SECTION("maxed out surged")
 //                     {
 //                         testBaseFee(
-//                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
-//                             baseCount, extraTx, maxTxSetSize, 1000, 2000);
+//                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) -
+//                             1, baseCount, extraTx, maxTxSetSize, 1000, 2000);
 //                     }
 //                     SECTION("smallest surged")
 //                     {
 //                         testBaseFee(
-//                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
-//                             baseCount + 1, extraTx - 50, maxTxSetSize - 100 + 1,
-//                             1000, 2000);
+//                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) -
+//                             1, baseCount + 1, extraTx - 50, maxTxSetSize -
+//                             100 + 1, 1000, 2000);
 //                     }
 //                 }
 //             }
@@ -1625,7 +1678,8 @@
 //                 SECTION("evicting one tx causes surge")
 //                 {
 //                     testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
-//                                 0, newCount + 1, maxTxSetSize, 20002, 20002, 1);
+//                                 0, newCount + 1, maxTxSetSize, 20002, 20002,
+//                                 1);
 //                 }
 //             }
 //             SECTION("protocol current")
@@ -1637,12 +1691,14 @@
 //                     SECTION(
 //                         "fitting exactly into capacity does not cause surge")
 //                     {
-//                         testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
+//                         testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+//                         0,
 //                                     newCount, maxTxSetSize, 200, 200);
 //                     }
 //                     SECTION("evicting one tx causes surge")
 //                     {
-//                         testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
+//                         testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+//                         0,
 //                                     newCount + 1, maxTxSetSize, 20002, 20002,
 //                                     1);
 //                     }
@@ -1650,8 +1706,8 @@
 //                 else
 //                 {
 //                     testBaseFee(
-//                         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1, 0,
-//                         newCount, maxTxSetSize, 20001, 20002);
+//                         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+//                         0, newCount, maxTxSetSize, 20001, 20002);
 //                 }
 //             }
 //         }
@@ -1665,7 +1721,8 @@
 //                 // baseFee = minFee = 100
 //                 // high = 2*minFee
 //                 // highest number of ops not surged is max-100
-//                 testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, baseCount,
+//                 testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+//                 baseCount,
 //                             extraTx - 50, maxTxSetSize - 100, 100, 200);
 //             }
 //         }
@@ -1766,13 +1823,15 @@
 //         auto const& phaseTxs = applicableTxSet->getPhase(phase);
 //         auto trimmedSize =
 //             std::accumulate(phaseTxs.begin(), phaseTxs.end(), size_t(0),
-//                             [&](size_t a, TransactionFrameBasePtr const& tx) {
+//                             [&](size_t a, TransactionFrameBasePtr const& tx)
+//                             {
 //                                 return a += xdr::xdr_size(tx->getEnvelope());
 //                             });
 //
 //         auto byteAllowance = phase == TxSetPhase::SOROBAN
 //                                  ? app->getConfig().getSorobanByteAllowance()
-//                                  : app->getConfig().getClassicByteAllowance();
+//                                  :
+//                                  app->getConfig().getClassicByteAllowance();
 //         REQUIRE(trimmedSize > byteAllowance - conf().txMaxSizeBytes());
 //         REQUIRE(trimmedSize <= byteAllowance);
 //     };
@@ -1807,7 +1866,8 @@
 //
 //             TxFrameList invalidTxs;
 //             auto txSet =
-//                 makeTxSetFromTransactions({tx}, *app, 0, 0, invalidTxs).second;
+//                 makeTxSetFromTransactions({tx}, *app, 0, 0,
+//                 invalidTxs).second;
 //
 //             // Transaction is valid, but trimmed by surge pricing.
 //             REQUIRE(invalidTxs.empty());
@@ -1835,13 +1895,13 @@
 //             PerPhaseTransactionList invalidTxs;
 //             invalidTxs.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 //             auto txSet = makeTxSetFromTransactions(
-//                              PerPhaseTransactionList{{}, {sorobanTx}}, *app, 0,
-//                              0, invalidTxs)
-//                              .second;
+//                              PerPhaseTransactionList{{}, {sorobanTx}}, *app,
+//                              0, 0, invalidTxs) .second;
 //
 //             // Transaction is valid, but trimmed by surge pricing.
 //             REQUIRE(std::all_of(invalidTxs.begin(), invalidTxs.end(),
-//                                 [](auto const& txs) { return txs.empty(); }));
+//                                 [](auto const& txs) { return txs.empty();
+//                                 }));
 //             REQUIRE(txSet->sizeTxTotal() == 0);
 //         }
 //     }
@@ -1855,7 +1915,8 @@
 //         Application::pointer app = createTestApplication(clock, cfg);
 //         // Max 2 soroban ops
 //         modifySorobanNetworkConfig(
-//             *app, [](SorobanNetworkConfig& cfg) { cfg.mLedgerMaxTxCount = 2; });
+//             *app, [](SorobanNetworkConfig& cfg) { cfg.mLedgerMaxTxCount = 2;
+//             });
 //
 //         auto root = app->getRoot();
 //         auto acc1 = root->create("account1", 500000000);
@@ -1865,7 +1926,8 @@
 //         auto acc5 = root->create("account5", 500000000);
 //         auto acc6 = root->create("account6", 500000000);
 //
-//         // Ensure these accounts don't overlap with classic tx (with root source
+//         // Ensure these accounts don't overlap with classic tx (with root
+//         source
 //         // account)
 //         std::vector<TestAccount> accounts = {acc1, acc2, acc3,
 //                                              acc4, acc5, acc6};
@@ -1915,7 +1977,8 @@
 //                 }
 //
 //                 auto tx = createUploadWasmTx(*app, acc, baseFee * 10,
-//                                              /* refundableFee */ baseFee, res);
+//                                              /* refundableFee */ baseFee,
+//                                              res);
 //                 if (rand_flip())
 //                 {
 //                     txs.emplace_back(tx);
@@ -1923,14 +1986,15 @@
 //                 else
 //                 {
 //                     // Double the inclusion fee
-//                     txs.emplace_back(feeBump(*app, acc, tx, baseFee * 10 * 2));
+//                     txs.emplace_back(feeBump(*app, acc, tx, baseFee * 10 *
+//                     2));
 //                 }
 //                 CLOG_INFO(Herder,
 //                           "Generated tx with {} instructions, {} read "
 //                           "bytes, {} write bytes, data bytes, {} read "
 //                           "ledger entries, {} write ledger entries",
-//                           res.instructions, res.diskReadBytes, res.writeBytes,
-//                           read, write);
+//                           res.instructions, res.diskReadBytes,
+//                           res.writeBytes, read, write);
 //             }
 //             return txs;
 //         };
@@ -1977,7 +2041,8 @@
 //                             TxSetValidationResult::TX_FEE_BID_TOO_LOW);
 //                 }
 //             }
-//             SECTION("invalid resource, multiple transactions, resources exceed "
+//             SECTION("invalid resource, multiple transactions, resources
+//             exceed "
 //                     "ledger limit")
 //             {
 //                 // Create two txs that are individually valid but combined
@@ -1987,7 +2052,8 @@
 //                     conf.ledgerMaxInstructions() * 6 / 10);
 //                 resources.instructions = insns;
 //                 auto soroban1 = createUploadWasmTx(
-//                     *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
+//                     *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE,
+//                     resources);
 //                 // Pick soroban2 by fee
 //                 auto soroban2 =
 //                     createUploadWasmTx(*app, acc3, baseFee + 1,
@@ -2001,9 +2067,8 @@
 //                         static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 //                     auto txSet =
 //                         makeTxSetFromTransactions(
-//                             PerPhaseTransactionList{{tx}, {soroban1, soroban2}},
-//                             *app, 0, 0, invalidPhases)
-//                             .second;
+//                             PerPhaseTransactionList{{tx}, {soroban1,
+//                             soroban2}}, *app, 0, 0, invalidPhases) .second;
 //                     // Both txs are valid individually, but only one fits
 //                     REQUIRE(txSet->sizeTxTotal() == 2);
 //                     REQUIRE(invalidPhases[0].empty());
@@ -2022,7 +2087,8 @@
 //                         testtxset::makeNonValidatedGeneralizedTxSet(
 //                             {{std::make_pair(std::nullopt, TxFrameList{tx})},
 //                              {std::make_pair(std::nullopt,
-//                                              TxFrameList{soroban1, soroban2})}},
+//                                              TxFrameList{soroban1,
+//                                              soroban2})}},
 //                             *app, ledgerHash)
 //                             .second;
 //                     REQUIRE(
@@ -2036,13 +2102,13 @@
 //             PerPhaseTransactionList invalidPhases;
 //             invalidPhases.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 //             auto txSet = makeTxSetFromTransactions(
-//                              PerPhaseTransactionList{{tx}, {sorobanTx}}, *app,
-//                              0, 0, invalidPhases)
-//                              .second;
+//                              PerPhaseTransactionList{{tx}, {sorobanTx}},
+//                              *app, 0, 0, invalidPhases) .second;
 //
 //             // Everything fits
 //             REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
-//                                 [](auto const& txs) { return txs.empty(); }));
+//                                 [](auto const& txs) { return txs.empty();
+//                                 }));
 //             REQUIRE(txSet->sizeTxTotal() == 2);
 //         }
 //         SECTION("classic and soroban in the same phase are rejected")
@@ -2058,7 +2124,8 @@
 //         {
 //             // Another soroban tx with higher fee, which will be selected
 //             auto sorobanTxHighFee = createUploadWasmTx(
-//                 *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
+//                 *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE,
+//                 resources);
 //             PerPhaseTransactionList invalidPhases;
 //             invalidPhases.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 //             auto txSet = makeTxSetFromTransactions(
@@ -2068,17 +2135,20 @@
 //                              .second;
 //
 //             REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
-//                                 [](auto const& txs) { return txs.empty(); }));
+//                                 [](auto const& txs) { return txs.empty();
+//                                 }));
 //             REQUIRE(txSet->sizeTxTotal() == 2);
 //             auto const& classicPhase = txSet->getPhase(TxSetPhase::CLASSIC);
 //             REQUIRE(classicPhase.sizeTx() == 1);
-//             for (auto it = classicPhase.begin(); it != classicPhase.end(); ++it)
+//             for (auto it = classicPhase.begin(); it != classicPhase.end();
+//             ++it)
 //             {
 //                 REQUIRE((*it)->getFullHash() == tx->getFullHash());
 //             }
 //             auto const& sorobanPhase = txSet->getPhase(TxSetPhase::SOROBAN);
 //             REQUIRE(sorobanPhase.sizeTx() == 1);
-//             for (auto it = sorobanPhase.begin(); it != sorobanPhase.end(); ++it)
+//             for (auto it = sorobanPhase.begin(); it != sorobanPhase.end();
+//             ++it)
 //             {
 //                 REQUIRE((*it)->getFullHash() ==
 //                         sorobanTxHighFee->getFullHash());
@@ -2090,16 +2160,17 @@
 //             // Still half capacity available
 //             resources.diskReadBytes = conf.txMaxDiskReadBytes() / 2;
 //             auto sorobanTxHighFee = createUploadWasmTx(
-//                 *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
+//                 *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE,
+//                 resources);
 //
 //             // Create another small soroban tx, with small fee. It should be
-//             // picked up anyway since we can't fit sorobanTx (gaps are allowed)
-//             resources.instructions = 1;
-//             resources.diskReadBytes = 1;
+//             // picked up anyway since we can't fit sorobanTx (gaps are
+//             allowed) resources.instructions = 1; resources.diskReadBytes = 1;
 //             resources.writeBytes = 1;
 //
 //             auto smallSorobanLowFee = createUploadWasmTx(
-//                 *app, acc4, baseFee / 10, DEFAULT_TEST_RESOURCE_FEE, resources);
+//                 *app, acc4, baseFee / 10, DEFAULT_TEST_RESOURCE_FEE,
+//                 resources);
 //
 //             PerPhaseTransactionList invalidPhases;
 //             invalidPhases.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
@@ -2112,7 +2183,8 @@
 //                     .second;
 //
 //             REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
-//                                 [](auto const& txs) { return txs.empty(); }));
+//                                 [](auto const& txs) { return txs.empty();
+//                                 }));
 //             REQUIRE(txSet->sizeTxTotal() == 3);
 //             auto const& classicTxs =
 //                 txSet->getPhase(TxSetPhase::CLASSIC).getSequentialTxs();
@@ -2120,8 +2192,8 @@
 //             REQUIRE(classicTxs[0]->getFullHash() == tx->getFullHash());
 //             for (auto const& t : txSet->getPhase(TxSetPhase::SOROBAN))
 //             {
-//                 // smallSorobanLowFee was picked over sorobanTx to fill the gap
-//                 bool pickedGap =
+//                 // smallSorobanLowFee was picked over sorobanTx to fill the
+//                 gap bool pickedGap =
 //                     t->getFullHash() == sorobanTxHighFee->getFullHash() ||
 //                     t->getFullHash() == smallSorobanLowFee->getFullHash();
 //                 REQUIRE(pickedGap);
@@ -2147,8 +2219,10 @@
 //                         invalidPhases.begin(), invalidPhases.end(),
 //                         [](auto const& txs) { return txs.empty(); }));
 //                     int count = 0;
-//                     for (auto it = txSet->getPhase(TxSetPhase::CLASSIC).begin();
-//                          it != txSet->getPhase(TxSetPhase::CLASSIC).end(); ++it)
+//                     for (auto it =
+//                     txSet->getPhase(TxSetPhase::CLASSIC).begin();
+//                          it != txSet->getPhase(TxSetPhase::CLASSIC).end();
+//                          ++it)
 //                     {
 //                         REQUIRE((*it)->getFullHash() == tx->getFullHash());
 //                         ++count;
@@ -2171,8 +2245,8 @@
 //             auto ledgerHash =
 //                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
 //             auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-//                              {{}, {std::make_pair(500, txs)}}, *app, ledgerHash)
-//                              .second;
+//                              {{}, {std::make_pair(500, txs)}}, *app,
+//                              ledgerHash) .second;
 //
 //             REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
 //                     TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
@@ -2217,7 +2291,8 @@
 //         size_t cntA = 0, cntB = 0, cntC = 0, cntD = 0;
 //         auto const& phases = txSet->getPhasesInApplyOrder();
 //
-//         for (auto const& tx : phases[static_cast<size_t>(TxSetPhase::CLASSIC)])
+//         for (auto const& tx :
+//         phases[static_cast<size_t>(TxSetPhase::CLASSIC)])
 //         {
 //             if (tx->getSourceID() == accountA.getPublicKey())
 //             {
@@ -2398,11 +2473,13 @@
 //         int nextAccId = 1;
 //
 //         auto genTx = [&]() {
-//             auto account = root->create(std::to_string(nextAccId), 5000000000);
+//             auto account = root->create(std::to_string(nextAccId),
+//             5000000000);
 //             ++nextAccId;
 //             uint32 ops = numOpsDistr(Catch::rng());
-//             int fee = ops * feeDistr(Catch::rng()) + addFeeDistr(Catch::rng());
-//             if (isDexTxDistr(Catch::rng()) < dexOpsPercent)
+//             int fee = ops * feeDistr(Catch::rng()) +
+//             addFeeDistr(Catch::rng()); if (isDexTxDistr(Catch::rng()) <
+//             dexOpsPercent)
 //             {
 //                 return createSimpleDexTx(*app, account, ops, fee);
 //             }
@@ -2514,9 +2591,9 @@
 //     std::vector<TestAccount> accounts;
 //     int txCnt = 0;
 //     auto addTx = [&](int nbOps, uint32_t fee) {
-//         auto account = root->create(std::to_string(txCnt++), startingBalance);
-//         accounts.push_back(account);
-//         return makeSelfPayment(account, nbOps, fee);
+//         auto account = root->create(std::to_string(txCnt++),
+//         startingBalance); accounts.push_back(account); return
+//         makeSelfPayment(account, nbOps, fee);
 //     };
 //
 //     SorobanResources resources;
@@ -2541,14 +2618,15 @@
 //     resourceFee += rentFee;
 //     resources.footprint.readWrite.pop_back();
 //     auto addSorobanTx = [&](uint32_t inclusionFee) {
-//         auto account = root->create(std::to_string(txCnt++), startingBalance);
-//         accounts.push_back(account);
-//         return createUploadWasmTx(*app, account, inclusionFee, resourceFee,
+//         auto account = root->create(std::to_string(txCnt++),
+//         startingBalance); accounts.push_back(account); return
+//         createUploadWasmTx(*app, account, inclusionFee, resourceFee,
 //                                   resources);
 //     };
 //
 //     auto checkFees = [&](std::pair<TxSetXDRFrameConstPtr,
-//                                    ApplicableTxSetFrameConstPtr> const& txSet,
+//                                    ApplicableTxSetFrameConstPtr> const&
+//                                    txSet,
 //                          std::vector<int64_t> const& expectedFeeCharged,
 //                          bool validateTxSet = true) {
 //         if (validateTxSet)
@@ -2593,7 +2671,8 @@
 //             app->getLedgerManager().getLastClosedLedgerHeader().hash;
 //         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
 //             {{std::make_pair(1000,
-//                              std::vector<TransactionFrameBasePtr>{tx1, tx2})},
+//                              std::vector<TransactionFrameBasePtr>{tx1,
+//                              tx2})},
 //              {}},
 //             *app, ledgerHash);
 //         checkFees(txSet, {3000, 2000});
@@ -2606,7 +2685,8 @@
 //             app->getLedgerManager().getLastClosedLedgerHeader().hash;
 //         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
 //             {{std::make_pair(std::nullopt,
-//                              std::vector<TransactionFrameBasePtr>{tx1, tx2})},
+//                              std::vector<TransactionFrameBasePtr>{tx1,
+//                              tx2})},
 //              {}},
 //             *app, ledgerHash);
 //         checkFees(txSet, {3500, 5000});
@@ -2627,12 +2707,16 @@
 //                               std::vector<TransactionFrameBasePtr>>>
 //             components = {
 //                 std::make_pair(1000,
-//                                std::vector<TransactionFrameBasePtr>{tx1, tx2}),
+//                                std::vector<TransactionFrameBasePtr>{tx1,
+//                                tx2}),
 //                 std::make_pair(500,
-//                                std::vector<TransactionFrameBasePtr>{tx3, tx4}),
-//                 std::make_pair(2000, std::vector<TransactionFrameBasePtr>{tx5}),
+//                                std::vector<TransactionFrameBasePtr>{tx3,
+//                                tx4}),
+//                 std::make_pair(2000,
+//                 std::vector<TransactionFrameBasePtr>{tx5}),
 //                 std::make_pair(std::nullopt,
-//                                std::vector<TransactionFrameBasePtr>{tx6, tx7})};
+//                                std::vector<TransactionFrameBasePtr>{tx6,
+//                                tx7})};
 //         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
 //             {components, {}}, *app, ledgerHash);
 //         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
@@ -2670,7 +2754,8 @@
 // }
 //
 // static void
-// testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
+// testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t
+// expectedOps)
 // {
 //     using SVUpgrades = decltype(StellarValue::upgrades);
 //
@@ -2699,7 +2784,8 @@
 //     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 //     using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
 //     auto makeTxUpgradePair =
-//         [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
+//         [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet, uint64_t
+//         closeTime,
 //             SVUpgrades const& upgrades) {
 //             StellarValue sv =
 //                 herder.makeStellarValue(txSet->getContentsHash(), closeTime,
@@ -2709,11 +2795,14 @@
 //         };
 //     auto makeTxPair = [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet,
 //                           uint64_t closeTime) {
-//         return makeTxUpgradePair(herder, txSet, closeTime, emptyUpgradeSteps);
+//         return makeTxUpgradePair(herder, txSet, closeTime,
+//         emptyUpgradeSteps);
 //     };
-//     auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash qSetHash,
+//     auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash
+//     qSetHash,
 //                              uint64_t slotIndex, bool nomination) {
-//         // herder must want the TxSet before receiving it, so we are sending it
+//         // herder must want the TxSet before receiving it, so we are sending
+//         it
 //         // fake envelope
 //         auto envelope = SCPEnvelope{};
 //         envelope.statement.slotIndex = slotIndex;
@@ -2754,7 +2843,8 @@
 //
 //         auto addToCandidates = [&](TxPair const& p) {
 //             auto envelope = makeEnvelope(
-//                 herder, p, {}, herder.trackingConsensusLedgerIndex() + 1, true);
+//                 herder, p, {}, herder.trackingConsensusLedgerIndex() + 1,
+//                 true);
 //             REQUIRE(herder.recvSCPEnvelope(envelope) ==
 //                     Herder::ENVELOPE_STATUS_FETCHING);
 //             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), p.second));
@@ -2783,10 +2873,13 @@
 //             // increment, and make it into a StellarValue to add to the list
 //             // of candidates so far.  Keep track of the hashes and sizes and
 //             // operation sizes of all the transaction sets, all of the close
-//             // times, and all of the base fee upgrades that we've seen, so that
+//             // times, and all of the base fee upgrades that we've seen, so
+//             that
 //             // we can compute the expected result of combining all the
-//             // candidates so far.  (We're using base fees simply as one example
-//             // of a type of upgrade, whose expected result is the maximum of all
+//             // candidates so far.  (We're using base fees simply as one
+//             example
+//             // of a type of upgrade, whose expected result is the maximum of
+//             all
 //             // candidates'.)
 //             auto [txSet, applicableTxSet] =
 //                 makeTransactions(spec.n, spec.nbOps, spec.feeMulti);
@@ -2806,7 +2899,8 @@
 //                 SVUpgrades upgrades;
 //                 upgrades.emplace_back(upgrade.begin(), upgrade.end());
 //                 addToCandidates(
-//                     makeTxUpgradePair(herder, txSet, spec.closeTime, upgrades));
+//                     makeTxUpgradePair(herder, txSet, spec.closeTime,
+//                     upgrades));
 //             }
 //             else
 //             {
@@ -2869,10 +2963,9 @@
 //         addToCandidates(makeTxPair(herder, txSetL, 20));
 //         auto txSetL2 = makeTransactions(maxTxSetSize, 1, 1000).first;
 //         addToCandidates(makeTxPair(herder, txSetL2, 20));
-//         auto v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
-//         StellarValue sv;
-//         xdr::xdr_from_opaque(v->getValue(), sv);
-//         REQUIRE(sv.ext.v() == STELLAR_VALUE_SIGNED);
+//         auto v = herder.getHerderSCPDriver().combineCandidates(1,
+//         candidates); StellarValue sv; xdr::xdr_from_opaque(v->getValue(),
+//         sv); REQUIRE(sv.ext.v() == STELLAR_VALUE_SIGNED);
 //         REQUIRE(sv.txSetHash == txSetL2->getContentsHash());
 //     }
 //
@@ -2905,7 +2998,8 @@
 //         }
 //         SECTION("invalid")
 //         {
-//             auto checkInvalid = [&](StellarValue const& sv, bool nomination) {
+//             auto checkInvalid = [&](StellarValue const& sv, bool nomination)
+//             {
 //                 auto v = xdr::xdr_to_opaque(sv);
 //                 REQUIRE(scp.validateValue(seq, v, nomination) ==
 //                         SCPDriver::kInvalidValue);
@@ -3001,7 +3095,8 @@
 //
 //             // Ballot path: a well-formed empty-tx-set value is accepted only
 //             // once the protocol allows them. This is the assertion that
-//             // catches an inverted check in deserializeAndValidateStellarValue.
+//             // catches an inverted check in
+//             deserializeAndValidateStellarValue.
 //             REQUIRE(scp.validateValue(seq, emptyTxSetValue,
 //                                       /*nomination=*/false) ==
 //                     (allowed ? SCPDriver::kFullyValidatedValue
@@ -3032,7 +3127,8 @@
 //             auto tx = makeMultiPayment(*root, *root, 10, 1000, 0, 100);
 //             setMinTime(tx, minTime);
 //             setMaxTime(tx, maxTime);
-//             auto& sig = tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
+//             auto& sig = tx->getMutableEnvelope().type() ==
+//             ENVELOPE_TYPE_TX_V0
 //                             ? tx->getMutableEnvelope().v0().signatures
 //                             : tx->getMutableEnvelope().v1().signatures;
 //             sig.clear();
@@ -3059,7 +3155,8 @@
 //                 if (scp.protocolAllowsEmptyTxSetValues())
 //                 {
 //                     // If CAP-0083 is active, then this StellarValue is
-//                     // considered structurally valid because only the tx set is
+//                     // considered structurally valid because only the tx set
+//                     is
 //                     // invalid.
 //                     expectedValidationLevel =
 //                         SCPDriver::kStructurallyValidValue;
@@ -3081,7 +3178,8 @@
 //             TxSetUtils::trimInvalid(
 //                 applicableTxSet->getPhase(TxSetPhase::CLASSIC)
 //                     .getSequentialTxs(),
-//                 *app, accountFeeMap, closeTimeOffset, closeTimeOffset, removed);
+//                 *app, accountFeeMap, closeTimeOffset, closeTimeOffset,
+//                 removed);
 //             REQUIRE(removed.size() == (expectValid ? 0 : 1));
 //         };
 //
@@ -3115,7 +3213,8 @@
 //         // Triggering next ledger will construct and cache the block
 //         herder.triggerNextLedger(seq, true);
 //         // All hits during the whole SCP round. One of them is the validity
-//         // check that determines whether or not to replace the transaction set
+//         // check that determines whether or not to replace the transaction
+//         set
 //         // with an empty one (CAP-0083).
 //         uint64_t const expectedHits = 11;
 //         REQUIRE(cache.getCounters().mHits == expectedHits);
@@ -3166,9 +3265,9 @@
 //
 //         auto p1 = makeTxPair(herder, transactions1, 10);
 //         auto p2 = makeTxPair(herder, transactions1, 10);
-//         // use current + 1 to allow for any value (old values get filtered more)
-//         auto lseq = herder.trackingConsensusLedgerIndex() + 1;
-//         auto saneEnvelopeQ1T1 =
+//         // use current + 1 to allow for any value (old values get filtered
+//         more) auto lseq = herder.trackingConsensusLedgerIndex() + 1; auto
+//         saneEnvelopeQ1T1 =
 //             makeEnvelope(herder, p1, saneQSet1Hash, lseq, true);
 //         auto saneEnvelopeQ1T2 =
 //             makeEnvelope(herder, p2, saneQSet1Hash, lseq, true);
@@ -3199,7 +3298,8 @@
 //         }
 //         auto malformedTxSetPair = makeTxPair(herder, malformedTxSet, 10);
 //         auto malformedTxSetEnvelope =
-//             makeEnvelope(herder, malformedTxSetPair, saneQSet1Hash, lseq, true);
+//             makeEnvelope(herder, malformedTxSetPair, saneQSet1Hash, lseq,
+//             true);
 //
 //         SECTION("return FETCHING until fetched")
 //         {
@@ -3208,8 +3308,10 @@
 //             REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
 //                     Herder::ENVELOPE_STATUS_FETCHING);
 //             REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
-//             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), p1.second));
-//             // will not return ENVELOPE_STATUS_READY as the recvSCPEnvelope() is
+//             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(),
+//             p1.second));
+//             // will not return ENVELOPE_STATUS_READY as the recvSCPEnvelope()
+//             is
 //             // called internally
 //             // when QSet and TxSet are both received
 //             REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
@@ -3242,14 +3344,16 @@
 //         {
 //             REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
 //                     Herder::ENVELOPE_STATUS_FETCHING);
-//             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), p1.second));
+//             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(),
+//             p1.second));
 //
 //             SECTION("when re-receiving the same envelope")
 //             {
 //                 REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
 //                         Herder::ENVELOPE_STATUS_FETCHING);
 //                 REQUIRE(
-//                     !herder.recvTxSet(p1.second->getContentsHash(), p1.second));
+//                     !herder.recvTxSet(p1.second->getContentsHash(),
+//                     p1.second));
 //             }
 //
 //             SECTION("when receiving different envelope with the same txset")
@@ -3257,7 +3361,8 @@
 //                 REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ2T1) ==
 //                         Herder::ENVELOPE_STATUS_FETCHING);
 //                 REQUIRE(
-//                     !herder.recvTxSet(p1.second->getContentsHash(), p1.second));
+//                     !herder.recvTxSet(p1.second->getContentsHash(),
+//                     p1.second));
 //             }
 //
 //             SECTION("when receiving envelope with malformed tx set")
@@ -3285,8 +3390,10 @@
 //
 //         SECTION("do not accept unasked txset")
 //         {
-//             REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(), p1.second));
-//             REQUIRE(!herder.recvTxSet(p2.second->getContentsHash(), p2.second));
+//             REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(),
+//             p1.second));
+//             REQUIRE(!herder.recvTxSet(p2.second->getContentsHash(),
+//             p2.second));
 //         }
 //
 //         SECTION("do not accept not sane qset")
@@ -3296,25 +3403,30 @@
 //             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
 //         }
 //
-//         SECTION("do not accept txset from envelope discarded because of unsane "
+//         SECTION("do not accept txset from envelope discarded because of
+//         unsane "
 //                 "qset")
 //         {
 //             REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
 //                     Herder::ENVELOPE_STATUS_FETCHING);
 //             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
-//             REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(), p1.second));
+//             REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(),
+//             p1.second));
 //         }
 //
 //         SECTION(
-//             "accept txset from envelope with unsane qset before receiving qset")
+//             "accept txset from envelope with unsane qset before receiving
+//             qset")
 //         {
 //             REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
 //                     Herder::ENVELOPE_STATUS_FETCHING);
-//             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), p1.second));
-//             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+//             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(),
+//             p1.second)); REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash,
+//             bigQSet));
 //         }
 //
-//         SECTION("accept txset from envelopes with both valid and unsane qset")
+//         SECTION("accept txset from envelopes with both valid and unsane
+//         qset")
 //         {
 //             REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
 //                     Herder::ENVELOPE_STATUS_FETCHING);
@@ -3322,7 +3434,8 @@
 //                     Herder::ENVELOPE_STATUS_FETCHING);
 //             REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
 //             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
-//             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), p1.second));
+//             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(),
+//             p1.second));
 //         }
 //
 //         SECTION("accept malformed txset, but fail validation")
@@ -3333,7 +3446,8 @@
 //                 herder.recvTxSet(malformedTxSetPair.second->getContentsHash(),
 //                                  malformedTxSetPair.second));
 //             HerderSCPDriver& scp = herder.getHerderSCPDriver();
-//             REQUIRE(scp.validateValue(herder.trackingConsensusLedgerIndex() + 1,
+//             REQUIRE(scp.validateValue(herder.trackingConsensusLedgerIndex() +
+//             1,
 //                                       malformedTxSetPair.first, false) ==
 //                     (scp.protocolAllowsEmptyTxSetValues()
 //                          ? SCPDriver::kStructurallyValidValue
@@ -3379,7 +3493,8 @@
 //                                              ver); // mismatched
 //
 //     ValueWrapperPtrSet candidates;
-//     // Register the tx set so combineCandidates' getTxSet() returns it, then add
+//     // Register the tx set so combineCandidates' getTxSet() returns it, then
+//     add
 //     // a candidate value referencing it.
 //     auto addCandidate = [&](TxSetXDRFrameConstPtr const& txSet) {
 //         pe.addTxSet(txSet->getContentsHash(), slotIndex, txSet);
@@ -3558,7 +3673,8 @@
 //         sim.reset();
 //
 //         sim =
-//             std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+//             std::make_shared<Simulation>(Simulation::OVER_LOOPBACK,
+//             networkID);
 //
 //         // start a new node that will switch to whatever node0 & node1 says
 //         SCPQuorumSet qSetAll;
@@ -3594,7 +3710,8 @@
 //
 //         // Check that node0 restored state correctly
 //         knownTxSetHashes =
-//             checkTxSetHashesPersisted(sim->getNode(nodeIDs[0]), nodeSCPState);
+//             checkTxSetHashesPersisted(sim->getNode(nodeIDs[0]),
+//             nodeSCPState);
 //
 //         if (forceSCP)
 //         {
@@ -3623,8 +3740,8 @@
 //         // then let the nodes run a bit more, they should all externalize the
 //         // next ledger
 //         sim->crankUntil(
-//             [&]() { return sim->haveAllExternalized(expectedLedger + 2, 6); },
-//             2 * numLedgers * sim->getExpectedLedgerCloseTime(), false);
+//             [&]() { return sim->haveAllExternalized(expectedLedger + 2, 6);
+//             }, 2 * numLedgers * sim->getExpectedLedgerCloseTime(), false);
 //
 //         // nodes are at least on ledger 7 (some may be on 8)
 //         for (int i = 0; i <= 2; i++)
@@ -3682,13 +3799,15 @@
 //         // Remove last node so node0 and node1 are guaranteed to end up at
 //         // `expectedLedger + MAX_SLOTS_TO_REMEMBER + 1`
 //         sim->removeNode(nodeIDs[2]);
-//         // Crank for MAX_SLOTS_TO_REMEMBER + 1, so that purging logic kicks in
-//         sim->crankUntil(
+//         // Crank for MAX_SLOTS_TO_REMEMBER + 1, so that purging logic kicks
+//         in sim->crankUntil(
 //             [&]() {
-//                 // One extra ledger because tx sets are purged whenever new slot
+//                 // One extra ledger because tx sets are purged whenever new
+//                 slot
 //                 // is started
 //                 return sim->haveAllExternalized(
-//                     expectedLedger + nodeCfgs[0].MAX_SLOTS_TO_REMEMBER + 1, 1);
+//                     expectedLedger + nodeCfgs[0].MAX_SLOTS_TO_REMEMBER + 1,
+//                     1);
 //             },
 //             2 * nodeCfgs[0].MAX_SLOTS_TO_REMEMBER *
 //                 sim->getExpectedLedgerCloseTime(),
@@ -3745,7 +3864,8 @@
 //
 //     auto mainNode = simulation->addNode(v0SecretKey, qSet, &cfg1);
 //     simulation->startAllNodes();
-//     auto firstCheckpoint = HistoryManager::firstLedgerAfterCheckpointContaining(
+//     auto firstCheckpoint =
+//     HistoryManager::firstLedgerAfterCheckpointContaining(
 //         1, mainNode->getConfig());
 //
 //     // Crank until we are halfway through the second checkpoint
@@ -3753,8 +3873,8 @@
 //         [&]() {
 //             return simulation->haveAllExternalized(firstCheckpoint + 32, 1);
 //         },
-//         2 * (firstCheckpoint + 32) * simulation->getExpectedLedgerCloseTime(),
-//         false);
+//         2 * (firstCheckpoint + 32) *
+//         simulation->getExpectedLedgerCloseTime(), false);
 //
 //     SECTION("GC old checkpoints")
 //     {
@@ -3793,10 +3913,12 @@
 //         auto& lam = static_cast<LedgerApplyManagerImpl&>(
 //             outOfSync->getLedgerApplyManager());
 //
-//         // Crank until outOfSync node has received checkpoint ledger and started
+//         // Crank until outOfSync node has received checkpoint ledger and
+//         started
 //         // catchup
 //         simulation->crankUntil([&]() { return lam.isCatchupInitialized(); },
-//                                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
+//                                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY,
+//                                false);
 //
 //         auto const& bufferedLedgers = lam.getBufferedLedgers();
 //         REQUIRE(!bufferedLedgers.empty());
@@ -3820,11 +3942,13 @@
 //         auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
 //             outOfSync2->getLedgerApplyManager());
 //
-//         // Crank until outOfSync node has received checkpoint ledger and started
+//         // Crank until outOfSync node has received checkpoint ledger and
+//         started
 //         // catchup
 //         simulation->crankUntil(
 //             [&]() {
-//                 return cm1.isCatchupInitialized() && cm2.isCatchupInitialized();
+//                 return cm1.isCatchupInitialized() &&
+//                 cm2.isCatchupInitialized();
 //             },
 //             2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
 //
@@ -3890,10 +4014,10 @@
 //     };
 //
 //     auto makeTxs = [&](Application::pointer app) {
-//         auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
-//         auto root = app->getRoot();
-//         auto a1 = TestAccount{*app, getAccount("A")};
-//         auto b1 = TestAccount{*app, getAccount("B")};
+//         auto const minBalance2 =
+//         app->getLedgerManager().getLastMinBalance(2); auto root =
+//         app->getRoot(); auto a1 = TestAccount{*app, getAccount("A")}; auto b1
+//         = TestAccount{*app, getAccount("B")};
 //
 //         auto tx1 = root->tx({createAccount(a1, minBalance2)});
 //         auto tx2 = root->tx({createAccount(b1, minBalance2)});
@@ -3916,7 +4040,8 @@
 //     uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
 //     simulation->crankUntil(
 //         [&]() {
-//             return app->getLedgerManager().getLastClosedLedgerNum() >= lcl + 2;
+//             return app->getLedgerManager().getLastClosedLedgerNum() >= lcl +
+//             2;
 //         },
 //         3 * simulation->getExpectedLedgerCloseTime(), false);
 //
@@ -3943,7 +4068,8 @@
 //     lcl = app->getLedgerManager().getLastClosedLedgerNum();
 //     simulation->crankUntil(
 //         [&]() {
-//             return app->getLedgerManager().getLastClosedLedgerNum() >= lcl + 2;
+//             return app->getLedgerManager().getLastClosedLedgerNum() >= lcl +
+//             2;
 //         },
 //         3 * simulation->getExpectedLedgerCloseTime(), false);
 //
@@ -3965,7 +4091,8 @@
 //     uint32_t baseTxRate = 1;
 //     uint32_t numAccounts = 100;
 //     auto test =
-//         [&](std::function<void(SorobanNetworkConfig & cfg)> tweakSorobanConfig,
+//         [&](std::function<void(SorobanNetworkConfig & cfg)>
+//         tweakSorobanConfig,
 //             std::function<void(Config & appCfg)> tweakAppCfg) {
 //             auto simulation = Topologies::core(
 //                 4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
@@ -4039,7 +4166,8 @@
 //             // Generate Soroban txs from one node
 //             secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
 //                 LoadGenMode::PAY, 50,
-//                 /* nTxs */ 50, baseTxRate, /* offset */ 50, maxInclusionFee));
+//                 /* nTxs */ 50, baseTxRate, /* offset */ 50,
+//                 maxInclusionFee));
 //             auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
 //                 {"loadgen", "run", "failed"}, "run");
 //             auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
@@ -4086,7 +4214,8 @@
 //                     }
 //
 //                     hadSorobanSurgePricing =
-//                         hadSorobanSurgePricing || (baseFee && *baseFee > 100);
+//                         hadSorobanSurgePricing || (baseFee && *baseFee >
+//                         100);
 //
 //                     return loadGenDone.count() > currLoadGenCount &&
 //                            secondLoadGenDone.count() > secondLoadGenCount;
@@ -4105,7 +4234,8 @@
 //             Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS)
 //             .count();
 //
-//     // We will be submitting soroban txs at desiredTxRate * 3, but the network
+//     // We will be submitting soroban txs at desiredTxRate * 3, but the
+//     network
 //     // can only accept up to desiredTxRate for each resource dimension,
 //     // triggering surge pricing
 //     SECTION("operations")
@@ -4118,7 +4248,8 @@
 //     SECTION("instructions")
 //     {
 //         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-//             cfg.mLedgerMaxInstructions = desiredTxRate * cfg.mTxMaxInstructions;
+//             cfg.mLedgerMaxInstructions = desiredTxRate *
+//             cfg.mTxMaxInstructions;
 //         };
 //         auto tweakAppConfig = [](Config& cfg) {
 //             cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {50'000'000};
@@ -4190,7 +4321,8 @@
 //     {
 //         // Set threshold to 1 so all have to vote
 //         simulation =
-//             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+//             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i)
+//             {
 //                 auto cfg = getTestConfig(i);
 //                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
 //                 cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
@@ -4205,7 +4337,8 @@
 //     {
 //         // Set threshold to 1 so all have to vote
 //         simulation =
-//             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+//             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i)
+//             {
 //                 auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
 //                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
 //                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
@@ -4224,7 +4357,8 @@
 //     auto nodes = simulation->getNodes();
 //     uint32_t desiredTxRate = 1;
 //     uint32_t ledgerWideLimit = static_cast<uint32>(
-//         desiredTxRate * simulation->getExpectedLedgerCloseTime().count() * 2);
+//         desiredTxRate * simulation->getExpectedLedgerCloseTime().count() *
+//         2);
 //     upgradeSorobanNetworkConfig(
 //         [&](SorobanNetworkConfig& cfg) {
 //             setSorobanNetworkConfigForTest(cfg);
@@ -4234,12 +4368,14 @@
 //     auto& loadGen = nodes[0]->getLoadGenerator();
 //
 //     auto& loadGenDone =
-//         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+//         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"},
+//         "run");
 //     auto currLoadGenCount = loadGenDone.count();
 //
 //     auto& secondLoadGen = nodes[1]->getLoadGenerator();
 //     auto& secondLoadGenDone =
-//         nodes[1]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+//         nodes[1]->getMetrics().NewMeter({"loadgen", "run", "complete"},
+//         "run");
 //     // Generate load from several nodes, to produce both classic and
 //     // soroban traffic
 //     currLoadGenCount = loadGenDone.count();
@@ -4285,7 +4421,8 @@
 //         {1, 1'000, 100'000}, // 1% prob, 1ms-100ms
 //     };
 //
-//     for (uint32_t iteration = 0; iteration < jitterConfigs.size(); ++iteration)
+//     for (uint32_t iteration = 0; iteration < jitterConfigs.size();
+//     ++iteration)
 //     {
 //         SECTION("iteration " + std::to_string(iteration))
 //         {
@@ -4300,7 +4437,8 @@
 //                 // Set threshold to 1 so all have to vote
 //                 simulation = Topologies::core(
 //                     4, 1, Simulation::OVER_TCP, networkID, [](int i) {
-//                         auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+//                         auto cfg = getTestConfig(i,
+//                         Config::TESTDB_POSTGRESQL);
 //                         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
 //                         // Enable ALL parallel features
 //                         cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
@@ -4360,7 +4498,8 @@
 //             uint32_t const txCount = 50;
 //
 //             // Generate load from multiple nodes with different transaction
-//             // types to maximize concurrency and race condition potential Node
+//             // types to maximize concurrency and race condition potential
+//             Node
 //             // 0: Soroban upload transactions
 //             loadGen.generateLoad(GeneratedLoadConfig::txLoad(
 //                 LoadGenMode::SOROBAN_UPLOAD, 50, txCount, desiredTxRate,
@@ -4372,8 +4511,8 @@
 //                 /* offset */ 50));
 //
 //             // Run simulation until all load generators complete
-//             // Timeout is generous to allow for the artificial delays and jitter
-//             simulation->crankUntil(
+//             // Timeout is generous to allow for the artificial delays and
+//             jitter simulation->crankUntil(
 //                 [&]() {
 //                     return loadGenDone.count() > currLoadGenCount &&
 //                            secondLoadGenDone.count() > secondLoadGenCount;
@@ -4394,8 +4533,8 @@
 //                 stellar::JitterInjector::getInjectionCount();
 //             uint64_t delayCount = stellar::JitterInjector::getDelayCount();
 //             CLOG_INFO(Test,
-//                       "Iteration {} completed: {} total injections, {} delays "
-//                       "applied (probability={}, delay range: {}-{}ms)",
+//                       "Iteration {} completed: {} total injections, {} delays
+//                       " "applied (probability={}, delay range: {}-{}ms)",
 //                       iteration, injectionCount, delayCount,
 //                       jitterConfigs[iteration].defaultProbability,
 //                       jitterConfigs[iteration].minDelayUsec / 1'000,
@@ -4412,7 +4551,8 @@
 //
 //     // Set threshold to 1 so all have to vote
 //     auto simulation =
-//         Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+//         Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int
+//         i) {
 //             auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
 //             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
 //             cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
@@ -4446,7 +4586,8 @@
 //         {"ledger", "apply-soroban", "failure"});
 //
 //     auto& loadGenDone =
-//         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+//         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"},
+//         "run");
 //     auto currLoadGenCount = loadGenDone.count();
 //
 //     uint64_t lastSorobanSucceeded = sorobanTxsSucceeded.count();
@@ -4559,7 +4700,8 @@
 //             uint32_t maxInclusionFee = 100'000;
 //             auto sorobanConfig =
 //                 GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_UPLOAD, 50,
-//                                             /* nTxs */ 100, desiredTxRate * 3,
+//                                             /* nTxs */ 100, desiredTxRate *
+//                                             3,
 //                                             /* offset */ 0, maxInclusionFee);
 //
 //             // Make sure some soroban txs get applied.
@@ -4615,7 +4757,8 @@
 // }
 //
 // void
-// checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
+// checkHerder(Application& app, HerderImpl& herder, Herder::State
+// expectedState,
 //             uint32_t ledger)
 // {
 //     checkInvariants(app, herder);
@@ -4624,7 +4767,8 @@
 // }
 //
 // std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
-// getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
+// getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t
+// end)
 // {
 //     std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
 //         validatorSCPMessages;
@@ -4657,8 +4801,10 @@
 // // externalize information to LM, and Herder appropriately reacting to ledger
 // // close.
 //
-// // The nice thing about this test is that because we fully control the messages
-// // received by a node, we fully control the state of Herder and LM (and whether
+// // The nice thing about this test is that because we fully control the
+// messages
+// // received by a node, we fully control the state of Herder and LM (and
+// whether
 // // each component is in sync or out of sync)
 // void
 // herderExternalizesValuesWithProtocol(uint32_t version,
@@ -4707,7 +4853,8 @@
 //     simulation->stopOverlayTick();
 //     upgradeSorobanNetworkConfig(
 //         [&](SorobanNetworkConfig& cfg) {
-//             cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
+//             cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod
+//             =
 //                 1;
 //         },
 //         simulation);
@@ -4730,7 +4877,8 @@
 //         auto destinationLedger = currentALedger() + nLedgers;
 //         simulation->crankUntil(
 //             [&]() {
-//                 return simulation->haveAllExternalized(destinationLedger, 100);
+//                 return simulation->haveAllExternalized(destinationLedger,
+//                 100);
 //             },
 //             10 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
 //         return std::min(currentALedger(), currentCLedger());
@@ -4754,12 +4902,14 @@
 //         bool submitted = false;
 //         simulation->crankUntil(
 //             [&]() {
-//                 if (currentALedger() == (destinationLedger - 1) && !submitted)
+//                 if (currentALedger() == (destinationLedger - 1) &&
+//                 !submitted)
 //                 {
 //                     auto root = A->getRoot();
 //                     SorobanResources resources;
 //                     auto sorobanTx = createUploadWasmTx(
-//                         *A, *root, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
+//                         *A, *root, 100, DEFAULT_TEST_RESOURCE_FEE,
+//                         resources);
 //                     REQUIRE(
 //                         herderA.recvTransaction(sorobanTx, true).code ==
 //                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
@@ -4808,16 +4958,19 @@
 //
 //     REQUIRE(validatorSCPMessagesA.size() == validatorSCPMessagesB.size());
 //     checkHerder(*(getC()), herderC,
-//                 Herder::State::HERDER_TRACKING_NETWORK_STATE, currentCLedger());
+//                 Herder::State::HERDER_TRACKING_NETWORK_STATE,
+//                 currentCLedger());
 //     REQUIRE(currentCLedger() == currentLedger);
 //
 //     auto receiveLedger = [&](uint32_t ledger, Herder& herder) {
 //         auto newMsgB = validatorSCPMessagesB.at(ledger);
 //         auto newMsgA = validatorSCPMessagesA.at(ledger);
 //
-//         REQUIRE(herder.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second) ==
+//         REQUIRE(herder.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second)
+//         ==
 //                 Herder::ENVELOPE_STATUS_READY);
-//         REQUIRE(herder.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
+//         REQUIRE(herder.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second)
+//         ==
 //                 Herder::ENVELOPE_STATUS_READY);
 //         simulation->crankForAtLeast(std::chrono::seconds(1), false);
 //     };
@@ -4835,7 +4988,8 @@
 //
 //         // Externalize future ledger
 //         // This should trigger LedgerApplyManager to start buffering ledgers
-//         // Ensure C processes future tx set and its fees correctly (even though
+//         // Ensure C processes future tx set and its fees correctly (even
+//         though
 //         // its own ledger state isn't upgraded yet)
 //         receiveLedger(fourth, herderC);
 //         if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
@@ -4860,11 +5014,13 @@
 //         REQUIRE(herderC.getTriggerTimer().seq() == 0);
 //
 //         // Next, externalize a contiguous ledger
-//         // This will cause LM to apply it, and catchup manager will try to apply
+//         // This will cause LM to apply it, and catchup manager will try to
+//         apply
 //         // buffered ledgers
 //         // complete - all messages are received out of order
 //         // partial - only most recent ledger is received out of order
-//         // LedgerApplyManager should apply buffered ledgers and let LM get back
+//         // LedgerApplyManager should apply buffered ledgers and let LM get
+//         back
 //         // in sync
 //         std::vector<uint32_t> ledgers{first, third, second};
 //         if (partial)
@@ -4878,14 +5034,16 @@
 //
 //             // Tracking did not change
 //             checkHerder(*(getC()), herderC,
-//                         Herder::State::HERDER_TRACKING_NETWORK_STATE, fourth);
+//                         Herder::State::HERDER_TRACKING_NETWORK_STATE,
+//                         fourth);
 //             REQUIRE(!getC()->getLedgerApplyManager().isCatchupInitialized());
 //
 //             // At the last ledger, LM is back in sync
 //             if (i == ledgers.size() - 1)
 //             {
 //                 checkSynced(*(getC()));
-//                 // All the buffered ledgers are applied by now, so it's safe to
+//                 // All the buffered ledgers are applied by now, so it's safe
+//                 to
 //                 // trigger the next ledger
 //                 REQUIRE(herderC.getTriggerTimer().seq() > 0);
 //                 REQUIRE(herderC.mTriggerNextLedgerSeq == fourth + 1);
@@ -4893,13 +5051,14 @@
 //             else
 //             {
 //                 REQUIRE(!lmC.isSynced());
-//                 // As we're not in sync yet, ensure next ledger is not triggered
-//                 REQUIRE(herderC.getTriggerTimer().seq() == 0);
+//                 // As we're not in sync yet, ensure next ledger is not
+//                 triggered REQUIRE(herderC.getTriggerTimer().seq() == 0);
 //                 REQUIRE(herderC.mTriggerNextLedgerSeq == currentLedger + 1);
 //             }
 //         }
 //
-//         // As we're back in sync now, ensure Herder and LM are consistent with
+//         // As we're back in sync now, ensure Herder and LM are consistent
+//         with
 //         // each other
 //         auto lcl = lmC.getLastClosedLedgerNum();
 //         REQUIRE(lcl == herderC.trackingConsensusLedgerIndex());
@@ -4948,7 +5107,8 @@
 //                 // LM is synced
 //                 checkSynced(*(getC()));
 //
-//                 // Since we're externalizing ledgers in order, make sure ledger
+//                 // Since we're externalizing ledgers in order, make sure
+//                 ledger
 //                 // trigger is scheduled
 //                 REQUIRE(herderC.getTriggerTimer().seq() > 0);
 //                 REQUIRE(herderC.mTriggerNextLedgerSeq == msgPair.first + 1);
@@ -4970,7 +5130,8 @@
 //                            Herder::State::HERDER_SYNCING_STATE;
 //                 },
 //                 2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
-//             checkHerder(*(getC()), herderC, Herder::State::HERDER_SYNCING_STATE,
+//             checkHerder(*(getC()), herderC,
+//             Herder::State::HERDER_SYNCING_STATE,
 //                         currentLedger);
 //             checkReceivedLedgers();
 //         }
@@ -5003,10 +5164,9 @@
 //         // processing of older slots
 //         simulation->removeNode(validatorCKey.getPublicKey());
 //         configC.MAX_SLOTS_TO_REMEMBER += 5;
-//         auto newC = simulation->addNode(validatorCKey, qset, &configC, false);
-//         newC->start();
-//         simulation->stopOverlayTick();
-//         HerderImpl& newHerderC = static_cast<HerderImpl&>(newC->getHerder());
+//         auto newC = simulation->addNode(validatorCKey, qset, &configC,
+//         false); newC->start(); simulation->stopOverlayTick(); HerderImpl&
+//         newHerderC = static_cast<HerderImpl&>(newC->getHerder());
 //
 //         checkHerder(*newC, newHerderC,
 //                     Herder::State::HERDER_TRACKING_NETWORK_STATE,
@@ -5020,7 +5180,8 @@
 //                         currentlyTracking);
 //             checkSynced(*newC);
 //             // Externalizing an old ledger should not trigger next ledger
-//             REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking + 1);
+//             REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking +
+//             1);
 //         }
 //         SECTION("not tracking")
 //         {
@@ -5031,18 +5192,21 @@
 //                            Herder::State::HERDER_SYNCING_STATE;
 //                 },
 //                 2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
-//             checkHerder(*newC, newHerderC, Herder::State::HERDER_SYNCING_STATE,
+//             checkHerder(*newC, newHerderC,
+//             Herder::State::HERDER_SYNCING_STATE,
 //                         currentlyTracking);
 //
 //             receiveLedger(destinationLedger, newHerderC);
 //
 //             // Tracking has not changed, still the most recent ledger
-//             checkHerder(*newC, newHerderC, Herder::State::HERDER_SYNCING_STATE,
+//             checkHerder(*newC, newHerderC,
+//             Herder::State::HERDER_SYNCING_STATE,
 //                         currentlyTracking);
 //             checkSynced(*newC);
 //
 //             // Externalizing an old ledger should not trigger next ledger
-//             REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking + 1);
+//             REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking +
+//             1);
 //         }
 //
 //         // Make sure nodes continue closing ledgers normally despite old data
@@ -5059,7 +5223,8 @@
 //         SECTION("C goes back in sync and unsticks the network")
 //         {
 //             // Now that C is back in sync and triggered next ledger
-//             // (and B is disconnected), C and A should be able to make progress
+//             // (and B is disconnected), C and A should be able to make
+//             progress
 //
 //             auto lcl = currentALedger();
 //             auto nextLedger = lcl + fewLedgers;
@@ -5096,7 +5261,8 @@
 //                           newHerderC);
 //
 //             // Trigger timer did not change
-//             REQUIRE(expiryTime == newHerderC.getTriggerTimer().expiry_time());
+//             REQUIRE(expiryTime ==
+//             newHerderC.getTriggerTimer().expiry_time());
 //             REQUIRE(newHerderC.getTriggerTimer().seq() > 0);
 //         }
 //     }
@@ -5107,7 +5273,8 @@
 //                 Herder::State::HERDER_TRACKING_NETWORK_STATE);
 //         REQUIRE(currentCLedger() == currentLedger);
 //
-//         // Before triggering apply, override LCL setting function in LM, which
+//         // Before triggering apply, override LCL setting function in LM,
+//         which
 //         // would set isApplying to false
 //         LedgerManagerImpl& lmCImpl =
 //             static_cast<LedgerManagerImpl&>(getC()->getLedgerManager());
@@ -5180,7 +5347,8 @@
 //     auto simulation = std::make_shared<Simulation>(
 //         Simulation::OVER_LOOPBACK, networkID, [&](int i) {
 //             // Use a persistent DB so parallel ledger close is enabled. Note:
-//             // time acceleration stays off, so the checkpoint frequency (64) is
+//             // time acceleration stays off, so the checkpoint frequency (64)
+//             is
 //             // large enough that LedgerApplyManager doesn't trim the ledgers
 //             // buffered by this test.
 //             auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
@@ -5240,7 +5408,8 @@
 //     // disconnecting them, so their state can be compared against C later. C
 //     // will externalize N+1..N+maxSlots-1, applying maxSlots - 1 ledgers in
 //     // total: combined with the gap ledger that's within
-//     // MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT, so all of them can be queued to the
+//     // MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT, so all of them can be queued to
+//     the
 //     // apply thread at once.
 //     uint32_t const last = N + maxSlots - 1;
 //     simulation->crankUntil(
@@ -5264,9 +5433,11 @@
 //     auto feedLedger = [&](uint32_t ledger) {
 //         auto newMsgA = validatorSCPMessagesA.at(ledger);
 //         auto newMsgB = validatorSCPMessagesB.at(ledger);
-//         REQUIRE(herderC.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second) ==
+//         REQUIRE(herderC.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second)
+//         ==
 //                 Herder::ENVELOPE_STATUS_READY);
-//         REQUIRE(herderC.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
+//         REQUIRE(herderC.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second)
+//         ==
 //                 Herder::ENVELOPE_STATUS_READY);
 //     };
 //
@@ -5274,7 +5445,8 @@
 //     // so the future slot is processed only once Herder goes out of sync.
 //     feedLedger(N + 2);
 //     simulation->crankUntil([&]() { return !lmC.isSynced(); },
-//                            2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
+//                            2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
+//                            false);
 //     checkHerder(*C, herderC, Herder::State::HERDER_TRACKING_NETWORK_STATE,
 //                 N + 2);
 //     REQUIRE(lmC.getLastClosedLedgerNum() == N);
@@ -5286,14 +5458,16 @@
 //     {
 //         feedLedger(seq);
 //         simulation->crankForAtLeast(std::chrono::seconds(1), false);
-//         checkHerder(*C, herderC, Herder::State::HERDER_TRACKING_NETWORK_STATE,
+//         checkHerder(*C, herderC,
+//         Herder::State::HERDER_TRACKING_NETWORK_STATE,
 //                     seq);
 //         REQUIRE(lmC.getLastClosedLedgerNum() == N);
 //     }
 //
 //     // Slot purging actually happened while the LCL was stuck: only slots
 //     // within the validity bracket of the _tracking_ index remain (everything
-//     // below `last - maxSlots + 1 = N` is gone), even though no ledger has been
+//     // below `last - maxSlots + 1 = N` is gone), even though no ledger has
+//     been
 //     // applied since N.
 //     auto slots = knownSlots();
 //     REQUIRE(slots.size() <= maxSlots);
@@ -5306,7 +5480,8 @@
 //     REQUIRE(!lamC.maybeGetNextBufferedLedgerToApply());
 //     REQUIRE(lamC.maybeGetLargestBufferedLedger()->getLedgerSeq() == last);
 //
-//     // Now feed the missing ledger N+1. Its slot index is exactly at the lower
+//     // Now feed the missing ledger N+1. Its slot index is exactly at the
+//     lower
 //     // edge of C's validity bracket, so the envelopes are still accepted; the
 //     // old slot externalizes and LedgerApplyManager queues all buffered
 //     // ledgers to the apply thread at once.
@@ -5396,11 +5571,16 @@
 //                                validatorCKey.getPublicKey());
 //     uint32_t const N = lmC.getLastClosedLedgerNum();
 //
-//     // Advance A and B to N+5, then freeze the network by disconnecting them, so
-//     // their state can be compared against C later. C will externalize N+1..N+5;
-//     // the 5-ledger drift is below MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT (12), so
-//     // once the gap is filled the whole run can be queued to apply at once. The
-//     // tracking index stays within MAX_SLOTS_TO_REMEMBER (12) of the gap ledger,
+//     // Advance A and B to N+5, then freeze the network by disconnecting them,
+//     so
+//     // their state can be compared against C later. C will externalize
+//     N+1..N+5;
+//     // the 5-ledger drift is below MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT (12),
+//     so
+//     // once the gap is filled the whole run can be queued to apply at once.
+//     The
+//     // tracking index stays within MAX_SLOTS_TO_REMEMBER (12) of the gap
+//     ledger,
 //     // so the gap envelope is never discarded.
 //     uint32_t const last = N + 5;
 //     simulation->crankUntil(
@@ -5422,31 +5602,38 @@
 //     auto feedLedger = [&](uint32_t ledger) {
 //         auto newMsgA = validatorSCPMessagesA.at(ledger);
 //         auto newMsgB = validatorSCPMessagesB.at(ledger);
-//         REQUIRE(herderC.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second) ==
+//         REQUIRE(herderC.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second)
+//         ==
 //                 Herder::ENVELOPE_STATUS_READY);
-//         REQUIRE(herderC.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
+//         REQUIRE(herderC.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second)
+//         ==
 //                 Herder::ENVELOPE_STATUS_READY);
 //     };
 //
 //     // Step 1: go out of sync at N. Feed C the ledger after the missing one
-//     // (N+2), leaving a gap at N+1. C is tracking N, so the future slot is only
+//     // (N+2), leaving a gap at N+1. C is tracking N, so the future slot is
+//     only
 //     // processed once the consensus-stuck timer fires and Herder goes out of
 //     // sync; afterwards Herder is tracking N+2 but LM's LCL is stuck at N.
 //     feedLedger(N + 2);
 //     simulation->crankUntil([&]() { return !lmC.isSynced(); },
-//                            2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
+//                            2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
+//                            false);
 //     checkHerder(*C, herderC, Herder::State::HERDER_TRACKING_NETWORK_STATE,
 //                 N + 2);
 //     REQUIRE(lmC.getLastClosedLedgerNum() == N);
 //
-//     // Step 2: buffer up to N+5. Each future slot externalizes at receive time
-//     // (LM is buffering, so nothing is applying), advancing the tracking index
+//     // Step 2: buffer up to N+5. Each future slot externalizes at receive
+//     time
+//     // (LM is buffering, so nothing is applying), advancing the tracking
+//     index
 //     // while the LCL stays stuck at N and the gap at N+1 remains.
 //     for (uint32_t seq = N + 3; seq <= last; ++seq)
 //     {
 //         feedLedger(seq);
 //         simulation->crankForAtLeast(std::chrono::seconds(1), false);
-//         checkHerder(*C, herderC, Herder::State::HERDER_TRACKING_NETWORK_STATE,
+//         checkHerder(*C, herderC,
+//         Herder::State::HERDER_TRACKING_NETWORK_STATE,
 //                     seq);
 //         REQUIRE(lmC.getLastClosedLedgerNum() == N);
 //     }
@@ -5459,8 +5646,10 @@
 //
 //     // Step 3: go out of sync again. With no LCL progress and no new latest
 //     // externalize to re-arm the heartbeat, the consensus-stuck timer fires
-//     // again. Since nothing is applying, this drives Herder all the way to the
-//     // out-of-sync (SYNCING) state, where it stays -- there are no unprocessed
+//     // again. Since nothing is applying, this drives Herder all the way to
+//     the
+//     // out-of-sync (SYNCING) state, where it stays -- there are no
+//     unprocessed
 //     // slots to bring it back to tracking.
 //     simulation->crankForAtLeast(Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS +
 //                                     std::chrono::seconds(5),
@@ -5485,8 +5674,8 @@
 //     REQUIRE(lmC.getLastClosedLedgerHeader().hash ==
 //             A->getLedgerManager().getLastClosedLedgerHeader().hash);
 //
-//     // Reconnect everyone: the network (including C) proceeds to close ledgers.
-//     simulation->addConnection(validatorAKey.getPublicKey(),
+//     // Reconnect everyone: the network (including C) proceeds to close
+//     ledgers. simulation->addConnection(validatorAKey.getPublicKey(),
 //                               validatorCKey.getPublicKey());
 //     simulation->addConnection(validatorAKey.getPublicKey(),
 //                               validatorBKey.getPublicKey());
@@ -5507,7 +5696,8 @@
 // // than MAX_SLOTS_TO_REMEMBER while its LCL is stuck, so purging evicts the
 // // slots of ledgers that are themselves still queued for application. Such a
 // // gap is only recoverable via history catchup (the missing ledger's envelope
-// // is outside the validity bracket and gets discarded), so this test publishes
+// // is outside the validity bracket and gets discarded), so this test
+// publishes
 // // real checkpoints to a tmpdir archive. The node must catch up, apply the
 // // ledgers whose slot data was purged, end on the network's hash, and keep
 // // closing new ledgers.
@@ -5531,8 +5721,8 @@
 //     auto makeConfig = [&](int i, bool writableArchive) {
 //         auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
 //         cfg.RUN_STANDALONE = false;
-//         // Accelerated time so checkpoints (frequency 8) are published quickly
-//         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+//         // Accelerated time so checkpoints (frequency 8) are published
+//         quickly cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
 //         cfg.MODE_DOES_CATCHUP = true;
 //         // A publishes to the archive; everyone can read it
 //         histCfg->configure(cfg, writableArchive);
@@ -5584,7 +5774,8 @@
 //     uint32_t const N = lmC.getLastClosedLedgerNum();
 //
 //     // C will be fed ledgers N+2..N+2+maxSlots+4, i.e. its tracking slot will
-//     // end up `maxSlots + 6` ahead of its LCL. Collect A's and B's externalize
+//     // end up `maxSlots + 6` ahead of its LCL. Collect A's and B's
+//     externalize
 //     // messages incrementally while they advance, since they each only retain
 //     // MAX_SLOTS_TO_REMEMBER slots themselves.
 //     uint32_t const last = N + 2 + maxSlots + 4;
@@ -5594,7 +5785,8 @@
 //     {
 //         simulation->crankUntil(
 //             [&]() {
-//                 return A->getLedgerManager().getLastClosedLedgerNum() >= seq &&
+//                 return A->getLedgerManager().getLastClosedLedgerNum() >= seq
+//                 &&
 //                        B->getLedgerManager().getLastClosedLedgerNum() >= seq;
 //             },
 //             2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS +
@@ -5621,9 +5813,11 @@
 //     auto feedLedger = [&](uint32_t ledger) {
 //         auto newMsgA = messagesA.at(ledger);
 //         auto newMsgB = messagesB.at(ledger);
-//         REQUIRE(herderC.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second) ==
+//         REQUIRE(herderC.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second)
+//         ==
 //                 Herder::ENVELOPE_STATUS_READY);
-//         REQUIRE(herderC.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
+//         REQUIRE(herderC.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second)
+//         ==
 //                 Herder::ENVELOPE_STATUS_READY);
 //     };
 //
@@ -5631,7 +5825,8 @@
 //     // of sync and process the future slot
 //     feedLedger(N + 2);
 //     simulation->crankUntil([&]() { return !lmC.isSynced(); },
-//                            2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
+//                            2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
+//                            false);
 //     checkHerder(*C, herderC, Herder::State::HERDER_TRACKING_NETWORK_STATE,
 //                 N + 2);
 //     REQUIRE(lmC.getLastClosedLedgerNum() == N);
@@ -5664,7 +5859,8 @@
 //     REQUIRE(herderC.recvSCPEnvelope(gapMsg.first, qset, gapMsg.second) ==
 //             Herder::ENVELOPE_STATUS_DISCARDED);
 //
-//     // Reconnect C and let it catch up from A's archive. It must apply all the
+//     // Reconnect C and let it catch up from A's archive. It must apply all
+//     the
 //     // ledgers it externalized (including those whose slot data was purged)
 //     // and land on the same hash as the network.
 //     simulation->addConnection(validatorAKey.getPublicKey(),
@@ -5732,7 +5928,8 @@
 //         auto destinationLedger = currentValidatorLedger() + nLedgers;
 //         simulation->crankUntil(
 //             [&]() {
-//                 return simulation->haveAllExternalized(destinationLedger, 100);
+//                 return simulation->haveAllExternalized(destinationLedger,
+//                 100);
 //             },
 //             2 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
 //         return currentValidatorLedger();
@@ -5782,7 +5979,8 @@
 //                 app->getLedgerManager().getLastClosedLedgerHeader();
 //             auto configBefore =
 //                 app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-//             auto hasBefore = app->getLedgerManager().getLastClosedLedgerHAS();
+//             auto hasBefore =
+//             app->getLedgerManager().getLastClosedLedgerHAS();
 //
 //             // Restart listener, it should be able to catchup
 //             app.reset();
@@ -5851,7 +6049,8 @@
 //     simulation->stopAllNodes();
 // }
 //
-// TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
+// TEST_CASE("ledger state update flow with parallel apply",
+// "[herder][parallel]")
 // {
 //     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 //
@@ -5860,7 +6059,8 @@
 //             Topologies::core(4, 1.0, Simulation::OVER_TCP, networkID,
 //                              [enableParallelApply](int i) {
 //                                  Config cfg;
-//                                  cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+//                                  cfg = getTestConfig(i,
+//                                  Config::TESTDB_DEFAULT);
 //                                  cfg.PARALLEL_LEDGER_APPLY =
 //                                      enableParallelApply;
 //                                  return cfg;
@@ -5900,7 +6100,8 @@
 //                 REQUIRE(lm.getLastClosedLedgerNum() <= lcl);
 //
 //                 // No-op, so we don't update read-only state after apply
-//                 lm.mAdvanceLedgerStateAndPublishOverride = [&] { return true; };
+//                 lm.mAdvanceLedgerStateAndPublishOverride = [&] { return true;
+//                 };
 //             }
 //
 //             // Crank until one more ledger is externalized
@@ -5919,10 +6120,11 @@
 //                 REQUIRE(lm.getLastClosedLedgerHAS().currentLedger ==
 //                         lastHeader.ledgerSeq);
 //                 REQUIRE(
-//                     lm.copyImmutableLedgerView().getLedgerHeader().current() ==
-//                     lastHeader);
+//                     lm.copyImmutableLedgerView().getLedgerHeader().current()
+//                     == lastHeader);
 //
-//                 // Apply state got committed, but has not yet been propagated to
+//                 // Apply state got committed, but has not yet been propagated
+//                 to
 //                 // read-only state
 //                 LedgerHeaderHistoryEntry lhe;
 //                 {
@@ -5933,11 +6135,14 @@
 //                     lhe.hash = header.previousLedgerHash;
 //                 }
 //
-//                 // This test exercises a race where we start applying ledger N +
-//                 // 1 before we publish the result of N. This shouldn't violate
+//                 // This test exercises a race where we start applying ledger
+//                 N +
+//                 // 1 before we publish the result of N. This shouldn't
+//                 violate
 //                 // any ApplyState invariants. ApplyState should already be
 //                 // committed and up to date via the apply thread, even if the
-//                 // main thread has not yet published the result to the rest of
+//                 // main thread has not yet published the result to the rest
+//                 of
 //                 // core.
 //                 if (enableParallelApply)
 //                 {
@@ -5973,8 +6178,8 @@
 //                 REQUIRE(readOnly.header.ledgerSeq == lcl + 1);
 //                 REQUIRE(lm.getLastClosedLedgerNum() == lcl + 1);
 //                 REQUIRE(
-//                     lm.copyImmutableLedgerView().getLedgerHeader().current() ==
-//                     readOnly.header);
+//                     lm.copyImmutableLedgerView().getLedgerHeader().current()
+//                     == readOnly.header);
 //                 auto has = lm.getLastClosedLedgerHAS();
 //                 REQUIRE(has.currentLedger == readOnly.header.ledgerSeq);
 //
@@ -6010,7 +6215,8 @@
 //             // messages for C.
 //             if (i == 3)
 //             {
-//                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = APPLY_DELAY;
+//                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+//                 APPLY_DELAY;
 //             }
 //             return cfg;
 //         });
@@ -6029,9 +6235,10 @@
 //     auto A = simulation->addNode(keyA, qset);
 //     auto B = simulation->addNode(keyB, qset);
 //     auto C = simulation->addNode(keyC, qset);
-//     simulation->addPendingConnection(keyA.getPublicKey(), keyC.getPublicKey());
-//     simulation->addPendingConnection(keyA.getPublicKey(), keyB.getPublicKey());
-//     simulation->startAllNodes();
+//     simulation->addPendingConnection(keyA.getPublicKey(),
+//     keyC.getPublicKey());
+//     simulation->addPendingConnection(keyA.getPublicKey(),
+//     keyB.getPublicKey()); simulation->startAllNodes();
 //     simulation->stopOverlayTick();
 //
 //     // Close a handful of ledgers to establish normal state.
@@ -6055,7 +6262,8 @@
 //     // has no peers at this point and stays put.
 //     simulation->crankUntil(
 //         [&] {
-//             return A->getLedgerManager().getLastClosedLedgerNum() >= target + 2;
+//             return A->getLedgerManager().getLastClosedLedgerNum() >= target +
+//             2;
 //         },
 //         std::chrono::seconds(20), false);
 //     REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target - 1);
@@ -6078,7 +6286,8 @@
 //                 return std::make_pair(env, txSet->toStellarMessage());
 //             }
 //         }
-//         throw std::runtime_error("no EXTERNALIZE envelope for requested slot");
+//         throw std::runtime_error("no EXTERNALIZE envelope for requested
+//         slot");
 //     };
 //     auto envA = captureExternalize(*A, target);
 //     auto envB = captureExternalize(*B, target);
@@ -6091,10 +6300,11 @@
 //     // validated against the freshly-closed LCL — will reject it because
 //     // the tx set doesn't match the real previous ledger hash.
 //     LedgerHeaderHistoryEntry bogusLcl;
-//     bogusLcl.header = C->getLedgerManager().getLastClosedLedgerHeader().header;
-//     bogusLcl.hash = sha256("invalid-previous-ledger-hash");
-//     auto invalidTxSet = TxSetXDRFrame::makeEmpty(bogusLcl);
-//     auto invalidTxSetHash = invalidTxSet->getContentsHash();
+//     bogusLcl.header =
+//     C->getLedgerManager().getLastClosedLedgerHeader().header; bogusLcl.hash =
+//     sha256("invalid-previous-ledger-hash"); auto invalidTxSet =
+//     TxSetXDRFrame::makeEmpty(bogusLcl); auto invalidTxSetHash =
+//     invalidTxSet->getContentsHash();
 //
 //     uint64_t cLastCloseTime = C->getLedgerManager()
 //                                   .getLastClosedLedgerHeader()
@@ -6223,7 +6433,8 @@
 //             auto c = sim->getNode(k);
 //             HerderImpl& herder = static_cast<HerderImpl&>(c->getHerder());
 //
-//             auto const& lcl = c->getLedgerManager().getLastClosedLedgerHeader();
+//             auto const& lcl =
+//             c->getLedgerManager().getLastClosedLedgerHeader();
 //             herder.getSCP().processCurrentState(lcl.header.ledgerSeq, proc,
 //                                                 true);
 //         }
@@ -6232,14 +6443,16 @@
 //     // none of the messages from the extra nodes should be present
 //     checkCoreNodes([&](SCPEnvelope const& e) {
 //         bool r =
-//             std::find_if(extraK.begin(), extraK.end(), [&](SecretKey const& s) {
+//             std::find_if(extraK.begin(), extraK.end(), [&](SecretKey const&
+//             s) {
 //                 return e.statement.nodeID == s.getPublicKey();
 //             }) != extraK.end();
 //         REQUIRE(!r);
 //         return true;
 //     });
 //
-//     // then, change the quorum set of node Core3 to also include "E_2" and "E_3"
+//     // then, change the quorum set of node Core3 to also include "E_2" and
+//     "E_3"
 //     // E_1 .. E_3 are now part of the overall quorum
 //     // E_0 is still not
 //
@@ -6285,7 +6498,8 @@
 //
 // static void
 // externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
-//             std::vector<TransactionFrameBasePtr> const& txs, Application& app)
+//             std::vector<TransactionFrameBasePtr> const& txs, Application&
+//             app)
 // {
 //     auto const& lcl = lm.getLastClosedLedgerHeader();
 //     auto ledgerSeq = lcl.header.ledgerSeq + 1;
@@ -6312,7 +6526,8 @@
 //
 //     auto [txSet, applicableTxSet] =
 //         makeTxSetFromTransactions(txsPhases, app, 0, 0);
-//     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
+//     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
+//     ledgerSeq,
 //                                           txSet);
 //
 //     auto lastCloseTime = lcl.header.scpValue.closeTime;
@@ -6334,8 +6549,8 @@
 //     VirtualClock clock;
 //     auto cfg = getTestConfig();
 //     cfg.FLOOD_TX_PERIOD_MS = 1; // flood as fast as possible
-//     cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = std::chrono::seconds(0);
-//     auto app = createTestApplication(clock, cfg);
+//     cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+//     std::chrono::seconds(0); auto app = createTestApplication(clock, cfg);
 //
 //     auto& lm = app->getLedgerManager();
 //     auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -6418,7 +6633,8 @@
 //     upgradeSorobanNetworkConfig(
 //         [&](SorobanNetworkConfig& cfg) {
 //             setSorobanNetworkConfigForTest(cfg);
-//             // Update read entries to allow flooding at most 1 tx per broadcast
+//             // Update read entries to allow flooding at most 1 tx per
+//             broadcast
 //             // interval.
 //             cfg.mLedgerMaxDiskReadEntries = 40;
 //             cfg.mLedgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes;
@@ -6527,9 +6743,9 @@
 //         REQUIRE(numBroadcast == 1);
 //         REQUIRE(tq.getTransactions({}).size() == numTx - 2);
 //
-//         // Submit an expensive tx that will be broadcasted before cheaper ones
-//         simulation->crankForAtLeast(std::chrono::milliseconds(500), false);
-//         genTx(*root, true);
+//         // Submit an expensive tx that will be broadcasted before cheaper
+//         ones simulation->crankForAtLeast(std::chrono::milliseconds(500),
+//         false); genTx(*root, true);
 //
 //         // Wait half a ledger to flood _at least_ 1 ledger worth of traffic
 //         simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
@@ -6547,7 +6763,8 @@
 //     {
 //         REQUIRE(numBroadcast == 0);
 //         // For large txs, there might not be enough resources allocated for
-//         // this flooding period. In this case, wait a few periods to accumulate
+//         // this flooding period. In this case, wait a few periods to
+//         accumulate
 //         // enough quota
 //         resources.diskReadBytes = 200 * 1024;
 //
@@ -6619,7 +6836,8 @@
 //         }
 //         std::deque<uint32> fees;
 //
-//         auto genTx = [&](TestAccount& source, uint32_t numOps, bool highFee) {
+//         auto genTx = [&](TestAccount& source, uint32_t numOps, bool highFee)
+//         {
 //             std::vector<Operation> ops;
 //             for (int64_t i = 1; i <= numOps; ++i)
 //             {
@@ -7012,10 +7230,11 @@
 //             {
 //                 ++noBroadcastPeriods;
 //             }
-//             REQUIRE(dexOpsPerPeriod <= cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE + 1);
-//             REQUIRE(nonDexOpsPerPeriod <=
+//             REQUIRE(dexOpsPerPeriod <= cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE +
+//             1); REQUIRE(nonDexOpsPerPeriod <=
 //                     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE + 1);
-//             // We should broadcast the high fee transactions added at iteration
+//             // We should broadcast the high fee transactions added at
+//             iteration
 //             // 25 within the number of periods according to the DEX/general
 //             // operation rates.
 //             if (dexTxs > 0 && broadcastIter ==
@@ -7040,10 +7259,13 @@
 //
 //         REQUIRE(dexOpsBroadcasted == opsPerDexTx * dexTxs);
 //         REQUIRE(nonDexOpsBroadcasted == opsPerNonDexTx * nonDexTxs);
-//         // It's tricky to measure how closely do we follow the operations rate
+//         // It's tricky to measure how closely do we follow the operations
+//         rate
 //         // due to existence of broadcast operations 'credit', so we just make
-//         // sure that the load is more or less even by looking at the upper bound
-//         // of idle periods (the more we have, the more we broadcast at too high
+//         // sure that the load is more or less even by looking at the upper
+//         bound
+//         // of idle periods (the more we have, the more we broadcast at too
+//         high
 //         // rate).
 //         REQUIRE(noBroadcastPeriods <= maxNoBroadcastPeriods);
 //         simulation->stopAllNodes();
@@ -7293,8 +7515,9 @@
 //     {
 //         VirtualClock clock;
 //         auto cfg = getTestConfig();
-//         cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {CREATE_ACCOUNT};
-//         Application::pointer app = createTestApplication(clock, cfg);
+//         cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE =
+//         {CREATE_ACCOUNT}; Application::pointer app =
+//         createTestApplication(clock, cfg);
 //
 //         auto root = app->getRoot();
 //         auto acc = getAccount("acc");
@@ -7359,8 +7582,9 @@
 //         auto cfg = getTestConfig();
 //         // Use a custom key for a funded account, then add it to the filter
 //         auto srcKey = SecretKey::pseudoRandomForTesting();
-//         cfg.FILTERED_G_ADDRESSES = {KeyUtils::toStrKey(srcKey.getPublicKey())};
-//         Application::pointer app = createTestApplication(clock, cfg);
+//         cfg.FILTERED_G_ADDRESSES =
+//         {KeyUtils::toStrKey(srcKey.getPublicKey())}; Application::pointer app
+//         = createTestApplication(clock, cfg);
 //
 //         auto root = app->getRoot();
 //         auto src = root->create(srcKey, 1000000000);
@@ -7392,7 +7616,8 @@
 //                 TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
 //     }
 //
-//     SECTION("soroban tx with filtered account in write footprint is rejected")
+//     SECTION("soroban tx with filtered account in write footprint is
+//     rejected")
 //     {
 //         VirtualClock clock;
 //         auto cfg = getTestConfig();
@@ -7482,7 +7707,8 @@
 //     }
 // }
 //
-// // Test that Herder updates the scphistory table with additional messages from
+// // Test that Herder updates the scphistory table with additional messages
+// from
 // // ledger `n-1` when closing ledger `n`
 // TEST_CASE("SCP message capture from previous ledger", "[herder]")
 // {
@@ -7519,7 +7745,8 @@
 //         },
 //         4 * simulation->getExpectedLedgerCloseTime(), false);
 //
-//     // Check that a node's scphistory table for a given ledger has the correct
+//     // Check that a node's scphistory table for a given ledger has the
+//     correct
 //     // number of entries of each type in `expectedTypes`
 //     auto checkSCPHistoryEntries =
 //         [&](Application::pointer node, uint32_t ledgerNum,
@@ -7571,8 +7798,9 @@
 //     // Get messages from A and B
 //     HerderImpl& herderA = dynamic_cast<HerderImpl&>(A->getHerder());
 //     HerderImpl& herderB = dynamic_cast<HerderImpl&>(B->getHerder());
-//     std::vector<SCPEnvelope> AEnvs = herderA.getSCP().getLatestMessagesSend(2);
-//     std::vector<SCPEnvelope> BEnvs = herderB.getSCP().getLatestMessagesSend(2);
+//     std::vector<SCPEnvelope> AEnvs =
+//     herderA.getSCP().getLatestMessagesSend(2); std::vector<SCPEnvelope> BEnvs
+//     = herderB.getSCP().getLatestMessagesSend(2);
 //
 //     // Pass A and B's messages to C
 //     for (auto const& env : AEnvs)
@@ -7586,12 +7814,13 @@
 //
 //     // Crank C until it is on ledger 2
 //     simulation->crankUntil(
-//         [&]() { return C->getLedgerManager().getLastClosedLedgerNum() == 2; },
-//         4 * simulation->getExpectedLedgerCloseTime(), false);
+//         [&]() { return C->getLedgerManager().getLastClosedLedgerNum() == 2;
+//         }, 4 * simulation->getExpectedLedgerCloseTime(), false);
 //
 //     // Get messages from C
 //     HerderImpl& herderC = dynamic_cast<HerderImpl&>(C->getHerder());
-//     std::vector<SCPEnvelope> CEnvs = herderC.getSCP().getLatestMessagesSend(2);
+//     std::vector<SCPEnvelope> CEnvs =
+//     herderC.getSCP().getLatestMessagesSend(2);
 //
 //     // Pass C's messages to A and B
 //     for (auto const& env : CEnvs)
@@ -7608,7 +7837,8 @@
 //         },
 //         4 * simulation->getExpectedLedgerCloseTime(), false);
 //
-//     // A and B should now each have 3 EXTERNALIZEs in their scphistory table for
+//     // A and B should now each have 3 EXTERNALIZEs in their scphistory table
+//     for
 //     // ledger 2. A's CONFIRM entry has been replaced with an EXTERNALIZE.
 //     UnorderedMap<SCPStatementType, size_t> const expectedTypes = {
 //         {SCPStatementType::SCP_ST_EXTERNALIZE, 3}};
@@ -7619,20 +7849,21 @@
 //     simulation->addConnection(validatorCKey.getPublicKey(),
 //                               validatorBKey.getPublicKey());
 //     simulation->crankUntil(
-//         [&]() { return C->getLedgerManager().getLastClosedLedgerNum() >= 3; },
-//         4 * simulation->getExpectedLedgerCloseTime(), false);
+//         [&]() { return C->getLedgerManager().getLastClosedLedgerNum() >= 3;
+//         }, 4 * simulation->getExpectedLedgerCloseTime(), false);
 //
-//     // C should have 3 EXTERNALIZEs in its scphistory table for ledger 2. This
+//     // C should have 3 EXTERNALIZEs in its scphistory table for ledger 2.
+//     This
 //     // check ensures that C does not double count messages from ledger 2 when
 //     // closing ledger 3.
 //     REQUIRE(checkSCPHistoryEntries(C, 2, expectedTypes));
 // }
 //
-// using Topology = std::pair<std::vector<SecretKey>, std::vector<ValidatorEntry>>;
+// using Topology = std::pair<std::vector<SecretKey>,
+// std::vector<ValidatorEntry>>;
 //
-// // Generate a Topology with a single org containing 3 validators of HIGH quality
-// static Topology
-// simpleThreeNode()
+// // Generate a Topology with a single org containing 3 validators of HIGH
+// quality static Topology simpleThreeNode()
 // {
 //     // Generate validators
 //     std::vector<SecretKey> sks;
@@ -7652,7 +7883,8 @@
 //     return {sks, validators};
 // }
 //
-// // Generate a topology with 3 orgs of HIGH quality. Two orgs have 3 validators
+// // Generate a topology with 3 orgs of HIGH quality. Two orgs have 3
+// validators
 // // and one org has 5 validators.
 // static Topology
 // unbalancedOrgs()
@@ -7686,7 +7918,8 @@
 //     return {sks, validators};
 // }
 //
-// // Generate a tier 1-like topology. This topology has 7 HIGH quality orgs, each
+// // Generate a tier 1-like topology. This topology has 7 HIGH quality orgs,
+// each
 // // with 3 validators.
 // static Topology
 // tier1Like()
@@ -7767,7 +8000,8 @@
 //     }
 // }
 //
-// // Generate a random topology with up to `maxValidators` validators. Ensures at
+// // Generate a random topology with up to `maxValidators` validators. Ensures
+// at
 // // least one org is HIGH quality.
 // static Topology
 // randomTopology(int maxValidators)
@@ -7791,12 +8025,14 @@
 //             curOrgSize = 0;
 //             curQuality =
 //                 randomQuality(numValidators - i >= minCritOrgSize
-//                                   ? ValidatorQuality::VALIDATOR_CRITICAL_QUALITY
+//                                   ?
+//                                   ValidatorQuality::VALIDATOR_CRITICAL_QUALITY
 //                                   : ValidatorQuality::VALIDATOR_MED_QUALITY);
 //         }
 //
 //         std::string const org = fmt::format("org-{}", curOrg);
-//         SecretKey const& key = sks.at(i) = SecretKey::pseudoRandomForTesting();
+//         SecretKey const& key = sks.at(i) =
+//         SecretKey::pseudoRandomForTesting();
 //
 //         ValidatorEntry& entry = validators.at(i);
 //         entry.mName = fmt::format("validator-{}", i);
@@ -7811,7 +8047,8 @@
 //     return {sks, validators};
 // }
 //
-// // Expected weight of an org with quality `orgQuality` in a topology with a max
+// // Expected weight of an org with quality `orgQuality` in a topology with a
+// max
 // // quality of `maxQuality` and or quality counts of `orgQualityCounts`. This
 // // function normalizes the weight so that the highest quality has a weight of
 // // `1`.
@@ -7827,9 +8064,11 @@
 //
 //     double normalizedWeight = 1.0;
 //
-//     // For each quality level higher than `orgQuality`, divide the weight by 10
+//     // For each quality level higher than `orgQuality`, divide the weight by
+//     10
 //     // times the number of orgs at that quality level
-//     for (int q = static_cast<int>(maxQuality); q > static_cast<int>(orgQuality);
+//     for (int q = static_cast<int>(maxQuality); q >
+//     static_cast<int>(orgQuality);
 //          --q)
 //     {
 //         normalizedWeight /=
@@ -7853,17 +8092,20 @@
 // }
 //
 // // Collect information about the qualities and sizes of organizations in
-// // `validators` and store them in `maxQuality`, `orgQualities`, `orgSizes`, and
+// // `validators` and store them in `maxQuality`, `orgQualities`, `orgSizes`,
+// and
 // // `orgQualityCounts`.
 // static void
 // collectOrgInfo(ValidatorQuality& maxQuality,
-//                std::unordered_map<std::string, ValidatorQuality>& orgQualities,
-//                std::unordered_map<std::string, int>& orgSizes,
-//                std::unordered_map<ValidatorQuality, uint64>& orgQualityCounts,
-//                std::vector<ValidatorEntry> const& validators)
+//                std::unordered_map<std::string, ValidatorQuality>&
+//                orgQualities, std::unordered_map<std::string, int>& orgSizes,
+//                std::unordered_map<ValidatorQuality, uint64>&
+//                orgQualityCounts, std::vector<ValidatorEntry> const&
+//                validators)
 // {
 //     maxQuality = ValidatorQuality::VALIDATOR_LOW_QUALITY;
-//     ValidatorQuality minQuality = ValidatorQuality::VALIDATOR_CRITICAL_QUALITY;
+//     ValidatorQuality minQuality =
+//     ValidatorQuality::VALIDATOR_CRITICAL_QUALITY;
 //     std::unordered_map<ValidatorQuality, std::unordered_set<std::string>>
 //         orgsByQuality;
 //     for (ValidatorEntry const& validator : validators)
@@ -7923,7 +8165,8 @@
 //         std::string const& org = validator.mHomeDomain;
 //         REQUIRE_THAT(normalizedWeight,
 //                      Catch::Matchers::WithinAbs(
-//                          expectedNormalizedWeight(orgQualityCounts, maxQuality,
+//                          expectedNormalizedWeight(orgQualityCounts,
+//                          maxQuality,
 //                                                   orgQualities.at(org),
 //                                                   orgSizes.at(org)),
 //                          0.0001));
@@ -7935,7 +8178,8 @@
 //         REQUIRE_THAT(
 //             weight, Catch::Matchers::WithinAbs(
 //                         expectedOrgNormalizedWeight(
-//                             orgQualityCounts, maxQuality, orgQualities.at(org)),
+//                             orgQualityCounts, maxQuality,
+//                             orgQualities.at(org)),
 //                         0.0001));
 //     }
 // }
@@ -8161,7 +8405,8 @@
 // namespace
 // {
 // // Returns a new `Topology` with the last org in `t` replaced with a new org
-// // with 3 validators. Requires that the last org in `t` have 3 validators and be
+// // with 3 validators. Requires that the last org in `t` have 3 validators and
+// be
 // // contiguous at the back of the validators vecto.
 // Topology
 // replaceOneOrg(Topology const& t)
@@ -8243,7 +8488,8 @@
 // }
 //
 // // Given two quorum sets consisting of validators in `validators1` and
-// // `validators2`, this function returns the probability that the two quorum sets
+// // `validators2`, this function returns the probability that the two quorum
+// sets
 // // will agree on a leader in the first round of nomination.
 // double
 // computeExpectedFirstRoundAgreementProbability(
@@ -8265,9 +8511,11 @@
 //     std::set_intersection(orgs1.begin(), orgs1.end(), orgs2.begin(),
 //                           orgs2.end(), std::back_inserter(sharedOrgs));
 //
-//     // Probability of agreement in first round is (orgs overlapping / orgs1) *
+//     // Probability of agreement in first round is (orgs overlapping / orgs1)
+//     *
 //     // (orgs overlapping / orgs2). That's the probability that the two sides
-//     // will pick any overlapping org. The algorithm guarantees that if they pick
+//     // will pick any overlapping org. The algorithm guarantees that if they
+//     pick
 //     // overlapping validator, they'll pick the same validator.
 //     double overlap = static_cast<double>(sharedOrgs.size());
 //     return overlap / orgs1.size() * overlap / orgs2.size();
@@ -8275,13 +8523,17 @@
 //
 // // Test that the nomination algorithm behaves as expected when the two quorum
 // // sets `qs1` and `qs2` are not equivalent. This function requires that both
-// // quorum sets overlap, and contain only a single quality level of validators.
+// // quorum sets overlap, and contain only a single quality level of
+// validators.
 // // Runs simulation for `numLedgers` slots.
 // // NOTE: This test counts any failure to agree on a leader as a timeout. In
-// // practice, it's possible that one side of the split is large enough to proceed
-// // without the other side. In this case, the larger side might not experience a
+// // practice, it's possible that one side of the split is large enough to
+// proceed
+// // without the other side. In this case, the larger side might not experience
+// a
 // // timeout and "drag" the other side through consensus with it. However, this
-// // test aims to analyze the worst case scenario where the two sides are fairly
+// // test aims to analyze the worst case scenario where the two sides are
+// fairly
 // // balanced and real-world networking conditions are in place (some nodes
 // // lagging, etc), such that disagreement always results in a timeout.
 // void
@@ -8305,21 +8557,25 @@
 //         cfg.generateQuorumSetForTesting(i == 0 ? validators1 : validators2);
 //         cfg.NODE_SEED = i == 0 ? sks1.back() : sks2.back();
 //
-//         auto app = apps.emplace_back(createTestApplication(clocks.at(i), cfg));
+//         auto app = apps.emplace_back(createTestApplication(clocks.at(i),
+//         cfg));
 //     }
 //
-//     // Run the nomination algorithm for `numLedgers` slots. Simulate timeouts by
+//     // Run the nomination algorithm for `numLedgers` slots. Simulate timeouts
+//     by
 //     // re-running slots that don't agree on a leader until their leader
 //     // elections overlap. Record the number of timeouts it takes for the two
 //     // quorum sets to agree on a leader in `timeouts`, which is effectively a
-//     // mapping from number of timeouts to the number of ledgers that experienced
+//     // mapping from number of timeouts to the number of ledgers that
+//     experienced
 //     // that many timeouts.
-//     std::vector<int> timeouts(std::max(validators1.size(), validators2.size()));
-//     for (int i = 0; i < numLedgers; ++i)
+//     std::vector<int> timeouts(std::max(validators1.size(),
+//     validators2.size())); for (int i = 0; i < numLedgers; ++i)
 //     {
 //         Value const v = getRandomValue();
-//         SCP& scp1 = dynamic_cast<HerderImpl&>(apps.at(0)->getHerder()).getSCP();
-//         SCP& scp2 = dynamic_cast<HerderImpl&>(apps.at(1)->getHerder()).getSCP();
+//         SCP& scp1 =
+//         dynamic_cast<HerderImpl&>(apps.at(0)->getHerder()).getSCP(); SCP&
+//         scp2 = dynamic_cast<HerderImpl&>(apps.at(1)->getHerder()).getSCP();
 //         auto s1 = std::make_shared<Slot>(i, scp1);
 //         auto s2 = std::make_shared<Slot>(i, scp2);
 //
@@ -8337,7 +8593,8 @@
 //
 //             if (leadersIntersect(leaders1, leaders2))
 //             {
-//                 // Agreed on a leader! Record the number of timeouts resulted.
+//                 // Agreed on a leader! Record the number of timeouts
+//                 resulted.
 //                 ++timeouts.at(j);
 //                 break;
 //             }
@@ -8349,20 +8606,25 @@
 //     }
 //
 //     // For the first round, we can easily compute the expected agreement
-//     // probability. For subsequent rounds, we check only that the success rate
+//     // probability. For subsequent rounds, we check only that the success
+//     rate
 //     // increases over time (modulo some small epsilon).
 //     double expectedSuccessRate =
-//         computeExpectedFirstRoundAgreementProbability(validators1, validators2);
+//         computeExpectedFirstRoundAgreementProbability(validators1,
+//         validators2);
 //
-//     // Allow for some small decrease in success rate from the theoretical value.
+//     // Allow for some small decrease in success rate from the theoretical
+//     value.
 //     // We're working with probabilistic simulation here so we can't be too
 //     // strict or the test will be flaky.
 //     double constexpr epsilon = 0.1;
 //
 //     // There's not enough data in the tail of the distribution to allow us to
-//     // assert that the success rate is what's expected. To avoid sporadic test
+//     // assert that the success rate is what's expected. To avoid sporadic
+//     test
 //     // failures, we cut off `tailCutoffPoint` of the tail of the distribution
-//     // for the purposes of asserting test values. However, the test will still
+//     // for the purposes of asserting test values. However, the test will
+//     still
 //     // log those success rates for manual examination.
 //     double constexpr tailCutoffPoint = 0.05;
 //
@@ -8376,23 +8638,26 @@
 //             continue;
 //         }
 //
-//         CLOG_INFO(Herder, "Ledgers with {} timeouts: {} ({}%)", i, numTimeouts,
+//         CLOG_INFO(Herder, "Ledgers with {} timeouts: {} ({}%)", i,
+//         numTimeouts,
 //                   static_cast<double>(numTimeouts) * 100 / numLedgers);
 //
 //         if (numLedgersRemaining > numLedgers * tailCutoffPoint)
 //         {
-//             // Check that success rate increases over time. Allow some epsilon
+//             // Check that success rate increases over time. Allow some
+//             epsilon
 //             // decrease because this is a probabilistic simulation. Also stop
-//             // checking when we're at the last `tailCutoffPoint` timeouts as the
+//             // checking when we're at the last `tailCutoffPoint` timeouts as
+//             the
 //             // data is too sparse to be useful.
 //             double successRate =
 //                 static_cast<double>(timeouts.at(i)) / numLedgersRemaining;
 //             REQUIRE(successRate > expectedSuccessRate - epsilon);
 //
 //             // Take max of success rate and previous success rate to avoid
-//             // accidentally accepting a declining success rate due to episilon.
-//             expectedSuccessRate = std::max(successRate, expectedSuccessRate);
-//             numLedgersRemaining -= numTimeouts;
+//             // accidentally accepting a declining success rate due to
+//             episilon. expectedSuccessRate = std::max(successRate,
+//             expectedSuccessRate); numLedgersRemaining -= numTimeouts;
 //         }
 //     }
 // }
@@ -8404,7 +8669,8 @@
 // //    major issues/regressions with the algorithm.
 // // 2. It logs the distributions of timeouts for manual inspection. This is
 // //    useful for understanding the behavior of the algorithm and for testing
-// //    specific scenarios one might be interested in (e.g., if tier 1 disagrees
+// //    specific scenarios one might be interested in (e.g., if tier 1
+// disagrees
 // //    on one org's presence in tier 1, what is the impact on nomination
 // //    timeouts?).
 // // NOTE: This provides a worst-case analysis of timeouts. See the NOTE on
@@ -8434,7 +8700,8 @@
 // }
 //
 // // Test that the nomination algorithm behaves as expected when a random
-// // `numUnresponsive` set of nodes in `qs` are unresponsive.  Runs simulation for
+// // `numUnresponsive` set of nodes in `qs` are unresponsive.  Runs simulation
+// for
 // // `numLedgers` slots.
 // static void
 // testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
@@ -8450,8 +8717,8 @@
 //     std::transform(validators.begin(), validators.end(),
 //                    std::back_inserter(nodeIDs),
 //                    [](ValidatorEntry const& v) { return v.mKey; });
-//     stellar::shuffle(nodeIDs.begin(), nodeIDs.end(), getGlobalRandomEngine());
-//     std::set<NodeID> unresponsive(nodeIDs.begin(),
+//     stellar::shuffle(nodeIDs.begin(), nodeIDs.end(),
+//     getGlobalRandomEngine()); std::set<NodeID> unresponsive(nodeIDs.begin(),
 //                                   nodeIDs.begin() + numUnresponsive);
 //
 //     // Collect info about orgs
@@ -8482,8 +8749,10 @@
 //     // Compute the average weight of an unresponsive node
 //     double avgUnresponsiveWeight = unresponsiveWeight / numUnresponsive;
 //
-//     // Compute expected number of ledgers experiencing `n` timeouts where `n` is
-//     // the index of the `timeouts` vector. This vector is a mapping from number
+//     // Compute expected number of ledgers experiencing `n` timeouts where `n`
+//     is
+//     // the index of the `timeouts` vector. This vector is a mapping from
+//     number
 //     // of timeouts to expected number of ledgers experiencing that number of
 //     // timeouts.
 //     std::vector<int> expectedTimeouts(numUnresponsive + 1);
@@ -8493,8 +8762,10 @@
 //     for (int i = 0; i < expectedTimeouts.size(); ++i)
 //     {
 //         double timeoutProb =
-//             (avgUnresponsiveWeight * remainingUnresponsive) / remainingWeight;
-//         // To get expected number of ledgers experiencing `i` timeouts, we take
+//             (avgUnresponsiveWeight * remainingUnresponsive) /
+//             remainingWeight;
+//         // To get expected number of ledgers experiencing `i` timeouts, we
+//         take
 //         // the probability a timeout does not occur and multiply it by the
 //         // number of remaining ledgers.
 //         int expectedLedgers = (1 - timeoutProb) * remainingLedgers;
@@ -8505,7 +8776,8 @@
 //         remainingLedgers -= expectedLedgers;
 //
 //         // For `i+1` timeouts to occur, an unresponsive node must be chosen.
-//         // Therefore, deduct the average weight of an unresponsive node from the
+//         // Therefore, deduct the average weight of an unresponsive node from
+//         the
 //         // total weight left in the network.
 //         remainingWeight -= avgUnresponsiveWeight;
 //         --remainingUnresponsive;
@@ -8521,8 +8793,10 @@
 //     VirtualClock clock;
 //     Application::pointer app = createTestApplication(clock, cfg);
 //
-//     // Run for `numLedgers` slots, recording the number of times each slot timed
-//     // out due to unresponsive nodes before successfully electing a responsive
+//     // Run for `numLedgers` slots, recording the number of times each slot
+//     timed
+//     // out due to unresponsive nodes before successfully electing a
+//     responsive
 //     // leader.
 //     SCP& scp = dynamic_cast<HerderImpl&>(app->getHerder()).getSCP();
 //     std::vector<int> timeouts(numUnresponsive + 1);
@@ -8547,14 +8821,16 @@
 //     }
 //
 //     // Allow for some small multiplicative increase in timeouts from the
-//     // theoretical value.  We're working with probabilistic simulation here so
+//     // theoretical value.  We're working with probabilistic simulation here
+//     so
 //     // we can't be too strict or the test will be flaky.
 //     double constexpr epsilon = 1.1;
 //
 //     // There's not enough data in the tail of the distribution to allow us to
 //     // assert that the timeout values are what's expected. To avoid sporadic
 //     // test failures, we cut off `tailCutoffPoint` of the tail of the
-//     // distribution for the purposes of asserting test values. However, the test
+//     // distribution for the purposes of asserting test values. However, the
+//     test
 //     // will still log those values for manual examination.
 //     double constexpr tailCutoffPoint = 0.05;
 //
@@ -8573,7 +8849,8 @@
 //             // useful.
 //             REQUIRE(numTimeouts < expectedNumTimeouts * epsilon);
 //         }
-//         CLOG_INFO(Herder, "Ledgers with {} timeouts: {} ({}%)", i, numTimeouts,
+//         CLOG_INFO(Herder, "Ledgers with {} timeouts: {} ({}%)", i,
+//         numTimeouts,
 //                   numTimeouts * 100.0 / numLedgers);
 //         numLedgersRemaining -= numTimeouts;
 //     }
@@ -8729,7 +9006,8 @@
 //     REQUIRE((maybeDead.isArray() && maybeDead.empty()));
 //
 //     // dropping C should cause A and B report it missing
-//     simulation->dropConnection(AKey, C->getConfig().NODE_SEED.getPublicKey());
+//     simulation->dropConnection(AKey,
+//     C->getConfig().NODE_SEED.getPublicKey());
 //     simulation->dropConnection(B->getConfig().NODE_SEED.getPublicKey(),
 //                                C->getConfig().NODE_SEED.getPublicKey());
 //
@@ -8751,8 +9029,10 @@
 // TEST_CASE("nomination timeouts with partial upgrade arming",
 //           "[herder][acceptance]")
 // {
-//     // Configure simulation to use automatic quorum set configuration so that it
-//     // runs with the application-specific leader election algorithm, which does
+//     // Configure simulation to use automatic quorum set configuration so that
+//     it
+//     // runs with the application-specific leader election algorithm, which
+//     does
 //     // not introduce its own timeouts.
 //     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 //     Simulation::pointer simulation = Topologies::separateAllHighQuality(
@@ -8796,14 +9076,18 @@
 //     // Number of ledgers to check timeouts during
 //     constexpr int ledgersToRun = 20;
 //
-//     // Maximum total timeout duration for the test. Worst case is that each slot
+//     // Maximum total timeout duration for the test. Worst case is that each
+//     slot
 //     // experiences 1 timeout, which adds 1 second each.
-//     constexpr auto maxTotalTimeoutDuration = std::chrono::seconds(ledgersToRun);
+//     constexpr auto maxTotalTimeoutDuration =
+//     std::chrono::seconds(ledgersToRun);
 //
-//     // Ensure upgrade window is set properly so that the upgrade doesn't expire
+//     // Ensure upgrade window is set properly so that the upgrade doesn't
+//     expire
 //     // during the `ledgersToRun` time period
 //     REQUIRE(upgradeWindow >
-//             expectedLedgerCloseTime * ledgersToRun + maxTotalTimeoutDuration);
+//             expectedLedgerCloseTime * ledgersToRun +
+//             maxTotalTimeoutDuration);
 //
 //     // Arm upgrades on 10 nodes (just 1 shy of a quorum)
 //     for (size_t i = 0; i < 10; ++i)
@@ -8827,8 +9111,8 @@
 //
 //         // Should see at most `maxTimeouts` per slot, depending on the round
 //         // leaders.
-//         std::optional<int64_t> timeouts = driver.getNominationTimeouts(ledger);
-//         REQUIRE(timeouts.has_value());
+//         std::optional<int64_t> timeouts =
+//         driver.getNominationTimeouts(ledger); REQUIRE(timeouts.has_value());
 //         REQUIRE(timeouts.value() <= maxTimeouts);
 //     }
 //
@@ -8843,7 +9127,8 @@
 //     REQUIRE(upgradeIsActive());
 //
 //     // Verify that upgrade expires properly after the window
-//     simulation->crankUntil(std::not_fn(upgradeIsActive), upgradeWindow, false);
+//     simulation->crankUntil(std::not_fn(upgradeIsActive), upgradeWindow,
+//     false);
 //
 //     // Ensure the changed fields are all reset
 //     auto const& upgradeParams = herder.getUpgrades().getParameters();
@@ -8860,7 +9145,8 @@
 //     auto mode = Simulation::OVER_LOOPBACK;
 //     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 //
-//     auto simulation = std::make_shared<Simulation>(mode, networkID, [](int i) {
+//     auto simulation = std::make_shared<Simulation>(mode, networkID, [](int i)
+//     {
 //         auto cfg = getTestConfig(i);
 //         // Set a very short drift time so close times become old quickly
 //         cfg.MAXIMUM_LEDGER_CLOSETIME_DRIFT = 1;
@@ -8888,8 +9174,8 @@
 //                                      validatorBKey.getPublicKey());
 //     simulation->startAllNodes();
 //
-//     // A and B are at genesis ledger, unable to reach consensus (need 3 nodes)
-//     REQUIRE(A->getLedgerManager().getLastClosedLedgerNum() ==
+//     // A and B are at genesis ledger, unable to reach consensus (need 3
+//     nodes) REQUIRE(A->getLedgerManager().getLastClosedLedgerNum() ==
 //             LedgerManager::GENESIS_LEDGER_SEQ);
 //     REQUIRE(B->getLedgerManager().getLastClosedLedgerNum() ==
 //             LedgerManager::GENESIS_LEDGER_SEQ);
@@ -8898,8 +9184,8 @@
 //         Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS.count() + 5);
 //     simulation->crankForAtLeast(waitTime, false);
 //
-//     // Nodes should still be at genesis (can't reach consensus with only 2 of 3)
-//     REQUIRE(A->getLedgerManager().getLastClosedLedgerNum() ==
+//     // Nodes should still be at genesis (can't reach consensus with only 2 of
+//     3) REQUIRE(A->getLedgerManager().getLastClosedLedgerNum() ==
 //             LedgerManager::GENESIS_LEDGER_SEQ);
 //
 //     // After CONSENSUS_STUCK_TIMEOUT_SECONDS, nodes should go out of sync
@@ -8910,15 +9196,15 @@
 //     auto C = simulation->addNode(validatorCKey, qset);
 //     C->start();
 //
-//     // Add connections to C (use addConnection since nodes are already started)
-//     simulation->addConnection(validatorAKey.getPublicKey(),
+//     // Add connections to C (use addConnection since nodes are already
+//     started) simulation->addConnection(validatorAKey.getPublicKey(),
 //                               validatorCKey.getPublicKey());
 //     simulation->addConnection(validatorBKey.getPublicKey(),
 //                               validatorCKey.getPublicKey());
 //
 //     // Now all 3 nodes should be able to reach consensus
-//     // Give it enough time to close a few ledgers (increase timeout for safety)
-//     auto targetLedger = LedgerManager::GENESIS_LEDGER_SEQ + 3;
+//     // Give it enough time to close a few ledgers (increase timeout for
+//     safety) auto targetLedger = LedgerManager::GENESIS_LEDGER_SEQ + 3;
 //     simulation->crankUntil(
 //         [&]() { return simulation->haveAllExternalized(targetLedger, 3); },
 //         10 * simulation->getExpectedLedgerCloseTime(), false);
@@ -8974,7 +9260,8 @@
 //             return simulation.haveAllExternalized(
 //                 LedgerManager::GENESIS_LEDGER_SEQ + INITIAL_LEDGERS, 1);
 //         },
-//         10 * INITIAL_LEDGERS * simulation.getExpectedLedgerCloseTime(), false);
+//         10 * INITIAL_LEDGERS * simulation.getExpectedLedgerCloseTime(),
+//         false);
 //
 //     auto app0 = simulation.getNode(v0NodeID);
 //     auto& herder0 = static_cast<HerderImpl&>(app0->getHerder());
@@ -8985,7 +9272,8 @@
 //
 //     // Run the simulation until v0 is no longer tracking.
 //     simulation.crankUntil([&]() { return !herder0.isTracking(); },
-//                           50 * simulation.getExpectedLedgerCloseTime(), false);
+//                           50 * simulation.getExpectedLedgerCloseTime(),
+//                           false);
 //
 //     // Inject far-future envelopes into the non-tracking v0.
 //     auto localQSet = herder0.getSCP().getLocalQuorumSet();
@@ -9033,7 +9321,8 @@
 //
 //     // Crank until v0 starts tracking the network again
 //     simulation.crankUntil([&]() { return herder0.isTracking(); },
-//                           60 * simulation.getExpectedLedgerCloseTime(), false);
+//                           60 * simulation.getExpectedLedgerCloseTime(),
+//                           false);
 //
 //     // Check that far-future slots have been removed
 //     REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() < FAR_FUTURE_BASE);
@@ -9076,7 +9365,8 @@
 //
 //             auto makePrepareFromPeer = [&](uint64_t closeTime) {
 //                 auto sv = herder.makeStellarValue(fakeTxSetHash, closeTime,
-//                                                   emptyUpgradeSteps, peerKey);
+//                                                   emptyUpgradeSteps,
+//                                                   peerKey);
 //                 auto opaqueValue = xdr::xdr_to_opaque(sv);
 //
 //                 SCPEnvelope env;
@@ -9103,7 +9393,8 @@
 //
 // // This tests that the network externalizes an empty-tx-set value when a
 // // voted-for value is not available on the network.
-// TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
+// TEST_CASE("network externalizes empty-tx-set on missing value",
+// "[herder][tx]")
 // {
 //     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 //     auto simulation = Topologies::core(
@@ -9118,7 +9409,8 @@
 //     Application::pointer app = simulation->getNodes()[0];
 //     simulation->startAllNodes();
 //     auto& counter =
-//         app->getMetrics().NewCounter({"scp", "empty-tx-set", "externalized"});
+//         app->getMetrics().NewCounter({"scp", "empty-tx-set",
+//         "externalized"});
 //     auto const initial = counter.count();
 //
 //     // Run for a few ledgers to ensure that we successfully close some, and
@@ -9135,23 +9427,25 @@
 //     txtest::captureLastClosedLedgerLcm(*app);
 // }
 //
-// // Test that the node properly handles a restart when voting on a value whose tx
+// // Test that the node properly handles a restart when voting on a value whose
+// tx
 // // set it has not successfully downloaded
 // TEST_CASE("SCP state restore with missing tx set", "[herder]")
 // {
 //     auto cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
 //     cfg.MANUAL_CLOSE = false;
 //     // Test with parallel tx set downloading both enabled and disabled. The
-//     // disabled case tests a node operator shutting down a node with parallel tx
+//     // disabled case tests a node operator shutting down a node with parallel
+//     tx
 //     // set downloading enabled, then flipping the flag off and restarting the
 //     // node.
 //     bool const parallelTxSetDownload = GENERATE(true, false);
 //     CAPTURE(parallelTxSetDownload);
 //     cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = parallelTxSetDownload;
 //
-//     auto const peerKey = SecretKey::fromSeed(sha256("scp state restore peer"));
-//     auto const& peerPk = peerKey.getPublicKey();
-//     auto const selfPk = cfg.NODE_SEED.getPublicKey();
+//     auto const peerKey = SecretKey::fromSeed(sha256("scp state restore
+//     peer")); auto const& peerPk = peerKey.getPublicKey(); auto const selfPk =
+//     cfg.NODE_SEED.getPublicKey();
 //
 //     // {self, peer} with threshold 2, so that {peer} alone is v-blocking
 //     cfg.QUORUM_SET.validators.emplace_back(peerPk);
@@ -9165,15 +9459,18 @@
 //     Value value;
 //
 //     // Create the node's database and persist SCP state for slot LCL+1 that
-//     // ballots on `fakeTxSetHash` without persisting any tx set. This simulates
-//     // a node emitting a PREPARE for a value whose tx set is still downloading.
+//     // ballots on `fakeTxSetHash` without persisting any tx set. This
+//     simulates
+//     // a node emitting a PREPARE for a value whose tx set is still
+//     downloading.
 //     {
 //         VirtualClock clock;
 //         auto app = createTestApplication(clock, cfg, /*newDB*/ true,
 //                                          /*startApp*/ false);
 //         auto& herder = static_cast<HerderImpl&>(app->getHerder());
-//         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-//         slot = lcl.header.ledgerSeq + 1;
+//         auto const& lcl =
+//         app->getLedgerManager().getLastClosedLedgerHeader(); slot =
+//         lcl.header.ledgerSeq + 1;
 //
 //         auto sv = herder.makeStellarValue(fakeTxSetHash, app->timeNow() + 1,
 //                                           emptyUpgradeSteps, cfg.NODE_SEED);
@@ -9186,7 +9483,8 @@
 //         auto& prep = env.statement.pledges.prepare();
 //         prep.ballot.counter = 1;
 //         prep.ballot.value = value;
-//         prep.quorumSetHash = herder.getSCP().getLocalNode()->getQuorumSetHash();
+//         prep.quorumSetHash =
+//         herder.getSCP().getLocalNode()->getQuorumSetHash();
 //         herder.signEnvelope(cfg.NODE_SEED, env);
 //
 //         PersistedSCPState scpState;
@@ -9229,7 +9527,8 @@
 //         {
 //             prep.prepared.activate() = SCPBallot(1, emptyValue);
 //         }
-//         prep.quorumSetHash = herder.getSCP().getLocalNode()->getQuorumSetHash();
+//         prep.quorumSetHash =
+//         herder.getSCP().getLocalNode()->getQuorumSetHash();
 //         herder.signEnvelope(peerKey, env);
 //         return env;
 //     };
@@ -9281,12 +9580,13 @@
 // }
 //
 // // Four top-tier validators over TCP on the real clock, with a 1s artificial
-// // apply delay and a configurable nomination-emit delay so we can actually see
+// // apply delay and a configurable nomination-emit delay so we can actually
+// see
 // // the impact of the two different timers.
 // static Simulation::pointer
 // makeTriggerTimerSimulation(
-//     bool forcePrepareStartTimer, std::chrono::milliseconds nominationEmitDelay,
-//     std::chrono::milliseconds driftClockOffset =
+//     bool forcePrepareStartTimer, std::chrono::milliseconds
+//     nominationEmitDelay, std::chrono::milliseconds driftClockOffset =
 //         std::chrono::milliseconds::zero(),
 //     std::optional<uint32_t> startingProtocol = std::nullopt)
 // {
@@ -9308,7 +9608,8 @@
 //             cfg.MAX_SLOTS_TO_REMEMBER = 24;
 //             if (startingProtocol)
 //             {
-//                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *startingProtocol;
+//                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+//                 *startingProtocol;
 //             }
 //
 //             // Drift one validator. Note: i == 0 is the Simulation's
@@ -9416,8 +9717,8 @@
 //
 //         for (size_t i = 0; i < nodes.size(); ++i)
 //         {
-//             auto const delta = fallbackCount(nodes[i]) - fallbackCounts.at(i);
-//             result.totalFallbacks += delta;
+//             auto const delta = fallbackCount(nodes[i]) -
+//             fallbackCounts.at(i); result.totalFallbacks += delta;
 //
 //             auto const isDriftedNode =
 //                 triggerClockOffset != std::chrono::milliseconds::zero() &&
@@ -9472,7 +9773,8 @@
 //                 auto const envs = scp.getExternalizingState(ledger);
 //                 auto const ext = std::find_if(
 //                     envs.begin(), envs.end(), [](SCPEnvelope const& e) {
-//                         return e.statement.pledges.type() == SCP_ST_EXTERNALIZE;
+//                         return e.statement.pledges.type() ==
+//                         SCP_ST_EXTERNALIZE;
 //                     });
 //                 releaseAssert(ext != envs.end());
 //                 StellarValue sv;
@@ -9519,7 +9821,8 @@
 //         auto const nodeBehind = runSimulation(
 //             false, std::chrono::milliseconds::zero(), -driftOffset);
 //         REQUIRE(nodeBehind.driftedNodeFallbacks >=
-//                 LEDGERS_TO_RUN - nodeBehind.driftedLedSlots - FALLBACK_SLACK);
+//                 LEDGERS_TO_RUN - nodeBehind.driftedLedSlots -
+//                 FALLBACK_SLACK);
 //
 //         // Note: When the drifting node leads the round, non-drifting nodes
 //         // may fall back.
@@ -9611,8 +9914,8 @@
 //             10 * expectedClose, false);
 //         closeLedgers(simulation, 1);
 //
-//         auto const postUpgrade = closeLedgers(simulation, LEDGERS_TO_MEASURE);
-//         for (auto const& node : nodes)
+//         auto const postUpgrade = closeLedgers(simulation,
+//         LEDGERS_TO_MEASURE); for (auto const& node : nodes)
 //         {
 //             REQUIRE(lclVersion(node) == upgradeVersion);
 //         }

@@ -657,6 +657,7 @@ impl App {
                 envelope,
                 txset_hashes,
                 from,
+                slot,
             } => {
                 // Copy first 4 bytes for logging identification
                 let mut id_bytes = [0u8; 4];
@@ -696,7 +697,7 @@ impl App {
                                     &txhash[..4],
                                     from_peer
                                 );
-                                handle.fetch_txset(*txhash).await;
+                                handle.fetch_txset(*txhash, slot).await;
                             }
                         }
                     });
@@ -724,7 +725,12 @@ impl App {
                 );
                 self.overlay_handle.submit_tx(tx);
             }
-            LibP2pOverlayEvent::TxSetReceived { hash, data, from } => {
+            LibP2pOverlayEvent::TxSetReceived {
+                hash,
+                data,
+                from,
+                slot,
+            } => {
                 // `data` was strict-decoded and its content hash verified in the
                 // reader task, so we cache and forward it as-is.
                 info!(
@@ -736,9 +742,11 @@ impl App {
 
                 // IMPORTANT: Cache the TxSet FIRST, before pushing to Core
                 // This ensures the TxSet is available when SCP processing resumes
+                // Stamp with the slot the set was requested for so eviction is
+                // exact; for an unsolicited set fall back to the next slot.
                 cache_tx_set_xdr(
                     &mut self.tx_set_cache,
-                    self.current_ledger_seq,
+                    slot.unwrap_or(self.current_ledger_seq + 1),
                     hash,
                     data.clone(),
                 );
@@ -993,13 +1001,15 @@ impl App {
 
             MessageType::RequestTxSet => {
                 // Request TX set by hash - check local cache first, then fetch from peers via libp2p
-                if msg.payload.len() < 32 {
+                // Payload: [hash:32][slotSeq:4]
+                if msg.payload.len() < 36 {
                     warn!("RequestTxSet payload too short");
                     return true;
                 }
 
                 let mut hash = [0u8; 32];
                 hash.copy_from_slice(&msg.payload[0..32]);
+                let slot = u32::from_le_bytes(msg.payload[32..36].try_into().unwrap());
 
                 // First check local cache
                 if let Some(xdr) = get_cached_tx_set_xdr(&self.tx_set_cache, &hash) {
@@ -1020,22 +1030,23 @@ impl App {
                     );
                     let handle = self.libp2p_handle.clone();
                     tokio::spawn(async move {
-                        handle.fetch_txset(hash).await;
+                        handle.fetch_txset(hash, slot).await;
                     });
                 }
             }
 
             MessageType::CacheTxSet => {
                 // Core built a TX set locally and wants us to cache it for peer requests
-                // Payload: [hash:32][txSetXDR...]
-                if msg.payload.len() < 33 {
+                // Payload: [hash:32][slotSeq:4][txSetXDR...]
+                if msg.payload.len() < 37 {
                     warn!("CacheTxSet payload too short");
                     return true;
                 }
 
                 let mut hash = [0u8; 32];
                 hash.copy_from_slice(&msg.payload[0..32]);
-                let tx_set_xdr = &msg.payload[32..];
+                let slot = u32::from_le_bytes(msg.payload[32..36].try_into().unwrap());
+                let tx_set_xdr = &msg.payload[36..];
 
                 // Core is trusted for encoding, so we skip decoding. We still
                 // guard the content hash cheaply: caching bytes under a hash
@@ -1050,17 +1061,13 @@ impl App {
                 }
 
                 info!(
-                    "TXSET_CACHE: Caching locally-built TX set {:02x?}... ({} bytes)",
+                    "TXSET_CACHE: Caching locally-built TX set {:02x?}... for slot {} ({} bytes)",
                     &hash[..4],
+                    slot,
                     tx_set_xdr.len()
                 );
 
-                cache_tx_set_xdr(
-                    &mut self.tx_set_cache,
-                    self.current_ledger_seq,
-                    hash,
-                    tx_set_xdr.to_vec(),
-                );
+                cache_tx_set_xdr(&mut self.tx_set_cache, slot, hash, tx_set_xdr.to_vec());
             }
 
             MessageType::SubmitTx => {
