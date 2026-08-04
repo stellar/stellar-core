@@ -50,11 +50,14 @@ class RustOverlayManager
     void notifyTxSetExternalized(Hash const& txSetHash,
                                  std::vector<Hash> const& txHashes);
 
-    // Request TX set from peers (via Rust overlay, async)
-    void requestTxSet(Hash const& txSetHash);
+    // Request TX set from peers (via Rust overlay, async). slotIndex is the
+    // slot the set is for, used to stamp the Rust-side cache entry.
+    void requestTxSet(Hash const& txSetHash, uint32_t slotIndex);
 
-    // Cache a locally-built TX set in Rust overlay
-    void cacheTxSet(Hash const& txSetHash, std::vector<uint8_t> const& xdr);
+    // Cache a locally-built TX set in Rust overlay. slotIndex is the slot the
+    // set is for, used to stamp the Rust-side cache entry.
+    void cacheTxSet(Hash const& txSetHash, std::vector<uint8_t> const& xdr,
+                    uint32_t slotIndex);
 
     // Get top transactions from Rust overlay's mempool for TX set building.
     // Blocks until the overlay responds, shuts down, or disconnects.

@@ -683,7 +683,10 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
             auto& vec = mPendingTxSetFetches[h2];
             vec.push_back(envelope);
             mTxSetFetchStartTimes.emplace(h2, mApp.getClock().now());
-            mApp.getOverlayManager().requestTxSet(h2); // Only once!
+            mApp.getOverlayManager().requestTxSet(
+                h2,
+                static_cast<uint32_t>(
+                    envelope.statement.slotIndex)); // Only once!
         }
     }
 

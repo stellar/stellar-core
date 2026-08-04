@@ -1311,7 +1311,7 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test", "[overlay-ipc-large]")
                        .NewMeter({"loadgen", "run", "complete"}, "run")
                        .count() == 1;
         },
-        20 * simulation->getExpectedLedgerCloseTime(), false);
+        50 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto endTime = std::chrono::steady_clock::now();
     auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(

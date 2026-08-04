@@ -151,8 +151,9 @@ class OverlayIPC
      * TxSetReceivedCallback when available.
      *
      * @param hash The TX set hash to request
+     * @param slotIndex The slot the set is for (stamps the cache entry)
      */
-    void requestTxSet(Hash const& hash);
+    void requestTxSet(Hash const& hash, uint32_t slotIndex);
 
     /**
      * Cache a locally-built TX set in the Rust overlay.
@@ -163,8 +164,10 @@ class OverlayIPC
      *
      * @param hash The TX set hash
      * @param xdr The serialized TX set XDR
+     * @param slotIndex The slot the set is for (stamps the cache entry)
      */
-    void cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr);
+    void cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr,
+                    uint32_t slotIndex);
 
     /// Set callback for received SCP envelopes
     void setOnSCPReceived(SCPReceivedCallback cb);
