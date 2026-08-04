@@ -113,6 +113,61 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
         500 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
+TEST_CASE("multiple loadgen nodes in overlay-only mode", "[loadgen]")
+{
+    // Regression test: each node's completion check must only count its own
+    // externalized transactions, even while other nodes concurrently generate
+    // load from disjoint account ranges (offsets).
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
+        auto cfg = getTestConfig(i);
+        configureOverlayV2Pair(cfg, i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
+        return cfg;
+    });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+    auto nodes = simulation->getNodes();
+
+    for (auto& node : nodes)
+    {
+        node->setRunInOverlayOnlyMode(true);
+    }
+
+    uint32_t const nAccountsPerNode = 500;
+    uint32_t const nTxs = 100;
+
+    auto completedRuns = [&](Application& app) {
+        return app.getMetrics()
+            .NewMeter({"loadgen", "run", "complete"}, "run")
+            .count();
+    };
+    auto prev0 = completedRuns(*nodes[0]);
+    auto prev1 = completedRuns(*nodes[1]);
+
+    // Both nodes generate load concurrently, from disjoint account ranges.
+    nodes[0]->getLoadGenerator().generateLoad(
+        GeneratedLoadConfig::txLoad(LoadGenMode::PAY, nAccountsPerNode, nTxs,
+                                    /* txRate */ 100, /* offset */ 0));
+    nodes[1]->getLoadGenerator().generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, nAccountsPerNode, nTxs,
+        /* txRate */ 100, /* offset */ nAccountsPerNode));
+
+    simulation->crankUntil(
+        [&]() {
+            return completedRuns(*nodes[0]) == prev0 + 1 &&
+                   completedRuns(*nodes[1]) == prev1 + 1;
+        },
+        500 * simulation->getExpectedLedgerCloseTime(), false);
+}
+
 TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
           "[loadgen]")
 {
