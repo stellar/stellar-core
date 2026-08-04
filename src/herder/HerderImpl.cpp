@@ -1683,7 +1683,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         GeneralizedTransactionSet xdrTxSet;
         proposedSet->toXDR(xdrTxSet);
         auto xdrBytes = xdr::xdr_to_opaque(xdrTxSet);
-        mApp.getOverlayManager().cacheTxSet(txSetHash, xdrBytes);
+        mApp.getOverlayManager().cacheTxSet(txSetHash, xdrBytes,
+                                            lcl.header.ledgerSeq + 1);
     }
 
     lcl = mLedgerManager.getLastClosedLedgerHeader();
