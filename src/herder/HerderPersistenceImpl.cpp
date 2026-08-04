@@ -366,6 +366,12 @@ HerderPersistence::getQuorumSet(soci::session& sess, Hash const& qSetHash)
             std::vector<uint8_t> qSetBytes;
             decoder::decode_b64(qset64, qSetBytes);
 
+            if (qSetBytes.empty())
+            {
+                throw std::runtime_error(
+                    "corrupt database: empty quorum set blob");
+            }
+
             xdr::xdr_get g1(&qSetBytes.front(), &qSetBytes.back() + 1);
             xdr_argpack_archive(g1, qset);
 
