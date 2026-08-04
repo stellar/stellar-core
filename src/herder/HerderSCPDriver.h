@@ -268,6 +268,9 @@ class HerderSCPDriver : public SCPDriver
         // download
         medida::Timer& mBallotBlockedOnTxSet;
 
+        // Timer tracking time to check and cache a tx set
+        medida::Timer& mTxSetValidation;
+
         // Tracks how many ledgers we externalized an empty-tx-set value.
         medida::Counter& mEmptyTxSetExternalized;
 

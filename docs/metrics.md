@@ -62,6 +62,7 @@ crypto.verify.miss                        | meter     | number of signature cach
 crypto.verify.total                       | meter     | sum of both hits and misses
 crypto.verify.tx-valid-hit                | meter     | signature cache hits that occurred while validating transactions (outside of background signature validation)
 crypto.verify.tx-valid-total              | meter     | sum of both hits and misses during transaction validation (outside of background signature validation)
+herder.txset.validate                     | timer     | time spent turning a received tx set into an applicable tx set and validating it on a validity-cache miss; Tracy labels the enclosing call as a cache hit or miss
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions

@@ -12,8 +12,10 @@
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
+#include "herder/TxSetFrame.h"
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerManager.h"
@@ -75,6 +77,40 @@ interpolatePercentile(std::vector<double> const& sortedValues,
     auto hi = static_cast<size_t>(std::ceil(rank));
     double weight = rank - lo;
     return sortedValues[lo] * (1.0 - weight) + sortedValues[hi] * weight;
+}
+
+void
+nominateAndClose(Application& app, TxSetXDRFrameConstPtr txSet,
+                 StellarValue const& value)
+{
+    auto& herder = static_cast<HerderImpl&>(app.getHerder());
+    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    auto const ledgerSeq = lcl.header.ledgerSeq + 1;
+    herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
+                                          txSet);
+    herder.getHerderSCPDriver().nominate(ledgerSeq, value, txSet,
+                                         lcl.header.scpValue);
+
+    auto const deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    size_t cranks = 0;
+    while (app.getLedgerManager().getLastClosedLedgerNum() < ledgerSeq &&
+           std::chrono::steady_clock::now() < deadline)
+    {
+        app.getClock().crank(true);
+        ++cranks;
+    }
+    if (app.getLedgerManager().getLastClosedLedgerNum() < ledgerSeq)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("nominateAndClose: SCP did not externalize ledger {} "
+                       "within 60s ({} cranks); close time {} is {}s from the "
+                       "wall clock (slip limit {}s)"),
+            ledgerSeq, cranks, value.closeTime,
+            static_cast<int64_t>(value.closeTime) -
+                static_cast<int64_t>(app.timeNow()),
+            Herder::MAX_TIME_SLIP_SECONDS.count()));
+    }
 }
 
 template <typename T>
@@ -627,6 +663,7 @@ ApplyLoad::ApplyLoad(Application& app)
     , mMode(app.getConfig().APPLY_LOAD_MODE)
     , mModelTx(app.getConfig().APPLY_LOAD_MODEL_TX)
     , mLimitsBasedTxProfile(deriveLimitBasedTxProfile(mMode, app.getConfig()))
+    , mTimingPhases(app.getConfig().APPLY_LOAD_TIMING_PHASES)
     , mTotalHotArchiveEntries(
           calculateRequiredHotArchiveEntries(app.getConfig()))
     , mTxCountUtilization(
@@ -680,7 +717,12 @@ ApplyLoad::ApplyLoad(Application& app)
     // enough samples for statistics to be meaningful.
     if (mMode == ApplyLoadMode::MAX_SAC_TPS)
     {
-
+        if (measuresTxSetValidation())
+        {
+            throw std::runtime_error(
+                "APPLY_LOAD_TIMING_PHASES=txset-validation-and-apply is not "
+                "supported with APPLY_LOAD_MODE=max-sac-tps");
+        }
         if (config.APPLY_LOAD_NUM_LEDGERS < 30)
         {
             throw std::runtime_error(
@@ -847,47 +889,141 @@ ApplyLoad::setup()
 }
 
 void
+ApplyLoad::logPhaseStats(std::string const& label,
+                         std::vector<double> const& samplesMs)
+{
+    releaseAssert(!samplesMs.empty());
+
+    double mean = std::accumulate(samplesMs.begin(), samplesMs.end(), 0.0) /
+                  samplesMs.size();
+
+    double varianceMsSq = 0.0;
+    for (auto const& sample : samplesMs)
+    {
+        double delta = sample - mean;
+        varianceMsSq += delta * delta;
+    }
+    varianceMsSq /= samplesMs.size();
+
+    std::vector<double> sortedSamples = samplesMs;
+    std::sort(sortedSamples.begin(), sortedSamples.end());
+
+    CLOG_WARNING(Perf, "mean {}: {} ms", label, mean);
+    CLOG_WARNING(Perf, "p25 {}:  {} ms", label,
+                 interpolatePercentile(sortedSamples, 25.0));
+    CLOG_WARNING(Perf, "p50 {}:  {} ms", label,
+                 interpolatePercentile(sortedSamples, 50.0));
+    CLOG_WARNING(Perf, "p75 {}:  {} ms", label,
+                 interpolatePercentile(sortedSamples, 75.0));
+    CLOG_WARNING(Perf, "p95 {}:  {} ms", label,
+                 interpolatePercentile(sortedSamples, 95.0));
+    CLOG_WARNING(Perf, "p99 {}:  {} ms", label,
+                 interpolatePercentile(sortedSamples, 99.0));
+    CLOG_WARNING(Perf, "{} stddev: {} ms", label, std::sqrt(varianceMsSq));
+}
+
+void
+ApplyLoad::logConfiguredPhaseStats() const
+{
+    if (!measuresTxSetValidation())
+    {
+        return;
+    }
+
+    CLOG_WARNING(Perf, "================================================");
+    logPhaseStats("txset validation", mPhaseValidationMs);
+
+    // Expect one cold check per tx + one StellarValue check per ledger.
+    auto const ledgerCount = static_cast<int64_t>(mPhaseValidationMs.size());
+    auto const txCount = static_cast<int64_t>(mBenchmarkTxCount);
+    CLOG_WARNING(
+        Perf,
+        "sig cache hits/misses: {}/{} (expected {} misses = {} tx sigs + {} "
+        "value sigs)",
+        mLedgerSigCacheHits, mLedgerSigCacheMisses, txCount + ledgerCount,
+        txCount, ledgerCount);
+    if (txCount > 0)
+    {
+        CLOG_WARNING(
+            Perf,
+            "tx signature cache misses per transaction: {:.4f} (expect 1.0)",
+            static_cast<double>(static_cast<int64_t>(mLedgerSigCacheMisses) -
+                                ledgerCount) /
+                static_cast<double>(txCount));
+    }
+    // Expect one cold tx set validation per ledger.
+    auto const validations =
+        mApp.getMetrics().NewTimer({"herder", "txset", "validate"}).count();
+    CLOG_WARNING(Perf, "txset validations per ledger: {:.2f}",
+                 static_cast<double>(validations) /
+                     static_cast<double>(ledgerCount));
+
+    logPhaseStats("ledger close", mPhaseLedgerCloseMs);
+    logPhaseStats("end-to-end txset+apply", mPhaseEndToEndMs);
+
+    double validationSum = std::accumulate(mPhaseValidationMs.begin(),
+                                           mPhaseValidationMs.end(), 0.0);
+    double ledgerCloseSum = std::accumulate(mPhaseLedgerCloseMs.begin(),
+                                            mPhaseLedgerCloseMs.end(), 0.0);
+    double e2eSum = std::accumulate(mPhaseEndToEndMs.begin(),
+                                    mPhaseEndToEndMs.end(), 0.0);
+    if (e2eSum > 0.0)
+    {
+        CLOG_WARNING(Perf, "txset validation share of end-to-end: {:.2f}%",
+                     validationSum / e2eSum * 100.0);
+        CLOG_WARNING(Perf, "ledger close share of end-to-end: {:.2f}%",
+                     ledgerCloseSum / e2eSum * 100.0);
+        CLOG_WARNING(Perf,
+                     "other receive/consensus/externalize overhead share "
+                     "of end-to-end: {:.2f}%",
+                     (e2eSum - validationSum - ledgerCloseSum) / e2eSum *
+                         100.0);
+    }
+    CLOG_WARNING(Perf, "================================================");
+}
+
+void
+ApplyLoad::recordSorobanUtilization(ApplicableTxSetFrame const& txSet,
+                                    uint32_t ledgerVersion)
+{
+    auto ledgerResources = mApp.getLedgerManager().maxLedgerResources(true);
+    auto txSetResources =
+        txSet.getPhases()
+            .at(static_cast<size_t>(TxSetPhase::SOROBAN))
+            .getTotalResources(ledgerVersion)
+            .value();
+    auto updateUtilization = [&](medida::Histogram& histogram,
+                                 Resource::Type resource) {
+        histogram.Update(txSetResources.getVal(resource) * 1.0 /
+                         ledgerResources.getVal(resource) * 100000.0);
+    };
+    updateUtilization(mTxCountUtilization, Resource::Type::OPERATIONS);
+    updateUtilization(mInstructionUtilization, Resource::Type::INSTRUCTIONS);
+    updateUtilization(mTxSizeUtilization, Resource::Type::TX_BYTE_SIZE);
+    updateUtilization(mDiskReadByteUtilization,
+                      Resource::Type::DISK_READ_BYTES);
+    updateUtilization(mWriteByteUtilization, Resource::Type::WRITE_BYTES);
+    updateUtilization(mDiskReadEntryUtilization,
+                      Resource::Type::READ_LEDGER_ENTRIES);
+    updateUtilization(mWriteEntryUtilization,
+                      Resource::Type::WRITE_LEDGER_ENTRIES);
+    CLOG_INFO(Perf, "generated tx set resources: {}/{}",
+              txSetResources.toString(), ledgerResources.toString());
+}
+
+void
 ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                        xdr::xvector<UpgradeType, 6> const& upgrades,
-                       bool recordSorobanUtilization)
+                       bool recordUtilization)
 {
     auto txSet = makeTxSetFromTransactions(txs, mApp, 0, 0);
 
-    if (recordSorobanUtilization)
+    if (recordUtilization)
     {
-        auto ledgerResources = mApp.getLedgerManager().maxLedgerResources(true);
-        auto txSetResources =
-            txSet.second->getPhases()
-                .at(static_cast<size_t>(TxSetPhase::SOROBAN))
-                .getTotalResources(mApp.getLedgerManager()
-                                       .getLastClosedLedgerHeader()
-                                       .header.ledgerVersion)
-                .value();
-        mTxCountUtilization.Update(
-            txSetResources.getVal(Resource::Type::OPERATIONS) * 1.0 /
-            ledgerResources.getVal(Resource::Type::OPERATIONS) * 100000.0);
-        mInstructionUtilization.Update(
-            txSetResources.getVal(Resource::Type::INSTRUCTIONS) * 1.0 /
-            ledgerResources.getVal(Resource::Type::INSTRUCTIONS) * 100000.0);
-        mTxSizeUtilization.Update(
-            txSetResources.getVal(Resource::Type::TX_BYTE_SIZE) * 1.0 /
-            ledgerResources.getVal(Resource::Type::TX_BYTE_SIZE) * 100000.0);
-        mDiskReadByteUtilization.Update(
-            txSetResources.getVal(Resource::Type::DISK_READ_BYTES) * 1.0 /
-            ledgerResources.getVal(Resource::Type::DISK_READ_BYTES) * 100000.0);
-        mWriteByteUtilization.Update(
-            txSetResources.getVal(Resource::Type::WRITE_BYTES) * 1.0 /
-            ledgerResources.getVal(Resource::Type::WRITE_BYTES) * 100000.0);
-        mDiskReadEntryUtilization.Update(
-            txSetResources.getVal(Resource::Type::READ_LEDGER_ENTRIES) * 1.0 /
-            ledgerResources.getVal(Resource::Type::READ_LEDGER_ENTRIES) *
-            100000.0);
-        mWriteEntryUtilization.Update(
-            txSetResources.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) * 1.0 /
-            ledgerResources.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) *
-            100000.0);
-        CLOG_INFO(Perf, "generated tx set resources: {}/{}",
-                  txSetResources.toString(), ledgerResources.toString());
+        recordSorobanUtilization(
+            *txSet.second,
+            mApp.getLedgerManager().getLastClosedLedgerHeader().header
+                .ledgerVersion);
     }
     auto sv =
         mApp.getHerder().makeStellarValue(txSet.first->getContentsHash(), 1,
@@ -897,9 +1033,104 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
 }
 
 void
+ApplyLoad::closeLedgerViaConsensus(
+    std::vector<TransactionFrameBasePtr> const& txs,
+    bool recordUtilization)
+{
+    releaseAssert(!txs.empty());
+    auto& herder = mApp.getHerder();
+    auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
+
+    uint64_t const closeTime = lcl.header.scpValue.closeTime + 1;
+    auto txSet = makeTxSetFromTransactions(txs, mApp, 1, 1);
+
+    if (recordUtilization)
+    {
+        recordSorobanUtilization(*txSet.second, lcl.header.ledgerVersion);
+    }
+
+    // We want to simulate a non-leader node receiving a TX set off the wire,
+    // so we build and sign outside the measured receiver-side span.
+    GeneralizedTransactionSet xdrTxSet;
+    txSet.first->toXDR(xdrTxSet);
+    auto const wireBytes = xdr::xdr_to_opaque(xdrTxSet);
+    auto const nominatedValue =
+        herder.makeStellarValue(txSet.first->getContentsHash(), closeTime, {},
+                                mApp.getConfig().NODE_SEED);
+    // Do not retain leader-side frames during the measured work.
+    xdrTxSet = GeneralizedTransactionSet{};
+    txSet.first.reset();
+    txSet.second.reset();
+
+    // Validation should see cold signatures and leave them warm for apply.
+    PubKeyUtils::clearVerifySigCache();
+    // Exclude signature checks performed while building the set.
+    mApp.syncOwnMetrics();
+    auto& metrics = mApp.getMetrics();
+    auto& sigHitMeter =
+        metrics.NewMeter({"crypto", "verify", "hit"}, "signature");
+    auto& sigMissMeter =
+        metrics.NewMeter({"crypto", "verify", "miss"}, "signature");
+    auto const sigHitsBefore = sigHitMeter.count();
+    auto const sigMissesBefore = sigMissMeter.count();
+
+    auto& validationTimer = metrics.NewTimer({"herder", "txset", "validate"});
+    // ledger.close includes apply-side prepareForApply.
+    auto& ledgerCloseTimer = metrics.NewTimer({"ledger", "ledger", "close"});
+    double const validationBefore = validationTimer.sum();
+    double const ledgerCloseBefore = ledgerCloseTimer.sum();
+
+    auto const e2eStart = std::chrono::steady_clock::now();
+
+    // Decode into a fresh frame as the overlay receive path does.
+    GeneralizedTransactionSet receivedXdr;
+    xdr::xdr_from_opaque(wireBytes, receivedXdr);
+    auto receivedTxSet = TxSetXDRFrame::makeFromWire(receivedXdr);
+
+    // Nomination through externalization and apply use production SCP paths.
+    nominateAndClose(mApp, receivedTxSet, nominatedValue);
+
+    auto const e2eEnd = std::chrono::steady_clock::now();
+    double const ledgerCloseMs = ledgerCloseTimer.sum() - ledgerCloseBefore;
+    mPhaseValidationMs.emplace_back(validationTimer.sum() - validationBefore);
+    mPhaseLedgerCloseMs.emplace_back(ledgerCloseMs);
+    mPhaseEndToEndMs.emplace_back(
+        std::chrono::duration<double, std::milli>(e2eEnd - e2eStart).count());
+    mApp.syncOwnMetrics();
+    mLedgerSigCacheHits += sigHitMeter.count() - sigHitsBefore;
+    mLedgerSigCacheMisses += sigMissMeter.count() - sigMissesBefore;
+    mBenchmarkTxCount += txs.size();
+}
+
+void
+ApplyLoad::closeBenchmarkLedger(
+    std::vector<TransactionFrameBasePtr> const& txs,
+    bool recordUtilization)
+{
+    if (measuresTxSetValidation())
+    {
+        closeLedgerViaConsensus(txs, recordUtilization);
+    }
+    else
+    {
+        closeLedger(txs, {}, recordUtilization);
+    }
+}
+
+void
 ApplyLoad::execute()
 {
     logExecutionEnvironmentSnapshot(mApp.getConfig());
+    if (measuresTxSetValidation())
+    {
+        mApp.getMetrics().NewTimer({"herder", "txset", "validate"}).Clear();
+        mPhaseValidationMs.clear();
+        mPhaseLedgerCloseMs.clear();
+        mPhaseEndToEndMs.clear();
+        mLedgerSigCacheHits = 0;
+        mLedgerSigCacheMisses = 0;
+        mBenchmarkTxCount = 0;
+    }
 
     switch (mMode)
     {
@@ -1450,6 +1681,8 @@ ApplyLoad::benchmarkLimits()
               getWriteEntryUtilization().max() / 1000.0);
 
     CLOG_INFO(Perf, "Tx Success Rate: {:f}%", successRate() * 100);
+
+    logConfiguredPhaseStats();
 }
 
 double
@@ -1562,9 +1795,8 @@ ApplyLoad::benchmarkLimitsIteration()
         mApp.getMetrics().NewTimer({"ledger", "ledger", "close"});
 
     double timeBefore = ledgerCloseTime.sum();
-    closeLedger(txs, {}, /* recordSorobanUtilization */ true);
+    closeBenchmarkLedger(txs, /* recordSorobanUtilization */ true);
     double timeAfter = ledgerCloseTime.sum();
-
     double closeTime = timeAfter - timeBefore;
     CLOG_INFO(Perf, "Limits benchmark time: {:.2f}ms", closeTime);
     return closeTime;
@@ -1754,38 +1986,15 @@ ApplyLoad::benchmarkModelTx()
 
     releaseAssert(!closeTimes.empty());
 
-    double avgCloseTimeMs =
-        std::accumulate(closeTimes.begin(), closeTimes.end(), 0.0) /
-        closeTimes.size();
-
-    double varianceMsSq = 0.0;
-    for (auto const& closeTime : closeTimes)
-    {
-        double delta = closeTime - avgCloseTimeMs;
-        varianceMsSq += delta * delta;
-    }
-    varianceMsSq /= closeTimes.size();
-
-    std::vector<double> sortedCloseTimes = closeTimes;
-    std::sort(sortedCloseTimes.begin(), sortedCloseTimes.end());
-
     CLOG_WARNING(Perf, "================================================");
-    CLOG_WARNING(
-        Perf, "Model tx benchmark stats ({} ledgers, {} tx per ledger):",
-        config.APPLY_LOAD_NUM_LEDGERS, config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
-    CLOG_WARNING(Perf, "mean close time: {} ms", avgCloseTimeMs);
-    CLOG_WARNING(Perf, "p25 close time:  {} ms",
-                 interpolatePercentile(sortedCloseTimes, 25.0));
-    CLOG_WARNING(Perf, "p50 close time:  {} ms",
-                 interpolatePercentile(sortedCloseTimes, 50.0));
-    CLOG_WARNING(Perf, "p75 close time:  {} ms",
-                 interpolatePercentile(sortedCloseTimes, 75.0));
-    CLOG_WARNING(Perf, "p95 close time:  {} ms",
-                 interpolatePercentile(sortedCloseTimes, 95.0));
-    CLOG_WARNING(Perf, "p99 close time:  {} ms",
-                 interpolatePercentile(sortedCloseTimes, 99.0));
-    CLOG_WARNING(Perf, "close time stddev: {} ms", std::sqrt(varianceMsSq));
+    CLOG_WARNING(Perf,
+                 "Model tx benchmark stats ({} ledgers, {} tx per ledger):",
+                 config.APPLY_LOAD_NUM_LEDGERS,
+                 config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
+    logPhaseStats("close time", closeTimes);
     CLOG_WARNING(Perf, "================================================");
+
+    logConfiguredPhaseStats();
 }
 
 double
@@ -1835,7 +2044,7 @@ ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
     releaseAssert(
         mApp.getBucketManager().getHotArchiveBucketList().futuresAllResolved());
     double timeBefore = totalTxApplyTimer.sum();
-    closeLedger(txs);
+    closeBenchmarkLedger(txs, /* recordSorobanUtilization */ false);
     double timeAfter = totalTxApplyTimer.sum();
 
     double closeTime = timeAfter - timeBefore;
