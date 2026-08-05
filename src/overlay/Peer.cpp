@@ -174,6 +174,13 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
     {
         mMaybeHash = xdrBlake2(msg);
     }
+    if (mMsg.type() == GET_SCP_QUORUMSET || mMsg.type() == GET_TX_SET)
+    {
+        BLAKE2 blake;
+        blake.add(xdrBlake2(msg));
+        blake.add(xdrBlake2(self->getPeerID()));
+        mMaybeHash = blake.finish();
+    }
 
     auto populateTxMap = [&](StellarMessage const& msg, Hash const& hash) {
         auto transaction = TransactionFrameBase::makeTransactionFromWire(
@@ -829,9 +836,11 @@ void
 Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 {
     ZoneScoped;
-
-    CLOG_TRACE(Overlay, "send: {} to : {}", msgSummary(*msg),
-               mAppConnector.getConfig().toShortString(mPeerID));
+    {
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+        CLOG_TRACE(Overlay, "send: {} to : {}", msgSummary(*msg),
+                   mAppConnector.getConfig().toShortString(mPeerID));
+    }
 
     switch (msg->type())
     {
@@ -1687,6 +1696,7 @@ Peer::recvGetSCPState(StellarMessage const& msg)
     releaseAssert(threadIsMain());
     if (!process(mSCPStateQueryInfo, GET_SCP_STATE_MAX_RATE))
     {
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
         CLOG_DEBUG(Overlay, "Dropping GET_SCP_STATE request from {}",
                    KeyUtils::toShortString(mPeerID));
         return;
@@ -1771,7 +1781,7 @@ Peer::updatePeerRecordAfterAuthentication()
         mAppConnector.getOverlayManager().getPeerManager().update(
             getAddress(), PeerManager::BackOffUpdate::RESET);
     }
-
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     CLOG_DEBUG(Overlay, "successful handshake with {}@{}",
                mAppConnector.getConfig().toShortString(mPeerID), toString());
 }
