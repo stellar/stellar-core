@@ -7,6 +7,17 @@
 #ifdef USE_TCMALLOC
 #include <gperftools/malloc_extension.h>
 
+namespace stellar{
+    size_t getMallocBytesInUse() {
+        size_t out;
+        MallocExtension* ext = MallocExtension::instance();
+        if (ext && ext->GetNumericProperty("generic.current_allocated_bytes", &out)) {
+            return out;
+        }
+        return 0;
+    }
+}
+
 namespace
 {
 // Configure tcmalloc parameters at startup using a constructor attribute.
@@ -44,4 +55,10 @@ initTcmallocConfig()
     }
 }
 } // namespace
+#else
+namespace stellar {
+size_t getMallocBytesInUse() {
+    return 0;
+}
+}
 #endif // USE_TCMALLOC

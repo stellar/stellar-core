@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "rust/RustBridge.h"
 #include "util/Logging.h"
+#include "util/TcmallocConfig.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <chrono>
 #include <cstddef>
@@ -134,10 +135,14 @@ SharedModuleCacheCompiler::popAndCompileWasm(size_t thread,
     return true;
 }
 
+static size_t heap_at_compile_start = 0;
+
 void
 SharedModuleCacheCompiler::start()
 {
     mStarted = std::chrono::steady_clock::now();
+
+    heap_at_compile_start = getMallocBytesInUse();
 
     LOG_INFO(DEFAULT_LOG,
              "Launching 1 loading and {} compiling background threads",
@@ -211,6 +216,10 @@ SharedModuleCacheCompiler::wait()
             .count(),
         std::chrono::duration_cast<std::chrono::milliseconds>(mTotalCompileTime)
             .count());
+    auto heap_at_compile_end = getMallocBytesInUse();
+    LOG_INFO(DEFAULT_LOG, "Heap grew from {} to {} bytes during ompilation, difference is {} bytes",
+        heap_at_compile_start, heap_at_compile_end, heap_at_compile_end - heap_at_compile_start);
+
     return mModuleCache->shallow_clone();
 }
 
