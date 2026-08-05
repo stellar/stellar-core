@@ -132,6 +132,7 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
+static constexpr uint32_t QUERY_RESPONSE_MULTIPLIER = 5;
 
 Peer::Peer(Application& app, PeerRole role)
     : mAppConnector(app.getAppConnector())
@@ -1425,8 +1426,8 @@ Peer::process(QueryInfo& queryInfo, std::optional<uint32_t> maxQueriesPerWindow)
         std::chrono::duration_cast<std::chrono::seconds>(
             mAppConnector.getLedgerManager().getExpectedLedgerCloseTime() *
             cfg.MAX_SLOTS_TO_REMEMBER);
-    uint32_t const QUERIES_PER_WINDOW =
-        maxQueriesPerWindow.value_or(2 * cfg.MAX_SLOTS_TO_REMEMBER + 1);
+    uint32_t const QUERIES_PER_WINDOW = maxQueriesPerWindow.value_or(
+        QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER);
     if (mAppConnector.now() - queryInfo.mLastTimeStamp >= QUERY_WINDOW)
     {
         queryInfo.mLastTimeStamp = mAppConnector.now();
