@@ -108,6 +108,15 @@ TEST_CASE("checkpoint containing ledger", "[history]")
           0x13f);
     CHECK(HistoryManager::checkpointContainingLedger(258, app->getConfig()) ==
           0x13f);
+
+    // Saturates at UINT32_MAX rather than silently wrapping.
+    uint32_t const MAX = std::numeric_limits<uint32_t>::max();
+    CHECK(HistoryManager::checkpointContainingLedger(MAX, app->getConfig()) ==
+          MAX);
+    CHECK(HistoryManager::checkpointContainingLedger(MAX - 63,
+                                                     app->getConfig()) == MAX);
+    CHECK(HistoryManager::checkpointContainingLedger(
+              MAX - 64, app->getConfig()) == MAX - 64);
 }
 
 TEST_CASE("HistoryManager compress", "[history]")
