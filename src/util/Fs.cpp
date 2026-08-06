@@ -15,6 +15,7 @@
 #include <map>
 #include <regex>
 #include <sstream>
+#include <limits>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -70,7 +71,6 @@ lockFile(std::string const& path)
                             NULL);
     if (h == INVALID_HANDLE_VALUE)
     {
-        // not sure if there is more verbose info that can be obtained here
         errmsg << "unable to create lock file: " << path;
         throw FileSystemException(errmsg.str());
     }
@@ -210,7 +210,6 @@ unlockFile(std::string const& path)
     auto it = lockMap.find(path);
     if (it != lockMap.end())
     {
-        // cannot unlink to avoid potential race
         close(it->second);
         lockMap.erase(it);
     }
@@ -429,13 +428,57 @@ size(std::string const& filename)
     return stdfs::file_size(stdfs::path(filename));
 }
 
+#ifndef _WIN32
+
+// ----------------------------------------------------------------------
+// Helper function to make the limit calculation directly testable.
+// This extracts the core logic from getMaxHandles() so we can test
+// boundary cases (RLIM_INFINITY, large values, small remainders)
+// without depending on the system's actual rlimit.
+// This function is POSIX-only because it uses rlim_t and RLIM_INFINITY.
+// ----------------------------------------------------------------------
+int64_t
+computeSafeMaxHandles(rlim_t limit)
+{
+    // Check for infinity before any arithmetic to prevent overflow.
+    if (limit == RLIM_INFINITY)
+    {
+        // Log the capping of unlimited limit to help diagnose issues.
+        CLOG_DEBUG(Fs, "RLIMIT_NOFILE is unlimited. Capping to 1,000,000.");
+        return 1000000;
+    }
+
+    // Compute floor(limit * 3 / 4) without overflow.
+    // Using (limit / 4) * 3 alone loses the remainder, which matters
+    // for small limits (e.g., limit=3 should yield 2, not 0).
+    // The correct safe formula is:
+    //   floor(limit * 3 / 4) = (limit / 4) * 3 + (limit % 4) * 3 / 4
+    rlim_t quotient = limit / 4;
+    rlim_t remainder = limit % 4;
+    rlim_t safeLimit = quotient * 3 + (remainder * 3) / 4;
+
+    // Clamp to int64_t range to avoid implementation-defined conversion
+    // when the value exceeds the maximum representable value.
+    if (safeLimit > static_cast<rlim_t>(std::numeric_limits<int64_t>::max()))
+    {
+        CLOG_DEBUG(Fs, "RLIMIT_NOFILE value {} exceeds int64_t max. Clamping.",
+                   safeLimit);
+        return std::numeric_limits<int64_t>::max();
+    }
+
+    return static_cast<int64_t>(safeLimit);
+}
+
+#endif // !_WIN32
+
 #ifdef _WIN32
 
 int64_t
 getMaxHandles()
 {
-    // on Windows, there is no limit on handles
-    // only limits based on ephemeral ports, etc
+    // On Windows, there is no system-imposed hard limit on handles.
+    // The effective limit is typically governed by ephemeral port availability
+    // and per-process resources. Returning a reasonably high, safe value.
     return 32000;
 }
 
@@ -446,10 +489,12 @@ getMaxHandles()
     struct rlimit rl;
     if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
     {
-        // leave some buffer
-        return (rl.rlim_cur * 3) / 4;
+        // Delegate to the testable helper function.
+        return computeSafeMaxHandles(rl.rlim_cur);
     }
-    // could not query the limit, default to a value that should work
+
+    // Fallback if getrlimit fails.
+    CLOG_DEBUG(Fs, "getrlimit(RLIMIT_NOFILE) failed. Using fallback value 64.");
     return 64;
 }
 #endif
