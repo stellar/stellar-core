@@ -1,6 +1,6 @@
 ---
 name: running-tests
-description: running tests at various levels from smoke tests to full suite to randomized tests
+description: "Executes stellar-core's Catch2 test suite at progressive levels: smoke tests, focused unit tests by tag, full suite with protocol version matrix, tx-meta baseline checks, and sanitizer builds (ASan/TSan/UBSan). Use when the user asks to run tests, verify a change, check if tests pass, execute the test suite, run unit tests, run regression tests, or validate code before a PR."
 ---
 
 # Overview
@@ -280,24 +280,6 @@ make clean && make -j $(nproc)
 ```
 
 This doesn't run tests but ensures the production build works.
-
-# Interpreting Failures
-
-When a test fails:
-
-1. **Identify the failing test**: Note the exact test name and file
-2. **Capture the failure output**: Save the error message and stack trace
-3. **Determine if it's a real failure**: Check if the test is flaky or if this
-   is a genuine regression
-4. **Locate the relevant code**: Find where in the changed code the failure
-   originates
-
-## Common Failure Patterns
-
-- **Assertion failure**: A test assertion didn't hold; check the condition
-- **Crash/segfault**: Memory error; run with ASan for more details
-- **Timeout**: Test took too long; may indicate infinite loop or deadlock
-- **Sanitizer error**: Memory or threading bug; the sanitizer output shows where
 
 # Output Format
 
