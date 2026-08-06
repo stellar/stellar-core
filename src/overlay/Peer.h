@@ -12,6 +12,7 @@
 #include "overlay/Hmac.h"
 #include "overlay/PeerBareAddress.h"
 #include "transactions/TransactionFrameBase.h"
+#include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
 #include "util/ThreadAnnotations.h"
 #include "util/Timer.h"
@@ -258,7 +259,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // synchronize access manually
   private:
     PeerState mState GUARDED_BY(mStateMutex);
-    NodeID mPeerID;
+    NodeID mPeerID GUARDED_BY(mStateMutex);
     uint256 mSendNonce;
     uint256 mRecvNonce;
 
@@ -415,7 +416,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     NodeID
     getPeerID() const
     {
-        releaseAssert(threadIsMain());
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
         return mPeerID;
     }
 
