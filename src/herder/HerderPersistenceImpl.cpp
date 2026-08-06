@@ -56,12 +56,11 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         auto prepClean = db.getPreparedStatement(
             "DELETE FROM scphistory WHERE ledgerseq =:l", sess);
 
-        auto& st = prepClean.statement();
-        st.exchange(soci::use(seq));
-        st.define_and_bind();
+        prepClean.exchange(soci::use(seq));
+        prepClean.define_and_bind();
         {
             ZoneNamedN(deleteSCPHistoryZone, "delete scphistory", true);
-            st.execute(true);
+            prepClean.execute(true);
         }
     }
 
@@ -96,16 +95,15 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
                                     "(nodeid, ledgerseq, envelope) VALUES "
                                     "(:n, :l, :e)",
                                     sess);
-        auto& st = prepEnv.statement();
-        st.exchange(soci::use(nodeIDs, "n"));
-        st.exchange(soci::use(seqs, "l"));
-        st.exchange(soci::use(envelopes, "e"));
-        st.define_and_bind();
+        prepEnv.exchange(soci::use(nodeIDs, "n"));
+        prepEnv.exchange(soci::use(seqs, "l"));
+        prepEnv.exchange(soci::use(envelopes, "e"));
+        prepEnv.define_and_bind();
         {
             ZoneNamedN(insertSCPHistoryZone, "insert scphistory", true);
-            st.execute(true);
+            prepEnv.execute(true);
         }
-        if (st.get_affected_rows() != envs.size())
+        if (prepEnv.get_affected_rows() != envs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -128,28 +126,26 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
 
         auto prep = db.getPreparedStatement(
             "UPDATE quoruminfo SET qsethash = :h WHERE nodeid = :id", sess);
-        auto& st = prep.statement();
-        st.exchange(soci::use(qSetHHex));
-        st.exchange(soci::use(nodeIDStrKey));
-        st.define_and_bind();
+        prep.exchange(soci::use(qSetHHex));
+        prep.exchange(soci::use(nodeIDStrKey));
+        prep.define_and_bind();
         {
             ZoneNamedN(updateQsetZone, "update quoruminfo", true);
-            st.execute(true);
+            prep.execute(true);
         }
-        if (st.get_affected_rows() != 1)
+        if (prep.get_affected_rows() != 1)
         {
             auto prepI = db.getPreparedStatement(
                 "INSERT INTO quoruminfo (nodeid, qsethash) VALUES (:id, :h)",
                 sess);
-            auto& stI = prepI.statement();
-            stI.exchange(soci::use(nodeIDStrKey));
-            stI.exchange(soci::use(qSetHHex));
-            stI.define_and_bind();
+            prepI.exchange(soci::use(nodeIDStrKey));
+            prepI.exchange(soci::use(qSetHHex));
+            prepI.define_and_bind();
             {
                 ZoneNamedN(insertQsetZone, "insert quoruminfo", true);
-                stI.execute(true);
+                prepI.execute(true);
             }
-            if (stI.get_affected_rows() != 1)
+            if (prepI.get_affected_rows() != 1)
             {
                 throw std::runtime_error("Could not update data in SQL");
             }
@@ -163,16 +159,15 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         uint32_t lastSeenSeq;
         auto prepSelQSet = db.getPreparedStatement(
             "SELECT lastledgerseq FROM scpquorums WHERE qsethash = :h", sess);
-        auto& stSel = prepSelQSet.statement();
-        stSel.exchange(soci::into(lastSeenSeq));
-        stSel.exchange(soci::use(qSetH));
-        stSel.define_and_bind();
+        prepSelQSet.exchange(soci::into(lastSeenSeq));
+        prepSelQSet.exchange(soci::use(qSetH));
+        prepSelQSet.define_and_bind();
         {
             ZoneNamedN(selectSCPQuorumsZone, "select scpquorums", true);
-            stSel.execute(true);
+            prepSelQSet.execute(true);
         }
 
-        if (stSel.got_data())
+        if (prepSelQSet.got_data())
         {
             if (lastSeenSeq >= seq)
             {
@@ -184,15 +179,14 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
                 "lastledgerseq = :l WHERE qsethash = :h",
                 sess);
 
-            auto& stUp = prepUpQSet.statement();
-            stUp.exchange(soci::use(seq));
-            stUp.exchange(soci::use(qSetH));
-            stUp.define_and_bind();
+            prepUpQSet.exchange(soci::use(seq));
+            prepUpQSet.exchange(soci::use(qSetH));
+            prepUpQSet.define_and_bind();
             {
                 ZoneNamedN(updateSCPQuorumsZone, "update scpquorums", true);
-                stUp.execute(true);
+                prepUpQSet.execute(true);
             }
-            if (stUp.get_affected_rows() != 1)
+            if (prepUpQSet.get_affected_rows() != 1)
             {
                 throw std::runtime_error("Could not update data in SQL");
             }
@@ -210,16 +204,15 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
                 "(:h, :l, :v);",
                 sess);
 
-            auto& stIns = prepInsQSet.statement();
-            stIns.exchange(soci::use(qSetH));
-            stIns.exchange(soci::use(seq));
-            stIns.exchange(soci::use(qSetEncoded));
-            stIns.define_and_bind();
+            prepInsQSet.exchange(soci::use(qSetH));
+            prepInsQSet.exchange(soci::use(seq));
+            prepInsQSet.exchange(soci::use(qSetEncoded));
+            prepInsQSet.define_and_bind();
             {
                 ZoneNamedN(insertSCPQuorumsZone, "insert scpquorums", true);
-                stIns.execute(true);
+                prepInsQSet.execute(true);
             }
-            if (stIns.get_affected_rows() != 1)
+            if (prepInsQSet.get_affected_rows() != 1)
             {
                 throw std::runtime_error("Could not update data in SQL");
             }
