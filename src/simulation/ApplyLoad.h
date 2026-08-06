@@ -22,7 +22,8 @@ class ApplyLoad
     // of values is [0,1.0].
     double successRate();
 
-    // Closes a ledger with the given transactions and optional upgrades.
+    // Closes a ledger through the historical direct-externalization path.
+    // checkValid runs before the ledger-close timer, leaving its caches warm.
     // `recordSorobanUtilization` indicates whether to record utilization of
     // Soroban resources in transaction set, this should only be necessary for
     // the benchmark runs.
@@ -48,6 +49,30 @@ class ApplyLoad
     uint32_t getTotalHotArchiveEntries() const;
 
   private:
+    bool
+    measuresTxSetValidation() const
+    {
+        return mTimingPhases ==
+               ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY;
+    }
+
+    // Simulates a non-leader receiving a tx set over the wire, then closes it
+    // through local consensus. Tx-set creation is outside the measured span.
+    void
+    closeLedgerViaConsensus(std::vector<TransactionFrameBasePtr> const& txs,
+                            bool recordUtilization);
+    void closeBenchmarkLedger(
+        std::vector<TransactionFrameBasePtr> const& txs,
+        bool recordUtilization);
+    void recordSorobanUtilization(ApplicableTxSetFrame const& txSet,
+                                  uint32_t ledgerVersion);
+
+    // Logs the distribution of per-ledger samples for one timing phase.
+    // Passing "close time" preserves the historical output format.
+    static void logPhaseStats(std::string const& label,
+                              std::vector<double> const& samplesMs);
+    void logConfiguredPhaseStats() const;
+
     uint32_t calculateRequiredHotArchiveEntries(Config const& cfg);
 
     void setup();
@@ -140,6 +165,20 @@ class ApplyLoad
     ApplyLoadMode mMode;
     ApplyLoadModelTx mModelTx;
     ApplyLoadTxProfile mLimitsBasedTxProfile;
+    ApplyLoadTimingPhases mTimingPhases;
+
+    // A phase is a timed portion of one ledger's receiver-side processing. We
+    // track cold tx-set validation, ledger close/application, and end-to-end
+    // time from wire decoding through the completed ledger close. Ledger close
+    // includes apply-side prepareForApply.
+    std::vector<double> mPhaseValidationMs;
+    std::vector<double> mPhaseLedgerCloseMs;
+    std::vector<double> mPhaseEndToEndMs;
+
+    // Signature cache totals and the transaction count used to interpret them.
+    uint64_t mLedgerSigCacheHits = 0;
+    uint64_t mLedgerSigCacheMisses = 0;
+    uint64_t mBenchmarkTxCount = 0;
 
     uint32_t mTotalHotArchiveEntries;
 
