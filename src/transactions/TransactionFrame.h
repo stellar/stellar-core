@@ -147,10 +147,15 @@ class TransactionFrame : public TransactionFrameBase
 
     void processSeqNum(AbstractLedgerTxn& ltx) const;
 
+    // Processes the transaction signatures and returns `true` on success.
+    // If `ltxForWrites` is nullptr, this function will be read-only and the
+    // caller is expected to defer any writes until after the
+    // `processSignatures` call.
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
-                           AbstractLedgerTxn& ltxOuter,
-                           MutableTransactionResultBase& txResult) const;
+                           CheckValidLedgerViewWrapper const& ledgerView,
+                           MutableTransactionResultBase& txResult,
+                           AbstractLedgerTxn* ltxForWrites) const;
 
     std::optional<TimeBounds const> const getTimeBounds() const;
     std::optional<LedgerBounds const> const getLedgerBounds() const;
@@ -290,36 +295,46 @@ class TransactionFrame : public TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
 
-    // preApply runs all pre-application steps that are common between
+    // `commonPreApply` runs all pre-application steps that are common between
     // parallelApply and (sequential) apply:
     //
     //  - building a signature checker
     //  - calling commonValid
-    //  - calling processSeqNum
-    //  - calling processSignatures
+    //  - (if writes are allowed) calling processSeqNum
+    //  - calling processSignatures (in RO or RW mode)
     //
-    // If all of this succeeds it returns a non-nullptr pointer to the
+    // If `ltxForWrites` is nullptr, then this function becomes read-only and
+    // the caller is expected to defer any writes until after the
+    // `commonPreApply` call.
+    //
+    // If all of this succeeds, it returns a non-nullptr pointer to the
     // signature checker, to be used elsewhere in the txn. If anything
     // fails it returns nullptr. It does all of its work in a sub-ltx
-    // so the passed ltx is unchanged on failure.
+    // so the passed `ltxForWrites` is unchanged on failure.
     std::unique_ptr<SignatureChecker>
-    commonPreApply(bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
+    commonPreApply(bool chargeFee, AppConnector& app,
+                   CheckValidLedgerViewWrapper const& ledgerView,
                    TransactionMetaBuilder& meta,
                    MutableTransactionResultBase& txResult,
                    SorobanNetworkConfig const* sorobanConfig,
-                   Hash const& envelopeContentsHash) const;
+                   Hash const& envelopeContentsHash,
+                   AbstractLedgerTxn* ltxForWrites) const;
 
-    void preParallelApply(bool chargeFee, AppConnector& app,
-                          AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-                          MutableTransactionResultBase& txResult,
-                          SorobanNetworkConfig const& sorobanConfig,
-                          Hash const& envelopeContentsHash) const;
+    void preParallelApplyReadOnlyWithOptionallyChargedFee(
+        bool chargeFee, AppConnector& app,
+        CheckValidLedgerViewWrapper const& ls, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig,
+        Hash const& envelopeContentsHash) const;
 
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
+    void preParallelApplyReadOnly(
+        AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
+    void preParallelApplyWrite(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase const& txResult) const override;
 
     std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
