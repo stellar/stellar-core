@@ -3,5 +3,5 @@
 mod messages;
 mod transport;
 
-pub use messages::{Message, MessageType};
+pub use messages::{Message, MessageCodec, MessageType};
 pub use transport::CoreIpc;
