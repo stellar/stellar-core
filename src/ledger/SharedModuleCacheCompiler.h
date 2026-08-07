@@ -44,6 +44,8 @@ class SharedModuleCacheCompiler : NonMovableOrCopyable
     std::condition_variable mHaveContracts;
 
     std::chrono::steady_clock::time_point mStarted;
+    size_t mHeapSizeAtStart{0};
+    size_t mHeapSizeAtEnd{0};
     std::chrono::nanoseconds mTotalCompileTime{0};
 
     void setFinishedLoading(size_t nContracts);
@@ -61,6 +63,7 @@ class SharedModuleCacheCompiler : NonMovableOrCopyable
     void start();
     ::rust::Box<stellar::rust_bridge::SorobanModuleCache> wait();
     size_t getBytesCompiled();
+    int64_t getBytesAllocatedDuringCompilation();
     std::chrono::nanoseconds getCompileTime();
     size_t getContractsCompiled();
 };

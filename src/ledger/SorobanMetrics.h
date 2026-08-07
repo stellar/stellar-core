@@ -193,7 +193,8 @@ class SorobanMetrics
     medida::Counter& mModuleCacheNumEntries;
     medida::Timer& mModuleCompilationTime;
     medida::Timer& mModuleCacheRebuildTime;
-    medida::Counter& mModuleCacheRebuildBytes;
+    medida::Counter& mModuleCacheRebuildWasmBytes;
+    medida::Counter& mModuleCacheRebuildHeapBytes;
 
     // In-memory state metrics
     medida::Counter& mContractCodeStateSize;

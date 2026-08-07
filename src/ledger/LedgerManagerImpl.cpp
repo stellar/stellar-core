@@ -1028,8 +1028,10 @@ LedgerManagerImpl::ApplyState::finishPendingCompilation()
     releaseAssert(mPhase == Phase::SETTING_UP_STATE);
     releaseAssert(mCompiler);
     auto newCache = mCompiler->wait();
-    getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.set_count(
+    getMetrics().mSorobanMetrics.mModuleCacheRebuildWasmBytes.set_count(
         (int64)mCompiler->getBytesCompiled());
+    getMetrics().mSorobanMetrics.mModuleCacheRebuildHeapBytes.set_count(
+        mCompiler->getBytesAllocatedDuringCompilation());
     getMetrics().mSorobanMetrics.mModuleCacheNumEntries.set_count(
         (int64)mCompiler->getContractsCompiled());
     getMetrics().mSorobanMetrics.mModuleCacheRebuildTime.Update(
@@ -1175,7 +1177,7 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     // contract-set in the live BL as an event that warrants a rebuild.
 
     int64_t lastCompiledWasmBytesCount =
-        getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.count();
+        getMetrics().mSorobanMetrics.mModuleCacheRebuildWasmBytes.count();
     uint64_t lastCompiledWasmBytes =
         lastCompiledWasmBytesCount < 0
             ? 0

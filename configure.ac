@@ -534,7 +534,12 @@ AC_ARG_ENABLE(tracy-memory-tracking,
     AS_HELP_STRING([--enable-tracy-memory-tracking],
         [Enable 'tracy' profiler/tracer memory tracking code (slow)]))
 AM_CONDITIONAL(USE_TRACY_MEMORY_TRACKING, [test x$enable_tracy_memory_tracking = xyes])
-
+if test x"$enable_tracy_memory_tracking" = xyes -a x"$have_tcmalloc" = x1; then
+  AC_MSG_ERROR([--enable-tracy-memory-tracking requires --disable-tcmalloc])
+fi
+if test x"$enable_tracy_memory_tracking" = xyes -a x"$enable_tracy" != xyes; then
+  AC_MSG_ERROR([--enable-tracy-memory-tracking requires --enable-tracy])
+fi
 if test x"$enable_tracy" = xyes -a x"$enable_asan" = xyes; then
        AC_MSG_ERROR([--enable-asan is not compatible with --enable-tracy])
 fi

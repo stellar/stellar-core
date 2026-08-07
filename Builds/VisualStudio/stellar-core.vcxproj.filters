@@ -489,6 +489,9 @@
     <ClCompile Include="..\..\src\util\TarjanSCCCalculator.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\TcmallocConfig.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\Thread.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -1735,6 +1738,9 @@
       <Filter>test</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\TarjanSCCCalculator.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\TcmallocConfig.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Thread.h">

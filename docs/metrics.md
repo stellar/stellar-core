@@ -284,7 +284,8 @@ soroban.config.bucket-list-target-size-byte  | counter   | soroban config settin
 soroban.module-cache.num-entries             | counter   | current number of entries in module cache
 soroban.module-cache.compilation-time        | timer     | times each contract compilation when adding to module cache
 soroban.module-cache.rebuild-time            | timer     | times each rebuild of module cache (including all compilations)
-soroban.module-cache.rebuild-bytes           | counter   | bytes of WASM bytecode compiled in last rebuild of module cache
+soroban.module-cache.rebuild-wasm-bytes      | counter   | bytes of WASM bytecode compiled in last rebuild of module cache
+soroban.module-cache.rebuild-heap-bytes      | counter   | bytes of heap memory allocated in last rebuild of module cache
 soroban.in-memory-state.contract-code-size   | counter   | size in bytes of non-evicted ContractCode entries according to memory cost model
 soroban.in-memory-state.contract-data-size   | counter   | size in bytes of ContractData entries in memory
 soroban.in-memory-state.contract-code-entries   | counter   | number of ContractCode entries in memory
