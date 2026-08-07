@@ -484,9 +484,8 @@ InMemorySorobanState::initializeStateFromSnapshot(
 
 void
 InMemorySorobanState::updateState(
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+    LedgerKeyRefs deadEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     SorobanMetrics& metrics)
 {
@@ -500,7 +499,7 @@ InMemorySorobanState::updateState(
     {
         releaseAssertOrThrow(sorobanConfig.has_value());
         uint32_t ledgerVersion = lh.ledgerVersion;
-        for (auto const& entry : initEntries)
+        for (LedgerEntry const& entry : initEntries)
         {
             if (entry.data.type() == CONTRACT_DATA)
             {
@@ -516,7 +515,7 @@ InMemorySorobanState::updateState(
             }
         }
 
-        for (auto const& entry : liveEntries)
+        for (LedgerEntry const& entry : liveEntries)
         {
             if (entry.data.type() == CONTRACT_DATA)
             {
@@ -532,7 +531,7 @@ InMemorySorobanState::updateState(
             }
         }
 
-        for (auto const& key : deadEntries)
+        for (LedgerKey const& key : deadEntries)
         {
             if (key.type() == CONTRACT_DATA)
             {

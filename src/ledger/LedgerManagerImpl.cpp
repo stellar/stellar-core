@@ -342,9 +342,8 @@ LedgerManagerImpl::ApplyState::isCompilationRunning() const
 
 void
 LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+    LedgerKeyRefs deadEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig)
 {
     releaseAssert(mPhase == Phase::SETTING_UP_STATE ||
@@ -3150,8 +3149,6 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
 {
     ZoneScoped;
     // `ledgerApplied` protects this call with a mutex
-    std::vector<LedgerEntry> initEntries, liveEntries;
-    std::vector<LedgerKey> deadEntries;
 
     EvictedStateVectors evictedState;
     std::vector<LedgerKey> restoredHotArchiveKeys;
@@ -3261,8 +3258,16 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         finalSorobanConfig =
             std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
     }
-    // NB: getAllEntries seals the ltx.
-    ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+
+    // NB: these are borrowed from `ltx`, which stays for the remainder of this
+    // call. Make sure to not store these references anywhere out of scope of
+    // this function (e.g. via async tasks that are not joined before
+    // returning from this function).
+    // sealAndBorrowAllEntries seals the ltx, so the borrowed references are
+    // guaranteed to be immutable.
+    LedgerEntryRefVec initEntries, liveEntries;
+    LedgerKeyRefVec deadEntries;
+    ltx.sealAndBorrowAllEntries(initEntries, liveEntries, deadEntries);
 
     // Launch async task to update in-memory Soroban state. This is independent
     // from both addHotArchiveBatch and addLiveBatch, so all can run in
@@ -3386,11 +3391,11 @@ LedgerManagerImpl::ApplyState::evictFromModuleCache(
 
 void
 LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
-    uint32_t ledgerVersion, std::vector<LedgerEntry> const& le)
+    uint32_t ledgerVersion, LedgerEntryRefs le)
 {
     ZoneScoped;
     assertWritablePhase();
-    for (auto const& e : le)
+    for (LedgerEntry const& e : le)
     {
         if (e.data.type() == CONTRACT_CODE)
         {

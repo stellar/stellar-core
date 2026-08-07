@@ -111,10 +111,10 @@ struct BucketListGenerator
             mLiveKeys.insert(LedgerEntryKey(le));
         }
 
-        std::vector<LedgerEntry> initEntries, liveEntries;
-        std::vector<LedgerKey> deadEntries;
+        LedgerEntryRefVec initEntries, liveEntries;
+        LedgerKeyRefVec deadEntries;
         auto header = ltx.loadHeader().current();
-        ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+        ltx.sealAndBorrowAllEntries(initEntries, liveEntries, deadEntries);
         BucketTestUtils::addLiveBatchAndUpdateSnapshot(
             *app, header, initEntries, liveEntries, deadEntries);
         ltx.commit();

@@ -1616,21 +1616,21 @@ LedgerTxn::Impl::queryInflationWinners(size_t maxWinners, int64_t minVotes)
 }
 
 void
-LedgerTxn::getAllEntries(std::vector<LedgerEntry>& initEntries,
-                         std::vector<LedgerEntry>& liveEntries,
-                         std::vector<LedgerKey>& deadEntries)
+LedgerTxn::sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                   LedgerEntryRefVec& liveEntries,
+                                   LedgerKeyRefVec& deadEntries)
 {
-    getImpl()->getAllEntries(initEntries, liveEntries, deadEntries);
+    getImpl()->sealAndBorrowAllEntries(initEntries, liveEntries, deadEntries);
 }
 
 void
-LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
-                               std::vector<LedgerEntry>& liveEntries,
-                               std::vector<LedgerKey>& deadEntries)
+LedgerTxn::Impl::sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                         LedgerEntryRefVec& liveEntries,
+                                         LedgerKeyRefVec& deadEntries)
 {
-    abortIfWrongThread("getAllEntries");
-    std::vector<LedgerEntry> resInit, resLive;
-    std::vector<LedgerKey> resDead;
+    abortIfWrongThread("sealAndBorrowAllEntries");
+    LedgerEntryRefVec resInit, resLive;
+    LedgerKeyRefVec resDead;
     resInit.reserve(mEntry.size());
     resLive.reserve(mEntry.size());
     resDead.reserve(mEntry.size());
