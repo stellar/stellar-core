@@ -268,3 +268,15 @@ The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their hea
 
     # On MacOS
     $ brew install capstone freetype2 glfw
+
+On Windows, follow the [build and install instructions](https://github.com/wolfpld/tracy) from the main Tracy site.
+
+At a high level you need to install the required prerequisites to build clients, run in a shell:
+
+    vcpkg.exe integrate install
+    vcpkg.exe install --triplet x64-windows-static capstone freetype glfw3
+
+Then build one of the servers. Solutions for servers compatible with the version of stellar-core can be found under:
+
+    * lib/tracy/profiler/build/win32 (GUI)
+    * lib/tracy/capture/build/win32
