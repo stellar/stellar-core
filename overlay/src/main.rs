@@ -1891,4 +1891,194 @@ mod tests {
         let stripped = strip_p2p_suffix(&bare);
         assert_eq!(stripped, bare);
     }
+
+    // --- App::handle_core_message / handle_libp2p_event tests ---
+
+    use std::os::unix::net::UnixStream as StdUnixStream;
+    use stellar_overlay::ipc::MessageCodec;
+
+    /// Build an App wired to an in-process socket pair, without touching the
+    /// network. Returns the core-side stream for driving and observing IPC.
+    /// The libp2p overlay object is dropped (not run), so cache-miss fetches
+    /// just log a warning — these tests only exercise the cache paths.
+    fn test_app() -> (App, StdUnixStream) {
+        let (overlay_side, core_side) = StdUnixStream::pair().unwrap();
+        let core_ipc = CoreIpc::from_stream(overlay_side).unwrap();
+
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let mempool_manager = Overlay::new(cmd_rx);
+        tokio::spawn(async move {
+            let _ = mempool_manager.run().await;
+        });
+        let overlay_handle = OverlayHandle::new(cmd_tx);
+
+        let metrics = Arc::new(OverlayMetrics::new());
+        let (libp2p_handle, libp2p_events, tx_events, _overlay) =
+            create_overlay(Libp2pKeypair::generate_ed25519(), Arc::clone(&metrics)).unwrap();
+
+        let app = App {
+            core_ipc,
+            overlay_handle,
+            tx_set_cache: TxSetCache::new(100),
+            current_ledger_seq: 0,
+            libp2p_handle,
+            libp2p_events,
+            tx_events,
+            pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
+            next_scp_request_id: Arc::new(AtomicU64::new(1)),
+            local_addrs: Arc::new(RwLock::new(HashSet::new())),
+            configured_peers: Arc::new(RwLock::new(ConfiguredPeers {
+                addrs: Vec::new(),
+                listen_port: 11625,
+                resolved: HashMap::new(),
+            })),
+            known_peers: Arc::new(RwLock::new(HashMap::new())),
+            peer_hostnames: Arc::new(RwLock::new(HashMap::new())),
+            metrics,
+        };
+        (app, core_side)
+    }
+
+    /// A minimal valid GeneralizedTransactionSet whose content hash matches,
+    /// so it passes the CacheTxSet hash guard.
+    fn test_txset_xdr(seed: u8) -> ([u8; 32], Vec<u8>) {
+        use stellar_xdr::curr::{GeneralizedTransactionSet, Hash};
+
+        let mut tx_set = GeneralizedTransactionSet::default();
+        let GeneralizedTransactionSet::V1(v1) = &mut tx_set;
+        v1.previous_ledger_hash = Hash([seed; 32]);
+        let bytes = tx_set.to_xdr(Limits::none()).unwrap();
+        let hash = xdr::sha256_hash(&bytes);
+        (hash, bytes)
+    }
+
+    fn request_tx_set_payload(hash: &[u8; 32], slot: u32) -> Vec<u8> {
+        let mut payload = hash.to_vec();
+        payload.extend_from_slice(&slot.to_le_bytes());
+        payload
+    }
+
+    fn ledger_closed_payload(seq: u32) -> Vec<u8> {
+        let mut payload = seq.to_le_bytes().to_vec();
+        payload.extend_from_slice(&[0u8; 32]);
+        payload
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_request_tx_set_rejects_legacy_32_byte_payload() {
+        let (mut app, mut core) = test_app();
+        let (hash, xdr_bytes) = test_txset_xdr(7);
+
+        // Cache the set, so if the handler wrongly accepted the legacy
+        // format it would respond with TxSetAvailable below.
+        cache_tx_set_xdr(&mut app.tx_set_cache, 1, hash, xdr_bytes);
+
+        // Pre-slotSeq payload: [hash:32] only. The protocol is now
+        // [hash:32][slotSeq:4]; the short payload must be dropped.
+        let handled = app
+            .handle_core_message(Message::new(MessageType::RequestTxSet, hash.to_vec()))
+            .await;
+        assert!(
+            handled,
+            "short payload should be dropped, not kill the loop"
+        );
+
+        core.set_read_timeout(Some(Duration::from_millis(300)))
+            .unwrap();
+        assert!(
+            MessageCodec::read(&mut core).is_err(),
+            "no response expected for a legacy 32-byte RequestTxSet payload"
+        );
+    }
+
+    /// Regression test for premature tx set eviction: a set Core caches for a
+    /// future slot must be stamped with that slot, not with the overlay's
+    /// current ledger view. Before the fix it was stamped with
+    /// current_ledger_seq (0 here) and evicted on the next LedgerClosed,
+    /// making the set unfetchable exactly when SCP needed it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_cache_tx_set_slot_stamp_prevents_premature_eviction() {
+        let (mut app, mut core) = test_app();
+        let (hash, xdr_bytes) = test_txset_xdr(9);
+        let slot: u32 = 100;
+
+        // Core caches the set it built for slot 100 while the overlay still
+        // thinks the current ledger is 0.
+        // CacheTxSet payload: [hash:32][slotSeq:4][txSetXDR...]
+        let mut payload = request_tx_set_payload(&hash, slot);
+        payload.extend_from_slice(&xdr_bytes);
+        assert!(
+            app.handle_core_message(Message::new(MessageType::CacheTxSet, payload))
+                .await
+        );
+
+        // Ledger 99 closes; eviction drops sets stamped before slot 87. The
+        // slot-100 entry must survive (pre-fix it was stamped 0 and died).
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::LedgerClosed,
+                ledger_closed_payload(99)
+            ))
+            .await
+        );
+
+        // Core asks for the set: it must come back from the local cache.
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::RequestTxSet,
+                request_tx_set_payload(&hash, slot)
+            ))
+            .await
+        );
+
+        core.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        let resp = MessageCodec::read(&mut core).unwrap();
+        assert_eq!(resp.msg_type, MessageType::TxSetAvailable);
+        assert_eq!(&resp.payload[0..32], &hash[..]);
+        assert_eq!(&resp.payload[32..], &xdr_bytes[..]);
+    }
+
+    /// Same property for sets fetched from peers: a TxSetReceived event is
+    /// cached under the slot the set was requested for, so it survives
+    /// eviction until that slot is actually past.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_txset_received_cached_under_requested_slot() {
+        let (mut app, mut core) = test_app();
+        let (hash, xdr_bytes) = test_txset_xdr(11);
+
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: xdr_bytes.clone(),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+
+        // Receiving the set pushes it straight to Core; drain that message.
+        core.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        let pushed = MessageCodec::read(&mut core).unwrap();
+        assert_eq!(pushed.msg_type, MessageType::TxSetAvailable);
+
+        // Ledger 99 closes (evicts sets stamped before 87); the entry was
+        // stamped with the requested slot 100 and must survive.
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::LedgerClosed,
+                ledger_closed_payload(99)
+            ))
+            .await
+        );
+
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::RequestTxSet,
+                request_tx_set_payload(&hash, 100)
+            ))
+            .await
+        );
+        let resp = MessageCodec::read(&mut core).unwrap();
+        assert_eq!(resp.msg_type, MessageType::TxSetAvailable);
+        assert_eq!(&resp.payload[0..32], &hash[..]);
+        assert_eq!(&resp.payload[32..], &xdr_bytes[..]);
+    }
 }

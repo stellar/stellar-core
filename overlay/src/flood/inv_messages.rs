@@ -77,34 +77,23 @@ impl GetData {
         self.hashes.push(hash);
     }
 
-    /// Encode as a `StellarMessage::FloodDemand` XDR.
-    ///
-    /// Fails if there are more than `TX_DEMAND_VECTOR_MAX_SIZE` hashes; use
-    /// [`GetData::encode_chunked`] when the hash count is unbounded.
-    pub fn encode(&self) -> io::Result<Vec<u8>> {
-        let hashes = self
-            .hashes
-            .iter()
-            .map(|hash| Hash(*hash))
-            .collect::<Vec<_>>();
-        let tx_hashes = TxDemandVector::try_from(hashes).map_err(to_invalid_data)?;
-        StellarMessage::FloodDemand(FloodDemand { tx_hashes })
-            .to_xdr(Limits::none())
-            .map_err(to_invalid_data)
-    }
-
     /// Encode as one or more `StellarMessage::FloodDemand` XDR messages,
     /// splitting the hashes so no message exceeds the `TxDemandVector` XDR
     /// bound (`TX_DEMAND_VECTOR_MAX_SIZE`).
-    pub fn encode_chunked(&self) -> io::Result<Vec<Vec<u8>>> {
+    ///
+    /// Each chunk is returned with the hashes it carries, so callers can
+    /// track per-hash delivery (e.g. stamp request timestamps only after the
+    /// chunk actually went out on the wire).
+    pub fn encode_chunked(&self) -> io::Result<Vec<(Vec<u8>, Vec<[u8; 32]>)>> {
         self.hashes
             .chunks(TX_DEMAND_VECTOR_MAX_SIZE as usize)
             .map(|chunk| {
                 let hashes = chunk.iter().map(|hash| Hash(*hash)).collect::<Vec<_>>();
                 let tx_hashes = TxDemandVector::try_from(hashes).map_err(to_invalid_data)?;
-                StellarMessage::FloodDemand(FloodDemand { tx_hashes })
+                let encoded = StellarMessage::FloodDemand(FloodDemand { tx_hashes })
                     .to_xdr(Limits::none())
-                    .map_err(to_invalid_data)
+                    .map_err(to_invalid_data)?;
+                Ok((encoded, chunk.to_vec()))
             })
             .collect()
     }
@@ -209,8 +198,11 @@ mod tests {
     fn test_tx_stream_message_getdata() {
         let mut gd = GetData::new();
         gd.push([0xFF; 32]);
-        let encoded = gd.encode().unwrap();
-        let decoded = TxStreamMessage::decode(&encoded).unwrap();
+        let chunks = gd.encode_chunked().unwrap();
+        assert_eq!(chunks.len(), 1);
+        let (encoded, chunk_hashes) = &chunks[0];
+        assert_eq!(chunk_hashes, &gd.hashes);
+        let decoded = TxStreamMessage::decode(encoded).unwrap();
         if let TxStreamMessage::GetData(decoded_gd) = decoded {
             assert_eq!(gd, decoded_gd);
         } else {
@@ -228,24 +220,27 @@ mod tests {
             gd.push(hash);
         }
 
-        // Single-message encode must reject an oversized demand vector.
-        assert!(gd.encode().is_err());
-
         // Chunked encode must split it into decodable messages that
-        // round-trip every hash in order.
+        // round-trip every hash in order, and report the hashes carried by
+        // each chunk so callers can track per-chunk delivery.
         let chunks = gd.encode_chunked().unwrap();
         assert_eq!(chunks.len(), 3);
         let mut decoded_hashes = Vec::new();
-        for chunk in &chunks {
-            match TxStreamMessage::decode(chunk).unwrap() {
+        let mut reported_hashes = Vec::new();
+        for (encoded, chunk_hashes) in &chunks {
+            match TxStreamMessage::decode(encoded).unwrap() {
                 TxStreamMessage::GetData(decoded) => {
                     assert!(decoded.hashes.len() <= max);
+                    // The reported hashes must match the encoded content.
+                    assert_eq!(&decoded.hashes, chunk_hashes);
                     decoded_hashes.extend(decoded.hashes);
                 }
                 _ => panic!("Expected GetData"),
             }
+            reported_hashes.extend(chunk_hashes.iter().copied());
         }
         assert_eq!(decoded_hashes, gd.hashes);
+        assert_eq!(reported_hashes, gd.hashes);
     }
 
     #[test]

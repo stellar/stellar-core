@@ -49,11 +49,25 @@ impl PendingRequest {
         self.first_sent_at.elapsed() >= total_timeout
     }
 
-    /// Update for retry to a new peer
+    /// Update for retry to a new peer.
+    ///
+    /// Stamps `sent_at` at dispatch time so the housekeeping loop doesn't
+    /// re-dispatch the hash while the send is still in flight; callers must
+    /// call [`PendingRequest::mark_sent`] once the demand actually reaches
+    /// the wire so the peer's response window doesn't include local queueing
+    /// delay.
     pub fn retry(&mut self, new_peer: PeerId) {
         self.peer = new_peer;
         self.sent_at = Instant::now();
         self.attempts += 1;
+    }
+
+    /// Restart the per-peer timeout clock: the demand was actually written to
+    /// the peer's stream, so the peer's response window starts now (not at
+    /// dispatch, which may precede the write by encoding/lock/backpressure
+    /// delays).
+    pub fn mark_sent(&mut self) {
+        self.sent_at = Instant::now();
     }
 }
 
@@ -172,6 +186,29 @@ mod tests {
 
         assert_eq!(req.peer, peer2);
         assert_eq!(req.attempts, 2);
+    }
+
+    #[test]
+    fn test_mark_sent_restarts_peer_timeout_only() {
+        let peer = PeerId::random();
+        let mut req = PendingRequest::new(peer);
+
+        // Simulate dispatch happening long before the actual write: the
+        // request looks timed out even though the demand never reached the
+        // peer yet.
+        req.sent_at = Instant::now() - Duration::from_secs(2);
+        let first_sent_at = req.first_sent_at;
+        assert!(req.is_timed_out(Duration::from_secs(1)));
+
+        req.mark_sent();
+
+        // The per-peer response window restarts at the actual send...
+        assert!(!req.is_timed_out(Duration::from_secs(1)));
+        // ...but nothing else changes: total-timeout clock, target peer, and
+        // attempt count are untouched.
+        assert_eq!(req.first_sent_at, first_sent_at);
+        assert_eq!(req.peer, peer);
+        assert_eq!(req.attempts, 1);
     }
 
     #[test]
