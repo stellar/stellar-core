@@ -344,6 +344,8 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		$(CARGOFLAGS_BUILDSTD) \
+		--config 'profile.release.lto="off"' \
+		--config 'profile.release.codegen-units=16' \
 		--package stellar-core \
 		--target $(RUST_TARGET) \
 		$(RUST_PROFILE_ARG) \
@@ -420,6 +422,8 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_
 		CARGO_TARGET_DIR=$(SOROBAN_BUILD_DIR)/$$proto/target \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
+			--config 'profile.release.lto="thin"' \
+			--config 'profile.release.codegen-units=16' \
 			--package soroban-env-host \
 			$(RUST_PROFILE_ARG) \
 			--locked \
@@ -457,6 +461,8 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) $(ALL_SOROBAN_L
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		--package stellar-core \
+		--config 'profile.release.lto="thin"' \
+		--config 'profile.release.codegen-units=16' \
 		$(RUST_PROFILE_ARG) \
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
