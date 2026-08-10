@@ -998,6 +998,11 @@ class Config : public std::enable_shared_from_this<Config>
     // fixes values of connection-relates settings
     void adjust();
 
+    // Like adjust(), but takes an explicit file-descriptor budget instead of
+    // querying the OS limit. Exposed so the connection-limit narrowing logic
+    // can be exercised deterministically in tests (see Issue #5244).
+    void adjust(int64_t maxFsConnections);
+
     std::string toShortString(NodeID const& pk) const;
 
     // fullKey true => returns full StrKey corresponding to pk

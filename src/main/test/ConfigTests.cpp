@@ -14,47 +14,7 @@
 #include <filesystem>
 #include <fmt/format.h>
 #include <fstream>
-
-// =========================================================================
-// TEST SEAM: Override fs::getMaxHandles() for testing purposes.
-// This allows us to control the descriptor limit value and test the
-// std::min<int64_t> narrowing logic in Config::adjust() directly.
-// =========================================================================
-#define private public
-#include "util/Fs.h"
-#undef private
-
-namespace stellar {
-namespace fs {
-// Mock implementation for testing - returns a controlled value.
-static int64_t gMockMaxHandles = 0;
-
-int64_t
-getMaxHandles()
-{
-    if (gMockMaxHandles > 0)
-    {
-        return gMockMaxHandles;
-    }
-    // Fallback to real implementation if mock not set.
-    // We need to call the real function, but we can't easily do that
-    // without including the real implementation. So we return a default.
-    return 32000;
-}
-
-void
-setMockMaxHandles(int64_t value)
-{
-    gMockMaxHandles = value;
-}
-
-void
-resetMockMaxHandles()
-{
-    gMockMaxHandles = 0;
-}
-} // namespace fs
-} // namespace stellar
+#include <limits>
 
 using namespace stellar;
 namespace stdfs = std::filesystem;
@@ -941,15 +901,98 @@ VALIDATORS=[")" + otherKey + R"( A"]
 }
 
 // =========================================================================
-// Tests for Config::adjust() descriptor limit handling (Issue #5244)
-// Note: Config::adjust() relies on fs::getMaxHandles() which is thoroughly
-// tested in FsTests.cpp. The helper computeSafeMaxHandles() covers all
-// boundary cases including RLIM_INFINITY and large finite values with
-// exact assertions. The narrowing/capping logic (std::min<int64_t>) is
-// exercised indirectly through these tests. Therefore, no separate test
-// for Config::adjust is needed here, as host-dependent tests would not
-// provide additional coverage without introducing a test seam.
+// Tests for Config::adjust() descriptor limit handling (Issue #5244).
+//
+// fs::getMaxHandles() itself is thoroughly tested in FsTests.cpp through the
+// computeSafeMaxHandles() helper (RLIM_INFINITY, large finite values, and the
+// fallback path). Here we test the consumer side: Config::adjust(int64_t)
+// lets us supply an explicit descriptor budget so the connection-limit
+// narrowing logic is exercised deterministically, independent of the host's
+// actual RLIMIT_NOFILE.
 // =========================================================================
+TEST_CASE("Config::adjust handles a very large descriptor limit",
+          "[config]")
+{
+    // A budget above INT32_MAX used to wrap to a negative int in the old
+    // code path, collapsing the entire connection budget. The fix stores the
+    // limit as an int64_t and caps it with std::min<int64_t> before any
+    // narrowing conversion, so a huge (or unlimited) budget must simply cap
+    // at unsigned short range and preserve the configured defaults.
+    Config cfg;
+    cfg.adjust(std::numeric_limits<int64_t>::max());
+
+    REQUIRE(cfg.TARGET_PEER_CONNECTIONS == 8);
+    REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS == 64);
+    REQUIRE(cfg.MAX_PENDING_CONNECTIONS == 500);
+    REQUIRE(cfg.MAX_OUTBOUND_PENDING_CONNECTIONS == 56);
+    REQUIRE(cfg.MAX_INBOUND_PENDING_CONNECTIONS == 444);
+
+    // The outbound/inbound split must always sum back to the total pending
+    // connection budget; the pre-fix overflow path broke this invariant.
+    REQUIRE(cfg.MAX_OUTBOUND_PENDING_CONNECTIONS +
+                cfg.MAX_INBOUND_PENDING_CONNECTIONS ==
+            cfg.MAX_PENDING_CONNECTIONS);
+}
+
+TEST_CASE("Config::adjust scales down a small descriptor limit",
+          "[config]")
+{
+    // A tight budget must scale the connection counts down proportionally
+    // without ever producing zero or overflowing unsigned short.
+    Config cfg;
+    cfg.adjust(10);
+
+    REQUIRE(cfg.TARGET_PEER_CONNECTIONS == 1);
+    REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS == 2);
+    REQUIRE(cfg.MAX_PENDING_CONNECTIONS == 7);
+    REQUIRE(cfg.MAX_OUTBOUND_PENDING_CONNECTIONS == 1);
+    REQUIRE(cfg.MAX_INBOUND_PENDING_CONNECTIONS == 6);
+    REQUIRE(cfg.MAX_OUTBOUND_PENDING_CONNECTIONS +
+                cfg.MAX_INBOUND_PENDING_CONNECTIONS ==
+            cfg.MAX_PENDING_CONNECTIONS);
+}
+
+TEST_CASE("Config::adjust keeps connection limits in range for all budgets",
+          "[config]")
+{
+    // Sweep a range of descriptor budgets, including zero and values that
+    // exceed every relevant type range, and verify the invariants that keep
+    // the overlay safe: no connection setting is ever zero and none overflows
+    // unsigned short.
+    std::vector<int64_t> budgets = {
+        0,
+        1,
+        2,
+        10,
+        1024,
+        std::numeric_limits<uint32_t>::max(),
+        std::numeric_limits<int64_t>::max(),
+    };
+
+    for (auto budget : budgets)
+    {
+        INFO("budget = " << budget);
+        Config cfg;
+        cfg.adjust(budget);
+
+        REQUIRE(cfg.TARGET_PEER_CONNECTIONS >= 1);
+        REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS >= 1);
+        REQUIRE(cfg.MAX_PENDING_CONNECTIONS >= 1);
+        REQUIRE(cfg.MAX_OUTBOUND_PENDING_CONNECTIONS >= 1);
+        REQUIRE(cfg.MAX_INBOUND_PENDING_CONNECTIONS >= 1);
+
+        REQUIRE(cfg.TARGET_PEER_CONNECTIONS <=
+                std::numeric_limits<unsigned short>::max());
+        REQUIRE(cfg.MAX_ADDITIONAL_PEER_CONNECTIONS <=
+                std::numeric_limits<unsigned short>::max());
+        REQUIRE(cfg.MAX_PENDING_CONNECTIONS <=
+                std::numeric_limits<unsigned short>::max());
+        REQUIRE(cfg.MAX_OUTBOUND_PENDING_CONNECTIONS <=
+                std::numeric_limits<unsigned short>::max());
+        REQUIRE(cfg.MAX_INBOUND_PENDING_CONNECTIONS <=
+                std::numeric_limits<unsigned short>::max());
+    }
+}
 
 // =========================================================================
 // End of ConfigTests.cpp

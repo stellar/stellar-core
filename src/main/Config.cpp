@@ -2216,13 +2216,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 void
 Config::adjust()
 {
-    // Use the platform-abstraction function to get the current limit safely.
-    // It returns an int64_t to avoid narrowing on ILP32 platforms.
-    int64_t maxFsConnections = fs::getMaxHandles();
+    // Query the current descriptor limit through the platform abstraction.
+    // fs::getMaxHandles() always returns a bounded, non-negative int64_t, so
+    // RLIM_INFINITY and very large finite limits can never overflow here.
+    adjust(fs::getMaxHandles());
+}
 
-    // No need to check RLIM_INFINITY here; fs::getMaxHandles() already
-    // handles it and returns a bounded, safe value.
-
+void
+Config::adjust(int64_t maxFsConnections)
+{
     if (MAX_ADDITIONAL_PEER_CONNECTIONS == -1)
     {
         if (TARGET_PEER_CONNECTIONS <=
