@@ -910,8 +910,7 @@ VALIDATORS=[")" + otherKey + R"( A"]
 // narrowing logic is exercised deterministically, independent of the host's
 // actual RLIMIT_NOFILE.
 // =========================================================================
-TEST_CASE("Config::adjust handles a very large descriptor limit",
-          "[config]")
+TEST_CASE("Config::adjust handles a very large descriptor limit", "[config]")
 {
     // A budget above INT32_MAX used to wrap to a negative int in the old
     // code path, collapsing the entire connection budget. The fix stores the
@@ -934,8 +933,7 @@ TEST_CASE("Config::adjust handles a very large descriptor limit",
             cfg.MAX_PENDING_CONNECTIONS);
 }
 
-TEST_CASE("Config::adjust scales down a small descriptor limit",
-          "[config]")
+TEST_CASE("Config::adjust scales down a small descriptor limit", "[config]")
 {
     // A tight budget must scale the connection counts down proportionally
     // without ever producing zero or overflowing unsigned short.

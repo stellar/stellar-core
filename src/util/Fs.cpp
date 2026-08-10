@@ -12,10 +12,10 @@
 #include <filesystem>
 #include <fmt/format.h>
 
+#include <limits>
 #include <map>
 #include <regex>
 #include <sstream>
-#include <limits>
 
 #ifdef _WIN32
 #include <Windows.h>

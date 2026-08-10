@@ -2313,11 +2313,10 @@ Config::adjust(int64_t maxFsConnections)
 
             auto authenticatedConnections =
                 TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
-            maxPendingConnections =
-                authenticatedConnections >= maxFs
-                    ? 1
-                    : static_cast<unsigned short>(maxFs -
-                                                  authenticatedConnections);
+            maxPendingConnections = authenticatedConnections >= maxFs
+                                        ? 1
+                                        : static_cast<unsigned short>(
+                                              maxFs - authenticatedConnections);
         }
 
         MAX_PENDING_CONNECTIONS = static_cast<unsigned short>(std::min<int>(
