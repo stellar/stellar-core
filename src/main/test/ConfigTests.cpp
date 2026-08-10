@@ -955,11 +955,16 @@ TEST_CASE("Config::adjust scales down a small descriptor limit",
 TEST_CASE("Config::adjust keeps connection limits in range for all budgets",
           "[config]")
 {
-    // Sweep a range of descriptor budgets, including zero and values that
-    // exceed every relevant type range, and verify the invariants that keep
-    // the overlay safe: no connection setting is ever zero and none overflows
-    // unsigned short.
+    // Sweep a range of descriptor budgets, including negative values, zero,
+    // and values that exceed every relevant type range, and verify the
+    // invariants that keep the overlay safe: no connection setting is ever
+    // zero and none overflows unsigned short. Negative budgets must be clamped
+    // to zero (not narrowed) so the cast to int can never be
+    // implementation-defined.
     std::vector<int64_t> budgets = {
+        std::numeric_limits<int64_t>::min(),
+        -1024,
+        -1,
         0,
         1,
         2,

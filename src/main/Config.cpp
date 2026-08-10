@@ -2257,11 +2257,13 @@ Config::adjust(int64_t maxFsConnections)
     auto const originalTargetPeerConnections = TARGET_PEER_CONNECTIONS;
     auto const originalMaxPendingConnections = MAX_PENDING_CONNECTIONS;
 
-    // Safely cap the descriptor limit to the range of unsigned short.
-    // Use std::min<int64_t> to preserve the full 64-bit value before casting.
-    int maxFs = static_cast<int>(
-        std::min<int64_t>(std::numeric_limits<unsigned short>::max(),
-                          maxFsConnections));
+    // Safely clamp the descriptor budget to the range representable by
+    // unsigned short. Keep the arithmetic in int64_t and bound both ends so
+    // that negative (or huge) budgets are normalized before the narrowing
+    // cast below.
+    int maxFs = static_cast<int>(std::max<int64_t>(
+        0, std::min<int64_t>(std::numeric_limits<unsigned short>::max(),
+                             maxFsConnections)));
 
     auto totalAuthenticatedConnections =
         TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
