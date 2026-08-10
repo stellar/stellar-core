@@ -2724,7 +2724,7 @@ LedgerManagerImpl::applySorobanStage(
             txBundle.getResPayload().getRefundableFeeTracker());
     }
 
-    globalParState.commitChangesFromThreads(app, threadStates, stage);
+    globalParState.commitChangesFromThreads(app, threadStates);
 }
 
 void
