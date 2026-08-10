@@ -2751,7 +2751,7 @@ LedgerManagerImpl::applySorobanStage(
             txBundle.getResPayload().getRefundableFeeTracker());
     }
 
-    globalParState.commitChangesFromThreads(app, threadStates, stage);
+    globalParState.commitChangesFromThreads(app, threadStates);
 
     // Thread states are rather large and can take up to a few ms to be
     // deallocated. Defer the deallocation to the background worker in order to
