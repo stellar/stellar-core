@@ -91,45 +91,60 @@ TEST_CASE("computeSafeMaxHandles handles RLIM_INFINITY", "[fs]")
 
 TEST_CASE("computeSafeMaxHandles handles very large finite limits", "[fs]")
 {
-    // Only run this test if rlim_t is wide enough to hold values above
-    // INT64_MAX. On some platforms (e.g., 32-bit), rlim_t may be 32-bit and
-    // cannot represent values above INT64_MAX, so the clamping path cannot be
-    // exercised.
-#if defined(__LP64__) || defined(_LP64) || defined(__x86_64__) || \
-    defined(__aarch64__)
-    // On 64-bit platforms, construct a value that is:
-    // 1. Above the clamping threshold (4/3 * INT64_MAX)
-    // 2. Explicitly NOT equal to RLIM_INFINITY
-    rlim_t largeLimit =
-        static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 3) * 4 + 3;
+    // Only exercise the clamping path when rlim_t can actually represent
+    // values above INT64_MAX. Architecture macros such as __LP64__ are not a
+    // reliable proxy: on some supported 64-bit platforms (e.g., FreeBSD)
+    // rlim_t is signed 64-bit and cannot hold 4/3 * INT64_MAX, so constructing
+    // the value below would overflow before the helper is even called. Branch
+    // on the type's value bits instead.
+    if constexpr (std::numeric_limits<rlim_t>::digits >
+                  std::numeric_limits<int64_t>::digits)
+    {
+        // rlim_t is wider than int64_t, so we can construct a value that is:
+        // 1. Above the clamping threshold (4/3 * INT64_MAX)
+        // 2. Explicitly NOT equal to RLIM_INFINITY
+        rlim_t largeLimit =
+            static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 3) * 4 +
+            3;
 
-    // Safety check: ensure we're not hitting RLIM_INFINITY by accident
-    REQUIRE(largeLimit != RLIM_INFINITY);
+        // Safety check: ensure we're not hitting RLIM_INFINITY by accident
+        REQUIRE(largeLimit != RLIM_INFINITY);
 
-    int64_t result = fs::computeSafeMaxHandles(largeLimit);
-    REQUIRE(result == std::numeric_limits<int64_t>::max());
-#else
-    // On 32-bit platforms, rlim_t is typically 32-bit and cannot exceed
-    // INT64_MAX. The clamping path won't be triggered, so we just verify the
-    // function returns a sane value for a large finite limit. Use a value that
-    // is not RLIM_INFINITY.
-    rlim_t largeLimit = 1000000;
-    int64_t result = fs::computeSafeMaxHandles(largeLimit);
-    REQUIRE(result > 0);
-    REQUIRE(result <= std::numeric_limits<int64_t>::max());
-#endif
+        int64_t result = fs::computeSafeMaxHandles(largeLimit);
+        REQUIRE(result == std::numeric_limits<int64_t>::max());
+    }
+    else
+    {
+        // rlim_t cannot represent values above INT64_MAX, so the clamping
+        // path cannot be triggered. Just verify the function returns a sane
+        // value for a large finite limit. Use a value that is not
+        // RLIM_INFINITY.
+        rlim_t largeLimit = 1000000;
+        int64_t result = fs::computeSafeMaxHandles(largeLimit);
+        REQUIRE(result > 0);
+        REQUIRE(result <= std::numeric_limits<int64_t>::max());
+    }
 }
 
 TEST_CASE("computeSafeMaxHandles handles value near clamping threshold", "[fs]")
 {
-    // Test with a value that is just below the clamping threshold.
-    // This should NOT clamp, but return the computed 75% value.
-    // Cast to rlim_t BEFORE multiplication to avoid signed overflow.
-    rlim_t nearLimit =
-        static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 3) * 4 - 1;
-    int64_t result = fs::computeSafeMaxHandles(nearLimit);
-    REQUIRE(result > 0);
-    REQUIRE(result <= std::numeric_limits<int64_t>::max());
+    // The intended value is approximately 4/3 * INT64_MAX, which cannot be
+    // represented when rlim_t is signed 64-bit (e.g., FreeBSD). Guard this
+    // threshold test the same way as the large-limit test: only run it when
+    // rlim_t has more value bits than int64_t.
+    if constexpr (std::numeric_limits<rlim_t>::digits >
+                  std::numeric_limits<int64_t>::digits)
+    {
+        // Test with a value that is just below the clamping threshold.
+        // This should NOT clamp, but return the computed 75% value.
+        // Cast to rlim_t BEFORE multiplication to avoid signed overflow.
+        rlim_t nearLimit =
+            static_cast<rlim_t>(std::numeric_limits<int64_t>::max() / 3) * 4 -
+            1;
+        int64_t result = fs::computeSafeMaxHandles(nearLimit);
+        REQUIRE(result > 0);
+        REQUIRE(result <= std::numeric_limits<int64_t>::max());
+    }
 }
 
 TEST_CASE(
