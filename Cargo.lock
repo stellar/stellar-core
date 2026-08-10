@@ -508,6 +508,7 @@ dependencies = [
  "curve25519-dalek-derive",
  "digest",
  "fiat-crypto",
+ "rand_core",
  "rustc_version",
  "subtle",
  "zeroize",
@@ -2062,6 +2063,7 @@ version = "0.1.0"
 dependencies = [
  "backtrace",
  "base64 0.13.1",
+ "curve25519-dalek",
  "cxx",
  "ed25519-dalek",
  "itertools 0.10.5",
@@ -2083,6 +2085,7 @@ dependencies = [
  "soroban-test-wasms",
  "stellar-quorum-analyzer",
  "tracy-client",
+ "zeroize",
 ]
 
 [[package]]

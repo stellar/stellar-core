@@ -38,6 +38,7 @@ mod sha256;
 mod soroban_invoke;
 mod soroban_module_cache;
 mod soroban_test_wasm;
+mod vrf;
 
 #[cfg(feature = "testutils")]
 mod soroban_test_extra_protocol;

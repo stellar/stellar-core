@@ -244,6 +244,38 @@ pub(crate) mod rust_bridge {
             message_ptr: *const u8,
             message_len: usize,
         ) -> bool;
+
+        // ECVRF-EDWARDS25519-SHA512-TAI (RFC 9381), see vrf.rs.
+        // vrf_prove computes a proof for alpha under sk, writing the 80-byte
+        // pi_string to `pi_out`; returns false on invalid input (null pointers).
+        unsafe fn vrf_prove(
+            sk_ptr: *const u8,
+            alpha_ptr: *const u8,
+            alpha_len: usize,
+            pi_out: *mut u8,
+        ) -> bool;
+        // vrf_generate is ECVRF_prove followed by ECVRF_proof_to_hash in one
+        // call: writes the 80-byte proof to `pi_out` and the 64-byte VRF output
+        // beta to `beta_out`; returns false on invalid input (null pointers).
+        unsafe fn vrf_generate(
+            sk_ptr: *const u8,
+            alpha_ptr: *const u8,
+            alpha_len: usize,
+            pi_out: *mut u8,
+            beta_out: *mut u8,
+        ) -> bool;
+        // vrf_proof_to_hash derives the 64-byte VRF output beta from a proof,
+        // writing it to `beta_out`; returns false if the proof is malformed.
+        unsafe fn vrf_proof_to_hash(pi_ptr: *const u8, beta_out: *mut u8) -> bool;
+        // vrf_verify checks a proof against pk and alpha; when valid it writes
+        // the 64-byte beta to `beta_out` and returns true, otherwise false.
+        unsafe fn vrf_verify(
+            pk_ptr: *const u8,
+            alpha_ptr: *const u8,
+            alpha_len: usize,
+            pi_ptr: *const u8,
+            beta_out: *mut u8,
+        ) -> bool;
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
@@ -497,3 +529,4 @@ use crate::soroban_invoke::*;
 use crate::soroban_module_cache::*;
 use crate::soroban_proto_all::*;
 use crate::soroban_test_wasm::*;
+use crate::vrf::*;

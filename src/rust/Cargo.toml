@@ -25,6 +25,23 @@ backtrace = { version = "=0.3.76", features = [ "cpp_demangle" ] }
 # ed25519-dalek for faster signature verification
 ed25519-dalek = "2.1.1"
 
+# curve25519-dalek for Edwards-curve group operations used by the ECVRF
+# (RFC 9381) implementation in vrf.rs. The version is pinned to match the
+# transitive dependency already resolved through ed25519-dalek so that Cargo
+# unifies them to a single copy.
+curve25519-dalek = { version = "=4.1.3", default-features = false, features = [
+    "alloc",
+    "precomputed-tables",
+    "zeroize",
+    "digest",
+    "rand_core",
+] }
+
+# zeroize for wiping the expanded key and nonce intermediates after proving.
+# Pinned to the version already resolved transitively so Cargo keeps a single
+# copy in the staticlib.
+zeroize = "=1.8.1"
+
 # rsntp: small blocking SNTP client used only to detect (and warn about) local
 # clock drift. default-features disabled so we get the synchronous client
 # without pulling in tokio/chrono/time.
