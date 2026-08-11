@@ -96,6 +96,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         VirtualClock::time_point mLastTimeStamp;
         uint32_t mNumQueries{0};
+        std::unordered_map<Hash, size_t> mRequestedObjects;
     };
 
     static inline int
@@ -328,6 +329,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // optionally set `maxQueriesPerWindow` to override the default per-window
     // query limit.
     bool process(QueryInfo& queryInfo,
+                 std::optional<Hash> queryKey = std::nullopt,
                  std::optional<uint32_t> maxQueriesPerWindow = std::nullopt);
 
     void recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker);

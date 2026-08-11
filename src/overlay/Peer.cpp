@@ -1419,7 +1419,8 @@ Peer::recvDontHave(StellarMessage const& msg)
 }
 
 bool
-Peer::process(QueryInfo& queryInfo, std::optional<uint32_t> maxQueriesPerWindow)
+Peer::process(QueryInfo& queryInfo, std::optional<Hash> queryKey,
+              std::optional<uint32_t> maxQueriesPerWindow)
 {
     auto const& cfg = mAppConnector.getConfig();
     std::chrono::seconds const QUERY_WINDOW =
@@ -1432,8 +1433,27 @@ Peer::process(QueryInfo& queryInfo, std::optional<uint32_t> maxQueriesPerWindow)
     {
         queryInfo.mLastTimeStamp = mAppConnector.now();
         queryInfo.mNumQueries = 0;
+        queryInfo.mRequestedObjects.clear();
     }
-    return queryInfo.mNumQueries < QUERIES_PER_WINDOW;
+    // NB: check the rate _before_ the table, to cap table size.
+    if (queryInfo.mNumQueries < QUERIES_PER_WINDOW)
+    {
+        if (queryKey.has_value())
+        {
+            auto [it, _] =
+                queryInfo.mRequestedObjects.try_emplace(queryKey.value(), 0);
+            if (it->second < QUERY_RESPONSE_MULTIPLIER)
+            {
+                it->second++;
+                return true;
+            }
+        }
+        else
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 #ifdef BUILD_TESTS
@@ -1460,7 +1480,7 @@ Peer::recvGetTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    if (!process(mTxSetQueryInfo))
+    if (!process(mTxSetQueryInfo, msg.txSetHash()))
     {
         return;
     }
@@ -1601,7 +1621,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    if (!process(mQSetQueryInfo))
+    if (!process(mQSetQueryInfo, msg.qSetHash()))
     {
         return;
     }
@@ -1685,7 +1705,7 @@ Peer::recvGetSCPState(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    if (!process(mSCPStateQueryInfo, GET_SCP_STATE_MAX_RATE))
+    if (!process(mSCPStateQueryInfo, std::nullopt, GET_SCP_STATE_MAX_RATE))
     {
         CLOG_DEBUG(Overlay, "Dropping GET_SCP_STATE request from {}",
                    KeyUtils::toShortString(mPeerID));
