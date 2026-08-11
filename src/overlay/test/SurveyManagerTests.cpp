@@ -749,8 +749,7 @@ TEST_CASE("Time sliced static topology survey",
 }
 
 // A time sliced survey with changing topology during the collecting phase
-TEST_CASE("Time sliced dynamic topology survey",
-          "[overlay][survey][topology][!hide]")
+TEST_CASE("Time sliced dynamic topology survey", "[overlay][survey][topology]")
 {
     enum
     {
@@ -772,6 +771,12 @@ TEST_CASE("Time sliced dynamic topology survey",
     for (int i = A; i <= F; ++i)
     {
         auto cfg = simulation->newConfig();
+
+        // E's disconnection window (~12 ledgers) and F's late join from
+        // genesis sit right at the default MAX_SLOTS_TO_REMEMBER (12),
+        // so bump this config to 100.
+        cfg.MAX_SLOTS_TO_REMEMBER = 100;
+
         configList.emplace_back(cfg);
 
         keyList.emplace_back(cfg.NODE_SEED.getPublicKey());
