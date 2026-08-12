@@ -202,8 +202,8 @@ class TransactionQueue
     {
         QueueMetrics(std::vector<medida::Counter*> sizeByAge,
                      medida::Counter& bannedTransactionsCounter,
-                     SimpleTimer& transactionsDelay,
-                     SimpleTimer& transactionsSelfDelay,
+                     medida::Timer& transactionsDelay,
+                     medida::Timer& transactionsSelfDelay,
                      medida::Counter& txsEvictedByHigherFeeTxCounter,
                      medida::Counter& txsEvictedDueToAgeCounter,
                      medida::Counter& txsNotAcceptedDueToLowFeeCounter,
@@ -224,11 +224,9 @@ class TransactionQueue
         std::vector<medida::Counter*> mSizeByAge;
         medida::Counter& mBannedTransactionsCounter;
 
-        // Keep track of time (in milliseconds) for transaction to be included
-        // in ledger using `SimpleTimer`s since medida `Timer`s are too
-        // expensive
-        SimpleTimer& mTransactionsDelay;
-        SimpleTimer& mTransactionsSelfDelay;
+        // Keep track of time for transaction to be included in ledger
+        medida::Timer& mTransactionsDelay;
+        medida::Timer& mTransactionsSelfDelay;
 
         // The following metrics provided more detailed insight into banned
         // transactions: mBannedTransactionsCounter includes all these, as well

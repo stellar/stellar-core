@@ -47,8 +47,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mRecvGetTxSetTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-txset"}))
     , mRecvTxSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "txset"}))
-    , mRecvTransactionTimer(app.getMetrics().NewSimpleTimer(
-          {"overlay", "recv-transaction", ""}, std::chrono::microseconds{1}))
+    , mRecvTransactionTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "transaction"}))
     , mRecvGetSCPQuorumSetTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-scp-qset"}))
     , mRecvSCPQuorumSetTimer(

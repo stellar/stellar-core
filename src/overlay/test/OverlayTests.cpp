@@ -378,8 +378,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             txtest::executeUpgrade(*app, txtest::makeConfigUpgrade(*res));
         };
 
-        auto& txsRecv = app2->getMetrics().NewCounter(
-            {"overlay", "recv-transaction", "count"});
+        auto& txsRecv =
+            app2->getMetrics().NewTimer({"overlay", "recv", "transaction"});
         auto start = txsRecv.count();
         conn.getInitiator()->sendMessage(std::make_shared<StellarMessage>(tx1));
 
@@ -2861,7 +2861,7 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                         .count() == 2);
             REQUIRE(apps[2]
                         ->getMetrics()
-                        .NewCounter({"overlay", "recv-transaction", "count"})
+                        .NewTimer({"overlay", "recv", "transaction"})
                         .count() == 1);
             REQUIRE(getAdvertisedHashCount(apps[2]) == 0);
         }
@@ -3286,9 +3286,7 @@ TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
 
     int const NUM_MESSAGES = 1000;
     auto initialTxCount =
-        n0->getMetrics()
-            .NewCounter({"overlay", "recv-transaction", "count"})
-            .count();
+        n0->getMetrics().NewTimer({"overlay", "recv", "transaction"}).count();
 
     SECTION("p1 never reads")
     {
@@ -3315,7 +3313,7 @@ TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
         REQUIRE(finalQueueDrops > initialQueueDrops);
         REQUIRE(finalQueueSize < NUM_MESSAGES);
         REQUIRE(n1->getMetrics()
-                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .NewTimer({"overlay", "recv", "transaction"})
                     .count() == initialTxCount);
     }
     SECTION("p1 received all txs")
@@ -3328,7 +3326,7 @@ TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
         s->crankForAtLeast(std::chrono::seconds(1), false);
 
         REQUIRE(n1->getMetrics()
-                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .NewTimer({"overlay", "recv", "transaction"})
                     .count() == initialTxCount + NUM_MESSAGES);
         REQUIRE(p0->getFlowControl()->getQueuesForTesting()[1].size() == 0);
         // No new messages were dropped

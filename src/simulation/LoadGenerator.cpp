@@ -86,15 +86,17 @@ getTxCount(Application& app, bool isSoroban)
 {
     if (isSoroban)
     {
-        return app.getMetrics()
-            .NewCounter({"herder", "pending-soroban-txs", "self-count"})
-            .count();
+        return static_cast<uint32_t>(
+            app.getMetrics()
+                .NewTimer({"herder", "pending-soroban-txs", "self-delay"})
+                .count());
     }
     else
     {
-        return app.getMetrics()
-            .NewCounter({"herder", "pending-txs", "self-count"})
-            .count();
+        return static_cast<uint32_t>(
+            app.getMetrics()
+                .NewTimer({"herder", "pending-txs", "self-delay"})
+                .count());
     }
 }
 
