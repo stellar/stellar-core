@@ -546,7 +546,11 @@ impl App {
                     let cp = self.configured_peers.read().await;
                     let addrs = cp.addrs.clone();
                     let listen_port = cp.listen_port;
-                    let expected_peers = addrs.len().saturating_sub(1); // exclude self
+                    // Expect a connection for every configured address. Self is
+                    // not normally in the list; if it is, the extra safety-net
+                    // tick is harmless (self-dials and connected peers are
+                    // skipped when re-dialing).
+                    let expected_peers = addrs.len();
                     // Build set of hostnames that have a known PeerId — these
                     // are handled by PeerId-based dials and must NOT be raw-dialed.
                     let hostnames_with_known_peer: HashSet<String> = {
