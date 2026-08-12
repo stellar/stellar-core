@@ -2394,11 +2394,15 @@ mod tests {
             tx_total_time
         );
 
-        // Also verify TX flood took meaningful time (not instant)
+        // Also verify the flood dominated the delivery window. If streams were
+        // blocked, SCP latency would be comparable to the flood duration
+        // (ratio near 1), so requiring a wide margin keeps the test meaningful
+        // without an absolute wall-clock bound that fast CI machines beat.
         assert!(
-            tx_total_time > Duration::from_millis(50),
-            "TX flood should take measurable time ({:?}), otherwise test is invalid",
-            tx_total_time
+            tx_total_time > scp_latency * 5,
+            "TX flood ({:?}) should dwarf SCP latency ({:?}), otherwise test is invalid",
+            tx_total_time,
+            scp_latency
         );
 
         handle1.shutdown().await;
@@ -2781,7 +2785,7 @@ mod tests {
         let keypair_b = Keypair::generate_ed25519();
         let keypair_c = Keypair::generate_ed25519();
 
-        let (handle_a, _events_a, _tx_events_a, overlay_a) =
+        let (handle_a, mut events_a, _tx_events_a, overlay_a) =
             create_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
         let (handle_b, mut events_b, _tx_events_b, overlay_b) =
             create_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
@@ -2810,8 +2814,22 @@ mod tests {
         handle_b.dial(addr_a.clone()).await;
         handle_c.dial(addr_a).await;
 
-        // Wait for connections to establish
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        // Wait until A has seen both connections: broadcast only reaches peers
+        // A already knows about, so a fixed sleep flakes when the test suite
+        // runs fully parallel and connection setup is slow.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        let mut a_connections = 0;
+        while a_connections < 2 {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "A should see connections from both B and C (saw {})",
+                a_connections
+            );
+            match tokio::time::timeout(Duration::from_millis(100), events_a.recv()).await {
+                Ok(Some(OverlayEvent::PeerConnected { .. })) => a_connections += 1,
+                _ => {}
+            }
+        }
 
         // Drain connection events
         while events_b.try_recv().is_ok() {}
@@ -3535,13 +3553,13 @@ async fn test_scp_state_request_on_connection() {
     let (handle2, mut events2, _tx_events2, overlay2) =
         create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
-    // NB: unique per test — 19801/19802 are already taken by a test above,
-    // and clashing listen ports makes parallel runs flaky.
-    let listen_port = 19901;
+    // NB: unique per test — clashing listen ports break parallel runs: the
+    // loser of the bind race isn't reachable and its test times out.
+    let listen_port = 21401;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    tokio::spawn(async move { overlay2.run("127.0.0.1", 19902).await });
+    tokio::spawn(async move { overlay2.run("127.0.0.1", 21402).await });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Connect node2 to node1
