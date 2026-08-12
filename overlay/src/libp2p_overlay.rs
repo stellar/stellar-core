@@ -90,10 +90,7 @@ pub enum OverlayCommand {
     /// Broadcast a validated TX to all peers
     BroadcastTx(Arc<ValidatedTx>),
     /// Request TX set from a peer (picks best peer)
-    FetchTxSet {
-        hash: [u8; 32],
-        slot: u32,
-    },
+    FetchTxSet { hash: [u8; 32], slot: u32 },
     /// Send TX set to a specific peer (response to their request)
     SendTxSet {
         hash: [u8; 32],
@@ -101,26 +98,15 @@ pub enum OverlayCommand {
         to: PeerId,
     },
     /// Record that a peer has a specific TX set (learned from SCP message)
-    RecordTxSetSource {
-        hash: [u8; 32],
-        peer: PeerId,
-    },
+    RecordTxSetSource { hash: [u8; 32], peer: PeerId },
     /// Connect to a peer by address (bootstrap — PeerId unknown)
     Dial(Multiaddr),
     /// Connect to a known peer by PeerId (reconnect — deduplicates automatically)
-    DialPeer {
-        peer_id: PeerId,
-        addr: Multiaddr,
-    },
+    DialPeer { peer_id: PeerId, addr: Multiaddr },
     /// Request SCP state from all peers
-    RequestScpState {
-        ledger_seq: u32,
-    },
+    RequestScpState { ledger_seq: u32 },
     /// Send SCP envelope to a specific peer
-    SendScpToPeer {
-        peer_id: PeerId,
-        envelope: Vec<u8>,
-    },
+    SendScpToPeer { peer_id: PeerId, envelope: Vec<u8> },
     /// Shutdown
     Shutdown,
     /// Query the number of connected peers (responds via oneshot)
@@ -304,7 +290,6 @@ impl OverlayHandle {
             .await;
         rx.await.unwrap_or(0)
     }
-
 
     /// Ping the event loop and wait for response - for testing responsiveness
     #[cfg(test)]
