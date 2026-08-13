@@ -22,7 +22,8 @@ class ApplyLoad
     // of values is [0,1.0].
     double successRate();
 
-    // Closes a ledger through the historical direct-externalization path.
+    // Closes a ledger through the direct-externalization path, bypassing
+    // consensus.
     // checkValid runs before the ledger-close timer, leaving its caches warm.
     // `recordSorobanUtilization` indicates whether to record utilization of
     // Soroban resources in transaction set, this should only be necessary for
@@ -49,29 +50,25 @@ class ApplyLoad
     uint32_t getTotalHotArchiveEntries() const;
 
   private:
-    bool
-    measuresTxSetValidation() const
-    {
-        return mTimingPhases ==
-               ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY;
-    }
+    // Whether this run records tx-set validation phase timings (i.e. runs in
+    // the TX_SET_VALIDATION_AND_APPLY timing path).
+    bool measuresTxSetValidation() const;
 
     // Simulates a non-leader receiving a tx set over the wire, then closes it
     // through local consensus. Tx-set creation is outside the measured span.
     void
     closeLedgerViaConsensus(std::vector<TransactionFrameBasePtr> const& txs,
                             bool recordUtilization);
-    void closeBenchmarkLedger(
-        std::vector<TransactionFrameBasePtr> const& txs,
-        bool recordUtilization);
+    // Closes a benchmark ledger through the path selected by
+    // APPLY_LOAD_TIMING_PHASES.
+    void closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
+                              bool recordUtilization);
     void recordSorobanUtilization(ApplicableTxSetFrame const& txSet,
                                   uint32_t ledgerVersion);
 
-    // Logs the distribution of per-ledger samples for one timing phase.
-    // Passing "close time" preserves the historical output format.
-    static void logPhaseStats(std::string const& label,
-                              std::vector<double> const& samplesMs);
-    void logConfiguredPhaseStats() const;
+    // Logs the phase timings recorded by closeLedgerViaConsensus. Must only
+    // be called when measuresTxSetValidation() is true.
+    void logTxSetValidationPhaseStats() const;
 
     uint32_t calculateRequiredHotArchiveEntries(Config const& cfg);
 

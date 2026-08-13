@@ -1869,8 +1869,7 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
     bool* pRes = mTxSetValidCache.maybeGet(key);
     if (pRes == nullptr)
     {
-        std::string zoneTxt("miss");
-        ZoneText(zoneTxt.c_str(), zoneTxt.size());
+        ZoneNamedN(txSetValidityMissZone, "txset validity cache miss", true);
         auto validationTime = mSCPMetrics.mTxSetValidation.TimeScope();
 
         // The invariant here is that we only validate tx sets nominated
@@ -1903,8 +1902,7 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
     }
     else
     {
-        std::string zoneTxt("hit");
-        ZoneText(zoneTxt.c_str(), zoneTxt.size());
+        ZoneNamedN(txSetValidityHitZone, "txset validity cache hit", true);
         return *pRes;
     }
 }

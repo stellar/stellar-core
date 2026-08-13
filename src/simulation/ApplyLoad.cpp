@@ -79,6 +79,42 @@ interpolatePercentile(std::vector<double> const& sortedValues,
     return sortedValues[lo] * (1.0 - weight) + sortedValues[hi] * weight;
 }
 
+// Logs the distribution of per-ledger samples for one timing phase, expressed
+// in `unit`.
+void
+logPhaseStats(std::string const& label, std::vector<double> const& samples,
+              std::string const& unit = "ms")
+{
+    releaseAssert(!samples.empty());
+
+    double mean =
+        std::accumulate(samples.begin(), samples.end(), 0.0) / samples.size();
+
+    double variance = 0.0;
+    for (auto const& sample : samples)
+    {
+        double delta = sample - mean;
+        variance += delta * delta;
+    }
+    variance /= samples.size();
+
+    std::vector<double> sortedSamples = samples;
+    std::sort(sortedSamples.begin(), sortedSamples.end());
+
+    CLOG_WARNING(Perf, "mean {}: {} {}", label, mean, unit);
+    CLOG_WARNING(Perf, "p25 {}:  {} {}", label,
+                 interpolatePercentile(sortedSamples, 25.0), unit);
+    CLOG_WARNING(Perf, "p50 {}:  {} {}", label,
+                 interpolatePercentile(sortedSamples, 50.0), unit);
+    CLOG_WARNING(Perf, "p75 {}:  {} {}", label,
+                 interpolatePercentile(sortedSamples, 75.0), unit);
+    CLOG_WARNING(Perf, "p95 {}:  {} {}", label,
+                 interpolatePercentile(sortedSamples, 95.0), unit);
+    CLOG_WARNING(Perf, "p99 {}:  {} {}", label,
+                 interpolatePercentile(sortedSamples, 99.0), unit);
+    CLOG_WARNING(Perf, "{} stddev: {} {}", label, std::sqrt(variance), unit);
+}
+
 void
 nominateAndClose(Application& app, TxSetXDRFrameConstPtr txSet,
                  StellarValue const& value)
@@ -717,11 +753,12 @@ ApplyLoad::ApplyLoad(Application& app)
     // enough samples for statistics to be meaningful.
     if (mMode == ApplyLoadMode::MAX_SAC_TPS)
     {
-        if (measuresTxSetValidation())
+        // The TPS search targets apply-only close time, so it only supports
+        // the APPLY_ONLY timing path.
+        if (mTimingPhases != ApplyLoadTimingPhases::APPLY_ONLY)
         {
-            throw std::runtime_error(
-                "APPLY_LOAD_TIMING_PHASES=txset-validation-and-apply is not "
-                "supported with APPLY_LOAD_MODE=max-sac-tps");
+            throw std::runtime_error("APPLY_LOAD_MODE=max-sac-tps only "
+                                     "supports APPLY_LOAD_TIMING_PHASES=apply");
         }
         if (config.APPLY_LOAD_NUM_LEDGERS < 30)
         {
@@ -888,47 +925,24 @@ ApplyLoad::setup()
     }
 }
 
-void
-ApplyLoad::logPhaseStats(std::string const& label,
-                         std::vector<double> const& samplesMs)
+bool
+ApplyLoad::measuresTxSetValidation() const
 {
-    releaseAssert(!samplesMs.empty());
-
-    double mean = std::accumulate(samplesMs.begin(), samplesMs.end(), 0.0) /
-                  samplesMs.size();
-
-    double varianceMsSq = 0.0;
-    for (auto const& sample : samplesMs)
+    switch (mTimingPhases)
     {
-        double delta = sample - mean;
-        varianceMsSq += delta * delta;
+    case ApplyLoadTimingPhases::APPLY_ONLY:
+        return false;
+    case ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY:
+        return true;
     }
-    varianceMsSq /= samplesMs.size();
-
-    std::vector<double> sortedSamples = samplesMs;
-    std::sort(sortedSamples.begin(), sortedSamples.end());
-
-    CLOG_WARNING(Perf, "mean {}: {} ms", label, mean);
-    CLOG_WARNING(Perf, "p25 {}:  {} ms", label,
-                 interpolatePercentile(sortedSamples, 25.0));
-    CLOG_WARNING(Perf, "p50 {}:  {} ms", label,
-                 interpolatePercentile(sortedSamples, 50.0));
-    CLOG_WARNING(Perf, "p75 {}:  {} ms", label,
-                 interpolatePercentile(sortedSamples, 75.0));
-    CLOG_WARNING(Perf, "p95 {}:  {} ms", label,
-                 interpolatePercentile(sortedSamples, 95.0));
-    CLOG_WARNING(Perf, "p99 {}:  {} ms", label,
-                 interpolatePercentile(sortedSamples, 99.0));
-    CLOG_WARNING(Perf, "{} stddev: {} ms", label, std::sqrt(varianceMsSq));
+    releaseAssertOrThrow(false);
+    return false;
 }
 
 void
-ApplyLoad::logConfiguredPhaseStats() const
+ApplyLoad::logTxSetValidationPhaseStats() const
 {
-    if (!measuresTxSetValidation())
-    {
-        return;
-    }
+    releaseAssert(measuresTxSetValidation());
 
     CLOG_WARNING(Perf, "================================================");
     logPhaseStats("txset validation", mPhaseValidationMs);
@@ -961,23 +975,37 @@ ApplyLoad::logConfiguredPhaseStats() const
     logPhaseStats("ledger close", mPhaseLedgerCloseMs);
     logPhaseStats("end-to-end txset+apply", mPhaseEndToEndMs);
 
-    double validationSum = std::accumulate(mPhaseValidationMs.begin(),
-                                           mPhaseValidationMs.end(), 0.0);
-    double ledgerCloseSum = std::accumulate(mPhaseLedgerCloseMs.begin(),
-                                            mPhaseLedgerCloseMs.end(), 0.0);
-    double e2eSum = std::accumulate(mPhaseEndToEndMs.begin(),
-                                    mPhaseEndToEndMs.end(), 0.0);
-    if (e2eSum > 0.0)
+    // Report each phase's share of its own ledger's end-to-end time as a
+    // distribution over ledgers, so per-ledger variance in the shares is
+    // visible rather than just the ratio of the totals.
+    auto const sampleCount = mPhaseEndToEndMs.size();
+    releaseAssert(mPhaseValidationMs.size() == sampleCount &&
+                  mPhaseLedgerCloseMs.size() == sampleCount);
+    std::vector<double> validationShares;
+    std::vector<double> ledgerCloseShares;
+    std::vector<double> otherShares;
+    for (size_t i = 0; i < sampleCount; ++i)
     {
-        CLOG_WARNING(Perf, "txset validation share of end-to-end: {:.2f}%",
-                     validationSum / e2eSum * 100.0);
-        CLOG_WARNING(Perf, "ledger close share of end-to-end: {:.2f}%",
-                     ledgerCloseSum / e2eSum * 100.0);
-        CLOG_WARNING(Perf,
-                     "other receive/consensus/externalize overhead share "
-                     "of end-to-end: {:.2f}%",
-                     (e2eSum - validationSum - ledgerCloseSum) / e2eSum *
-                         100.0);
+        if (mPhaseEndToEndMs[i] <= 0.0)
+        {
+            continue;
+        }
+        double validationShare =
+            mPhaseValidationMs[i] / mPhaseEndToEndMs[i] * 100.0;
+        double ledgerCloseShare =
+            mPhaseLedgerCloseMs[i] / mPhaseEndToEndMs[i] * 100.0;
+        validationShares.emplace_back(validationShare);
+        ledgerCloseShares.emplace_back(ledgerCloseShare);
+        // Everything outside validation and close: wire decoding, SCP
+        // processing, and externalization overhead.
+        otherShares.emplace_back(100.0 - validationShare - ledgerCloseShare);
+    }
+    if (!validationShares.empty())
+    {
+        CLOG_WARNING(Perf, "per-ledger phase shares of end-to-end time:");
+        logPhaseStats("txset validation share", validationShares, "%");
+        logPhaseStats("ledger close share", ledgerCloseShares, "%");
+        logPhaseStats("other consensus overhead share", otherShares, "%");
     }
     CLOG_WARNING(Perf, "================================================");
 }
@@ -987,11 +1015,10 @@ ApplyLoad::recordSorobanUtilization(ApplicableTxSetFrame const& txSet,
                                     uint32_t ledgerVersion)
 {
     auto ledgerResources = mApp.getLedgerManager().maxLedgerResources(true);
-    auto txSetResources =
-        txSet.getPhases()
-            .at(static_cast<size_t>(TxSetPhase::SOROBAN))
-            .getTotalResources(ledgerVersion)
-            .value();
+    auto txSetResources = txSet.getPhases()
+                              .at(static_cast<size_t>(TxSetPhase::SOROBAN))
+                              .getTotalResources(ledgerVersion)
+                              .value();
     auto updateUtilization = [&](medida::Histogram& histogram,
                                  Resource::Type resource) {
         histogram.Update(txSetResources.getVal(resource) * 1.0 /
@@ -1020,10 +1047,9 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
 
     if (recordUtilization)
     {
-        recordSorobanUtilization(
-            *txSet.second,
-            mApp.getLedgerManager().getLastClosedLedgerHeader().header
-                .ledgerVersion);
+        recordSorobanUtilization(*txSet.second, mApp.getLedgerManager()
+                                                    .getLastClosedLedgerHeader()
+                                                    .header.ledgerVersion);
     }
     auto sv =
         mApp.getHerder().makeStellarValue(txSet.first->getContentsHash(), 1,
@@ -1034,8 +1060,7 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
 
 void
 ApplyLoad::closeLedgerViaConsensus(
-    std::vector<TransactionFrameBasePtr> const& txs,
-    bool recordUtilization)
+    std::vector<TransactionFrameBasePtr> const& txs, bool recordUtilization)
 {
     releaseAssert(!txs.empty());
     auto& herder = mApp.getHerder();
@@ -1103,17 +1128,17 @@ ApplyLoad::closeLedgerViaConsensus(
 }
 
 void
-ApplyLoad::closeBenchmarkLedger(
-    std::vector<TransactionFrameBasePtr> const& txs,
-    bool recordUtilization)
+ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
+                                bool recordUtilization)
 {
-    if (measuresTxSetValidation())
+    switch (mTimingPhases)
     {
-        closeLedgerViaConsensus(txs, recordUtilization);
-    }
-    else
-    {
+    case ApplyLoadTimingPhases::APPLY_ONLY:
         closeLedger(txs, {}, recordUtilization);
+        break;
+    case ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY:
+        closeLedgerViaConsensus(txs, recordUtilization);
+        break;
     }
 }
 
@@ -1682,7 +1707,10 @@ ApplyLoad::benchmarkLimits()
 
     CLOG_INFO(Perf, "Tx Success Rate: {:f}%", successRate() * 100);
 
-    logConfiguredPhaseStats();
+    if (measuresTxSetValidation())
+    {
+        logTxSetValidationPhaseStats();
+    }
 }
 
 double
@@ -1987,14 +2015,16 @@ ApplyLoad::benchmarkModelTx()
     releaseAssert(!closeTimes.empty());
 
     CLOG_WARNING(Perf, "================================================");
-    CLOG_WARNING(Perf,
-                 "Model tx benchmark stats ({} ledgers, {} tx per ledger):",
-                 config.APPLY_LOAD_NUM_LEDGERS,
-                 config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
+    CLOG_WARNING(
+        Perf, "Model tx benchmark stats ({} ledgers, {} tx per ledger):",
+        config.APPLY_LOAD_NUM_LEDGERS, config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
     logPhaseStats("close time", closeTimes);
     CLOG_WARNING(Perf, "================================================");
 
-    logConfiguredPhaseStats();
+    if (measuresTxSetValidation())
+    {
+        logTxSetValidationPhaseStats();
+    }
 }
 
 double
