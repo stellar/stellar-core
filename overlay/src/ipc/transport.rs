@@ -604,14 +604,13 @@ mod tests {
 
         let mut core = core_side;
 
-        // Core requests a TX set
+        // Core requests a TX set. Payload: [hash:32][slotSeq:4]
         let tx_set_hash = [0x42; 32];
+        let slot: u32 = 1234;
+        let mut payload = tx_set_hash.to_vec();
+        payload.extend_from_slice(&slot.to_le_bytes());
 
-        MessageCodec::write(
-            &mut core,
-            &Message::new(MessageType::RequestTxSet, tx_set_hash.to_vec()),
-        )
-        .unwrap();
+        MessageCodec::write(&mut core, &Message::new(MessageType::RequestTxSet, payload)).unwrap();
 
         // Overlay receives request
         let mut receiver = ipc.receiver;
@@ -621,7 +620,12 @@ mod tests {
             .unwrap();
 
         assert_eq!(received.msg_type, MessageType::RequestTxSet);
-        assert_eq!(received.payload.len(), 32);
+        assert_eq!(received.payload.len(), 36);
+        assert_eq!(&received.payload[0..32], &tx_set_hash[..]);
+        assert_eq!(
+            u32::from_le_bytes(received.payload[32..36].try_into().unwrap()),
+            slot
+        );
 
         // Overlay responds with TxSetAvailable
         let tx_set_data = vec![1, 2, 3, 4, 5, 6, 7, 8];

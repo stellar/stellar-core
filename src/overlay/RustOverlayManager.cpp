@@ -166,21 +166,22 @@ RustOverlayManager::notifyTxSetExternalized(Hash const& txSetHash,
 }
 
 void
-RustOverlayManager::requestTxSet(Hash const& txSetHash)
+RustOverlayManager::requestTxSet(Hash const& txSetHash, uint32_t slotIndex)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
-        mOverlayIPC->requestTxSet(txSetHash);
+        mOverlayIPC->requestTxSet(txSetHash, slotIndex);
     }
 }
 
 void
 RustOverlayManager::cacheTxSet(Hash const& txSetHash,
-                               std::vector<uint8_t> const& xdr)
+                               std::vector<uint8_t> const& xdr,
+                               uint32_t slotIndex)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
-        mOverlayIPC->cacheTxSet(txSetHash, xdr);
+        mOverlayIPC->cacheTxSet(txSetHash, xdr, slotIndex);
     }
 }
 

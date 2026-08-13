@@ -57,6 +57,9 @@ pub enum OverlayEvent {
         envelope: Vec<u8>,
         txset_hashes: Vec<[u8; 32]>,
         from: PeerId,
+        /// Slot the envelope is for (statement.slot_index), used to stamp
+        /// tx sets fetched on behalf of this envelope.
+        slot: u32,
     },
     /// Received TX from peer
     TxReceived { tx: Arc<ValidatedTx>, from: PeerId },
@@ -65,6 +68,9 @@ pub enum OverlayEvent {
         hash: [u8; 32],
         data: Vec<u8>,
         from: PeerId,
+        /// Slot the set was requested for; None if the response was
+        /// unsolicited (no pending request recorded).
+        slot: Option<u32>,
     },
     /// Peer is requesting a TX set (need to look up and respond)
     TxSetRequested { hash: [u8; 32], from: PeerId },
@@ -84,7 +90,7 @@ pub enum OverlayCommand {
     /// Broadcast a validated TX to all peers
     BroadcastTx(Arc<ValidatedTx>),
     /// Request TX set from a peer (picks best peer)
-    FetchTxSet { hash: [u8; 32] },
+    FetchTxSet { hash: [u8; 32], slot: u32 },
     /// Send TX set to a specific peer (response to their request)
     SendTxSet {
         hash: [u8; 32],
@@ -182,8 +188,12 @@ impl OverlayHandle {
         }
     }
 
-    pub async fn fetch_txset(&self, hash: [u8; 32]) {
-        if let Err(e) = self.cmd_tx.send(OverlayCommand::FetchTxSet { hash }).await {
+    pub async fn fetch_txset(&self, hash: [u8; 32], slot: u32) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::FetchTxSet { hash, slot })
+            .await
+        {
             warn!(
                 "Overlay command channel closed, failed to send FetchTxSet: {}",
                 e
@@ -303,7 +313,8 @@ struct SharedState {
     /// TX set sources: which peer has which TX set (learned from SCP messages)
     txset_sources: RwLock<lru::LruCache<[u8; 32], PeerId>>,
     /// Pending TX set requests: hash -> (peer, request_time) to avoid duplicate fetches and track latency
-    pending_txset_requests: RwLock<HashMap<[u8; 32], (PeerId, Instant)>>,
+    /// hash -> (peer asked, request time, slot the set is for)
+    pending_txset_requests: RwLock<HashMap<[u8; 32], (PeerId, Instant, u32)>>,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
     /// Bounded TX event sender (backpressure - drops allowed)
@@ -517,8 +528,8 @@ impl StellarOverlay {
                         OverlayCommand::BroadcastTx(tx) => {
                             self.broadcast_tx(tx).await;
                         }
-                        OverlayCommand::FetchTxSet { hash } => {
-                            self.fetch_txset(hash).await;
+                        OverlayCommand::FetchTxSet { hash, slot } => {
+                            self.fetch_txset(hash, slot).await;
                         }
                         OverlayCommand::SendTxSet { hash, data, to } => {
                             self.send_txset_response(to, hash, data).await;
@@ -680,7 +691,7 @@ impl StellarOverlay {
                     {
                         let mut pending = self.state.pending_txset_requests.write().await;
                         let before_len = pending.len();
-                        pending.retain(|_hash, (p, _)| p != &peer_id);
+                        pending.retain(|_hash, (p, _, _)| p != &peer_id);
                         let removed = before_len - pending.len();
                         if removed > 0 {
                             info!(
@@ -886,11 +897,11 @@ impl StellarOverlay {
     }
 
     /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it
-    async fn fetch_txset(&mut self, hash: [u8; 32]) {
+    async fn fetch_txset(&mut self, hash: [u8; 32], slot: u32) {
         // Check if we're already fetching this TxSet from a connected peer (dedup)
         {
             let pending = self.state.pending_txset_requests.read().await;
-            if let Some((pending_peer, _)) = pending.get(&hash) {
+            if let Some((pending_peer, _, _)) = pending.get(&hash) {
                 // Check if that peer is still connected
                 let streams = self.state.peer_streams.read().await;
                 if streams.contains_key(pending_peer) {
@@ -964,7 +975,7 @@ impl StellarOverlay {
             .pending_txset_requests
             .write()
             .await
-            .insert(hash, (peer.clone(), Instant::now()));
+            .insert(hash, (peer.clone(), Instant::now(), slot));
 
         let request = crate::xdr::frame_get_tx_set(hash);
 
@@ -1191,6 +1202,21 @@ async fn try_send_to_existing_stream(
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotConnected, "stream not open"))?;
 
     write_framed(stream, data).await
+}
+
+/// Restart the per-peer GETDATA timeout clock for hashes whose demand chunk
+/// was just written to `peer`'s stream. Skips hashes that completed or were
+/// re-assigned to a different peer while the write was in flight —
+/// re-stamping those would silently delay their next retry.
+async fn mark_getdata_sent(state: &SharedState, peer: &PeerId, hashes: &[[u8; 32]]) {
+    let mut pending = state.pending_getdata.write().await;
+    for hash in hashes {
+        if let Some(req) = pending.get_mut(hash) {
+            if req.peer == *peer {
+                req.mark_sent();
+            }
+        }
+    }
 }
 
 /// Send message to a specific peer's stream, reopening if needed
@@ -1494,10 +1520,12 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                         // from the single decode above and forward to Core.
                         let txset_hashes =
                             crate::xdr::extract_txset_hashes_from_envelope(&scp_envelope);
+                        let slot = scp_envelope.statement.slot_index as u32;
                         if let Err(e) = state.event_tx.send(OverlayEvent::ScpReceived {
                             envelope: envelope_bytes.to_vec(),
                             txset_hashes,
                             from: peer_id.clone(),
+                            slot,
                         }) {
                             warn!("Failed to forward SCP event from {}: {}", peer_id, e);
                         }
@@ -1638,8 +1666,8 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         for hash in to_request {
             getdata.push(hash);
         }
-        let encoded = match getdata.encode() {
-            Ok(encoded) => encoded,
+        let encoded_chunks = match getdata.encode_chunked() {
+            Ok(chunks) => chunks,
             Err(e) => {
                 warn!("Failed to encode GETDATA for {}: {}", peer_id, e);
                 return;
@@ -1649,10 +1677,17 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         let state_clone = Arc::clone(state);
         let peer_clone = *peer_id;
         tokio::spawn(async move {
-            if let Err(e) =
-                send_to_peer_stream(&state_clone, peer_clone, StreamType::Tx, &encoded).await
-            {
-                warn!("Failed to send GETDATA to {}: {}", peer_clone, e);
+            for (encoded, chunk_hashes) in encoded_chunks {
+                if let Err(e) =
+                    send_to_peer_stream(&state_clone, peer_clone, StreamType::Tx, &encoded).await
+                {
+                    warn!("Failed to send GETDATA to {}: {}", peer_clone, e);
+                } else {
+                    // The pending entries were stamped at insert time above;
+                    // restart the peer's response window now that the demand
+                    // is actually on the wire.
+                    mark_getdata_sent(&state_clone, &peer_clone, &chunk_hashes).await;
+                }
             }
         });
     }
@@ -1906,9 +1941,9 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                 let hash = crate::xdr::sha256_hash(&txset_data);
 
                                 // Clear pending request flag and measure fetch latency
-                                let was_pending = {
+                                let slot = {
                                     let mut pending = state.pending_txset_requests.write().await;
-                                    if let Some((_, request_time)) = pending.remove(&hash) {
+                                    if let Some((_, request_time, slot)) = pending.remove(&hash) {
                                         let fetch_us = request_time.elapsed().as_micros() as u64;
                                         state
                                             .metrics
@@ -1918,9 +1953,9 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                             .metrics
                                             .fetch_txset_count
                                             .fetch_add(1, Ordering::Relaxed);
-                                        true
+                                        Some(slot)
                                     } else {
-                                        false
+                                        None
                                     }
                                 };
 
@@ -1929,12 +1964,13 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                     &hash[..4],
                                     txset_data.len(),
                                     peer_id,
-                                    was_pending
+                                    slot.is_some()
                                 );
                                 if let Err(e) = state.event_tx.send(OverlayEvent::TxSetReceived {
                                     hash,
                                     data: txset_data,
                                     from: peer_id,
+                                    slot,
                                 }) {
                                     warn!(
                                         "Failed to forward TxSetReceived event from {}: {}",
@@ -2030,7 +2066,14 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                 }
             }
 
-            // Send one batched GETDATA per peer
+            // Send batched GETDATA per peer, chunked to the XDR demand-vector
+            // bound (a retry round can accumulate far more than one message's
+            // worth of hashes). Each peer gets its own task so one slow or
+            // backpressured peer can't stall retries to the others or delay
+            // the next housekeeping tick. `retry()` above stamped dispatch
+            // time (which keeps subsequent ticks from re-dispatching these
+            // hashes while the send is in flight); the peer's 1s response
+            // window only starts once its chunk is actually on the wire.
             for (peer, hashes) in per_peer {
                 debug!(
                     "GETDATA_RETRY: Retrying {} TXs to peer {}",
@@ -2038,20 +2081,38 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                     peer
                 );
                 let getdata = GetData { hashes };
-                let encoded = match getdata.encode() {
-                    Ok(encoded) => encoded,
+                let chunks = match getdata.encode_chunked() {
+                    Ok(chunks) => chunks,
                     Err(e) => {
                         warn!("Failed to encode GETDATA retry to {}: {}", peer, e);
                         continue;
                     }
                 };
 
-                if let Err(e) =
-                    try_send_to_existing_stream(&state, peer.clone(), StreamType::Tx, &encoded)
+                let task_state = Arc::clone(&state);
+                tokio::spawn(async move {
+                    for (encoded, chunk_hashes) in chunks {
+                        match try_send_to_existing_stream(
+                            &task_state,
+                            peer,
+                            StreamType::Tx,
+                            &encoded,
+                        )
                         .await
-                {
-                    warn!("Failed to send GETDATA retry to {}: {:?}", peer, e);
-                }
+                        {
+                            Ok(()) => {
+                                mark_getdata_sent(&task_state, &peer, &chunk_hashes).await;
+                            }
+                            Err(e) => {
+                                // Keep the dispatch stamp: the next
+                                // housekeeping round retries these hashes
+                                // (to the next peer) about a second from now.
+                                warn!("Failed to send GETDATA retry to {}: {:?}", peer, e);
+                                break;
+                            }
+                        }
+                    }
+                });
             }
         }
     }
@@ -2333,11 +2394,15 @@ mod tests {
             tx_total_time
         );
 
-        // Also verify TX flood took meaningful time (not instant)
+        // Also verify the flood dominated the delivery window. If streams were
+        // blocked, SCP latency would be comparable to the flood duration
+        // (ratio near 1), so requiring a wide margin keeps the test meaningful
+        // without an absolute wall-clock bound that fast CI machines beat.
         assert!(
-            tx_total_time > Duration::from_millis(50),
-            "TX flood should take measurable time ({:?}), otherwise test is invalid",
-            tx_total_time
+            tx_total_time > scp_latency * 5,
+            "TX flood ({:?}) should dwarf SCP latency ({:?}), otherwise test is invalid",
+            tx_total_time,
+            scp_latency
         );
 
         handle1.shutdown().await;
@@ -2542,7 +2607,7 @@ mod tests {
 
         // Node2 requests a TxSet by hash
         let (requested_hash, txset_data) = test_txset_xdr(0x42);
-        handle2.fetch_txset(requested_hash).await;
+        handle2.fetch_txset(requested_hash, 1).await;
 
         // Node1 should receive TxSetRequested event
         let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
@@ -2720,7 +2785,7 @@ mod tests {
         let keypair_b = Keypair::generate_ed25519();
         let keypair_c = Keypair::generate_ed25519();
 
-        let (handle_a, _events_a, _tx_events_a, overlay_a) =
+        let (handle_a, mut events_a, _tx_events_a, overlay_a) =
             create_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
         let (handle_b, mut events_b, _tx_events_b, overlay_b) =
             create_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
@@ -2749,8 +2814,22 @@ mod tests {
         handle_b.dial(addr_a.clone()).await;
         handle_c.dial(addr_a).await;
 
-        // Wait for connections to establish
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        // Wait until A has seen both connections: broadcast only reaches peers
+        // A already knows about, so a fixed sleep flakes when the test suite
+        // runs fully parallel and connection setup is slow.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        let mut a_connections = 0;
+        while a_connections < 2 {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "A should see connections from both B and C (saw {})",
+                a_connections
+            );
+            match tokio::time::timeout(Duration::from_millis(100), events_a.recv()).await {
+                Ok(Some(OverlayEvent::PeerConnected { .. })) => a_connections += 1,
+                _ => {}
+            }
+        }
 
         // Drain connection events
         while events_b.try_recv().is_ok() {}
@@ -3085,7 +3164,7 @@ async fn test_txset_source_tracking() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Now try to fetch - since fake_peer isn't connected, it should fall back
-    handle2.fetch_txset(test_hash).await;
+    handle2.fetch_txset(test_hash, 1).await;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Clean up
@@ -3120,7 +3199,7 @@ async fn test_txset_fetch_flow() {
 
     // overlay2 requests a TX set that overlay1 doesn't have
     let test_hash: [u8; 32] = [0xCD; 32];
-    handle2.fetch_txset(test_hash).await;
+    handle2.fetch_txset(test_hash, 1).await;
 
     // overlay1 should receive the request (as TxSetRequested event)
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -3315,7 +3394,7 @@ async fn test_txset_request_and_response() {
     // Node2 requests a TX set
     let (requested_hash, txset_data) = test_txset_xdr(0x77);
 
-    handle2.fetch_txset(requested_hash).await;
+    handle2.fetch_txset(requested_hash, 1).await;
 
     // Node1 receives request and responds
     let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
@@ -3373,7 +3452,7 @@ async fn test_txset_fetch_no_peers() {
 
     // Request TX set with no peers connected
     let requested_hash: [u8; 32] = [0x88; 32];
-    handle.fetch_txset(requested_hash).await;
+    handle.fetch_txset(requested_hash, 1).await;
 
     // Should not crash or hang - just no response
     // Wait briefly to ensure no panic
@@ -3428,9 +3507,9 @@ async fn test_txset_multiple_concurrent_requests() {
     let hash2: [u8; 32] = [0x22; 32];
     let hash3: [u8; 32] = [0x33; 32];
 
-    handle2.fetch_txset(hash1).await;
-    handle2.fetch_txset(hash2).await;
-    handle2.fetch_txset(hash3).await;
+    handle2.fetch_txset(hash1, 1).await;
+    handle2.fetch_txset(hash2, 1).await;
+    handle2.fetch_txset(hash3, 1).await;
 
     // Node1 should receive all 3 requests
     let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
@@ -3474,11 +3553,13 @@ async fn test_scp_state_request_on_connection() {
     let (handle2, mut events2, _tx_events2, overlay2) =
         create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
-    let listen_port = 19801;
+    // NB: unique per test — clashing listen ports break parallel runs: the
+    // loser of the bind race isn't reachable and its test times out.
+    let listen_port = 21401;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    tokio::spawn(async move { overlay2.run("127.0.0.1", 19802).await });
+    tokio::spawn(async move { overlay2.run("127.0.0.1", 21402).await });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Connect node2 to node1
@@ -3881,7 +3962,7 @@ async fn test_pending_txset_cleanup_on_disconnect() {
 
     // Request TxSet - this tests that pending_txset_requests correctly stores (hash, peer)
     let (txset_hash, txset_data) = test_txset_xdr(0x42);
-    handle1.fetch_txset(txset_hash).await;
+    handle1.fetch_txset(txset_hash, 1).await;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Verify node2 received the request
@@ -3925,7 +4006,7 @@ async fn test_pending_txset_cleanup_on_disconnect() {
     assert!(got_response, "Node1 should receive TxSet response");
 
     // Request the same TxSet again - should NOT be skipped since pending was cleared
-    handle1.fetch_txset(txset_hash).await;
+    handle1.fetch_txset(txset_hash, 1).await;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Verify node2 receives the second request
@@ -4026,6 +4107,119 @@ async fn test_inv_getdata_tx_propagation() {
     handle1.shutdown().await;
     handle2.shutdown().await;
 
+    let _ = tokio::time::timeout(Duration::from_secs(1), overlay1_task).await;
+    let _ = tokio::time::timeout(Duration::from_secs(1), overlay2_task).await;
+}
+
+/// Regression test for the GETDATA fetch-storm bug: a retry round with more
+/// hashes than `TX_DEMAND_VECTOR_MAX_SIZE` must be split into multiple
+/// FloodDemand messages that all land and get processed by the peer.
+///
+/// Before chunking, the oversized demand vector failed XDR encoding
+/// ("xdr value max length exceeded") and the entire retry batch was silently
+/// dropped, feeding the 30s give-up spiral. With this test, that failure mode
+/// shows up as node1 processing zero demanded hashes.
+#[tokio::test]
+async fn test_getdata_retry_chunked_across_multiple_messages() {
+    use stellar_xdr::curr::TX_DEMAND_VECTOR_MAX_SIZE;
+
+    let keypair1 = Keypair::generate_ed25519();
+    let keypair2 = Keypair::generate_ed25519();
+
+    let metrics1 = Arc::new(OverlayMetrics::new());
+    let (handle1, _events1, _tx_events1, overlay1) =
+        create_overlay(keypair1.clone(), Arc::clone(&metrics1)).unwrap();
+    let (handle2, _events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+
+    let peer1_id = PeerId::from_public_key(&keypair1.public());
+    // Reach into node2's shared state to stage the retry round directly.
+    let state2 = Arc::clone(&overlay2.state);
+
+    // NB: keep unique across all tests in this crate — clashing listen ports
+    // make fully-parallel runs flaky.
+    let listen_port = 24101;
+    let overlay1_task = tokio::spawn(async move {
+        overlay1.run("127.0.0.1", listen_port).await;
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let overlay2_task = tokio::spawn(async move {
+        overlay2.run("127.0.0.1", listen_port + 1).await;
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let addr: Multiaddr = format!(
+        "/ip4/127.0.0.1/udp/{}/quic-v1/p2p/{}",
+        listen_port, peer1_id
+    )
+    .parse()
+    .unwrap();
+    handle2.dial(addr).await;
+
+    // The retry path only writes to an already-open TX stream. Broadcast TXs
+    // from node2 until its outbound TX stream to node1 is open (the INV send
+    // opens it on demand). Polling instead of fixed sleeps keeps this robust
+    // when the test suite runs fully parallel and dials are slow.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let mut seq = 1i64;
+    loop {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "Node2's TX stream to node1 never opened"
+        );
+        handle2.broadcast_tx(test_tx(seq)).await;
+        seq += 1;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let streams = state2.peer_streams.read().await;
+        if let Some(peer_streams) = streams.get(&peer1_id) {
+            if peer_streams.tx.lock().await.is_some() {
+                break;
+            }
+        }
+    }
+
+    // Stage more pending GETDATA requests than fit in one FloodDemand, all
+    // already timed out, with node1 as their (only) source. The housekeeping
+    // task must retry them to node1 as multiple chunks.
+    let n = TX_DEMAND_VECTOR_MAX_SIZE as usize * 2 + 100;
+    {
+        let mut tracker = state2.inv_tracker.write().await;
+        let mut pending = state2.pending_getdata.write().await;
+        for i in 0..n {
+            let mut hash = [0u8; 32];
+            hash[..8].copy_from_slice(&(i as u64).to_be_bytes());
+            tracker.record_source(hash, peer1_id);
+            pending.insert(hash, peer1_id);
+            pending.get_mut(&hash).unwrap().sent_at = Instant::now() - Duration::from_secs(2);
+        }
+    }
+
+    // Node1 has none of these TXs, so every demanded hash it decodes and
+    // processes increments flood_unfulfilled_unknown. All n hashes arriving
+    // proves every chunk landed and was parsed.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let mut processed = 0;
+    while tokio::time::Instant::now() < deadline {
+        processed = metrics1.flood_unfulfilled_unknown.load(Ordering::Relaxed) as usize;
+        if processed >= n {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    // >= rather than ==: the staged requests never complete (node1 doesn't
+    // have the TXs), so node2 legitimately starts another retry round after
+    // 1s, which may re-deliver some hashes before we sample the counter.
+    assert!(
+        processed >= n,
+        "Node1 should process all {} demanded hashes across multiple GETDATA chunks, got {}",
+        n,
+        processed
+    );
+
+    handle1.shutdown().await;
+    handle2.shutdown().await;
     let _ = tokio::time::timeout(Duration::from_secs(1), overlay1_task).await;
     let _ = tokio::time::timeout(Duration::from_secs(1), overlay2_task).await;
 }

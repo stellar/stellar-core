@@ -624,7 +624,7 @@ OverlayIPC::submitTransaction(TransactionEnvelope const& tx, int64_t fee,
 }
 
 void
-OverlayIPC::requestTxSet(Hash const& hash)
+OverlayIPC::requestTxSet(Hash const& hash, uint32_t slotIndex)
 {
     if (!mChannel || !mChannel->isConnected())
     {
@@ -633,16 +633,21 @@ OverlayIPC::requestTxSet(Hash const& hash)
 
     IPCMessage msg;
     msg.type = IPCMessageType::REQUEST_TX_SET;
-    msg.payload.resize(32);
+    // Payload: [hash:32][slotSeq:4]. The slot the set is for; used by the
+    // Rust overlay to stamp the cache entry for exact age-based eviction.
+    msg.payload.resize(36);
     std::memcpy(msg.payload.data(), hash.data(), 32);
+    std::memcpy(msg.payload.data() + 32, &slotIndex, 4);
 
-    CLOG_DEBUG(Overlay, "Requesting TX set {}", hexAbbrev(hash));
+    CLOG_DEBUG(Overlay, "Requesting TX set {} for slot {}", hexAbbrev(hash),
+               slotIndex);
     std::lock_guard<std::mutex> lock(mSendMutex);
     mChannel->send(msg);
 }
 
 void
-OverlayIPC::cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr)
+OverlayIPC::cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr,
+                       uint32_t slotIndex)
 {
     if (!mChannel || !mChannel->isConnected())
     {
@@ -651,12 +656,16 @@ OverlayIPC::cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr)
 
     IPCMessage msg;
     msg.type = IPCMessageType::CACHE_TX_SET;
-    msg.payload.resize(32 + xdr.size());
+    // Payload: [hash:32][slotSeq:4][txSetXDR...]. The slot the set is for;
+    // used by the Rust overlay to stamp the cache entry for exact age-based
+    // eviction.
+    msg.payload.resize(36 + xdr.size());
     std::memcpy(msg.payload.data(), hash.data(), 32);
-    std::memcpy(msg.payload.data() + 32, xdr.data(), xdr.size());
+    std::memcpy(msg.payload.data() + 32, &slotIndex, 4);
+    std::memcpy(msg.payload.data() + 36, xdr.data(), xdr.size());
 
-    CLOG_DEBUG(Overlay, "Caching TX set {} ({} bytes)", hexAbbrev(hash),
-               xdr.size());
+    CLOG_DEBUG(Overlay, "Caching TX set {} for slot {} ({} bytes)",
+               hexAbbrev(hash), slotIndex, xdr.size());
     std::lock_guard<std::mutex> lock(mSendMutex);
     mChannel->send(msg);
 }
