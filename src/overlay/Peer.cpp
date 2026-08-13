@@ -188,6 +188,7 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
     // Whether to check transaction signatures in the background, adding them to
     // the signature cache in the process.
     bool const checkTxSig =
+        self->isAuthenticatedAtomic() &&
         self->mAppConnector.getConfig().BACKGROUND_TX_SIG_VERIFICATION &&
         self->useBackgroundThread();
 
