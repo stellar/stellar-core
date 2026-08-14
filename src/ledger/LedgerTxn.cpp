@@ -743,11 +743,17 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
 void
 LedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
 {
-    getImpl()->createWithoutLoading(entry);
+    getImpl()->createWithoutLoading(InternalLedgerEntry(entry));
 }
 
 void
-LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
+LedgerTxn::createWithoutLoading(InternalLedgerEntry&& entry)
+{
+    getImpl()->createWithoutLoading(std::move(entry));
+}
+
+void
+LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry&& entry)
 {
     abortIfWrongThread("createWithoutLoading");
     throwIfSealed();
@@ -764,20 +770,26 @@ LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
     // after this INIT entry is merged with the DELETED will be a LIVE. This is
     // because the entry would have been a LIVE before the delete. If it were an
     // INIT instead, the key would've been annihilated.
-    updateEntry(
-        key, /* keyHint */ nullptr,
-        LedgerEntryPtr::Init(std::make_shared<InternalLedgerEntry>(entry)),
-        /* effectiveActive */ false);
+    updateEntry(std::move(key), /* keyHint */ nullptr,
+                LedgerEntryPtr::Init(
+                    std::make_shared<InternalLedgerEntry>(std::move(entry))),
+                /* effectiveActive */ false);
 }
 
 void
 LedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
 {
-    getImpl()->updateWithoutLoading(entry);
+    getImpl()->updateWithoutLoading(InternalLedgerEntry(entry));
 }
 
 void
-LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
+LedgerTxn::updateWithoutLoading(InternalLedgerEntry&& entry)
+{
+    getImpl()->updateWithoutLoading(std::move(entry));
+}
+
+void
+LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry&& entry)
 {
     abortIfWrongThread("updateWithoutLoading");
     throwIfSealed();
@@ -790,10 +802,10 @@ LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
         throw std::runtime_error("Key is already active");
     }
 
-    updateEntry(
-        key, /* keyHint */ nullptr,
-        LedgerEntryPtr::Live(std::make_shared<InternalLedgerEntry>(entry)),
-        /* effectiveActive */ false);
+    updateEntry(std::move(key), /* keyHint */ nullptr,
+                LedgerEntryPtr::Live(
+                    std::make_shared<InternalLedgerEntry>(std::move(entry))),
+                /* effectiveActive */ false);
 }
 
 void
@@ -2433,6 +2445,24 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
                              LedgerEntryPtr lePtr,
                              bool effectiveActive) noexcept
 {
+    updateEntryImpl(key, keyHint, std::move(lePtr), effectiveActive);
+}
+
+void
+LedgerTxn::Impl::updateEntry(InternalLedgerKey&& key,
+                             EntryMap::iterator const* keyHint,
+                             LedgerEntryPtr lePtr,
+                             bool effectiveActive) noexcept
+{
+    updateEntryImpl(std::move(key), keyHint, std::move(lePtr), effectiveActive);
+}
+
+template <typename KeyT>
+void
+LedgerTxn::Impl::updateEntryImpl(KeyT&& key, EntryMap::iterator const* keyHint,
+                                 LedgerEntryPtr lePtr,
+                                 bool effectiveActive) noexcept
+{
     abortIfWrongThread("updateEntry");
     auto recordEntry = [&]() {
         // First, try to insert the entry. If the entry doesn't already exist,
@@ -2440,11 +2470,16 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
         // nothing else to do. However, if the key exists, then we either update
         // the old entry using the new entry, or erase the key if the existing
         // entry is a init and the update is a delete.
+        //
+        // NB: unlike emplace, try_emplace doesn't construct (and then discard)
+        // a node when the key already exists, which saves an allocation and a
+        // key copy on that path.
         bool inserted = false;
         EntryMap::iterator localIterDoNotUse;
         if (!keyHint || *keyHint == mEntry.end())
         {
-            std::tie(localIterDoNotUse, inserted) = mEntry.emplace(key, lePtr);
+            std::tie(localIterDoNotUse, inserted) =
+                mEntry.try_emplace(std::forward<KeyT>(key), lePtr);
             keyHint = &localIterDoNotUse;
         }
 

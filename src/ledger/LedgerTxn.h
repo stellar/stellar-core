@@ -647,10 +647,13 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // REITERATED WARNING: do _not_ call these methods from normal online
     // transaction processing code, or any code that is sensitive to the
     // state of the database. These are only here for clobbering it with
-    // new data.
+    // new data, or for callers that precisely track the existence and final
+    // state of every entry they write (e.g. the parallel apply commit).
 
     virtual void createWithoutLoading(InternalLedgerEntry const& entry) = 0;
+    virtual void createWithoutLoading(InternalLedgerEntry&& entry) = 0;
     virtual void updateWithoutLoading(InternalLedgerEntry const& entry) = 0;
+    virtual void updateWithoutLoading(InternalLedgerEntry&& entry) = 0;
     virtual void eraseWithoutLoading(InternalLedgerKey const& key) = 0;
 
     // getChanges, getDelta, and getAllEntries are used to
@@ -833,7 +836,9 @@ class LedgerTxn : public AbstractLedgerTxn
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
 
     void createWithoutLoading(InternalLedgerEntry const& entry) override;
+    void createWithoutLoading(InternalLedgerEntry&& entry) override;
     void updateWithoutLoading(InternalLedgerEntry const& entry) override;
+    void updateWithoutLoading(InternalLedgerEntry&& entry) override;
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
     std::map<AccountID, std::vector<LedgerTxnEntry>> loadAllOffers() override;

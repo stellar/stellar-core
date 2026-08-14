@@ -2600,7 +2600,8 @@ LedgerManagerImpl::applyThread(
 
         if (res)
         {
-            threadState->commitChangesFromSuccessfulTx(*res, txBundle);
+            threadState->commitChangesFromSuccessfulTx(std::move(*res),
+                                                       txBundle);
         }
         else
         {
@@ -2723,7 +2724,7 @@ LedgerManagerImpl::applySorobanStage(
             txBundle.getResPayload().getRefundableFeeTracker());
     }
 
-    globalParState.commitChangesFromThreads(app, threadStates, stage);
+    globalParState.commitChangesFromThreads(app, threadStates);
 }
 
 void
