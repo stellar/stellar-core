@@ -76,6 +76,8 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "timing", "self-to-others-externalize-lag"}))
     , mBallotBlockedOnTxSet(app.getMetrics().NewTimer(
           {"scp", "timing", "ballot-blocked-on-txset"}))
+    , mTxSetValidation(
+          app.getMetrics().NewTimer({"herder", "txset", "validate"}))
     , mEmptyTxSetExternalized(
           app.getMetrics().NewCounter({"scp", "empty-tx-set", "externalized"}))
     , mEmptyTxSetValueReplaced(app.getMetrics().NewCounter(
@@ -1859,12 +1861,17 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
                                          LedgerHeaderHistoryEntry const& lcl,
                                          uint64_t closeTimeOffset) const
 {
+    ZoneScoped;
+
     auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
                                 closeTimeOffset, closeTimeOffset};
 
     bool* pRes = mTxSetValidCache.maybeGet(key);
     if (pRes == nullptr)
     {
+        ZoneNamedN(txSetValidityMissZone, "txset validity cache miss", true);
+        auto validationTime = mSCPMetrics.mTxSetValidation.TimeScope();
+
         // The invariant here is that we only validate tx sets nominated
         // to be applied to the current ledger state. However, in case
         // if we receive a bad SCP value for the current state, we still
@@ -1895,6 +1902,7 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
     }
     else
     {
+        ZoneNamedN(txSetValidityHitZone, "txset validity cache hit", true);
         return *pRes;
     }
 }
