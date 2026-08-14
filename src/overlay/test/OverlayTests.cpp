@@ -3665,4 +3665,64 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(misses == 1);
     }
 }
+
+TEST_CASE(
+    "unauthenticated peer cannot trigger background signature verification",
+    "[overlay]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    // `PeerDoor` only listens when RUN_STANDALONE is false
+    cfg.RUN_STANDALONE = false;
+    auto app = createTestApplication(clock, cfg);
+
+    // Source the transaction from root
+    auto root = app->getRoot();
+    auto tx = root->tx({txtest::payment(root->getPublicKey(), 1)});
+
+    AuthenticatedMessage message;
+    message.v0().message.type(TRANSACTION);
+    message.v0().message.transaction() = tx->getEnvelope();
+    auto record = xdr::xdr_to_msg(message);
+
+    // Connect without sending HELLO, so the peer stays below GOT_HELLO for as
+    // long as we need it to.
+    asio::io_context rawIOContext;
+    asio::ip::tcp::socket rawSocket(rawIOContext);
+    rawSocket.connect(asio::ip::tcp::endpoint(
+        asio::ip::address::from_string("127.0.0.1"), cfg.PEER_PORT));
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return app->getOverlayManager().getInboundPendingPeers().size() ==
+                   1;
+        },
+        std::chrono::seconds(5));
+
+    auto peer = app->getOverlayManager().getInboundPendingPeers().front();
+    REQUIRE_FALSE(peer->isAuthenticatedForTesting());
+
+    PubKeyUtils::clearVerifySigCache();
+    uint64_t hits = 0;
+    uint64_t misses = 0;
+    PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+
+    // Send the transaction while unauthenticated
+    asio::write(rawSocket,
+                asio::buffer(record->raw_data(), record->raw_size()));
+
+    // Peer should be dropped for sending a TRANSACTION before the handshake
+    testutil::crankUntil(
+        app, [&]() { return !peer->isConnectedForTesting(); },
+        std::chrono::seconds(5));
+    REQUIRE(peer->getDropReason() ==
+            "received TRANSACTION before completed handshake");
+
+    // Must not have been any signature verifications performed
+    PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+    REQUIRE(hits + misses == 0);
+
+    asio::error_code ec;
+    rawSocket.close(ec);
+}
 }
