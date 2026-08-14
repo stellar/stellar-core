@@ -349,7 +349,8 @@ GlobalParallelApplyLedgerState::preApplyAndCollectModifiedClassicEntries(
                 ParallelApplyLedgerKey pk(lk);
                 globalMapShardFor(pk).emplace(
                     std::move(pk),
-                    GlobalParallelApplyEntry{std::move(entry), false});
+                    GlobalParallelApplyEntry::clean(
+                        std::move(entry), /*isNew=*/!entryPair.second));
             }
         };
 
@@ -449,14 +450,12 @@ GlobalParallelApplyLedgerState::readOnlyParallelPreApply(
 }
 
 void
-GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
-    AbstractLedgerTxn& ltx) const
+GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
-    LedgerTxn ltxInner(ltx);
-    for (auto const& shard : mGlobalEntryMap)
+    for (auto& shard : mGlobalEntryMap)
     {
-        for (auto const& [key, entry] : shard)
+        for (auto& [key, entry] : shard)
         {
             // Only update if dirty bit is set
             if (!entry.mIsDirty)
@@ -464,28 +463,30 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
                 continue;
             }
 
-            std::optional<LedgerEntry> const& updatedLe =
-                entry.mLedgerEntry.readInScope(*this);
+            std::optional<LedgerEntry> updatedLe =
+                std::move(entry.mLedgerEntry).releaseFromScope(*this);
             if (updatedLe)
             {
-                auto ltxe = ltxInner.load(key.ledgerKey());
-                if (ltxe)
+                // Update the entry without loading it from the ltx, and use
+                // `mIsNew` flag instead to distinguish between init and live
+                // entries.
+                if (entry.mIsNew)
                 {
-                    ltxe.current() = *updatedLe;
+                    ltx.createWithoutLoading(
+                        InternalLedgerEntry(std::move(*updatedLe)));
                 }
                 else
                 {
-                    ltxInner.create(*updatedLe);
+                    ltx.updateWithoutLoading(
+                        InternalLedgerEntry(std::move(*updatedLe)));
                 }
             }
-            else
+            else if (!entry.mIsNew)
             {
-                auto ltxe = ltxInner.load(key.ledgerKey());
-                if (ltxe)
-                {
-                    ltxInner.erase(key.ledgerKey());
-                }
+                ltx.erase(key.ledgerKey());
             }
+            // An entry that was both created and deleted during this phase
+            // (nullopt value with mIsNew set) never reaches the ltx at all.
         }
     }
 
@@ -504,7 +505,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             auto it =
                 mGlobalRestoredEntries.hotArchive.find(getTTLKey(kvp.first));
             releaseAssertOrThrow(it != mGlobalRestoredEntries.hotArchive.end());
-            ltxInner.markRestoredFromHotArchive(kvp.second, it->second);
+            ltx.markRestoredFromHotArchive(kvp.second, it->second);
         }
     }
     // Live BucketList restores are only tracked in LedgerTxn for the
@@ -518,10 +519,9 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
                 getTTLKey(kvp.first));
             releaseAssertOrThrow(it !=
                                  mGlobalRestoredEntries.liveBucketList.end());
-            ltxInner.markRestoredFromLiveBucketList(kvp.second, it->second);
+            ltx.markRestoredFromLiveBucketList(kvp.second, it->second);
         }
     }
-    ltxInner.commit();
 }
 
 uint32_t
@@ -611,6 +611,9 @@ GlobalParallelApplyLedgerState::commitChangeFromThread(
     else if (!maybeMergeRoTTLBumps(key, rescopedParEntry, it->second,
                                    readWriteSet))
     {
+        // mIsNew is relative to the pre-phase ledger state, so the flag
+        // recorded when the entry was first tracked stays authoritative.
+        rescopedParEntry.mIsNew = it->second.mIsNew;
         it->second = std::move(rescopedParEntry);
     }
 }
@@ -719,8 +722,10 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
         if (globalEntry != nullptr)
         {
             mThreadEntryMap.emplace(
-                key, ThreadParallelApplyEntry::clean(scopeAdoptEntryOptFrom(
-                         globalEntry->mLedgerEntry, global)));
+                key,
+                ThreadParallelApplyEntry::clean(
+                    scopeAdoptEntryOptFrom(globalEntry->mLedgerEntry, global),
+                    globalEntry->mIsNew));
         }
     };
 
@@ -804,7 +809,7 @@ ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
                     releaseAssertOrThrow(ttl(ttlEntry) <= b->second);
                     ttl(ttlEntry) = b->second;
                     upsertEntry(ttlKey, scopeAdoptEntry(ttlEntry),
-                                getSnapshotLedgerSeq() + 1);
+                                getSnapshotLedgerSeq() + 1, /*isNew=*/false);
                 });
             mRoTTLBumps.erase(b);
         }
@@ -830,7 +835,7 @@ ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
                 {
                     ttl(entry) = ttlBump;
                     upsertEntry(lk, scopeAdoptEntry(entry),
-                                getSnapshotLedgerSeq() + 1);
+                                getSnapshotLedgerSeq() + 1, /*isNew=*/false);
                 }
             });
     }
@@ -900,36 +905,64 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(
 }
 
 void
-ThreadParallelApplyLedgerState::upsertEntry(
-    ParallelApplyLedgerKey const& key, ThreadParApplyLedgerEntry const& entry,
-    uint32_t ledgerSeq)
+ThreadParallelApplyLedgerState::putEntry(ParallelApplyLedgerKey const& key,
+                                         ThreadParallelApplyEntry&& entry)
 {
-    // Weird syntax avoid extra map lookup
-    auto parAppEntry = ThreadParallelApplyEntry::dirty(entry);
+    auto [it, inserted] = mThreadEntryMap.try_emplace(key, std::move(entry));
+    if (!inserted)
+    {
+        // mIsNew is relative to the pre-phase ledger state, so the flag
+        // recorded when the entry was first tracked stays authoritative.
+        // NB: try_emplace does not move from its arguments when the key
+        // already exists.
+        entry.mIsNew = it->second.mIsNew;
+        it->second = std::move(entry);
+    }
+}
+
+void
+ThreadParallelApplyLedgerState::upsertEntry(ParallelApplyLedgerKey const& key,
+                                            ThreadParApplyLedgerEntry&& entry,
+                                            uint32_t ledgerSeq, bool isNew)
+{
+    auto parAppEntry = ThreadParallelApplyEntry::dirty(std::move(entry), isNew);
     parAppEntry.mLedgerEntry.modifyInScope(
         *this, [&](std::optional<LedgerEntry>& le) {
             releaseAssertOrThrow(le);
             le.value().lastModifiedLedgerSeq = ledgerSeq;
         });
-    mThreadEntryMap.insert_or_assign(key, parAppEntry);
+    putEntry(key, std::move(parAppEntry));
 }
+
 void
-ThreadParallelApplyLedgerState::eraseEntry(ParallelApplyLedgerKey const& key)
+ThreadParallelApplyLedgerState::eraseEntry(ParallelApplyLedgerKey const& key,
+                                           bool isNew)
 {
-    auto parAppEntry =
-        ThreadParallelApplyEntry::dirty(scopeAdoptEntryOpt(std::nullopt));
-    mThreadEntryMap.insert_or_assign(key, parAppEntry);
+    putEntry(key, ThreadParallelApplyEntry::dirty(
+                      scopeAdoptEntryOpt(std::nullopt), isNew));
 }
 
 void
 ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
     ParallelApplyLedgerKey const& key,
-    ThreadParApplyLedgerEntryOpt const& newScopedEntryOpt,
+    ThreadParApplyLedgerEntryOpt&& newScopedEntryOpt,
     ParallelApplyLedgerKeySet const& roTTLSet)
 {
-    ThreadParApplyLedgerEntryOpt oldScopedEntryOpt = getLiveEntryOpt(key);
+    // We need to make a read-only lookup of the entry corresponding to the key,
+    // but `getLiveEntryOpt` always copies the entry, even when it's already
+    // available in the thread entry map. So only call it if the entry is not
+    // in the map (and thus is copied from the snapshot).
+    auto it = mThreadEntryMap.find(key);
+    bool isInMap = it != mThreadEntryMap.end();
+    std::optional<ThreadParApplyLedgerEntryOpt> oldScopedEntryCopyOpt;
+    if (!isInMap)
+    {
+        oldScopedEntryCopyOpt.emplace(getLiveEntryOpt(key));
+    }
     std::optional<LedgerEntry> const& oldEntryOpt =
-        oldScopedEntryOpt.readInScope(*this);
+        isInMap ? it->second.mLedgerEntry.readInScope(*this)
+                : oldScopedEntryCopyOpt->readInScope(*this);
+    bool isNew = isInMap ? it->second.mIsNew : !oldEntryOpt.has_value();
     std::optional<LedgerEntry> const& newEntryOpt =
         newScopedEntryOpt.readInScope(*this);
 
@@ -942,12 +975,13 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
     }
     else if (newEntryOpt)
     {
-        upsertEntry(key, scopeAdoptEntry(newEntryOpt.value()),
-                    getSnapshotLedgerSeq() + 1);
+        auto newLe = std::move(newScopedEntryOpt).releaseFromScope(*this);
+        upsertEntry(key, scopeAdoptEntry(std::move(newLe.value())),
+                    getSnapshotLedgerSeq() + 1, isNew);
     }
     else
     {
-        eraseEntry(key);
+        eraseEntry(key, isNew);
     }
 }
 
@@ -994,14 +1028,14 @@ ThreadParallelApplyLedgerState::setDeltaForInvariantsFromSuccessfulTx(
 
 void
 ThreadParallelApplyLedgerState::commitChangesFromSuccessfulTx(
-    ParallelTxSuccessVal const& res, TxBundle const& txBundle)
+    ParallelTxSuccessVal&& res, TxBundle const& txBundle)
 {
     auto roTTLSet = buildRoTTLSet(txBundle);
-    for (auto const& [key, txScopedEntryOpt] : res.getModifiedEntryMap())
+    for (auto& [key, txScopedEntryOpt] : res.getModifiedEntryMapMut())
     {
-        auto threadScopedEntryOpt =
-            scopeAdoptEntryOptFrom(txScopedEntryOpt, res);
-        commitChangeFromSuccessfulTx(key, threadScopedEntryOpt, roTTLSet);
+        commitChangeFromSuccessfulTx(
+            key, scopeAdoptEntryOptFrom(std::move(txScopedEntryOpt), res),
+            roTTLSet);
     }
     mThreadRestoredEntries.addRestoresFrom(res.getRestoredEntries());
 }

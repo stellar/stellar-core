@@ -319,6 +319,11 @@ class LedgerTxn::Impl
     void updateEntry(InternalLedgerKey const& key,
                      EntryMap::iterator const* keyHint, LedgerEntryPtr lePtr,
                      bool effectiveActive) noexcept;
+    void updateEntry(InternalLedgerKey&& key, EntryMap::iterator const* keyHint,
+                     LedgerEntryPtr lePtr, bool effectiveActive) noexcept;
+    template <typename KeyT>
+    void updateEntryImpl(KeyT&& key, EntryMap::iterator const* keyHint,
+                         LedgerEntryPtr lePtr, bool effectiveActive) noexcept;
 
     // updateWorstBestOffer has the strong exception safety guarantee
     void updateWorstBestOffer(AssetPair const& assets,
@@ -457,11 +462,11 @@ class LedgerTxn::Impl
 
     // createWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
-    void createWithoutLoading(InternalLedgerEntry const& entry);
+    void createWithoutLoading(InternalLedgerEntry&& entry);
 
     // updateWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
-    void updateWithoutLoading(InternalLedgerEntry const& entry);
+    void updateWithoutLoading(InternalLedgerEntry&& entry);
 
     // eraseWithoutLoading has the strong exception safety guarantee. If it
     // throws an exception, then the current LedgerTxn::Impl is unchanged.

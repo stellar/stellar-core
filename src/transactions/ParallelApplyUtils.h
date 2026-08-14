@@ -122,13 +122,21 @@ class ThreadParallelApplyLedgerState
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
 
+    // Records a dirty entry in the thread entry map. `isNew` indicates that
+    // the entry does not exist in the pre-phase ledger state; it is only
+    // consulted when the key is not tracked in the map yet (the recorded
+    // flag stays authoritative otherwise).
     void upsertEntry(ParallelApplyLedgerKey const& key,
-                     ThreadParApplyLedgerEntry const& entry,
-                     uint32_t ledgerSeq);
-    void eraseEntry(ParallelApplyLedgerKey const& key);
+                     ThreadParApplyLedgerEntry&& entry, uint32_t ledgerSeq,
+                     bool isNew);
+    // Records a dirty deletion in the thread entry map. `isNew` has the same
+    // semantics as in `upsertEntry`.
+    void eraseEntry(ParallelApplyLedgerKey const& key, bool isNew);
+    void putEntry(ParallelApplyLedgerKey const& key,
+                  ThreadParallelApplyEntry&& entry);
     void
     commitChangeFromSuccessfulTx(ParallelApplyLedgerKey const& key,
-                                 ThreadParApplyLedgerEntryOpt const& entryOpt,
+                                 ThreadParApplyLedgerEntryOpt&& entryOpt,
                                  ParallelApplyLedgerKeySet const& roTTLSet);
 
   public:
@@ -180,7 +188,7 @@ class ThreadParallelApplyLedgerState
     void setDeltaForInvariantsFromSuccessfulTx(ParallelTxSuccessVal const& res,
                                                TxEffects& effects) const;
 
-    void commitChangesFromSuccessfulTx(ParallelTxSuccessVal const& res,
+    void commitChangesFromSuccessfulTx(ParallelTxSuccessVal&& res,
                                        TxBundle const& txBundle);
 
     // The applyView ledger sequence number is one less than the
@@ -288,7 +296,9 @@ class GlobalParallelApplyLedgerState
         std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
             threads);
 
-    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
+    // Commits the final state of every dirty entry to the ltx. This consumes
+    // the entry payloads, so the global entry map must not be read afterwards.
+    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx);
 
     // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.

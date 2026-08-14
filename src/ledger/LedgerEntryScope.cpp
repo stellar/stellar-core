@@ -278,6 +278,13 @@ ScopedLedgerEntryOpt<S>::modifyInScope(
 }
 
 template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry>
+ScopedLedgerEntryOpt<S>::releaseFromScope(LedgerEntryScope<S> const& scope) &&
+{
+    return scope.scopeReleaseOptionalEntry(std::move(*this));
+}
+
+template <StaticLedgerEntryScope S>
 bool
 ScopedLedgerEntryOpt<S>::operator==(ScopedLedgerEntryOpt<S> const& other) const
 {
@@ -407,6 +414,20 @@ ScopedLedgerEntry<S>
 LedgerEntryScope<S>::scopeAdoptEntry(LedgerEntry const& entry) const
 {
     return ScopedLedgerEntry(mScopeID, entry);
+}
+
+template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry>
+LedgerEntryScope<S>::scopeReleaseOptionalEntry(
+    ScopedLedgerEntryOpt<S>&& w) const
+{
+    if (w.mScopeID != mScopeID)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeReleaseOptionalEntry: scope ID '{}' != entry scope ID '{}'",
+            mScopeID, w.mScopeID));
+    }
+    return std::move(w.mEntry);
 }
 
 template <StaticLedgerEntryScope S>

@@ -310,6 +310,9 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntryOpt
     readInScope(LedgerEntryScope<S> const& scope) const;
     void modifyInScope(LedgerEntryScope<S> const& scope,
                        std::function<void(std::optional<LedgerEntry>&)> func);
+    // Moves the payload out of the wrapper, leaving it in a moved-from state.
+    std::optional<LedgerEntry>
+    releaseFromScope(LedgerEntryScope<S> const& scope) &&;
 
     bool operator==(ScopedLedgerEntryOpt const& other) const;
     bool operator<(ScopedLedgerEntryOpt const& other) const;
@@ -382,6 +385,8 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     void scopeModifyOptionalEntry(
         OptionalEntryT& w,
         std::function<void(std::optional<LedgerEntry>&)> func) const;
+    std::optional<LedgerEntry>
+    scopeReleaseOptionalEntry(OptionalEntryT&& w) const;
 
     EntryT scopeAdoptEntry(LedgerEntry&& entry) const;
     EntryT scopeAdoptEntry(LedgerEntry const& entry) const;
