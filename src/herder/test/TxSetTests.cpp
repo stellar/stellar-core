@@ -21,7 +21,9 @@
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
+#include "util/numeric.h"
 #include <algorithm>
+#include <limits>
 #include <map>
 namespace stellar
 {
@@ -1779,6 +1781,73 @@ TEST_CASE("generalized tx set with multiple txs per source account",
                  {std::make_pair(
                      500, std::vector<TransactionFrameBasePtr>{sorobanTx})}}) ==
             TxSetValidationResult::MULTIPLE_TXS_PER_SOURCE_ACCOUNT);
+    }
+}
+
+TEST_CASE("tx set fee totals saturate on overflow", "[txset]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+
+    auto minBalance = app->getLedgerManager().getLastMinBalance(0);
+    auto a = root->create("fee-total-a", 2 * minBalance);
+    auto b = root->create("fee-total-b", 2 * minBalance);
+    auto c = root->create("fee-total-c", 2 * minBalance);
+    auto innerA = a.tx({payment(a.getPublicKey(), 1)});
+    auto innerB = b.tx({payment(b.getPublicKey(), 1)});
+    auto innerC = c.tx({payment(c.getPublicKey(), 1)});
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+
+    int64_t constexpr maxClamp = std::numeric_limits<int64_t>::max();
+
+    auto makeSet = [&](std::vector<TransactionFrameBasePtr> const& txs) {
+        testtxset::PhaseComponents classicPhase;
+        classicPhase.emplace_back(std::nullopt, txs);
+        std::vector<testtxset::PhaseComponents> phases;
+        phases.emplace_back(std::move(classicPhase));
+        phases.emplace_back();
+        return testtxset::makeNonValidatedGeneralizedTxSet(phases, *app,
+                                                           lcl.hash);
+    };
+    auto bump = [&](TransactionFrameBaseConstPtr inner, int64_t fee) {
+        return feeBump(*app, *root, inner, fee,
+                       /* useInclusionAsFullFee */ true);
+    };
+
+    SECTION("exact when the total does not overflow")
+    {
+        // 2 * (INT64_MAX / 2) is INT64_MAX - 1, which should not clamp
+        auto [txSet, applicable] =
+            makeSet({bump(innerA, maxClamp / 2), bump(innerB, maxClamp / 2)});
+        REQUIRE(applicable);
+        REQUIRE(applicable->getTotalInclusionFees() == maxClamp - 1);
+        REQUIRE(applicable->getTotalFees(lcl.header) == maxClamp - 1);
+    }
+
+    SECTION("saturates at the overflow boundary")
+    {
+        // Fees total to INT64_MAX + 1, so this should clamp
+        auto [txSet, applicable] = makeSet(
+            {bump(innerA, maxClamp / 2 + 1), bump(innerB, maxClamp / 2 + 1)});
+        REQUIRE(applicable);
+        REQUIRE(applicable->sizeTxTotal() == 2);
+        REQUIRE(applicable->getTotalInclusionFees() == maxClamp);
+        REQUIRE(applicable->getTotalFees(lcl.header) == maxClamp);
+    }
+
+    SECTION("saturates far past the overflow boundary")
+    {
+        // Three INT64_MAX fees should still clamp to INT64_MAX
+        auto [txSet, applicable] =
+            makeSet({bump(innerA, maxClamp), bump(innerB, maxClamp),
+                     bump(innerC, maxClamp)});
+        REQUIRE(applicable);
+        REQUIRE(applicable->sizeTxTotal() == 3);
+        REQUIRE(applicable->getTotalInclusionFees() == maxClamp);
+        REQUIRE(applicable->getTotalFees(lcl.header) == maxClamp);
     }
 }
 

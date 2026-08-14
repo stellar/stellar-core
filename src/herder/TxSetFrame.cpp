@@ -22,6 +22,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
+#include "util/numeric.h"
 #include "xdrpp/marshal.h"
 
 #include <Tracy.hpp>
@@ -2277,7 +2278,8 @@ ApplicableTxSetFrame::getTotalFees(LedgerHeader const& lh) const
     {
         for (auto const& tx : phaseTxs)
         {
-            total += tx->getFee(lh, getTxBaseFee(tx), true);
+            total =
+                saturatingAdd(total, tx->getFee(lh, getTxBaseFee(tx), true));
         }
     }
     return total;
@@ -2292,7 +2294,7 @@ ApplicableTxSetFrame::getTotalInclusionFees() const
     {
         for (auto const& tx : phaseTxs)
         {
-            total += tx->getInclusionFee();
+            total = saturatingAdd(total, tx->getInclusionFee());
         }
     }
     return total;
