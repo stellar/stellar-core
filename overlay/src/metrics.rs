@@ -97,6 +97,25 @@ pub struct OverlayMetrics {
     /// overlay.send.txset — TX set messages sent
     pub send_txset: AtomicU64,
 
+    // HAVE_TX_SET / tx set claim metrics (stellar-core PR #5379)
+    /// overlay.send.have-tx-set — HAVE_TX_SET messages sent
+    pub send_have_txset: AtomicU64,
+    /// overlay.recv.have-tx-set — HAVE_TX_SET messages received (pre-admission)
+    pub recv_have_txset: AtomicU64,
+    /// overlay.item-fetcher.claim-ask — fetch ask targeted a claimed holder
+    pub claim_ask: AtomicU64,
+    /// overlay.item-fetcher.claim-dropped — HAVE_TX_SET dropped at admission
+    pub claim_dropped: AtomicU64,
+    /// overlay.item-fetcher.claim-grace-wait — wait from fetch creation to first ask
+    pub claim_grace_wait_sum_us: AtomicU64,
+    pub claim_grace_wait_count: AtomicU64,
+    /// overlay.item-fetcher.claim-grace-satisfied — first ask targeted a claimant
+    pub claim_grace_satisfied: AtomicU64,
+    /// overlay.item-fetcher.claim-grace-expired — first ask fell back to relayer/blind
+    pub claim_grace_expired: AtomicU64,
+    /// overlay.fetch.txset-abandoned — tx set fetches dropped by the age backstop
+    pub fetch_txset_abandoned: AtomicU64,
+
     // Receive timers (per message type, tracked as sum_us + count)
     /// overlay.recv.scp-message — time processing SCP messages
     pub recv_scp_sum_us: AtomicU64,
@@ -152,6 +171,15 @@ impl Default for OverlayMetrics {
             send_scp_message: AtomicU64::new(0),
             send_transaction: AtomicU64::new(0),
             send_txset: AtomicU64::new(0),
+            send_have_txset: AtomicU64::new(0),
+            recv_have_txset: AtomicU64::new(0),
+            claim_ask: AtomicU64::new(0),
+            claim_dropped: AtomicU64::new(0),
+            claim_grace_wait_sum_us: AtomicU64::new(0),
+            claim_grace_wait_count: AtomicU64::new(0),
+            claim_grace_satisfied: AtomicU64::new(0),
+            claim_grace_expired: AtomicU64::new(0),
+            fetch_txset_abandoned: AtomicU64::new(0),
             recv_scp_sum_us: AtomicU64::new(0),
             recv_scp_count: AtomicU64::new(0),
             fetch_txset_sum_us: AtomicU64::new(0),
@@ -213,6 +241,15 @@ impl OverlayMetrics {
             send_scp_message: self.send_scp_message.load(ORD),
             send_transaction: self.send_transaction.load(ORD),
             send_txset: self.send_txset.load(ORD),
+            send_have_txset: self.send_have_txset.load(ORD),
+            recv_have_txset: self.recv_have_txset.load(ORD),
+            claim_ask: self.claim_ask.load(ORD),
+            claim_dropped: self.claim_dropped.load(ORD),
+            claim_grace_wait_sum_us: self.claim_grace_wait_sum_us.load(ORD),
+            claim_grace_wait_count: self.claim_grace_wait_count.load(ORD),
+            claim_grace_satisfied: self.claim_grace_satisfied.load(ORD),
+            claim_grace_expired: self.claim_grace_expired.load(ORD),
+            fetch_txset_abandoned: self.fetch_txset_abandoned.load(ORD),
             recv_scp_sum_us: self.recv_scp_sum_us.load(ORD),
             recv_scp_count: self.recv_scp_count.load(ORD),
             fetch_txset_sum_us: self.fetch_txset_sum_us.load(ORD),
@@ -282,6 +319,15 @@ pub struct MetricsSnapshot {
     pub send_scp_message: u64,
     pub send_transaction: u64,
     pub send_txset: u64,
+    pub send_have_txset: u64,
+    pub recv_have_txset: u64,
+    pub claim_ask: u64,
+    pub claim_dropped: u64,
+    pub claim_grace_wait_sum_us: u64,
+    pub claim_grace_wait_count: u64,
+    pub claim_grace_satisfied: u64,
+    pub claim_grace_expired: u64,
+    pub fetch_txset_abandoned: u64,
     pub recv_scp_sum_us: u64,
     pub recv_scp_count: u64,
     pub fetch_txset_sum_us: u64,

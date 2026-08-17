@@ -68,5 +68,15 @@ struct OverlayMetrics
 
     // ── TxSet fetch latency ──
     medida::Timer& mFetchTxSetTimer;
+
+    // ── HAVE_TX_SET / tx set claim metrics (PR #5379) ──
+    medida::Meter& mSendHaveTxSetMeter;
+    medida::Meter& mRecvHaveTxSetMeter;
+    medida::Meter& mItemFetcherClaimAsk;
+    medida::Meter& mItemFetcherClaimDropped;
+    medida::Timer& mItemFetcherClaimGraceWait;
+    medida::Meter& mItemFetcherClaimGraceSatisfied;
+    medida::Meter& mItemFetcherClaimGraceExpired;
+    medida::Meter& mAbandonedTxSetFetches;
 };
 }

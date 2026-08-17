@@ -325,6 +325,15 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mSendTransactionMeter, "send_transaction");
     markDelta(m.mSendTxSetMeter, "send_txset");
 
+    // HAVE_TX_SET / tx set claim metrics (PR #5379)
+    markDelta(m.mSendHaveTxSetMeter, "send_have_txset");
+    markDelta(m.mRecvHaveTxSetMeter, "recv_have_txset");
+    markDelta(m.mItemFetcherClaimAsk, "claim_ask");
+    markDelta(m.mItemFetcherClaimDropped, "claim_dropped");
+    markDelta(m.mItemFetcherClaimGraceSatisfied, "claim_grace_satisfied");
+    markDelta(m.mItemFetcherClaimGraceExpired, "claim_grace_expired");
+    markDelta(m.mAbandonedTxSetFetches, "fetch_txset_abandoned");
+
     // Connection lifecycle — these aren't registered as medida meters on
     // the C++ side yet, so they'll just be tracked by the existing counters.
     // The inbound/outbound attempt/establish/drop are already covered
@@ -375,6 +384,31 @@ RustOverlayManager::syncOverlayMetrics()
         }
         mLastSyncedValues["flood_tx_batch_size_sum"] = sum;
         mLastSyncedValues["flood_tx_batch_size_count"] = count;
+    }
+
+    // ── Claim grace wait timer (PR #5379) ──
+    if (root.isMember("claim_grace_wait_sum_us") &&
+        root.isMember("claim_grace_wait_count"))
+    {
+        auto sum =
+            static_cast<int64_t>(root["claim_grace_wait_sum_us"].asUInt64());
+        auto count =
+            static_cast<int64_t>(root["claim_grace_wait_count"].asUInt64());
+        auto lastSum = mLastSyncedValues["claim_grace_wait_sum_us"];
+        auto lastCount = mLastSyncedValues["claim_grace_wait_count"];
+        auto deltaSum = sum - lastSum;
+        auto deltaCount = count - lastCount;
+        if (deltaCount > 0 && deltaSum > 0)
+        {
+            auto avgUs = deltaSum / deltaCount;
+            for (int64_t i = 0; i < deltaCount; ++i)
+            {
+                m.mItemFetcherClaimGraceWait.Update(
+                    std::chrono::microseconds{avgUs});
+            }
+        }
+        mLastSyncedValues["claim_grace_wait_sum_us"] = sum;
+        mLastSyncedValues["claim_grace_wait_count"] = count;
     }
 
     // ── Fetch TxSet timer ──

@@ -388,6 +388,28 @@ fn cache_tx_set_xdr(
     });
 }
 
+/// Tx set hashes referenced by `envelopes` (raw ScpEnvelope XDR) that are
+/// held in `cache`, deduplicated in first-reference order. These are the
+/// HAVE_TX_SET claims to send ahead of SCP state (PR #5379: with parallel
+/// tx set downloading, relaying an envelope no longer implies possessing the
+/// sets it references, so possession is claimed explicitly). Unheld sets and
+/// undecodable envelopes contribute nothing.
+fn claims_for_envelopes(envelopes: &[Vec<u8>], cache: &TxSetCache) -> Vec<Hash256> {
+    use stellar_xdr::curr::{Limits, ReadXdr, ScpEnvelope};
+    let mut claims = Vec::new();
+    for env_bytes in envelopes {
+        let Ok(envelope) = ScpEnvelope::from_xdr(env_bytes.as_slice(), Limits::none()) else {
+            continue;
+        };
+        for hash in xdr::extract_txset_hashes_from_envelope(&envelope) {
+            if cache.get(&hash).is_some() && !claims.contains(&hash) {
+                claims.push(hash);
+            }
+        }
+    }
+    claims
+}
+
 /// Application state
 struct App {
     core_ipc: CoreIpc,
@@ -418,9 +440,15 @@ struct App {
     /// PeerId → configured hostname, so targeted reconnect can re-resolve DNS
     /// after a pod restart changes the peer's IP address.
     peer_hostnames: Arc<RwLock<HashMap<PeerId, String>>>,
+    /// TX set hashes already announced via HAVE_TX_SET (announce-once).
+    announced_txsets: lru::LruCache<Hash256, ()>,
     /// Shared metrics counters for the overlay
     metrics: Arc<OverlayMetrics>,
 }
+
+/// Capacity of the announce-once dedup cache. Matches the C++
+/// `PendingEnvelopes::mAnnouncedTxSets` sizing (TXSET_CACHE_SIZE-scale).
+const ANNOUNCED_TXSETS_CACHE_SIZE: usize = 1000;
 
 /// Peer addresses configured via SetPeerConfig, used for reconnection.
 struct ConfiguredPeers {
@@ -498,6 +526,9 @@ impl App {
             })),
             known_peers: Arc::new(RwLock::new(HashMap::new())),
             peer_hostnames: Arc::new(RwLock::new(HashMap::new())),
+            announced_txsets: lru::LruCache::new(
+                std::num::NonZeroUsize::new(ANNOUNCED_TXSETS_CACHE_SIZE).unwrap(),
+            ),
             metrics,
         })
     }
@@ -654,6 +685,24 @@ impl App {
         info!("Overlay shutting down");
     }
 
+    /// Announce possession of a newly cached TX set to all peers via
+    /// HAVE_TX_SET, at most once per hash (mirrors the C++
+    /// `PendingEnvelopes::maybeAnnounceHaveTxSet`). Sets stamped slot 0 — the
+    /// sentinel for data restored from the DB rather than obtained on a live
+    /// consensus path — are not announced. Returns whether an announce was
+    /// issued (observable in tests).
+    fn maybe_announce_txset(&mut self, hash: Hash256, slot: u32) -> bool {
+        if slot == 0 || self.announced_txsets.contains(&hash) {
+            return false;
+        }
+        self.announced_txsets.put(hash, ());
+        let handle = self.libp2p_handle.clone();
+        tokio::spawn(async move {
+            handle.announce_txset(hash).await;
+        });
+        true
+    }
+
     /// Handle an event from the libp2p QUIC overlay (SCP + TX)
     async fn handle_libp2p_event(&mut self, event: LibP2pOverlayEvent) {
         match event {
@@ -748,12 +797,12 @@ impl App {
                 // This ensures the TxSet is available when SCP processing resumes
                 // Stamp with the slot the set was requested for so eviction is
                 // exact; for an unsolicited set fall back to the next slot.
-                cache_tx_set_xdr(
-                    &mut self.tx_set_cache,
-                    slot.unwrap_or(self.current_ledger_seq + 1),
-                    hash,
-                    data.clone(),
-                );
+                let stamp_slot = slot.unwrap_or(self.current_ledger_seq + 1);
+                cache_tx_set_xdr(&mut self.tx_set_cache, stamp_slot, hash, data.clone());
+
+                // We now possess the set: tell peers (HAVE_TX_SET), so their
+                // fetches can target us instead of blind-asking.
+                self.maybe_announce_txset(hash, stamp_slot);
 
                 // Always push TX set to Core (Core handles dedup)
                 info!(
@@ -1072,6 +1121,9 @@ impl App {
                 );
 
                 cache_tx_set_xdr(&mut self.tx_set_cache, slot, hash, tx_set_xdr.to_vec());
+
+                // Announce the locally-built set to peers (HAVE_TX_SET).
+                self.maybe_announce_txset(hash, slot);
             }
 
             MessageType::SubmitTx => {
@@ -1130,7 +1182,10 @@ impl App {
             }
 
             MessageType::LedgerClosed => {
-                // Parse payload: [ledgerSeq:4][ledgerHash:32]
+                // Parse payload: [ledgerSeq:4][ledgerHash:32][flags:1]
+                // The flags byte (bit 0 = ledger protocol admits empty-tx-set
+                // values, PR #5379 claim-grace gating) is a newer extension:
+                // a legacy 36-byte payload is accepted and leaves the flag off.
                 if msg.payload.len() >= 4 {
                     let ledger_seq = u32::from_le_bytes(msg.payload[0..4].try_into().unwrap());
                     info!("Ledger {} closed", ledger_seq);
@@ -1138,9 +1193,24 @@ impl App {
                     // Update current ledger
                     self.current_ledger_seq = ledger_seq;
 
+                    if let Some(flags) = msg.payload.get(36) {
+                        let possible = flags & 0x1 != 0;
+                        let handle = self.libp2p_handle.clone();
+                        tokio::spawn(async move {
+                            handle.set_empty_tx_sets_possible(possible).await;
+                        });
+                    }
+
                     // Evict old TX sets from cache
-                    self.tx_set_cache
-                        .evict_before(ledger_seq.saturating_sub(12));
+                    let horizon = ledger_seq.saturating_sub(12);
+                    self.tx_set_cache.evict_before(horizon);
+
+                    // Drop pending tx set fetches for slots past the same
+                    // horizon (fetches retry until here, not forever).
+                    let handle = self.libp2p_handle.clone();
+                    tokio::spawn(async move {
+                        handle.purge_txset_fetches_below(horizon).await;
+                    });
                 }
             }
 
@@ -1222,36 +1292,54 @@ impl App {
                     num_envelopes, peer_id, request_id
                 );
 
-                // Parse and forward each envelope to the requesting peer
+                // Parse the envelopes up front (also needed for the claim
+                // computation against the local tx set cache).
+                let mut envelopes: Vec<Vec<u8>> = Vec::with_capacity(num_envelopes);
+                let payload = &msg.payload;
+                let mut offset = 12; // Skip request_id (8) + count (4)
+                for _ in 0..num_envelopes {
+                    if offset + 4 > payload.len() {
+                        warn!("ScpStateResponse truncated at envelope length");
+                        break;
+                    }
+                    let env_len =
+                        u32::from_le_bytes(payload[offset..offset + 4].try_into().unwrap())
+                            as usize;
+                    offset += 4;
+
+                    if offset + env_len > payload.len() {
+                        warn!("ScpStateResponse truncated at envelope data");
+                        break;
+                    }
+                    envelopes.push(payload[offset..offset + env_len].to_vec());
+                    offset += env_len;
+                }
+
+                // Claims first: tell the catching-up peer which referenced
+                // tx sets we hold, so its fetches target us instead of
+                // blind-asking (PR #5379). Claims travel on the txset stream
+                // and envelopes on the SCP stream — cross-stream ordering is
+                // not guaranteed, but a late claim still redirects the
+                // peer's fetch via its claim/retry logic.
+                let claims = claims_for_envelopes(&envelopes, &self.tx_set_cache);
+
                 let handle = self.libp2p_handle.clone();
-                let payload = msg.payload.clone();
                 tokio::spawn(async move {
-                    let mut offset = 12; // Skip request_id (8) + count (4)
-                    for _ in 0..num_envelopes {
-                        if offset + 4 > payload.len() {
-                            warn!("ScpStateResponse truncated at envelope length");
-                            break;
-                        }
-                        let env_len =
-                            u32::from_le_bytes(payload[offset..offset + 4].try_into().unwrap())
-                                as usize;
-                        offset += 4;
-
-                        if offset + env_len > payload.len() {
-                            warn!("ScpStateResponse truncated at envelope data");
-                            break;
-                        }
-                        let envelope = &payload[offset..offset + env_len];
-                        offset += env_len;
-
+                    for hash in &claims {
+                        handle.send_have_txset(*hash, peer_id).await;
+                    }
+                    let count = envelopes.len();
+                    for envelope in envelopes {
                         // Send envelope to requesting peer over SCP stream
-                        if let Err(e) = handle.send_scp_to_peer(peer_id.clone(), envelope).await {
+                        if let Err(e) = handle.send_scp_to_peer(peer_id, &envelope).await {
                             warn!("Failed to send SCP envelope to {}: {:?}", peer_id, e);
                         }
                     }
                     info!(
-                        "Finished forwarding {} SCP envelopes to {}",
-                        num_envelopes, peer_id
+                        "Finished forwarding {} SCP envelopes ({} claims) to {}",
+                        count,
+                        claims.len(),
+                        peer_id
                     );
                 });
             }
@@ -1938,6 +2026,9 @@ mod tests {
             })),
             known_peers: Arc::new(RwLock::new(HashMap::new())),
             peer_hostnames: Arc::new(RwLock::new(HashMap::new())),
+            announced_txsets: lru::LruCache::new(
+                std::num::NonZeroUsize::new(ANNOUNCED_TXSETS_CACHE_SIZE).unwrap(),
+            ),
             metrics,
         };
         (app, core_side)
@@ -2040,6 +2131,168 @@ mod tests {
         assert_eq!(resp.msg_type, MessageType::TxSetAvailable);
         assert_eq!(&resp.payload[0..32], &hash[..]);
         assert_eq!(&resp.payload[32..], &xdr_bytes[..]);
+    }
+
+    /// LedgerClosed accepts both the legacy 36-byte payload and the extended
+    /// one carrying the flags byte (empty-tx-sets-possible, PR #5379).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_ledger_closed_payload_flag_extension() {
+        let (mut app, _core) = test_app();
+
+        // Legacy payload (36 bytes): handled, seq updated.
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::LedgerClosed,
+                ledger_closed_payload(41)
+            ))
+            .await
+        );
+        assert_eq!(app.current_ledger_seq, 41);
+
+        // Extended payload (37 bytes, flag set): handled, seq updated.
+        let mut extended = ledger_closed_payload(42);
+        extended.push(0x1);
+        assert!(
+            app.handle_core_message(Message::new(MessageType::LedgerClosed, extended))
+                .await
+        );
+        assert_eq!(app.current_ledger_seq, 42);
+    }
+
+    // --- claims accompanying SCP state (stellar-core PR #5379) ---
+
+    /// A nomination envelope whose votes reference the given tx set hashes.
+    fn nominate_envelope_xdr(tx_set_hashes: &[[u8; 32]]) -> Vec<u8> {
+        use stellar_xdr::curr::{
+            Hash, ScpEnvelope, ScpNomination, ScpStatementPledges, StellarValue, StellarValueExt,
+            TimePoint, Value, VecM,
+        };
+
+        let votes: Vec<Value> = tx_set_hashes
+            .iter()
+            .map(|h| {
+                let sv = StellarValue {
+                    tx_set_hash: Hash(*h),
+                    close_time: TimePoint(1),
+                    upgrades: VecM::default(),
+                    ext: StellarValueExt::Basic,
+                };
+                Value::try_from(sv.to_xdr(Limits::none()).unwrap()).unwrap()
+            })
+            .collect();
+
+        let mut envelope = ScpEnvelope::default();
+        envelope.statement.pledges = ScpStatementPledges::Nominate(ScpNomination {
+            quorum_set_hash: Hash([0; 32]),
+            votes: VecM::try_from(votes).unwrap(),
+            accepted: VecM::default(),
+        });
+        envelope.to_xdr(Limits::none()).unwrap()
+    }
+
+    /// Mirrors the C++ "HAVE_TX_SET claims accompany SCP state" test: only
+    /// held sets are claimed, each at most once per batch; unheld sets and
+    /// undecodable envelopes contribute nothing.
+    #[test]
+    fn test_claims_for_envelopes() {
+        let mut cache = TxSetCache::new(10);
+        let (held, held_xdr) = test_txset_xdr(31);
+        let unheld = [0x99u8; 32];
+        cache.insert(CachedTxSet {
+            hash: held,
+            xdr: held_xdr,
+            ledger_seq: 5,
+        });
+
+        let env1 = nominate_envelope_xdr(&[held, unheld]);
+        // A second envelope referencing the held set again: no duplicate claim.
+        let env2 = nominate_envelope_xdr(&[held]);
+        let garbage = vec![0xffu8; 7];
+
+        let claims = claims_for_envelopes(&[env1, env2, garbage], &cache);
+        assert_eq!(claims, vec![held]);
+
+        // No envelopes, or none referencing held sets: no claims.
+        assert!(claims_for_envelopes(&[], &cache).is_empty());
+        let env3 = nominate_envelope_xdr(&[unheld]);
+        assert!(claims_for_envelopes(&[env3], &cache).is_empty());
+    }
+
+    // --- HAVE_TX_SET announce (stellar-core PR #5379) ---
+
+    /// Announce-once semantics: the first acquisition of a set announces it,
+    /// re-acquisitions do not, and slot-0 (DB-restored sentinel) sets are
+    /// never announced. Mirrors the C++ "HAVE_TX_SET announce" test.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_announce_once_and_slot0_suppressed() {
+        let (mut app, _core) = test_app();
+        let (hash, _) = test_txset_xdr(21);
+
+        assert!(app.maybe_announce_txset(hash, 10), "first announce fires");
+        assert!(
+            !app.maybe_announce_txset(hash, 10),
+            "re-announce is suppressed"
+        );
+        assert!(
+            !app.maybe_announce_txset(hash, 11),
+            "suppression is per hash, not per slot"
+        );
+
+        let (restored_hash, _) = test_txset_xdr(22);
+        assert!(
+            !app.maybe_announce_txset(restored_hash, 0),
+            "slot-0 (restored) sets are never announced"
+        );
+        assert!(
+            !app.announced_txsets.contains(&restored_hash),
+            "a suppressed announce must not poison the dedup cache"
+        );
+        assert!(
+            app.maybe_announce_txset(restored_hash, 12),
+            "the same set announced later via a live path still fires"
+        );
+    }
+
+    /// Core caching a locally-built set (CacheTxSet) announces it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_cache_tx_set_announces() {
+        let (mut app, _core) = test_app();
+        let (hash, xdr_bytes) = test_txset_xdr(23);
+
+        let mut payload = request_tx_set_payload(&hash, 100);
+        payload.extend_from_slice(&xdr_bytes);
+        assert!(
+            app.handle_core_message(Message::new(MessageType::CacheTxSet, payload))
+                .await
+        );
+        assert!(
+            app.announced_txsets.contains(&hash),
+            "caching a locally-built set must announce it"
+        );
+    }
+
+    /// A set fetched from a peer (TxSetReceived) is announced too — we can
+    /// now serve it, and other nodes' fetches should know that.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_txset_received_announces() {
+        let (mut app, mut core) = test_app();
+        let (hash, xdr_bytes) = test_txset_xdr(24);
+
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: xdr_bytes,
+            from: PeerId::random(),
+            slot: Some(50),
+        })
+        .await;
+        // Drain the TxSetAvailable push to core.
+        core.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        let _ = MessageCodec::read(&mut core).unwrap();
+
+        assert!(
+            app.announced_txsets.contains(&hash),
+            "a set fetched from the network must be announced"
+        );
     }
 
     /// Same property for sets fetched from peers: a TxSetReceived event is

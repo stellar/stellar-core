@@ -12,7 +12,8 @@
 //! QUIC provides independent loss recovery per stream.
 
 use crate::flood::{
-    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxStreamMessage,
+    Ask, AskTier, GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer,
+    TxSetFetcher, TxStreamMessage,
 };
 use crate::metrics::OverlayMetrics;
 use crate::wire::ValidatedTx;
@@ -47,6 +48,14 @@ const MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
 /// Bounded channel capacity for TX events (backpressure for TX flooding)
 /// TXs that can't be queued are dropped - they'll be re-requested if needed.
 const TX_EVENT_CHANNEL_CAPACITY: usize = 10_000;
+
+/// Max HAVE_TX_SET messages admitted per peer per admission window. Mirrors
+/// the C++ `Peer::HAVE_TX_SET_MAX_PER_PERIOD`.
+pub const HAVE_TX_SET_MAX_PER_PERIOD: u32 = 32;
+
+/// The HAVE_TX_SET admission window. Mirrors the C++ per-peer recurrent-timer
+/// period (a single global reset tick here, equivalent in effect).
+pub const HAVE_TX_SET_PERIOD: Duration = Duration::from_secs(5);
 
 /// Events from the overlay to the application
 #[derive(Debug, Clone)]
@@ -99,6 +108,16 @@ pub enum OverlayCommand {
     },
     /// Record that a peer has a specific TX set (learned from SCP message)
     RecordTxSetSource { hash: [u8; 32], peer: PeerId },
+    /// Announce to all connected peers that we possess a TX set (HAVE_TX_SET)
+    AnnounceTxSet { hash: [u8; 32] },
+    /// Send HAVE_TX_SET for one hash to one peer (claims accompanying SCP
+    /// state sent to a catching-up peer)
+    SendHaveTxSetToPeer { hash: [u8; 32], to: PeerId },
+    /// Drop pending TX set fetches for slots below the given one
+    PurgeTxSetFetchesBelow { slot: u32 },
+    /// Whether the ledger protocol admits empty-tx-set values (enables the
+    /// claim grace period on new fetches)
+    SetEmptyTxSetsPossible(bool),
     /// Connect to a peer by address (bootstrap — PeerId unknown)
     Dial(Multiaddr),
     /// Connect to a known peer by PeerId (reconnect — deduplicates automatically)
@@ -228,6 +247,62 @@ impl OverlayHandle {
         }
     }
 
+    /// Send HAVE_TX_SET for `hash` to a single peer
+    pub async fn send_have_txset(&self, hash: [u8; 32], to: PeerId) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::SendHaveTxSetToPeer { hash, to })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send SendHaveTxSetToPeer: {}",
+                e
+            );
+        }
+    }
+
+    /// Announce possession of a TX set to all connected peers via HAVE_TX_SET
+    pub async fn announce_txset(&self, hash: [u8; 32]) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::AnnounceTxSet { hash })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send AnnounceTxSet: {}",
+                e
+            );
+        }
+    }
+
+    /// Drop pending TX set fetches for slots below `slot` (ledger closed)
+    pub async fn purge_txset_fetches_below(&self, slot: u32) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::PurgeTxSetFetchesBelow { slot })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send PurgeTxSetFetchesBelow: {}",
+                e
+            );
+        }
+    }
+
+    /// Set whether the ledger protocol admits empty-tx-set values
+    pub async fn set_empty_tx_sets_possible(&self, possible: bool) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::SetEmptyTxSetsPossible(possible))
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send SetEmptyTxSetsPossible: {}",
+                e
+            );
+        }
+    }
+
     pub async fn dial(&self, addr: Multiaddr) {
         if let Err(e) = self.cmd_tx.send(OverlayCommand::Dial(addr)).await {
             warn!("Overlay command channel closed, failed to send Dial: {}", e);
@@ -310,11 +385,12 @@ struct SharedState {
     tx_seen: RwLock<lru::LruCache<[u8; 32], ()>>,
     /// Track which peers we've sent each SCP message to (prevent duplicate sends)
     scp_sent_to: RwLock<lru::LruCache<[u8; 32], HashSet<PeerId>>>,
-    /// TX set sources: which peer has which TX set (learned from SCP messages)
-    txset_sources: RwLock<lru::LruCache<[u8; 32], PeerId>>,
-    /// Pending TX set requests: hash -> (peer, request_time) to avoid duplicate fetches and track latency
-    /// hash -> (peer asked, request time, slot the set is for)
-    pending_txset_requests: RwLock<HashMap<[u8; 32], (PeerId, Instant, u32)>>,
+    /// TX set fetch state: who might have which set (HAVE_TX_SET claimants
+    /// and SCP relayers) plus pending fetches with tiered retry.
+    txset_fetcher: RwLock<TxSetFetcher>,
+    /// HAVE_TX_SET admission budget consumed per peer in the current window
+    /// (cleared every HAVE_TX_SET_PERIOD by the housekeeping task).
+    have_txset_admitted: RwLock<HashMap<PeerId, u32>>,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
     /// Bounded TX event sender (backpressure - drops allowed)
@@ -355,10 +431,8 @@ impl SharedState {
             scp_sent_to: RwLock::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(10000).unwrap(),
             )),
-            txset_sources: RwLock::new(lru::LruCache::new(
-                std::num::NonZeroUsize::new(1000).unwrap(),
-            )),
-            pending_txset_requests: RwLock::new(HashMap::new()),
+            txset_fetcher: RwLock::new(TxSetFetcher::new()),
+            have_txset_admitted: RwLock::new(HashMap::new()),
             event_tx,
             tx_event_tx,
             tx_dropped_count: AtomicU64::new(0),
@@ -535,9 +609,25 @@ impl StellarOverlay {
                             self.send_txset_response(to, hash, data).await;
                         }
                         OverlayCommand::RecordTxSetSource { hash, peer } => {
-                            let mut sources = self.state.txset_sources.write().await;
-                            sources.put(hash, peer);
-                            debug!("Recorded peer {} as source for TX set {:02x?}...", peer, &hash[..4]);
+                            let mut fetcher = self.state.txset_fetcher.write().await;
+                            fetcher.record_relayer(hash, peer);
+                            debug!("Recorded peer {} as SCP relayer for TX set {:02x?}...", peer, &hash[..4]);
+                        }
+                        OverlayCommand::AnnounceTxSet { hash } => {
+                            self.announce_txset(hash).await;
+                        }
+                        OverlayCommand::SendHaveTxSetToPeer { hash, to } => {
+                            self.send_have_txset_to_peer(hash, to).await;
+                        }
+                        OverlayCommand::PurgeTxSetFetchesBelow { slot } => {
+                            self.state.txset_fetcher.write().await.evict_before(slot);
+                        }
+                        OverlayCommand::SetEmptyTxSetsPossible(possible) => {
+                            self.state
+                                .txset_fetcher
+                                .write()
+                                .await
+                                .set_empty_tx_sets_possible(possible);
                         }
                         OverlayCommand::Dial(addr) => {
                             info!("Dialing peer at {}", addr);
@@ -687,19 +777,19 @@ impl StellarOverlay {
                         let mut streams = self.state.peer_streams.write().await;
                         streams.remove(&peer_id);
                     }
-                    // Clean up pending txset requests for this peer
-                    {
-                        let mut pending = self.state.pending_txset_requests.write().await;
-                        let before_len = pending.len();
-                        pending.retain(|_hash, (p, _, _)| p != &peer_id);
-                        let removed = before_len - pending.len();
-                        if removed > 0 {
-                            info!(
-                                "Removed {} pending txset requests for disconnected peer {}",
-                                removed, peer_id
-                            );
-                        }
-                    }
+                    // Clear outstanding tx set asks to this peer (the fetches
+                    // survive and retarget on the next housekeeping tick) and
+                    // forget it as a claimant/relayer.
+                    self.state
+                        .txset_fetcher
+                        .write()
+                        .await
+                        .peer_disconnected(&peer_id);
+                    self.state
+                        .have_txset_admitted
+                        .write()
+                        .await
+                        .remove(&peer_id);
                     // Notify main loop to clean up any pending requests for this peer
                     if let Err(e) = self.state.event_tx.send(OverlayEvent::PeerDisconnected {
                         peer_id: peer_id.clone(),
@@ -896,108 +986,59 @@ impl StellarOverlay {
         }
     }
 
-    /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it
+    /// Start (or join) a TX set fetch. Targeting prefers HAVE_TX_SET
+    /// claimants over SCP relayers over blind asks; if nothing can be
+    /// dispatched now (duplicate, grace period, or no peers) the fetch stays
+    /// pending and the housekeeping task drives it to completion.
     async fn fetch_txset(&mut self, hash: [u8; 32], slot: u32) {
-        // Check if we're already fetching this TxSet from a connected peer (dedup)
-        {
-            let pending = self.state.pending_txset_requests.read().await;
-            if let Some((pending_peer, _, _)) = pending.get(&hash) {
-                // Check if that peer is still connected
-                let streams = self.state.peer_streams.read().await;
-                if streams.contains_key(pending_peer) {
-                    debug!(
-                        "TXSET_FETCH_SKIP: TxSet {:02x?}... already being fetched from {}, skipping duplicate",
-                        &hash[..4], pending_peer
-                    );
-                    return;
-                }
-                // Otherwise, peer disconnected - we'll re-request below
-            }
+        let now = Instant::now();
+        let connected = connected_peers(&self.state).await;
+        let (created, ask) = {
+            let mut fetcher = self.state.txset_fetcher.write().await;
+            let created = fetcher.start_fetch(hash, slot, now);
+            let ask = fetcher.dispatch_one(hash, now, &connected);
+            (created, ask)
+        };
+        if !created {
+            debug!(
+                "TXSET_FETCH_SKIP: TxSet {:02x?}... already being fetched",
+                &hash[..4]
+            );
         }
-
-        // First check if we know which peer has this TX set (from SCP message)
-        let known_source = {
-            let sources = self.state.txset_sources.read().await;
-            sources.peek(&hash).cloned()
-        };
-
-        let peer = if let Some(source_peer) = known_source {
-            // Verify this peer is still connected
-            let streams = self.state.peer_streams.read().await;
-            if streams.contains_key(&source_peer) {
+        match ask {
+            Some(ask) => dispatch_txset_asks(&self.state, vec![ask]).await,
+            None if created => {
                 info!(
-                    "TXSET_FETCH: Fetching TX set {:02x?}... from known source {}",
-                    &hash[..4],
-                    source_peer
+                    "TXSET_FETCH_PARKED: TxSet {:02x?}... waiting (grace period or no peers)",
+                    &hash[..4]
                 );
-                source_peer
-            } else {
-                // Source peer disconnected, fall back to any peer
-                match streams.keys().next().cloned() {
-                    Some(p) => {
-                        info!("TXSET_FETCH: Fetching TX set {:02x?}... from fallback peer {} (source {} disconnected)",
-                              &hash[..4], p, source_peer);
-                        p
-                    }
-                    None => {
-                        warn!(
-                            "TXSET_FETCH_FAIL: No peers to fetch TX set {:02x?}... from",
-                            &hash[..4]
-                        );
-                        return;
-                    }
-                }
             }
-        } else {
-            // No known source, pick any connected peer
-            let streams = self.state.peer_streams.read().await;
-            match streams.keys().next().cloned() {
-                Some(p) => {
-                    info!(
-                        "TXSET_FETCH: Fetching TX set {:02x?}... from random peer {} (no known source)",
-                        &hash[..4],
-                        p
-                    );
-                    p
-                }
-                None => {
-                    warn!(
-                        "TXSET_FETCH_FAIL: No peers to fetch TX set {:02x?}... from",
-                        &hash[..4]
-                    );
-                    return;
-                }
-            }
-        };
+            None => {}
+        }
+    }
 
-        // Record this pending request with timestamp for latency tracking
-        self.state
-            .pending_txset_requests
-            .write()
-            .await
-            .insert(hash, (peer.clone(), Instant::now(), slot));
+    /// Send HAVE_TX_SET for `hash` to one peer. The write happens in its own
+    /// task: a claim is 36 bytes but the target's txset stream mutex may be
+    /// held by a multi-MB tx set write, and the event loop must never wait on
+    /// that.
+    async fn send_have_txset_to_peer(&mut self, hash: [u8; 32], to: PeerId) {
+        spawn_have_txset_send(&self.state, hash, to);
+    }
 
-        let request = crate::xdr::frame_get_tx_set(hash);
-
-        match send_to_peer_stream(&self.state, peer.clone(), StreamType::TxSet, &request).await {
-            Ok(_) => info!(
-                "TXSET_FETCH_SENT: Sent request for TxSet {:02x?}... to {}",
-                &hash[..4],
-                peer
-            ),
-            Err(e) => {
-                warn!(
-                    "TXSET_FETCH_FAIL: Failed to send TxSet request {:02x?}... to {}: {}",
-                    &hash[..4],
-                    peer,
-                    e
-                );
-                self.state
-                    .pending_txset_requests
-                    .write()
-                    .await
-                    .remove(&hash);
-            }
+    /// Broadcast HAVE_TX_SET for `hash` to all connected peers, one send task
+    /// per peer (see `send_have_txset_to_peer` for why).
+    async fn announce_txset(&mut self, hash: [u8; 32]) {
+        let peers = connected_peers(&self.state).await;
+        if peers.is_empty() {
+            return;
+        }
+        info!(
+            "TXSET_ANNOUNCE: Announcing TX set {:02x?}... to {} peers",
+            &hash[..4],
+            peers.len()
+        );
+        for peer in peers {
+            spawn_have_txset_send(&self.state, hash, peer);
         }
     }
 
@@ -1902,6 +1943,53 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                             .metrics
                             .byte_read
                             .fetch_add(data.len() as u64, Ordering::Relaxed);
+
+                        // HAVE_TX_SET is codec'd manually (the pinned
+                        // stellar-xdr crate predates it), so it must be tried
+                        // before the typed decode below, which would reject
+                        // its discriminant.
+                        if let Some(claimed) = crate::xdr::parse_have_tx_set(&data) {
+                            state
+                                .metrics
+                                .recv_have_txset
+                                .fetch_add(1, Ordering::Relaxed);
+                            if !admit_have_tx_set(&state, &peer_id).await {
+                                state.metrics.claim_dropped.fetch_add(1, Ordering::Relaxed);
+                                debug!(
+                                    "CLAIM_DROPPED: HAVE_TX_SET {:02x?}... from {} over budget",
+                                    &claimed[..4],
+                                    peer_id
+                                );
+                                continue;
+                            }
+                            debug!(
+                                "CLAIM_RECV: Peer {} claims TX set {:02x?}...",
+                                peer_id,
+                                &claimed[..4]
+                            );
+                            let actionable = state
+                                .txset_fetcher
+                                .write()
+                                .await
+                                .record_claim(claimed, peer_id);
+                            if actionable {
+                                // A fetch is pending with no ask outstanding
+                                // (grace wait, parked, or between retries):
+                                // act on the claim immediately.
+                                let now = Instant::now();
+                                let connected = connected_peers(&state).await;
+                                let ask = state
+                                    .txset_fetcher
+                                    .write()
+                                    .await
+                                    .dispatch_one(claimed, now, &connected);
+                                if let Some(ask) = ask {
+                                    dispatch_txset_asks(&state, vec![ask]).await;
+                                }
+                            }
+                            continue;
+                        }
+
                         let message = match crate::xdr::parse_stellar_message(&data) {
                             Ok(message) => message,
                             Err(e) => {
@@ -1940,23 +2028,21 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                 let txset_data = data[4..].to_vec();
                                 let hash = crate::xdr::sha256_hash(&txset_data);
 
-                                // Clear pending request flag and measure fetch latency
+                                // Complete the pending fetch (from whichever
+                                // peer answered) and measure fetch latency.
                                 let slot = {
-                                    let mut pending = state.pending_txset_requests.write().await;
-                                    if let Some((_, request_time, slot)) = pending.remove(&hash) {
-                                        let fetch_us = request_time.elapsed().as_micros() as u64;
-                                        state
-                                            .metrics
-                                            .fetch_txset_sum_us
-                                            .fetch_add(fetch_us, Ordering::Relaxed);
+                                    let mut fetcher = state.txset_fetcher.write().await;
+                                    fetcher.complete(&hash, Instant::now()).map(|done| {
+                                        state.metrics.fetch_txset_sum_us.fetch_add(
+                                            done.elapsed.as_micros() as u64,
+                                            Ordering::Relaxed,
+                                        );
                                         state
                                             .metrics
                                             .fetch_txset_count
                                             .fetch_add(1, Ordering::Relaxed);
-                                        Some(slot)
-                                    } else {
-                                        None
-                                    }
+                                        done.slot
+                                    })
                                 };
 
                                 info!(
@@ -1999,18 +2085,169 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
     }
 }
 
+/// Snapshot of currently connected peers (those with open streams).
+async fn connected_peers(state: &Arc<SharedState>) -> Vec<PeerId> {
+    state.peer_streams.read().await.keys().cloned().collect()
+}
+
+/// Consume one unit of `peer`'s HAVE_TX_SET admission budget. Returns false
+/// (drop the message) once the per-window cap is hit; the budget map is
+/// cleared every HAVE_TX_SET_PERIOD by the housekeeping task.
+async fn admit_have_tx_set(state: &Arc<SharedState>, peer: &PeerId) -> bool {
+    let mut admitted = state.have_txset_admitted.write().await;
+    let count = admitted.entry(*peer).or_insert(0);
+    if *count >= HAVE_TX_SET_MAX_PER_PERIOD {
+        return false;
+    }
+    *count += 1;
+    true
+}
+
+/// Send one HAVE_TX_SET to one peer in a dedicated task, so no caller (event
+/// loop, reader task, housekeeping) ever waits on the target's txset stream
+/// mutex, which may be held by a multi-MB tx set write.
+fn spawn_have_txset_send(state: &Arc<SharedState>, hash: [u8; 32], to: PeerId) {
+    let state = Arc::clone(state);
+    tokio::spawn(async move {
+        let msg = crate::xdr::frame_have_tx_set(hash);
+        match send_to_peer_stream(&state, to, StreamType::TxSet, &msg).await {
+            Ok(_) => {
+                state
+                    .metrics
+                    .send_have_txset
+                    .fetch_add(1, Ordering::Relaxed);
+                state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                state
+                    .metrics
+                    .byte_write
+                    .fetch_add(msg.len() as u64, Ordering::Relaxed);
+                debug!("CLAIM_SENT: HAVE_TX_SET {:02x?}... to {}", &hash[..4], to);
+            }
+            Err(e) => {
+                debug!(
+                    "CLAIM_SEND_FAIL: HAVE_TX_SET {:02x?}... to {}: {}",
+                    &hash[..4],
+                    to,
+                    e
+                );
+            }
+        }
+    });
+}
+
+/// Send GET_TX_SET for each dispatched ask and record the outcome with the
+/// fetcher (wire timestamp on success, retarget-on-next-pass on failure).
+/// Also records the claim/grace metrics carried on the ask. Each send runs in
+/// its own task so a busy or backpressured peer stream never stalls the
+/// caller (`sent_at` was stamped at dispatch, so the housekeeping loop won't
+/// re-dispatch the hash while the send is in flight; the peer's response
+/// window restarts at `mark_sent` once the request is actually on the wire).
+async fn dispatch_txset_asks(state: &Arc<SharedState>, asks: Vec<Ask>) {
+    for ask in asks {
+        let metrics = &state.metrics;
+        if ask.tier == AskTier::Claimant {
+            metrics.claim_ask.fetch_add(1, Ordering::Relaxed);
+        }
+        if let Some(grace) = &ask.grace_outcome {
+            metrics
+                .claim_grace_wait_sum_us
+                .fetch_add(grace.waited.as_micros() as u64, Ordering::Relaxed);
+            metrics
+                .claim_grace_wait_count
+                .fetch_add(1, Ordering::Relaxed);
+            if grace.satisfied {
+                metrics
+                    .claim_grace_satisfied
+                    .fetch_add(1, Ordering::Relaxed);
+            } else {
+                metrics.claim_grace_expired.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+
+        let state = Arc::clone(state);
+        tokio::spawn(async move {
+            let request = crate::xdr::frame_get_tx_set(ask.hash);
+            match send_to_peer_stream(&state, ask.peer, StreamType::TxSet, &request).await {
+                Ok(_) => {
+                    state
+                        .txset_fetcher
+                        .write()
+                        .await
+                        .mark_sent(&ask.hash, Instant::now());
+                    info!(
+                        "TXSET_FETCH_SENT: Sent request for TxSet {:02x?}... to {} (tier {:?})",
+                        &ask.hash[..4],
+                        ask.peer,
+                        ask.tier
+                    );
+                }
+                Err(e) => {
+                    state
+                        .txset_fetcher
+                        .write()
+                        .await
+                        .mark_send_failed(&ask.hash);
+                    warn!(
+                        "TXSET_FETCH_FAIL: Failed to send TxSet request {:02x?}... to {}: {} (will retarget)",
+                        &ask.hash[..4],
+                        ask.peer,
+                        e
+                    );
+                }
+            }
+        });
+    }
+}
+
 /// INV/GETDATA housekeeping task.
 ///
 /// Periodically:
 /// 1. Flushes INV batches that have timed out (100ms)
 /// 2. Checks GETDATA timeouts and retries to other peers
+/// 3. Drives pending TX set fetches (timeouts, retargeting, grace expiry)
+/// 4. Resets the per-peer HAVE_TX_SET admission budgets every 5s
 async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
     // Run every 50ms (half the batch timeout for responsiveness)
     let mut interval = tokio::time::interval(Duration::from_millis(50));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+    let mut last_admission_reset = Instant::now();
+
     loop {
         interval.tick().await;
+
+        // 0a. Drive pending TX set fetches: time out stale asks (dropping
+        // wrong claims), dispatch parked/retargeted fetches, expire ancient
+        // ones. Cheap when nothing is pending.
+        {
+            let now = Instant::now();
+            let connected = connected_peers(&state).await;
+            let result = {
+                let mut fetcher = state.txset_fetcher.write().await;
+                fetcher.tick(now, &connected)
+            };
+            if !result.expired.is_empty() {
+                state
+                    .metrics
+                    .fetch_txset_abandoned
+                    .fetch_add(result.expired.len() as u64, Ordering::Relaxed);
+                for hash in &result.expired {
+                    warn!(
+                        "TXSET_FETCH_ABANDONED: Gave up on TxSet {:02x?}... (age backstop)",
+                        &hash[..4]
+                    );
+                }
+            }
+            if !result.asks.is_empty() {
+                dispatch_txset_asks(&state, result.asks).await;
+            }
+        }
+
+        // 0b. Reset per-peer HAVE_TX_SET admission budgets once per window.
+        if last_admission_reset.elapsed() >= HAVE_TX_SET_PERIOD {
+            state.have_txset_admitted.write().await.clear();
+            last_admission_reset = Instant::now();
+        }
 
         // 1. Flush expired INV batches
         let expired_peers = {
@@ -5095,4 +5332,208 @@ async fn test_20_node_mesh_with_dedup() {
     for task in tasks {
         let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
     }
+}
+
+// --- HAVE_TX_SET integration tests (stellar-core PR #5379) -----------------
+
+/// Dial `from` -> `to` and wait until both ends see the peer's streams.
+#[cfg(test)]
+async fn test_connect(from: &OverlayHandle, to_port: u16) {
+    let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", to_port)
+        .parse()
+        .unwrap();
+    from.dial(addr).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+}
+
+/// HAVE_TX_SET admission cap: per-peer budget, drops beyond it, isolation
+/// between peers, and the periodic reset. Exercised directly against
+/// SharedState (no wire), mirroring the C++ "HAVE_TX_SET admission cap" test.
+#[tokio::test]
+async fn test_have_tx_set_admission_cap() {
+    let keypair = Keypair::generate_ed25519();
+    let (_handle, _events, _tx_events, overlay) =
+        create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+    let state = overlay.state.clone();
+
+    let peer1 = PeerId::random();
+    let peer2 = PeerId::random();
+
+    // Exactly the budget is admitted; the rest is dropped.
+    for _ in 0..HAVE_TX_SET_MAX_PER_PERIOD {
+        assert!(admit_have_tx_set(&state, &peer1).await);
+    }
+    for _ in 0..8 {
+        assert!(!admit_have_tx_set(&state, &peer1).await);
+    }
+
+    // The budget is per peer: another peer is unaffected.
+    assert!(admit_have_tx_set(&state, &peer2).await);
+
+    // The periodic reset restores the budget.
+    state.have_txset_admitted.write().await.clear();
+    assert!(admit_have_tx_set(&state, &peer1).await);
+
+    // Disconnect cleanup drops the peer's entry entirely.
+    state.have_txset_admitted.write().await.remove(&peer2);
+    assert_eq!(
+        state
+            .have_txset_admitted
+            .read()
+            .await
+            .get(&peer2)
+            .copied()
+            .unwrap_or(0),
+        0
+    );
+}
+
+/// An announced HAVE_TX_SET steers a later fetch to the announcer: node C is
+/// connected to A and B; only A announces possession, and C's fetch must go
+/// to A (claim tier), not blind-ask B.
+#[tokio::test]
+async fn test_announce_claim_steers_fetch() {
+    let key_a = Keypair::generate_ed25519();
+    let key_b = Keypair::generate_ed25519();
+    let key_c = Keypair::generate_ed25519();
+    let peer_a = PeerId::from_public_key(&key_a.public());
+
+    let metrics_c = Arc::new(OverlayMetrics::new());
+    let (handle_a, mut events_a, _txa, overlay_a) =
+        create_overlay(key_a, Arc::new(OverlayMetrics::new())).unwrap();
+    let (_handle_b, mut events_b, _txb, overlay_b) =
+        create_overlay(key_b, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle_c, mut events_c, _txc, overlay_c) =
+        create_overlay(key_c, Arc::clone(&metrics_c)).unwrap();
+
+    tokio::spawn(async move { overlay_a.run("127.0.0.1", 25101).await });
+    tokio::spawn(async move { overlay_b.run("127.0.0.1", 25102).await });
+    tokio::spawn(async move { overlay_c.run("127.0.0.1", 25103).await });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    test_connect(&handle_c, 25101).await; // C -> A
+    test_connect(&handle_c, 25102).await; // C -> B
+
+    let (hash, data) = test_txset_xdr(0x51);
+
+    // A announces possession; give the claim time to arrive at C.
+    handle_a.announce_txset(hash).await;
+    tokio::time::sleep(Duration::from_millis(400)).await;
+
+    // C fetches: the ask must target A.
+    handle_c.fetch_txset(hash, 7).await;
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let mut requester: Option<PeerId> = None;
+    while tokio::time::Instant::now() < deadline && requester.is_none() {
+        tokio::select! {
+            Some(event) = events_a.recv() => {
+                if let OverlayEvent::TxSetRequested { hash: h, from } = event {
+                    assert_eq!(h, hash);
+                    requester = Some(from);
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+    let requester = requester.expect("The fetch must target the announcing peer");
+    assert_eq!(
+        metrics_c.claim_ask.load(Ordering::Relaxed),
+        1,
+        "The ask must be recorded as claim-tier"
+    );
+
+    // B must not have been asked (the ask went straight to the claimant).
+    let mut asked_b = false;
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(300);
+    while tokio::time::Instant::now() < deadline {
+        tokio::select! {
+            Some(event) = events_b.recv() => {
+                if matches!(event, OverlayEvent::TxSetRequested { .. }) {
+                    asked_b = true;
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+    assert!(!asked_b, "No blind ask should reach the non-claimant");
+
+    // A serves the set; C completes the fetch (stream still healthy after
+    // carrying HAVE_TX_SET traffic).
+    let _ = peer_a;
+    handle_a.send_txset(hash, data, requester).await;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let mut got_set = false;
+    while tokio::time::Instant::now() < deadline && !got_set {
+        tokio::select! {
+            Some(event) = events_c.recv() => {
+                if let OverlayEvent::TxSetReceived { hash: h, slot, .. } = event {
+                    assert_eq!(h, hash);
+                    assert_eq!(slot, Some(7), "completion must carry the requested slot");
+                    got_set = true;
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+    assert!(got_set, "The fetch must complete with the tx set");
+}
+
+/// With no claims at all, a fetch blind-asks one peer, and when that peer
+/// stays silent the housekeeping retry retargets to the other peer within the
+/// ask timeout. End-to-end regression for the pre-existing "fetch stuck on a
+/// connected-but-empty peer" gap.
+#[tokio::test]
+async fn test_fetch_retries_to_second_peer() {
+    let key_a = Keypair::generate_ed25519();
+    let key_b = Keypair::generate_ed25519();
+    let key_c = Keypair::generate_ed25519();
+
+    let (_handle_a, mut events_a, _txa, overlay_a) =
+        create_overlay(key_a, Arc::new(OverlayMetrics::new())).unwrap();
+    let (_handle_b, mut events_b, _txb, overlay_b) =
+        create_overlay(key_b, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle_c, _events_c, _txc, overlay_c) =
+        create_overlay(key_c, Arc::new(OverlayMetrics::new())).unwrap();
+
+    tokio::spawn(async move { overlay_a.run("127.0.0.1", 25201).await });
+    tokio::spawn(async move { overlay_b.run("127.0.0.1", 25202).await });
+    tokio::spawn(async move { overlay_c.run("127.0.0.1", 25203).await });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    test_connect(&handle_c, 25201).await;
+    test_connect(&handle_c, 25202).await;
+
+    let (hash, _) = test_txset_xdr(0x61);
+    handle_c.fetch_txset(hash, 3).await;
+
+    // Neither peer serves the set. Within one ask timeout + housekeeping
+    // slack, BOTH peers must have been asked (first blind ask + retarget).
+    // Generous slack: the full test suite runs many network tests in
+    // parallel and can starve the housekeeping tick.
+    let deadline =
+        tokio::time::Instant::now() + crate::flood::TXSET_ASK_TIMEOUT + Duration::from_secs(6);
+    let (mut asked_a, mut asked_b) = (false, false);
+    while tokio::time::Instant::now() < deadline && !(asked_a && asked_b) {
+        tokio::select! {
+            Some(event) = events_a.recv() => {
+                if matches!(event, OverlayEvent::TxSetRequested { .. }) {
+                    asked_a = true;
+                }
+            }
+            Some(event) = events_b.recv() => {
+                if matches!(event, OverlayEvent::TxSetRequested { .. }) {
+                    asked_b = true;
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(20)) => {}
+        }
+    }
+    assert!(
+        asked_a && asked_b,
+        "Fetch must retarget to the second peer after the first stays silent \
+         (asked_a={}, asked_b={})",
+        asked_a,
+        asked_b
+    );
 }
