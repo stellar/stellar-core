@@ -159,6 +159,14 @@ overlay.inbound.live                      | counter   | number of live inbound c
 overlay.outbound-queue.<X>                | timer     | time <X> traffic sits in flow-controlled queues
 overlay.outbound-queue.drop-<X>           | meter     | number of <X> messages dropped from flow-controlled queues
 overlay.item-fetcher.next-peer            | meter     | ask for item past the first one
+overlay.item-fetcher.claim-ask            | meter     | tx set fetch ask targeted a peer that claimed possession via HAVE_TX_SET
+overlay.item-fetcher.claim-dropped        | meter     | HAVE_TX_SET dropped at admission: sending peer exceeded its budget for the current window
+overlay.item-fetcher.claim-grace-wait     | timer     | time a tx set fetch waited from creation to its first ask (claim grace)
+overlay.item-fetcher.claim-grace-satisfied | meter    | tx set fetch's first ask targeted a claimed holder
+overlay.item-fetcher.claim-grace-expired  | meter     | tx set fetch's first ask fell back to an SCP relayer or random peer
+overlay.send.have-tx-set                  | meter     | HAVE_TX_SET messages sent
+overlay.recv.have-tx-set                  | meter     | HAVE_TX_SET messages received
+overlay.fetch.txset-abandoned             | meter     | tx set fetches abandoned by the age backstop
 overlay.memory.flood-known                | counter   | number of known flooded entries
 overlay.message.broadcast                 | meter     | message broadcasted
 overlay.message.read                      | meter     | message received

@@ -458,10 +458,15 @@ OverlayIPC::notifyLedgerClosed(uint32_t ledgerSeq, Hash const& ledgerHash)
     IPCMessage msg;
     msg.type = IPCMessageType::LEDGER_CLOSED;
 
-    // Payload: [ledgerSeq:4][ledgerHash:32]
-    msg.payload.resize(4 + 32);
+    // Payload: [ledgerSeq:4][ledgerHash:32][flags:1]
+    // flags bit 0: the ledger protocol admits empty-tx-set values, which
+    // enables the HAVE_TX_SET claim grace period on tx set fetches in the
+    // overlay (PR #5379). Always 0 until the CAP-0083 features are ported to
+    // this branch; the overlay also accepts the legacy 36-byte payload.
+    msg.payload.resize(4 + 32 + 1);
     std::memcpy(msg.payload.data(), &ledgerSeq, 4);
     std::memcpy(msg.payload.data() + 4, ledgerHash.data(), 32);
+    msg.payload[36] = 0;
 
     std::lock_guard<std::mutex> lock(mSendMutex);
     mChannel->send(msg);

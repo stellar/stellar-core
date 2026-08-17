@@ -94,6 +94,36 @@ pub(crate) fn frame_get_scp_state(ledger_seq: u32) -> Vec<u8> {
     frame(MessageType::GetScpState, &ledger_seq.to_be_bytes())
 }
 
+// --- HAVE_TX_SET (stellar-core PR #5379) ----------------------------------
+//
+// `HAVE_TX_SET = 25` with body `struct HaveTxSet { Hash txSetHash; }` is not
+// yet in the pinned `stellar-xdr` crate (26.0.0), so it is codec'd manually:
+// 4-byte big-endian discriminant + 32-byte hash, exactly 36 bytes. The
+// `have_tx_set_absent_from_crate` canary test below fails the moment the
+// crate gains the arm, prompting a switch to the typed codec.
+
+/// The `MessageType::HAVE_TX_SET` XDR union discriminant.
+pub(crate) const HAVE_TX_SET_DISCRIMINANT: i32 = 25;
+
+/// `StellarMessage::HaveTxSet(HaveTxSet { txSetHash })` framing.
+pub(crate) fn frame_have_tx_set(hash: [u8; 32]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(36);
+    out.extend_from_slice(&HAVE_TX_SET_DISCRIMINANT.to_be_bytes());
+    out.extend_from_slice(&hash);
+    out
+}
+
+/// Strict parse of a `HAVE_TX_SET` wire message: correct discriminant and
+/// exact length, nothing else. Returns the claimed tx set hash.
+pub(crate) fn parse_have_tx_set(data: &[u8]) -> Option<[u8; 32]> {
+    if data.len() != 36 || data[0..4] != HAVE_TX_SET_DISCRIMINANT.to_be_bytes() {
+        return None;
+    }
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&data[4..36]);
+    Some(hash)
+}
+
 /// Cheap content-hash check with no decode — used for tx sets built by our
 /// trusted local core, where we skip decoding but still guard against a
 /// hash/bytes mismatch that would make the set unfetchable network-wide.
@@ -108,8 +138,9 @@ pub(crate) fn parse_stellar_message(bytes: &[u8]) -> Result<StellarMessage, XdrE
 }
 
 /// Extract tx set hashes from an already-decoded SCP envelope. Lets the SCP
-/// stream reader reuse the single decode it already performed.
-pub(crate) fn extract_txset_hashes_from_envelope(envelope: &ScpEnvelope) -> Vec<[u8; 32]> {
+/// stream reader reuse the single decode it already performed. Also used by
+/// the app to send HAVE_TX_SET claims alongside SCP state (PR #5379).
+pub fn extract_txset_hashes_from_envelope(envelope: &ScpEnvelope) -> Vec<[u8; 32]> {
     let mut hashes = Vec::new();
     match &envelope.statement.pledges {
         ScpStatementPledges::Prepare(prepare) => {
@@ -232,6 +263,48 @@ pub(crate) mod tests {
             .to_xdr(Limits::none())
             .unwrap();
         assert_eq!(frame_get_scp_state(12345), expected);
+    }
+
+    // --- HAVE_TX_SET manual codec -------------------------------------------
+
+    #[test]
+    fn have_tx_set_round_trips() {
+        let hash = [0x7c; 32];
+        let framed = frame_have_tx_set(hash);
+        assert_eq!(framed.len(), 36);
+        assert_eq!(parse_have_tx_set(&framed), Some(hash));
+    }
+
+    #[test]
+    fn parse_have_tx_set_rejects_malformed() {
+        let hash = [0x7c; 32];
+        let framed = frame_have_tx_set(hash);
+
+        // Wrong discriminant
+        let mut wrong_type = framed.clone();
+        wrong_type[3] = 6; // GET_TX_SET
+        assert_eq!(parse_have_tx_set(&wrong_type), None);
+
+        // Truncated / oversized / empty
+        assert_eq!(parse_have_tx_set(&framed[..35]), None);
+        let mut long = framed.clone();
+        long.push(0);
+        assert_eq!(parse_have_tx_set(&long), None);
+        assert_eq!(parse_have_tx_set(&[]), None);
+    }
+
+    /// Canary: the pinned stellar-xdr crate does not know HAVE_TX_SET, which
+    /// is why the manual codec above exists (and why receivers must try
+    /// `parse_have_tx_set` before `parse_stellar_message`). When the crate
+    /// gains the arm this test fails — switch to the typed codec and add a
+    /// `frames_match_typed_have_tx_set` equivalence test like the other arms.
+    #[test]
+    fn have_tx_set_absent_from_crate() {
+        let framed = frame_have_tx_set([0x7c; 32]);
+        assert!(
+            parse_stellar_message(&framed).is_err(),
+            "stellar-xdr now decodes HAVE_TX_SET: retire the manual codec"
+        );
     }
 
     // --- content-hash guard -------------------------------------------------
