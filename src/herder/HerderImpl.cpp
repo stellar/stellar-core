@@ -1595,8 +1595,14 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
     // Get TXs from Rust overlay
     auto& overlayMgr = mApp.getOverlayManager();
-    auto txEnvelopes = overlayMgr.getTopTransactions(
-        mApp.getLedgerManager().getLastMaxTxSetSizeOps() * 2);
+    auto& lm = mApp.getLedgerManager();
+    size_t maxCandidates = lm.getLastMaxTxSetSizeOps();
+    if (lm.hasLastClosedSorobanNetworkConfig())
+    {
+        maxCandidates +=
+            lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+    }
+    auto txEnvelopes = overlayMgr.getTopTransactions(maxCandidates * 2);
 
     CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
               txEnvelopes.size());
