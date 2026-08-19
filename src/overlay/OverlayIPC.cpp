@@ -310,8 +310,8 @@ OverlayIPC::readerLoop()
 void
 OverlayIPC::handleMessage(IPCMessage const& msg)
 {
-    CLOG_INFO(Overlay, "IPC handleMessage: type={}, payload_size={}",
-              static_cast<uint32_t>(msg.type), msg.payload.size());
+    CLOG_DEBUG(Overlay, "IPC handleMessage: type={}, payload_size={}",
+               static_cast<uint32_t>(msg.type), msg.payload.size());
     switch (msg.type)
     {
     case IPCMessageType::SCP_RECEIVED:
