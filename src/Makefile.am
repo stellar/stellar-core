@@ -75,9 +75,11 @@ MAIN_FILES = $(GENERATED_VERSION_SOURCES) main/main.cpp
 
 if BUILD_TESTS
 stellar_core_SOURCES = $(MAIN_FILES) $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
+CARGO_FEATURE_FUZZ_TARGETS = --features fuzz_targets
 CARGO_FEATURE_TESTUTILS = --features testutils
 else # !BUILD_TESTS
 stellar_core_SOURCES = $(MAIN_FILES) $(SRC_CXX_FILES)
+CARGO_FEATURE_FUZZ_TARGETS =
 CARGO_FEATURE_TESTUTILS =
 endif # !BUILD_TESTS
 
@@ -310,17 +312,24 @@ $(SOROBAN_BUILD_DIR)/%/target/git-state.txt: $(top_srcdir)/.git/modules/src/rust
 	printf '%s\n' "$$state" > $@.tmp; \
 	if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
-# The fastdev rust build is a special non-production mode that builds all of
-# the rust dependencies of librust_stellar_core.a through a single cargo
-# invocation, which is actually the "normal" way cargo operates, but which also
-# has the negative side effect of resolving (merging) different point releases
-# and pre-release minor versions across transitive dependencies, which means we
+# The fastdev rust build is a special non-production mode that builds all of the
+# rust dependencies of librust_stellar_core.a through a single cargo invocation,
+# which is actually the "normal" way cargo operates, but which also has the
+# negative side effect of resolving (merging) different point releases and
+# pre-release minor versions across transitive dependencies, which means we
 # can't control the _exact_ transitive dependencies as well as we'd like.
 #
-# So we only use the fastdev rust build for certain special cases such as
-# testing with asan/tsan (they seem to only work well when built this way) and
-# use the non-unified build (with separate .a files for each separate soroban
-# version) for production builds.
+# So we only use the fastdev rust build for fast iteration while doing
+# development, or for special cases like testing with asan/tsan (they seem to
+# only work well when built this way), and use the non-unified build (with
+# separate .a files for each separate soroban version) for production builds.
+#
+# One important caveat: the $(CARGO_FEATURE_FUZZ_TARGETS) feature should _not_
+# be passed to fastdev mode. It pulls in a separate copy of the soroban host
+# with `testutils` enabled, which winds up up causing `testutils` to be enabled
+# _on the production soroban host_ as well, which causes the build to diverge if
+# run against mainnet. Leave $(CARGO_FEATURE_FUZZ_TARGETS) for the non-fastdev
+# build.
 
 if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 
@@ -461,7 +470,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) $(ALL_SOROBAN_L
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
 		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
-		$(CARGO_FEATURE_TCMALLOC) \
+		$(CARGO_FEATURE_TCMALLOC) $(CARGO_FEATURE_FUZZ_TARGETS) \
 		-- \
 		$(ALL_SOROBAN_EXTERN_ARGS) \
 		$(ALL_SOROBAN_DEPEND_ARGS)
