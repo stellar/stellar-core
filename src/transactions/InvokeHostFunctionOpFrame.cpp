@@ -765,7 +765,69 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     }
 
     bool
-    recordStorageChanges(InvokeHostFunctionOutput const& out)
+    recordModifiedEntry(RustBuf const& entryBuf, bool allowClassicCreations,
+                        LedgerKey& lk, uint32_t& numCreatedSorobanEntries,
+                        uint32_t& numCreatedTTLEntries)
+    {
+        LedgerEntry le;
+        xdr::xdr_from_opaque(entryBuf.data, le);
+        lk = LedgerEntryKey(le);
+        auto entrySize = static_cast<uint32_t>(entryBuf.data.size());
+        if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
+                                         mAppConfig, mOpFrame.mParentTx,
+                                         mDiagnosticEvents))
+        {
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        // ttlEntry write fees come out of refundableFee, already
+        // accounted for by the host
+        if (lk.type() != TTL)
+        {
+            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
+            mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
+                                    entrySize);
+            if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
+            {
+                mDiagnosticEvents.pushError(
+                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    "operation byte-write resources exceeds amount "
+                    "specified",
+                    {makeU64SCVal(mMetrics.mLedgerWriteByte),
+                     makeU64SCVal(mResources.writeBytes)});
+                mOpFrame.innerResult(mRes).code(
+                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
+        }
+
+        if (upsertLedgerEntry(lk, le))
+        {
+            if (isSorobanEntry(lk))
+            {
+                ++numCreatedSorobanEntries;
+            }
+            else if (lk.type() == TTL)
+            {
+                ++numCreatedTTLEntries;
+            }
+            else if (allowClassicCreations)
+            {
+                releaseAssertOrThrow(lk.type() == ACCOUNT ||
+                                     lk.type() == TRUSTLINE);
+            }
+            else
+            {
+                releaseAssertOrThrow(false);
+            }
+        }
+        return true;
+    }
+
+    bool
+    recordStorageChangesLegacy(InvokeHostFunctionOutput const& out)
     {
         ZoneScoped;
         // Every modified entry is either a newly created entry or an updated
@@ -779,63 +841,14 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             getLedgerVersion(), ProtocolVersion::V_26);
         for (auto const& buf : out.modified_ledger_entries)
         {
-            LedgerEntry le;
-            xdr::xdr_from_opaque(buf.data, le);
-            auto lk = LedgerEntryKey(le);
-            if (!validateContractLedgerEntry(
-                    lk, buf.data.size(), mSorobanConfig, mAppConfig,
-                    mOpFrame.mParentTx, mDiagnosticEvents))
+            LedgerKey lk;
+            if (!recordModifiedEntry(buf, allowClassicCreations, lk,
+                                     numCreatedSorobanEntries,
+                                     numCreatedTTLEntries))
             {
-                mOpFrame.innerResult(mRes).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
-
             createdAndModifiedKeys.insert(lk);
-
-            uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
-
-            // ttlEntry write fees come out of refundableFee, already
-            // accounted for by the host
-            if (lk.type() != TTL)
-            {
-                uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
-                mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
-                                        entrySize);
-                if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
-                {
-                    mDiagnosticEvents.pushError(
-                        SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                        "operation byte-write resources exceeds amount "
-                        "specified",
-                        {makeU64SCVal(mMetrics.mLedgerWriteByte),
-                         makeU64SCVal(mResources.writeBytes)});
-                    mOpFrame.innerResult(mRes).code(
-                        INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-                    return false;
-                }
-            }
-
-            if (upsertLedgerEntry(lk, le))
-            {
-                if (isSorobanEntry(lk))
-                {
-                    ++numCreatedSorobanEntries;
-                }
-                else if (lk.type() == TTL)
-                {
-                    ++numCreatedTTLEntries;
-                }
-                else if (allowClassicCreations)
-                {
-                    releaseAssertOrThrow(lk.type() == ACCOUNT ||
-                                         lk.type() == TRUSTLINE);
-                }
-                else
-                {
-                    releaseAssertOrThrow(false);
-                }
-            }
         }
 
         // Verify that each newly created Soroban entry has a corresponding
@@ -860,6 +873,62 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 }
             }
         }
+        return true;
+    }
+
+    bool
+    recordStorageChanges(InvokeHostFunctionOutput const& out)
+    {
+        ZoneScoped;
+        if (protocolVersionIsBefore(mProtocolVersion,
+                                    INVOKE_HOST_FUNCTION_V2_PROTOCOL_VERSION))
+        {
+            return recordStorageChangesLegacy(out);
+        }
+
+        auto const& rwKeys = mResources.footprint.readWrite;
+        releaseAssertOrThrow(out.modified_ledger_entries.size() >=
+                             rwKeys.size());
+        uint32_t numCreatedSorobanEntries = 0;
+        uint32_t numCreatedTTLEntries = 0;
+        for (size_t i = 0; i < out.modified_ledger_entries.size(); ++i)
+        {
+            auto const& buf = out.modified_ledger_entries[i];
+            // The output format is every RW entry in footprint order, followed
+            // by the updated TTL entries.
+            bool const isRwFootprintEntry = i < rwKeys.size();
+            // Deleted RW entries are represented by an empty buffer and have
+            // no corresponding TTL update.
+            if (isRwFootprintEntry && buf.data.size() == 0)
+            {
+                auto const& lk = rwKeys[i];
+                if (eraseLedgerEntryIfExists(lk))
+                {
+                    releaseAssertOrThrow(isSorobanEntry(lk));
+
+                    // Also delete associated ttlEntry as it won't appear
+                    // in modified_ledger_entries.
+                    auto ttlLK = getTTLKey(lk);
+                    releaseAssertOrThrow(eraseLedgerEntryIfExists(ttlLK));
+                }
+                continue;
+            }
+
+            LedgerKey lk;
+            if (!recordModifiedEntry(buf,
+                                     /* allowClassicCreations */ true, lk,
+                                     numCreatedSorobanEntries,
+                                     numCreatedTTLEntries))
+            {
+                return false;
+            }
+            releaseAssertOrThrow(isRwFootprintEntry ? lk == rwKeys[i]
+                                                    : lk.type() == TTL);
+        }
+
+        // Verify that each newly created Soroban entry has a corresponding
+        // newly created TTL entry (1:1 pairing guaranteed by the host).
+        releaseAssertOrThrow(numCreatedSorobanEntries == numCreatedTTLEntries);
         return true;
     }
 
