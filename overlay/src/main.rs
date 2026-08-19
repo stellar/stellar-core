@@ -668,7 +668,7 @@ impl App {
                 let id_len = std::cmp::min(envelope.len(), 4);
                 id_bytes[..id_len].copy_from_slice(&envelope[..id_len]);
 
-                info!(
+                debug!(
                     "SCP_FROM_PEER: Received SCP (id={:02x?}) ({} bytes) from {}, forwarding to Core",
                     &id_bytes[..id_len],
                     envelope.len(),
@@ -696,7 +696,7 @@ impl App {
                             );
                             handle.record_txset_source(*txhash, from_peer).await;
                             if needs_fetch.contains(txhash) {
-                                info!(
+                                debug!(
                                     "TXSET_AUTO_FETCH: Proactively fetching TX set {:02x?}... referenced in SCP from {}",
                                     &txhash[..4],
                                     from_peer
@@ -956,7 +956,7 @@ impl App {
                     &msg.payload[..]
                 };
 
-                info!(
+                debug!(
                     "SCP_FROM_CORE: Core requested broadcast of SCP (id={:02x?}) ({} bytes)",
                     id_bytes,
                     msg.payload.len()
@@ -980,7 +980,7 @@ impl App {
                 }
 
                 let count = u32::from_le_bytes(msg.payload[0..4].try_into().unwrap()) as usize;
-                info!("Core requesting top {} transactions", count);
+                debug!("Core requesting top {} transactions", count);
 
                 let core_sender = self.core_ipc.sender.clone();
                 let overlay_handle = self.overlay_handle.clone();
@@ -991,7 +991,7 @@ impl App {
                         return;
                     };
 
-                    info!("Returning {} transactions to Core", txs.len());
+                    debug!("Returning {} transactions to Core", txs.len());
 
                     // Borrow the shared tx bytes for serialization; the one
                     // copy happens inside the IPC frame encoding.
@@ -1152,7 +1152,7 @@ impl App {
                     let num_hashes =
                         u32::from_le_bytes(msg.payload[32..36].try_into().unwrap()) as usize;
 
-                    info!(
+                    debug!(
                         "TX set externalized: {:?} with {} TX hashes",
                         &tx_set_hash[..4],
                         num_hashes
@@ -1197,7 +1197,7 @@ impl App {
                 let request_id = u64::from_le_bytes(msg.payload[0..8].try_into().unwrap());
                 let num_envelopes =
                     u32::from_le_bytes(msg.payload[8..12].try_into().unwrap()) as usize;
-                info!(
+                debug!(
                     "Core responded with {} SCP envelopes for request_id={}",
                     num_envelopes, request_id
                 );

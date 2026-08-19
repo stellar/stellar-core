@@ -788,7 +788,7 @@ impl StellarOverlay {
             sent_to.put(hash, new_sent);
         }
 
-        info!(
+        debug!(
             "SCP_BROADCAST: Broadcasting SCP {:02x?}... ({} bytes) to {} peers",
             &hash[..4],
             envelope.len(),
