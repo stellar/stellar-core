@@ -212,7 +212,7 @@ echo "Using RND_SEED: $RND_SEED"
 ulimit -n 65536
 export INTERACTIVE=0
 
-export TEST_SPEC='[overlay-ipc],[loadgen]'
+export TEST_SPEC='[overlay-ipc],[loadgen],[overlay-ipc-large]'
 export SKIP_SOROBAN_TESTS=true
 export STELLAR_OVERLAY_BINARY="${SRC_DIR}/build-${CC}-${PROTOCOL}/stellar-overlay"
 time make check
