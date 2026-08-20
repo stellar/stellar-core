@@ -518,7 +518,12 @@ OverlayIPC::getTopTransactions(size_t count)
     std::memcpy(req.payload.data(), &countU32, 4);
 
     {
-        std::lock_guard<std::mutex> lock(mSendMutex);
+        std::lock_guard<std::mutex> lock(mRequestMutex);
+        mPendingResponse.reset();
+    }
+
+    {
+        std::lock_guard<std::mutex> sendLock(mSendMutex);
         if (!mChannel->send(req))
         {
             return result;
@@ -526,19 +531,20 @@ OverlayIPC::getTopTransactions(size_t count)
     }
 
     // Wait for response; shutdown and connection loss notify the cv to
-    // unblock us.
+    // unblock us. The wait is bounded so a lost response degrades to an
+    // empty candidate list instead of wedging the main thread.
     std::unique_lock<std::mutex> lock(mRequestMutex);
-    mPendingResponse.reset();
+    bool gotResponse =
+        mRequestCv.wait_for(lock, std::chrono::seconds(5), [this] {
+            return mPendingResponse.has_value() || !mRunning || !mReaderAlive;
+        });
 
-    mRequestCv.wait(lock, [this] {
-        return mPendingResponse.has_value() || !mRunning || !mReaderAlive;
-    });
-
-    if (!mPendingResponse.has_value())
+    if (!gotResponse || !mPendingResponse.has_value())
     {
         CLOG_WARNING(Overlay,
                      "Overlay IPC {} while waiting for top transactions",
-                     mRunning ? "disconnected" : "shut down");
+                     !gotResponse ? "timed out"
+                                  : (mRunning ? "disconnected" : "shut down"));
         return result;
     }
 
@@ -793,18 +799,22 @@ OverlayIPC::requestMetrics(int timeoutMs)
     IPCMessage req;
     req.type = IPCMessageType::REQUEST_OVERLAY_METRICS;
 
+    // Clear the response slot before sending (same reset-after-send race as
+    // getTopTransactions; here it only manifested as spurious timeouts).
     {
-        std::lock_guard<std::mutex> lock(mSendMutex);
+        std::lock_guard<std::mutex> lock(mMetricsMutex);
+        mPendingMetricsResponse.reset();
+    }
+
+    {
+        std::lock_guard<std::mutex> sendLock(mSendMutex);
         if (!mChannel->send(req))
         {
             return {};
         }
     }
 
-    // Wait for response on separate CV
     std::unique_lock<std::mutex> lock(mMetricsMutex);
-    mPendingMetricsResponse.reset();
-
     bool gotResponse =
         mMetricsCv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] {
             return mPendingMetricsResponse.has_value();
