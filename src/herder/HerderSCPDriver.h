@@ -80,7 +80,7 @@ class HerderSCPDriver : public SCPDriver
 
     // Construct a CAP-0083 empty-tx-set value from `v`. A few caveats about
     // this function:
-    // * `v` must be a STELLAR_VALUE_SIGNED value.
+    // * `v` must be a STELLAR_VALUE_SIGNED or STELLAR_VALUE_SIGNED_MS value.
     // * This function should only be called from slots with slot indices equal
     //   to LCL+1
     Value makeEmptyTxSetValueFromValue(Value const& v) const override;
@@ -94,6 +94,9 @@ class HerderSCPDriver : public SCPDriver
 
     // Returns true iff the protocol allows CAP-0083 empty-tx-set values
     bool protocolAllowsEmptyTxSetValues() const override;
+
+    // Returns true iff the protocol uses millisecond-resolution close times.
+    bool protocolUsesMsCloseTime() const;
 
     // timer handling
     void setupTimer(uint64_t slotIndex, int timerID,
@@ -156,7 +159,7 @@ class HerderSCPDriver : public SCPDriver
     std::optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
 
     // validate close time as much as possible
-    bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
+    bool checkCloseTime(uint64_t slotIndex, CloseTime lastCloseTime,
                         StellarValue const& b) const;
 
     // wraps a *valid* StellarValue (throws if it can't find txSet/qSet)
@@ -357,7 +360,8 @@ class HerderSCPDriver : public SCPDriver
                                  LedgerHeaderHistoryEntry const& lcl,
                                  uint64_t closeTimeOffset) const;
 
-    bool deserializeAndValidateStellarValue(Value const& value,
+    bool deserializeAndValidateStellarValue(uint64_t slotIndex,
+                                            Value const& value,
                                             StellarValue& sv) const;
     void extractValidUpgrades(StellarValue& sv, bool nomination) const;
 };

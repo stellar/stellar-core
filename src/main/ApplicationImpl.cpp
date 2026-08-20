@@ -481,6 +481,13 @@ ApplicationImpl::getJsonInfo(bool verbose)
     info["ledger"]["num"] = (int)lcl.header.ledgerSeq;
     info["ledger"]["hash"] = binToHex(lcl.hash);
     info["ledger"]["closeTime"] = (Json::UInt64)lcl.header.scpValue.closeTime;
+#ifdef MS_CLOSE_TIME
+    if (isMsCloseTimeStellarValue(lcl.header.scpValue))
+    {
+        info["ledger"]["closeTimeMs"] =
+            (Json::UInt)getCloseTimeMs(lcl.header.scpValue);
+    }
+#endif // MS_CLOSE_TIME
     info["ledger"]["version"] = lcl.header.ledgerVersion;
     info["ledger"]["baseFee"] = lcl.header.baseFee;
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;
@@ -1108,6 +1115,7 @@ ApplicationImpl::setManualCloseVirtualTime(
         "Documented limit (first second of year 2200 GMT) of manual "
         "close time would allow runtime overflow in Herder");
 
+    // Manual close always uses whole second close times
     TimePoint const lastCloseTime = getLedgerManager()
                                         .getLastClosedLedgerHeader()
                                         .header.scpValue.closeTime;

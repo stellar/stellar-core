@@ -277,12 +277,40 @@ ApplyCheckpointWork::getNextLedgerCloseData()
 
     // Empty-tx-set values should have the empty-tx-set hash (and vice versa)
     if ((header.scpValue.txSetHash == Herder::EMPTY_TX_SET_HASH) !=
-        (header.scpValue.ext.v() == STELLAR_VALUE_EMPTY_TX_SET))
+        isEmptyTxSetStellarValue(header.scpValue))
     {
         throw std::runtime_error(fmt::format(
             FMT_STRING("ledger header for {:d} has mismatched empty-tx-set "
                        "hash and StellarValue type {:d}"),
             header.ledgerSeq, static_cast<int32_t>(header.scpValue.ext.v())));
+    }
+
+    // Check that we use the correct time format in the ledger header.
+    bool const msActive = protocolVersionStartsFrom(
+        lclHeader.header.ledgerVersion, MS_CLOSE_TIME_PROTOCOL_VERSION);
+    if (!validateMsCloseTimeFormat(header.scpValue,
+                                   /*allowMsTime=*/msActive,
+                                   /*allowWholeSecondTime=*/!msActive))
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("ledger header for {:d} has an invalid ms close time "
+                       "(StellarValue type {:d}, closeTimeMs {:d}) under "
+                       "protocol {:d}"),
+            header.ledgerSeq, static_cast<int32_t>(header.scpValue.ext.v()),
+            getCloseTimeMs(header.scpValue), lclHeader.header.ledgerVersion));
+    }
+
+    // Check that close time never decreases
+    if (getCloseTime(header.scpValue) <=
+        getCloseTime(lclHeader.header.scpValue))
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("ledger header for {:d} has a non-advancing close "
+                       "time {:d}.{:03d} (previous {:d}.{:03d})"),
+            header.ledgerSeq, header.scpValue.closeTime,
+            getCloseTimeMs(header.scpValue),
+            lclHeader.header.scpValue.closeTime,
+            getCloseTimeMs(lclHeader.header.scpValue)));
     }
 
     // We've verified the ledgerHeader (in the "trusted part of history"

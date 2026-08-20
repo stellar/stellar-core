@@ -64,12 +64,29 @@ stellarValueToString(Config const& c, StellarValue const& sv)
         res << " EMPTY_TXSET@"
             << c.toShortString(sv.ext.proposedValue().lcValueSignature.nodeID);
         break;
+#ifdef MS_CLOSE_TIME
+    case STELLAR_VALUE_SIGNED_MS:
+        res << " SIGNED_MS@"
+            << c.toShortString(sv.ext.signedMsValue().lcValueSignature.nodeID);
+        break;
+    case STELLAR_VALUE_EMPTY_TX_SET_MS:
+        res << " EMPTY_TXSET_MS@"
+            << c.toShortString(
+                   sv.ext.proposedMsValue().lcValueSignature.nodeID);
+        break;
+#endif // MS_CLOSE_TIME
     default:
         res << " UNKNOWN";
         break;
     }
-    res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
-        << ", upgrades: [";
+    res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime;
+#ifdef MS_CLOSE_TIME
+    if (getCloseTimeMs(sv) != 0 || isMsCloseTimeStellarValue(sv))
+    {
+        res << ", ctMs: " << getCloseTimeMs(sv);
+    }
+#endif // MS_CLOSE_TIME
+    res << ", upgrades: [";
     for (auto const& upgrade : sv.upgrades)
     {
         if (upgrade.empty())
