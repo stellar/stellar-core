@@ -37,6 +37,7 @@ class WorkScheduler;
 class BanManager;
 class BannedAccountsPersistor;
 class StatusManager;
+class BatchExecutor;
 class AbstractLedgerTxnParent;
 class BasicWork;
 enum class LoadGenMode;
@@ -269,6 +270,13 @@ class Application
                                      std::string jobName) = 0;
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) = 0;
+
+    // Get the shared executor for running batches of CPU-bound tasks in
+    // parallel. This is mostly used in the apply path, though it may also be
+    // used for other CPU-bound tasks, as long as they don't overlap with the
+    // apply path (e.g. building the transaction set for the next ledger).
+    // Batches are blocking and must be run one at a time.
+    virtual BatchExecutor& getBatchExecutor() = 0;
 
     // Perform actions necessary to transition from BOOTING_STATE to other
     // states. In particular: either reload or reinitialize the database, and

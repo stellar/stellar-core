@@ -261,6 +261,9 @@ class CatchupSimulation
 
     void generateRandomLedger(uint32_t version = 0);
 
+    // Closes a CAP-0083 empty-tx-set ledger
+    void generateEmptyTxSetLedger();
+
     void ensurePublishesComplete();
     void
     ensureLedgerAvailable(uint32_t targetLedger,

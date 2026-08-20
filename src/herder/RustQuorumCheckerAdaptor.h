@@ -35,6 +35,7 @@ struct QuorumCheckerMetrics
     uint64_t mAbortedRun;
     uint64_t mResultPotentialSplit;
     uint64_t mResultUnknown;
+    uint64_t mResultNoQuorum;
     uint64_t mCumulativeTimeMs;
     uint64_t mCumulativeMemByte;
     QuorumCheckerMetrics();
@@ -52,16 +53,20 @@ struct QuorumCheckerMetrics
 // - The time limit applies across all runs (all loops during criticality
 //   analysis), and is enforced by the Rust implementation, which returns an
 //   `Err` if exceeded.
-// - The memory limit is enforced by the glocal allocator, and once exceeds,
-//   will abort the program immediately.
+// - The memory limit is enforced softly inside the solver: memory usage is
+//   conservatively estimated from the solver's clause/variable counts, and the
+//   solver returns an `Err` once the estimate exceeds the limit.
 //
-// Therefore it is **crucial** this routine runs in a separate process from the
-// main stellar-core!!
+// We still run this routine in a separate process from the main stellar-core so
+// that its (potentially large) resource usage stays isolated.
 //
 // Return values:
 // - `UNSAT` if the quorum intersection check finds no non-intersecting quorums
 //   (good)
 // - `SAT` if the quorum intersection check finds quorum splits (bad!!)
+// - `NO_QUORUM` if the FBAS contains no quorum at all (a degenerate /
+//   potential-halt configuration). This is distinct from `UNSAT`: a network
+//   with no quorum does not enjoy quorum intersection.
 // - `UNKNOWN` if the quorum intersection check does not complete, likely due to
 //   exceeding solver internal limits (e.g. no. conflicts). Note: if the quorum
 //   intersection check completes, but the criticality analysis

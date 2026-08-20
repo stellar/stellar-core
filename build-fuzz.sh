@@ -5,87 +5,49 @@
 
 # Build script for oss-fuzz integration.
 #
-# This script builds fuzz targets for use with libfuzzer, honggfuzz, or AFL++.
-# It follows the oss-fuzz build conventions:
-# - Uses environment variables: $CC, $CXX, $CFLAGS, $CXXFLAGS, $LIB_FUZZING_ENGINE, $OUT
-# - Produces binaries in $OUT
-# - Creates seed corpus archives as fuzz_<target>_seed_corpus.zip
-#
-# For local testing with libfuzzer:
-#   export CC=clang
-#   export CXX=clang++
-#   export CFLAGS="-g -fsanitize=fuzzer-no-link,address"
-#   export CXXFLAGS="-g -fsanitize=fuzzer-no-link,address"
-#   export LIB_FUZZING_ENGINE="-fsanitize=fuzzer"
-#   export OUT=./fuzz-out
-#   ./build-fuzz.sh
-#
-# For honggfuzz (local):
-#   export CC=hfuzz-clang
-#   export CXX=hfuzz-clang++
-#   export LIB_FUZZING_ENGINE=""  # honggfuzz provides its own
-#   export OUT=./fuzz-out
-#   ./build-fuzz.sh
-#
-# Outputs:
-#   $OUT/fuzz_tx                    - Transaction application fuzzer
-#   $OUT/fuzz_overlay               - Overlay message fuzzer
-#   $OUT/fuzz_tx_seed_corpus.zip    - Seed corpus for tx fuzzer
-#   $OUT/fuzz_overlay_seed_corpus.zip - Seed corpus for overlay fuzzer
+# This script is copy of the "build.sh" integration script
+# that OSS-fuzz uses to build fuzz targets for running on their infrastructure
+# very slightly modified to work with our CI (using ccache + cached build dirs)
 
-set -eux
-
-# Get source directory (where this script lives)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC="${SRC:-$SCRIPT_DIR}"
-
-# Create output directory
-: "${OUT:=./fuzz-out}"
+SRC_DIR="$(pwd)"
+OUT="${OUT:-$SRC_DIR/fuzz-out}"
+if [[ "$OUT" != /* ]]; then
+    OUT="$SRC_DIR/$OUT"
+fi
 mkdir -p "$OUT"
 
-# Change to source directory
-cd "$SRC"
+mkdir -p "build-clang-libfuzzer"
+cd "build-clang-libfuzzer"
 
-# Run autogen if configure doesn't exist
-if [ ! -f configure ]; then
-    ./autogen.sh
+#### ccache config
+export CCACHE_DIR="$(pwd)/.ccache"
+export CCACHE_COMPRESS=true
+export CCACHE_COMPRESSLEVEL=9
+# cache size should be large enough for a full build
+export CCACHE_MAXSIZE=800M
+export CCACHE_CPP2=true
+
+# periodically check to see if caches are old and purge them if so
+CACHE_MAX_DAYS=30
+if [ -d "${CCACHE_DIR}" ] ; then
+    if [ -n "$(find ${CCACHE_DIR} -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
+        echo Purging old cache dirs "${CCACHE_DIR}" ./target "${HOME}/.cargo/registry" "${HOME}/.cargo/git"
+        rm -rf "${CCACHE_DIR}" ./target "${HOME}/.cargo/registry" "${HOME}/.cargo/git"
+    fi
 fi
 
-# Configure with fuzzing support
-# The --enable-fuzz flag:
-#   - Adds FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION define
-#   - Sets FUZZING_LIBS from LIB_FUZZING_ENGINE
-#   - Enables building of fuzz_* targets (via ENABLE_FUZZ in Makefile.am)
-./configure \
-    --enable-fuzz \
-    --without-postgres
+ccache -p
+ccache -s
+ccache -z
 
-# Build fuzz targets using automake rules
-# This builds fuzz_tx, fuzz_overlay, and Soroban targets with proper FUZZ_TARGET_NAME defines
-make -j"$(nproc)" fuzz-targets
+. "${HOME}/.cargo/env"
+(cd "${SRC_DIR}" && ./autogen.sh)
 
-# Install fuzz targets to $OUT
-# Install all fuzz targets (C++ and Soroban)
-for target in tx overlay soroban_expr soroban_wasmi; do
-    if [ -f "src/fuzz_$target" ]; then
-        cp "src/fuzz_$target" "$OUT/"
-    fi
-done
-
-# Generate and package seed corpus (if stellar-core supports it)
-# For now, create empty corpus directories
-mkdir -p corpus/tx corpus/overlay corpus/soroban_expr corpus/soroban_wasmi
-
-# Create corpus archives (even if empty, oss-fuzz expects them)
-# Create corpus archives for all targets (even if empty, oss-fuzz expects them)
-for target in tx overlay soroban_expr soroban_wasmi; do
-    if [ -d "corpus/$target" ] && [ "$(ls -A "corpus/$target" 2>/dev/null)" ]; then
-        (cd "corpus/$target" && zip -q "$OUT/fuzz_${target}_seed_corpus.zip" *)
-    else
-        # Create empty zip if no corpus
-        touch empty && zip -q "$OUT/fuzz_${target}_seed_corpus.zip" empty && rm empty
-    fi
-done
-
-echo "Build complete. Fuzz targets in $OUT:"
-ls -la "$OUT"
+# NB: the oss-fuzz driver injects sanitizer flags to CFLAGS, CXXFLAGS
+# and RUSTFLAGS. This overlaps with our own support for sanitizers,
+# but not fatally. It does require us to enable the unified rust
+# build.
+"${SRC_DIR}/configure" --enable-fuzz --enable-unified-rust-unsafe-for-production --disable-postgres --enable-ccache
+make -j $(nproc)
+make -C src fuzz-targets
+cp src/fuzz_* "${OUT}"

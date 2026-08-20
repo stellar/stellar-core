@@ -38,7 +38,7 @@ class Floodgate
         typedef std::shared_ptr<FloodRecord> pointer;
 
         uint32_t mLedgerSeq;
-        std::set<std::string> mPeersTold;
+        std::set<NodeID> mPeersTold;
 
         FloodRecord(uint32_t ledger, Peer::pointer peer);
     };

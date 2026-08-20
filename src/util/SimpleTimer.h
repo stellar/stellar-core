@@ -1,8 +1,11 @@
 #pragma once
 
-#include "util/ThreadAnnotations.h"
+#include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <medida/counter.h>
 #include <medida/metric_name.h>
+#include <string>
 
 namespace stellar
 {
@@ -41,9 +44,7 @@ class SimpleTimer
     // metrics, but it is only synced on `syncMax()` so that the value of the
     // counter is clear.
     medida::Counter& mMaxSampleValue;
-    std::int64_t mMax GUARDED_BY(mLock);
-
-    ANNOTATED_MUTEX(mLock);
+    std::atomic<std::int64_t> mMax;
 
     std::chrono::nanoseconds const mDurationUnit;
 

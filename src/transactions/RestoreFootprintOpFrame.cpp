@@ -32,19 +32,33 @@ struct RestoreFootprintMetrics
     uint32_t mLedgerReadByte{0};
     uint32_t mLedgerWriteByte{0};
 
+    // op execution wall time, captured via getExecTimer()
+    uint64_t mExecTimeNsecs{0};
+    bool mExecTimed{false};
+
     RestoreFootprintMetrics(SorobanMetrics& metrics) : mMetrics(metrics)
     {
     }
 
     ~RestoreFootprintMetrics()
     {
-        mMetrics.mRestoreFpOpReadLedgerByte.Mark(mLedgerReadByte);
-        mMetrics.mRestoreFpOpWriteLedgerByte.Mark(mLedgerWriteByte);
+        // Record into the calling thread's batch (published once per ledger)
+        // rather than updating process-wide metrics from every (possibly
+        // concurrent) operation.
+        auto& batch = mMetrics.getApplyThreadBatch();
+        batch.mRestoreFpOpReadLedgerByte += mLedgerReadByte;
+        batch.mRestoreFpOpWriteLedgerByte += mLedgerWriteByte;
+        if (mExecTimed)
+        {
+            batch.mRestoreFpOpExecNsecs.push_back(
+                static_cast<int64_t>(mExecTimeNsecs));
+        }
     }
-    medida::TimerContext
+    ScopedNsecsTimer
     getExecTimer()
     {
-        return mMetrics.mRestoreFpOpExec.TimeScope();
+        mExecTimed = true;
+        return ScopedNsecsTimer(mExecTimeNsecs);
     }
 };
 

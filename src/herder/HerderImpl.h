@@ -358,7 +358,7 @@ class HerderImpl : public Herder
         medida::Meter& mEnvelopeValidSig;
         medida::Meter& mEnvelopeInvalidSig;
 
-        // Marked when the experimental trigger timer falls back from the
+        // Marked when the trigger timer falls back from the
         // network-close-time anchor to the local prepare-start anchor.
         medida::Meter& mTriggerPrepareStartFallback;
 

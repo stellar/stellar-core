@@ -27,13 +27,10 @@ impl From<SolveStatus> for QuorumCheckerStatus {
         match ss {
             stellar_quorum_analyzer::SolveStatus::UNSAT => QuorumCheckerStatus::UNSAT,
             stellar_quorum_analyzer::SolveStatus::SAT(_) => QuorumCheckerStatus::SAT,
+            stellar_quorum_analyzer::SolveStatus::NoQuorum => QuorumCheckerStatus::NO_QUORUM,
             stellar_quorum_analyzer::SolveStatus::UNKNOWN => QuorumCheckerStatus::UNKNOWN,
         }
     }
-}
-
-pub(crate) fn set_rust_global_memory_limit_to_unlimited() {
-    ResourceLimiter::new(0, usize::MAX);
 }
 
 fn update_resource_usage(
@@ -53,14 +50,15 @@ pub(crate) fn network_enjoys_quorum_intersection(
     resource_limit: &QuorumCheckerResource,
     resource_usage: &mut QuorumCheckerResource,
 ) -> Result<QuorumCheckerStatus, Box<dyn std::error::Error>> {
-    // The panic handler catches any unwind-able panics, and convert it to an
-    // error (which will be converted to a C++ exception). It **cannot** catch
-    // an abort, which can happen if the `FbasAnalyzer` program exceeds the
-    // memory limit.
+    // The panic handler catches any unwind-able panics, and converts them to an
+    // error (which will be converted to a C++ exception).
     //
-    // Making the memory limit a hard limit is a design choice, because we want
-    // the memory usage of the process running quorum checker to be isolated
-    // from the main stellar-core running process.
+    // The memory limit is enforced softly, inside the solver: memory usage is
+    // conservatively estimated from the solver's clause/variable counts and,
+    // once the estimate exceeds the limit, the solver returns an error (rather
+    // than aborting the process via a global allocator, as an earlier version
+    // did). We still run the checker out-of-process so that its resource usage
+    // stays isolated from the main stellar-core process.
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let resource_limiter =
             ResourceLimiter::new(resource_limit.time_ms, resource_limit.mem_bytes);

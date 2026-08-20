@@ -159,13 +159,17 @@ fromQuorumCheckerStatusJson(Json::Value const& value)
     }
 
     auto statusInt = value.asUInt();
-    if (statusInt > static_cast<unsigned>(QuorumCheckerStatus::UNKNOWN))
+    switch (statusInt)
     {
+    case static_cast<unsigned>(QuorumCheckerStatus::UNSAT):
+    case static_cast<unsigned>(QuorumCheckerStatus::SAT):
+    case static_cast<unsigned>(QuorumCheckerStatus::UNKNOWN):
+    case static_cast<unsigned>(QuorumCheckerStatus::NO_QUORUM):
+        return static_cast<QuorumCheckerStatus>(statusInt);
+    default:
         throw RustQuorumCheckerError("Invalid status value: " +
                                      std::to_string(statusInt));
     }
-
-    return static_cast<QuorumCheckerStatus>(statusInt);
 }
 
 void
@@ -252,6 +256,7 @@ QuorumCheckerMetrics::QuorumCheckerMetrics()
     , mAbortedRun(0)
     , mResultPotentialSplit(0)
     , mResultUnknown(0)
+    , mResultNoQuorum(0)
     , mCumulativeTimeMs(0)
     , mCumulativeMemByte(0)
 {
@@ -293,6 +298,12 @@ QuorumCheckerMetrics::QuorumCheckerMetrics(Json::Value const& value)
         throw RustQuorumCheckerError(
             "Metrics missing or invalid 'result_unknown_count' field");
     }
+    if (!value.isMember("result_no_quorum_count") ||
+        !value["result_no_quorum_count"].isUInt())
+    {
+        throw RustQuorumCheckerError(
+            "Metrics missing or invalid 'result_no_quorum_count' field");
+    }
     if (!value.isMember("cumulative_time_ms") ||
         !value["cumulative_time_ms"].isUInt64())
     {
@@ -310,6 +321,7 @@ QuorumCheckerMetrics::QuorumCheckerMetrics(Json::Value const& value)
     mAbortedRun = value["aborted_run_count"].asUInt64();
     mResultPotentialSplit = value["result_potential_split_count"].asUInt64();
     mResultUnknown = value["result_unknown_count"].asUInt64();
+    mResultNoQuorum = value["result_no_quorum_count"].asUInt64();
     mCumulativeTimeMs = value["cumulative_time_ms"].asUInt64();
     mCumulativeMemByte = value["cumulative_mem_byte"].asUInt64();
 }
@@ -323,6 +335,7 @@ QuorumCheckerMetrics::toJson()
     ret["aborted_run_count"] = Json::UInt64(mAbortedRun);
     ret["result_potential_split_count"] = Json::UInt64(mResultPotentialSplit);
     ret["result_unknown_count"] = Json::UInt64(mResultUnknown);
+    ret["result_no_quorum_count"] = Json::UInt64(mResultNoQuorum);
     ret["cumulative_time_ms"] = Json::UInt64(mCumulativeTimeMs);
     ret["cumulative_mem_byte"] = Json::UInt64(mCumulativeMemByte);
     return ret;
@@ -337,6 +350,7 @@ QuorumCheckerMetrics::flush(MetricsRegistry& metrics)
     metrics.NewCounter({"scp", "qic", "result-potential-split"})
         .inc(mResultPotentialSplit);
     metrics.NewCounter({"scp", "qic", "result-unknown"}).inc(mResultUnknown);
+    metrics.NewCounter({"scp", "qic", "result-no-quorum"}).inc(mResultNoQuorum);
     metrics.NewMeter({"scp", "qic", "cumulative-time-ms"}, "milli-second")
         .Mark(mCumulativeTimeMs);
     metrics.NewMeter({"scp", "qic", "cumulative-mem-byte"}, "byte")
@@ -346,6 +360,7 @@ QuorumCheckerMetrics::flush(MetricsRegistry& metrics)
     mAbortedRun = 0;
     mResultPotentialSplit = 0;
     mResultUnknown = 0;
+    mResultNoQuorum = 0;
     mCumulativeTimeMs = 0;
     mCumulativeMemByte = 0;
 }
@@ -395,6 +410,10 @@ checkQuorumIntersectionInner(
         else if (status == QuorumCheckerStatus::SAT)
         {
             metrics.mResultPotentialSplit += 1;
+        }
+        else if (status == QuorumCheckerStatus::NO_QUORUM)
+        {
+            metrics.mResultNoQuorum += 1;
         }
 
         // Update time limit. Memory is a transient resource that gets reclaimed
@@ -565,10 +584,12 @@ runQuorumIntersectionCheckAsync(
 
         // Note: the ecode should match the return code from the command
         // line-running process which is just `QuorumCheckerStatus` as integer
-        // on success. However, if the command fails due to abort (if exceeding
-        // the memory limit), the ecode=1 will be returned because of the
-        // simplification of collapsing all non-WIFEXITED exits to error code 1
-        // (see `mapExitStatusToErrorCode` in ProcessManagerImpl.cpp).
+        // on success. Exceeding the time or (estimated) memory limit is now a
+        // recoverable solver error that surfaces as `UNKNOWN` (102), not a
+        // process abort. If the command dies abnormally (crash/signal, i.e. a
+        // non-WIFEXITED exit), ecode=1 is returned because of the
+        // simplification of collapsing all such exits to error code 1 (see
+        // `mapExitStatusToErrorCode` in ProcessManagerImpl.cpp).
         int ecode = ec.value();
         CLOG_DEBUG(SCP,
                    "Processing quorum intersection check result: numNodes={}, "
@@ -579,7 +600,8 @@ runQuorumIntersectionCheckAsync(
 
         if (ecode == static_cast<int>(QuorumCheckerStatus::UNSAT) ||
             ecode == static_cast<int>(QuorumCheckerStatus::SAT) ||
-            ecode == static_cast<int>(QuorumCheckerStatus::UNKNOWN))
+            ecode == static_cast<int>(QuorumCheckerStatus::UNKNOWN) ||
+            ecode == static_cast<int>(QuorumCheckerStatus::NO_QUORUM))
         {
             try
             {
@@ -587,9 +609,14 @@ runQuorumIntersectionCheckAsync(
                 hStateSP->mStatus = fromQuorumCheckerStatusJson(res["status"]);
                 QuorumCheckerMetrics metrics(res["metrics"]);
                 metrics.flush(hStateSP->mMetrics);
-                // only update the following info if we had a complete run
+                // only update the following info if we had a complete run.
+                // NO_QUORUM is a complete result (the checker definitively
+                // determined the FBAS has no quorum) so we record it too, but
+                // unlike UNSAT it is not a "good" result and must not advance
+                // mLastGoodLedger.
                 if (ecode == static_cast<int>(QuorumCheckerStatus::UNSAT) ||
-                    ecode == static_cast<int>(QuorumCheckerStatus::SAT))
+                    ecode == static_cast<int>(QuorumCheckerStatus::SAT) ||
+                    ecode == static_cast<int>(QuorumCheckerStatus::NO_QUORUM))
                 {
                     hStateSP->mNumNodes = numNodes;
                     hStateSP->mLastCheckLedger = ledger;

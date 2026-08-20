@@ -30,6 +30,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/CommandHandler.h"
+#include "main/PersistentState.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "test/Catch2.h"
@@ -40,6 +41,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/TransactionTestFrame.h"
+#include "util/Decoder.h"
 #include "util/Math.h"
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
@@ -48,6 +50,7 @@
 #include "crypto/KeyUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "test/TxTests.h"
+#include "xdr/Stellar-internal.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/autocheck.h"
 #include "xdrpp/marshal.h"
@@ -1042,7 +1045,15 @@ TEST_CASE("txset", "[herder][txset]")
 {
     SECTION("generalized tx set protocol")
     {
-        testTxSet(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
+        uint32_t generalizedTxSetProtocolVersion =
+            static_cast<uint32>(SOROBAN_PROTOCOL_VERSION);
+#ifdef ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+        // Fastdev only links recent Soroban hosts, and this test just needs a
+        // generalized-txset-capable protocol.
+        generalizedTxSetProtocolVersion =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1;
+#endif
+        testTxSet(generalizedTxSetProtocolVersion);
     }
     SECTION("protocol current")
     {
@@ -1450,6 +1461,12 @@ TEST_CASE("txset base fee", "[herder][txset]")
                            uint32_t expNotChargedAccounts = 0) {
         cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
+        if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+        {
+            SUCCEED("Skipping historical Soroban protocol test: requested "
+                    "protocol is not linked in this build");
+            return;
+        }
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
@@ -1671,7 +1688,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     auto max = std::numeric_limits<uint32_t>::max();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = max;
     // Pre-create enough genesis accounts for the test
@@ -2962,7 +2979,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 checkInvalidMismatch(sv);
             }
 
-#ifdef CAP_0083
             SECTION("empty-tx-set value without empty-tx-set hash")
             {
                 auto p = makeTxPair(herder, txSet0, ct);
@@ -2973,10 +2989,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 sv.txSetHash = txSet0->getContentsHash();
                 checkInvalidMismatch(sv);
             }
-#endif // CAP_0083
         }
 
-#ifdef CAP_0083
         SECTION("valid empty-tx-set value")
         {
             auto p = makeTxPair(herder, txSet0, ct);
@@ -2998,7 +3012,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                                       /*nomination=*/true) ==
                     SCPDriver::kInvalidValue);
         }
-#endif // CAP_0083
     }
 
     SECTION("validateValue closeTimes")
@@ -3101,14 +3114,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
         // Triggering next ledger will construct and cache the block
         herder.triggerNextLedger(seq, true);
-#ifdef CAP_0083
-        // All hits during the whole SCP round. If CAP-0083 support is compiled
-        // in, we expect 1 more cache hit for the validity check that determines
-        // whether or not to replace the transaction set with an empty one.
+        // All hits during the whole SCP round. One of them is the validity
+        // check that determines whether or not to replace the transaction set
+        // with an empty one (CAP-0083).
         uint64_t const expectedHits = 11;
-#else
-        uint64_t const expectedHits = 10;
-#endif
         REQUIRE(cache.getCounters().mHits == expectedHits);
         // One miss from the initial makeTxSetFromTransactions
         REQUIRE(cache.getCounters().mMisses == 1);
@@ -3342,6 +3351,64 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
     SECTION("protocol current")
     {
         testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);
+    }
+}
+
+// Test combineCandidates handling of candidates where
+// previousLedgerHash != LCL.hash
+TEST_CASE("combineCandidates with mismatched previousLedgerHash candidate",
+          "[herder][bug]")
+{
+    Config cfg(getTestConfig());
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = dynamic_cast<HerderImpl&>(app->getHerder());
+    auto& pe = herder.getPendingEnvelopes();
+    auto& driver = herder.getHerderSCPDriver();
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    uint32_t const ver = lcl.header.ledgerVersion;
+    uint64_t const closeTime = lcl.header.scpValue.closeTime + 1;
+    uint64_t const slotIndex = lcl.header.ledgerSeq + 1;
+
+    // Two structurally-valid empty tx sets that differ only in
+    // previousLedgerHash.
+    auto goodTxSet = TxSetXDRFrame::makeEmpty(lcl.hash, ver); // matches LCL
+    auto badTxSet = TxSetXDRFrame::makeEmpty(sha256("not the LCL hash"),
+                                             ver); // mismatched
+
+    ValueWrapperPtrSet candidates;
+    // Register the tx set so combineCandidates' getTxSet() returns it, then add
+    // a candidate value referencing it.
+    auto addCandidate = [&](TxSetXDRFrameConstPtr const& txSet) {
+        pe.addTxSet(txSet->getContentsHash(), slotIndex, txSet);
+        StellarValue sv =
+            herder.makeStellarValue(txSet->getContentsHash(), closeTime,
+                                    emptyUpgradeSteps, cfg.NODE_SEED);
+        candidates.emplace(driver.wrapValue(xdr::xdr_to_opaque(sv)));
+    };
+    auto combinedTxSetHash = [&]() {
+        ValueWrapperPtr result =
+            driver.combineCandidates(slotIndex, candidates);
+        StellarValue sv;
+        xdr::xdr_from_opaque(result->getValue(), sv);
+        return sv.txSetHash;
+    };
+
+    SECTION("prefer applicable candidate over mismatched candidate")
+    {
+        addCandidate(goodTxSet);
+        addCandidate(badTxSet);
+        REQUIRE(combinedTxSetHash() == goodTxSet->getContentsHash());
+    }
+
+    SECTION("all candidates have mismatched previousLedgerHash")
+    {
+        // If the *only* option is a candidate with a mismatched
+        // previousLedgerHash, choose it.
+        addCandidate(badTxSet);
+        REQUIRE(combinedTxSetHash() == badTxSet->getContentsHash());
     }
 }
 
@@ -9034,7 +9101,6 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
         });
 }
 
-#ifdef CAP_0083
 // This tests that the network externalizes an empty-tx-set value when a
 // voted-for value is not available on the network.
 TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
@@ -9068,12 +9134,241 @@ TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
     // Capture meta for use with --capture-lcm
     txtest::captureLastClosedLedgerLcm(*app);
 }
-#endif // CAP_0083
 
-TEST_CASE("experimental trigger timer", "[herder][!hide]")
+// Test that the node properly handles a restart when voting on a value whose tx
+// set it has not successfully downloaded
+TEST_CASE("SCP state restore with missing tx set", "[herder]")
 {
+    auto cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
+    cfg.MANUAL_CLOSE = false;
+    // Test with parallel tx set downloading both enabled and disabled. The
+    // disabled case tests a node operator shutting down a node with parallel tx
+    // set downloading enabled, then flipping the flag off and restarting the
+    // node.
+    bool const parallelTxSetDownload = GENERATE(true, false);
+    CAPTURE(parallelTxSetDownload);
+    cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = parallelTxSetDownload;
+
+    auto const peerKey = SecretKey::fromSeed(sha256("scp state restore peer"));
+    auto const& peerPk = peerKey.getPublicKey();
+    auto const selfPk = cfg.NODE_SEED.getPublicKey();
+
+    // {self, peer} with threshold 2, so that {peer} alone is v-blocking
+    cfg.QUORUM_SET.validators.emplace_back(peerPk);
+    cfg.QUORUM_SET.threshold = 2;
+
+    // Tx set hash deliberately fake: never downloaded, so never persisted
+    Hash fakeTxSetHash;
+    fakeTxSetHash.fill(0xAB);
+
+    uint64 slot = 0;
+    Value value;
+
+    // Create the node's database and persist SCP state for slot LCL+1 that
+    // ballots on `fakeTxSetHash` without persisting any tx set. This simulates
+    // a node emitting a PREPARE for a value whose tx set is still downloading.
+    {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg, /*newDB*/ true,
+                                         /*startApp*/ false);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        slot = lcl.header.ledgerSeq + 1;
+
+        auto sv = herder.makeStellarValue(fakeTxSetHash, app->timeNow() + 1,
+                                          emptyUpgradeSteps, cfg.NODE_SEED);
+        value = xdr::xdr_to_opaque(sv);
+
+        SCPEnvelope env;
+        env.statement.slotIndex = slot;
+        env.statement.nodeID = selfPk;
+        env.statement.pledges.type(SCP_ST_PREPARE);
+        auto& prep = env.statement.pledges.prepare();
+        prep.ballot.counter = 1;
+        prep.ballot.value = value;
+        prep.quorumSetHash = herder.getSCP().getLocalNode()->getQuorumSetHash();
+        herder.signEnvelope(cfg.NODE_SEED, env);
+
+        PersistedSCPState scpState;
+        scpState.v(1);
+        scpState.v1().scpEnvelopes.emplace_back(env);
+        scpState.v1().quorumSets.emplace_back(
+            herder.getSCP().getLocalQuorumSet());
+        app->getPersistentState().setSCPStateV1ForSlot(
+            slot, decoder::encode_b64(xdr::xdr_to_opaque(scpState)),
+            /*txSets*/ {});
+    }
+
+    // Restart on the same database, restoring the persisted SCP state.
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg, /*newDB*/ false);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& driver = herder.getHerderSCPDriver();
+
+    // The ballot state was restored
+    REQUIRE(!herder.getSCP().getLatestMessagesSend(slot).empty());
+
+    // The restored value's tx set is missing and nothing is fetching it, but
+    // the value is still structurally valid
+    REQUIRE(driver.validateValue(slot, value, /*nomination*/ false) ==
+            SCPDriver::kStructurallyValidValue);
+
+    // The peer's view of the slot: it timed out waiting for the missing tx
+    // set and moved on to the corresponding empty-tx-set value.
+    Value const emptyValue = driver.makeEmptyTxSetValueFromValue(value);
+
+    auto makePrepareFromPeer = [&](bool includePrepared) {
+        SCPEnvelope env;
+        env.statement.slotIndex = slot;
+        env.statement.nodeID = peerPk;
+        env.statement.pledges.type(SCP_ST_PREPARE);
+        auto& prep = env.statement.pledges.prepare();
+        prep.ballot.counter = 2;
+        prep.ballot.value = emptyValue;
+        if (includePrepared)
+        {
+            prep.prepared.activate() = SCPBallot(1, emptyValue);
+        }
+        prep.quorumSetHash = herder.getSCP().getLocalNode()->getQuorumSetHash();
+        herder.signEnvelope(peerKey, env);
+        return env;
+    };
+
+    auto latestSelfMessage = [&]() -> SCPEnvelope const* {
+        auto const* e = herder.getSCP().getLatestMessage(selfPk);
+        REQUIRE(e != nullptr);
+        REQUIRE(e->statement.pledges.type() == SCP_ST_PREPARE);
+        return e;
+    };
+
+    SECTION("peer accepted the empty-tx-set value as prepared")
+    {
+        // The v-blocking peer accepted (1, emptyValue) as prepared, which
+        // makes the node accept it as prepared too and re-emit its own
+        // statement. The node then abandons its ballot on the restored value
+        // in favor of the empty-tx-set value the peer is ahead on.
+        REQUIRE(herder.recvSCPEnvelope(makePrepareFromPeer(true)) ==
+                Herder::ENVELOPE_STATUS_READY);
+
+        auto const& prep = latestSelfMessage()->statement.pledges.prepare();
+        REQUIRE(prep.ballot.counter == 2);
+        REQUIRE(prep.ballot.value == emptyValue);
+        REQUIRE(prep.prepared);
+        REQUIRE(prep.prepared->value == emptyValue);
+    }
+
+    SECTION("peer is v-blocking ahead")
+    {
+        // The v-blocking peer is on a higher ballot counter, so the node
+        // abandons its ballot. Since nothing is downloading the missing tx
+        // set, the node replaces the restored value with the empty-tx-set
+        // value when bumping.
+        REQUIRE(herder.recvSCPEnvelope(makePrepareFromPeer(false)) ==
+                Herder::ENVELOPE_STATUS_READY);
+
+        auto const& prep = latestSelfMessage()->statement.pledges.prepare();
+        REQUIRE(prep.ballot.counter == 2);
+        REQUIRE(prep.ballot.value == emptyValue);
+    }
+}
+
+static bool
+triggerTimerProtocolSupported()
+{
+    return protocolVersionStartsFrom(
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+        CONSENSUS_CLOSE_TIME_TRIGGER_PROTOCOL_VERSION);
+}
+
+// Four top-tier validators over TCP on the real clock, with a 1s artificial
+// apply delay and a configurable nomination-emit delay so we can actually see
+// the impact of the two different timers.
+static Simulation::pointer
+makeTriggerTimerSimulation(
+    bool forcePrepareStartTimer, std::chrono::milliseconds nominationEmitDelay,
+    std::chrono::milliseconds driftClockOffset =
+        std::chrono::milliseconds::zero(),
+    std::optional<uint32_t> startingProtocol = std::nullopt)
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    auto simulation = Topologies::separateAllHighQuality(
+        4, Simulation::OVER_TCP, networkID, [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+            cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+            cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER =
+                forcePrepareStartTimer;
+            cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                std::chrono::milliseconds(1000);
+            cfg.ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING =
+                nominationEmitDelay;
+            // Remember enough SCP slots that the tests can attribute every
+            // externalized value in their measurement windows to its
+            // proposer.
+            cfg.MAX_SLOTS_TO_REMEMBER = 24;
+            if (startingProtocol)
+            {
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *startingProtocol;
+            }
+
+            // Drift one validator. Note: i == 0 is the Simulation's
+            // idle app (its config is generated first by the constructor),
+            // so the first real validator is i == 1.
+            if (i == 1)
+            {
+                cfg.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
+                    driftClockOffset;
+            }
+            return cfg;
+        });
+
+    simulation->fullyConnectAllPending();
+    simulation->startAllNodes();
+    REQUIRE(simulation->getExpectedLedgerCloseTime() ==
+            std::chrono::seconds(5));
+    return simulation;
+}
+
+static uint32_t
+minLedger(std::vector<Application::pointer> const& nodes)
+{
+    return std::min_element(
+               nodes.begin(), nodes.end(),
+               [](Application::pointer const& lhs,
+                  Application::pointer const& rhs) {
+                   return lhs->getLedgerManager().getLastClosedLedgerNum() <
+                          rhs->getLedgerManager().getLastClosedLedgerNum();
+               })
+        ->get()
+        ->getLedgerManager()
+        .getLastClosedLedgerNum();
+}
+
+// Crank until every node has externalized `count` more ledgers; returns the
+// elapsed real time.
+static std::chrono::milliseconds
+closeLedgers(Simulation::pointer const& simulation, uint32_t count,
+             bool finalCrank = false)
+{
+    auto nodes = simulation->getNodes();
+    auto const expectedClose = simulation->getExpectedLedgerCloseTime();
+    auto const target = minLedger(nodes) + count;
+    auto const start = nodes.front()->getClock().now();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(target, 1); },
+        10 * (count + 1) * expectedClose, finalCrank);
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        nodes.front()->getClock().now() - start);
+}
+
+TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
+{
+    if (!triggerTimerProtocolSupported())
+    {
+        return;
+    }
+
     constexpr uint32_t LEDGERS_TO_RUN = 10;
-    constexpr int64_t MIN_DRIFT_FALLBACKS = (LEDGERS_TO_RUN + 1) / 2;
     auto const driftOffset = std::chrono::seconds(4);
 
     struct RunResult
@@ -9081,7 +9376,8 @@ TEST_CASE("experimental trigger timer", "[herder][!hide]")
         std::chrono::milliseconds elapsed;
         int64_t totalFallbacks{0};
         int64_t driftedNodeFallbacks{0};
-        int64_t otherNodeFallbacks{0};
+        int64_t maxOtherNodeFallbacks{0};
+        int64_t driftedLedSlots{0};
         bool sawNominationTimeout{false};
     };
 
@@ -9099,68 +9395,24 @@ TEST_CASE("experimental trigger timer", "[herder][!hide]")
     };
 
     auto runSimulation =
-        [&](bool experimentalTriggerTimer,
+        [&](bool forcePrepareStartTimer,
             std::chrono::milliseconds nominationEmitDelay,
             std::chrono::milliseconds triggerClockOffset =
                 std::chrono::milliseconds::zero()) -> RunResult {
-        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-
-        auto simulation = Topologies::separateAllHighQuality(
-            4, Simulation::OVER_TCP, networkID, [&](int i) {
-                auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
-                cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
-                cfg.EXPERIMENTAL_TRIGGER_TIMER = experimentalTriggerTimer;
-                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
-                    std::chrono::milliseconds(1000);
-                cfg.ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING =
-                    nominationEmitDelay;
-
-                // Drift one validator. Note: i == 0 is the Simulation's
-                // idle app (its config is generated first by the constructor),
-                // so the first real validator is i == 1.
-                if (i == 1)
-                {
-                    cfg.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
-                        triggerClockOffset;
-                }
-                return cfg;
-            });
-
-        simulation->fullyConnectAllPending();
-        simulation->startAllNodes();
+        auto simulation = makeTriggerTimerSimulation(
+            forcePrepareStartTimer, nominationEmitDelay, triggerClockOffset);
         auto nodes = simulation->getNodes();
-        auto const expectedClose = simulation->getExpectedLedgerCloseTime();
-        REQUIRE(expectedClose == std::chrono::seconds(5));
 
         std::vector<int64_t> fallbackCounts;
         std::transform(nodes.begin(), nodes.end(),
                        std::back_inserter(fallbackCounts), fallbackCount);
 
-        auto minLedger = [&]() {
-            return std::min_element(nodes.begin(), nodes.end(),
-                                    [](Application::pointer const& lhs,
-                                       Application::pointer const& rhs) {
-                                        return lhs->getLedgerManager()
-                                                   .getLastClosedLedgerNum() <
-                                               rhs->getLedgerManager()
-                                                   .getLastClosedLedgerNum();
-                                    })
-                ->get()
-                ->getLedgerManager()
-                .getLastClosedLedgerNum();
-        };
-
-        auto const startLedger = minLedger();
-        auto targetLedger = startLedger + LEDGERS_TO_RUN;
-        auto const startTime = nodes.front()->getClock().now();
-
-        simulation->crankUntil(
-            [&]() { return simulation->haveAllExternalized(targetLedger, 1); },
-            10 * (LEDGERS_TO_RUN + 1) * expectedClose, true);
+        auto const startLedger = minLedger(nodes);
+        auto const targetLedger = startLedger + LEDGERS_TO_RUN;
 
         RunResult result;
-        result.elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            nodes.front()->getClock().now() - startTime);
+        result.elapsed =
+            closeLedgers(simulation, LEDGERS_TO_RUN, /*finalCrank=*/true);
 
         for (size_t i = 0; i < nodes.size(); ++i)
         {
@@ -9178,7 +9430,8 @@ TEST_CASE("experimental trigger timer", "[herder][!hide]")
             }
             else
             {
-                result.otherNodeFallbacks += delta;
+                result.maxOtherNodeFallbacks =
+                    std::max(result.maxOtherNodeFallbacks, delta);
             }
 
             auto const& driver =
@@ -9194,42 +9447,194 @@ TEST_CASE("experimental trigger timer", "[herder][!hide]")
             }
         }
 
+        // Count the externalized values the drifted
+        // validator proposed. This indicates that the non-drifting nodes
+        // hit the fallback timer, as they were drifting relative to network
+        // time for the given slot.
+        std::optional<PublicKey> driftedKey;
+        for (auto const& node : nodes)
+        {
+            if (triggerClockOffset != std::chrono::milliseconds::zero() &&
+                node->getConfig()
+                        .ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING ==
+                    triggerClockOffset)
+            {
+                driftedKey = node->getConfig().NODE_SEED.getPublicKey();
+            }
+        }
+        if (driftedKey)
+        {
+            auto& scp =
+                dynamic_cast<HerderImpl&>(nodes.front()->getHerder()).getSCP();
+            for (uint32_t ledger = startLedger + 1; ledger <= targetLedger;
+                 ++ledger)
+            {
+                auto const envs = scp.getExternalizingState(ledger);
+                auto const ext = std::find_if(
+                    envs.begin(), envs.end(), [](SCPEnvelope const& e) {
+                        return e.statement.pledges.type() == SCP_ST_EXTERNALIZE;
+                    });
+                releaseAssert(ext != envs.end());
+                StellarValue sv;
+                xdr::xdr_from_opaque(
+                    ext->statement.pledges.externalize().commit.value, sv);
+                if (sv.ext.v() == STELLAR_VALUE_SIGNED &&
+                    sv.ext.lcValueSignature().nodeID == *driftedKey)
+                {
+                    ++result.driftedLedSlots;
+                }
+            }
+        }
+
         return result;
     };
 
     // New timer is faster without drift.
     {
         auto const nominationDelay = std::chrono::milliseconds(1000);
-        auto const oldTimer = runSimulation(false, nominationDelay);
-        auto const newTimer = runSimulation(true, nominationDelay);
+        auto const oldTimer = runSimulation(true, nominationDelay);
+        auto const newTimer = runSimulation(false, nominationDelay);
 
         REQUIRE(newTimer.elapsed < oldTimer.elapsed);
         REQUIRE(newTimer.totalFallbacks == 0);
     }
 
+    constexpr int64_t FALLBACK_SLACK = 1;
+
     // One node drifting ahead falls back.
     {
-        auto const nodeAhead =
-            runSimulation(true, std::chrono::milliseconds::zero(), driftOffset);
-        REQUIRE(nodeAhead.driftedNodeFallbacks >= MIN_DRIFT_FALLBACKS);
-        // Fallback must be specific to the drifted node: in-sync nodes should
-        // stay on the network-close-time anchor.
-        REQUIRE(nodeAhead.otherNodeFallbacks == 0);
+        auto const nodeAhead = runSimulation(
+            false, std::chrono::milliseconds::zero(), driftOffset);
+        REQUIRE(nodeAhead.driftedNodeFallbacks >=
+                LEDGERS_TO_RUN - nodeAhead.driftedLedSlots - FALLBACK_SLACK);
+
+        // Note: When the drifting node leads the round, non-drifting nodes
+        // may fall back.
+        REQUIRE(nodeAhead.maxOtherNodeFallbacks <=
+                nodeAhead.driftedLedSlots + FALLBACK_SLACK);
     }
 
     // One node drifting behind falls back.
     {
         auto const nodeBehind = runSimulation(
-            true, std::chrono::milliseconds::zero(), -driftOffset);
-        REQUIRE(nodeBehind.driftedNodeFallbacks >= MIN_DRIFT_FALLBACKS);
-        REQUIRE(nodeBehind.otherNodeFallbacks == 0);
+            false, std::chrono::milliseconds::zero(), -driftOffset);
+        REQUIRE(nodeBehind.driftedNodeFallbacks >=
+                LEDGERS_TO_RUN - nodeBehind.driftedLedSlots - FALLBACK_SLACK);
+
+        // Note: When the drifting node leads the round, non-drifting nodes
+        // may fall back.
+        REQUIRE(nodeBehind.maxOtherNodeFallbacks <=
+                nodeBehind.driftedLedSlots + FALLBACK_SLACK);
     }
 
     // Long nomination does not cause timer fallback
     {
         auto const nominationDelay = std::chrono::milliseconds(5000);
-        auto const slowNomination = runSimulation(true, nominationDelay);
+        auto const slowNomination = runSimulation(false, nominationDelay);
         REQUIRE(slowNomination.sawNominationTimeout);
         REQUIRE(slowNomination.totalFallbacks == 0);
+    }
+}
+
+TEST_CASE("trigger timer switches anchor at protocol 28 upgrade",
+          "[herder][upgrades][!hide]")
+{
+    if (!triggerTimerProtocolSupported())
+    {
+        return;
+    }
+
+    auto const upgradeVersion =
+        static_cast<uint32_t>(CONSENSUS_CLOSE_TIME_TRIGGER_PROTOCOL_VERSION);
+
+    // With a delayed nomination emit, the prepare-start timer paces ledgers
+    // at roughly expectedClose + nominationEmitDelay (nomination happens
+    // before the anchor point), while the consensus-close-time timer absorbs
+    // the nomination delay and paces at expectedClose. This delta helps us
+    // measure the timer change after the upgrade.
+    constexpr uint32_t LEDGERS_TO_MEASURE = 8;
+    auto const nominationEmitDelay = std::chrono::milliseconds(1000);
+
+    struct RunResult
+    {
+        std::chrono::milliseconds preUpgrade;
+        std::chrono::milliseconds postUpgrade;
+    };
+
+    auto runSimulation = [&](bool forcePrepareStartTimer) -> RunResult {
+        // Start the network one protocol before the trigger-timer switch.
+        auto simulation = makeTriggerTimerSimulation(
+            forcePrepareStartTimer, nominationEmitDelay,
+            std::chrono::milliseconds::zero(), upgradeVersion - 1);
+        auto nodes = simulation->getNodes();
+        auto const expectedClose = simulation->getExpectedLedgerCloseTime();
+
+        auto lclVersion = [](Application::pointer const& node) {
+            return node->getLedgerManager()
+                .getLastClosedLedgerHeader()
+                .header.ledgerVersion;
+        };
+
+        // Measure the cadence on the pre-28 protocol.
+        simulation->crankUntil(
+            [&]() { return simulation->haveAllExternalized(3, 1); },
+            10 * expectedClose, false);
+        auto const preUpgrade = closeLedgers(simulation, LEDGERS_TO_MEASURE);
+        for (auto const& node : nodes)
+        {
+            REQUIRE(lclVersion(node) == upgradeVersion - 1);
+        }
+
+        // Upgrade to protocol 28
+        Upgrades::UpgradeParameters scheduledUpgrades;
+        scheduledUpgrades.mUpgradeTime =
+            VirtualClock::from_time_t(nodes[0]
+                                          ->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.scpValue.closeTime);
+        scheduledUpgrades.mProtocolVersion = upgradeVersion;
+        for (auto const& node : nodes)
+        {
+            node->getHerder().setUpgrades(scheduledUpgrades);
+        }
+
+        // Crank until every node has closed the upgrade ledger, then one
+        // more ledger so the measured window is fully post-upgrade.
+        simulation->crankUntil(
+            [&]() {
+                return std::all_of(nodes.begin(), nodes.end(),
+                                   [&](Application::pointer const& node) {
+                                       return lclVersion(node) ==
+                                              upgradeVersion;
+                                   });
+            },
+            10 * expectedClose, false);
+        closeLedgers(simulation, 1);
+
+        auto const postUpgrade = closeLedgers(simulation, LEDGERS_TO_MEASURE);
+        for (auto const& node : nodes)
+        {
+            REQUIRE(lclVersion(node) == upgradeVersion);
+        }
+
+        return {preUpgrade, postUpgrade};
+    };
+
+    // Expected cadence saving is nominationEmitDelay per ledger; splitting
+    // pass/fail at half of it tolerates scheduling noise in both directions.
+    auto const cadenceMargin = LEDGERS_TO_MEASURE * nominationEmitDelay / 2;
+
+    // Crossing the boundary switches to the consensus-close-time anchor:
+    // post-upgrade ledgers close significantly faster.
+    {
+        auto const result = runSimulation(false);
+        REQUIRE(result.postUpgrade + cadenceMargin < result.preUpgrade);
+    }
+
+    // The override flag keeps the prepare-start anchor after the upgrade, so
+    // the cadence does not improve.
+    {
+        auto const result = runSimulation(true);
+        REQUIRE(result.postUpgrade + cadenceMargin > result.preUpgrade);
     }
 }

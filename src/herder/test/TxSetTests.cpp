@@ -482,6 +482,12 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(protocolVersion);
     cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
+    if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
     bool isParallelSoroban = protocolVersionStartsFrom(
         cfg.LEDGER_PROTOCOL_VERSION, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
 
@@ -1064,6 +1070,16 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
 TEST_CASE("applicable txset validation - Soroban phase version is correct",
           "[txset][soroban]")
 {
+    auto historicalCfg = getTestConfig();
+    historicalCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) - 1;
+    if (!testutil::isTestApplicationProtocolVersionSupported(historicalCfg))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
+
     auto runTest = [](uint32_t protocolVersion,
                       bool useParallelSorobanPhase) -> TxSetValidationResult {
         VirtualClock clock;
@@ -2497,10 +2513,15 @@ runParallelTxSetBuildingTest(bool variableStageCount)
 
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
+    uint32_t testLedgerProtocolVersion =
         static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+#ifdef ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+    // Fastdev only links recent Soroban hosts, so avoid forcing this test
+    // through the first historical parallel-Soroban protocol in next builds.
+    testLedgerProtocolVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1;
+#endif
+    cfg.LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
     cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = variableStageCount ? 1 : STAGE_COUNT;
     cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = STAGE_COUNT;
     // Temporary set the limits override very high in order for the upgrades

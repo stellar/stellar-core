@@ -65,10 +65,18 @@ constexpr ProtocolVersion AUTO_RESTORE_PROTOCOL_VERSION = ProtocolVersion::V_23;
 
 constexpr ProtocolVersion FIRST_PROTOCOL_CAP71 = ProtocolVersion::V_27;
 
-#ifdef CAP_0083
+constexpr ProtocolVersion CONSENSUS_CLOSE_TIME_TRIGGER_PROTOCOL_VERSION =
+    ProtocolVersion::V_28;
+
 constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION = ProtocolVersion::V_28;
-#else
-constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION =
-    ProtocolVersion::V_UINT32_MAX;
-#endif
-}
+
+constexpr ProtocolVersion INVOKE_HOST_FUNCTION_V2_PROTOCOL_VERSION =
+    ProtocolVersion::V_28;
+
+constexpr ProtocolVersion TX_ED25519_VERIFY_BUDGET_PROTOCOL_VERSION =
+    ProtocolVersion::V_28;
+
+constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
+    ProtocolVersion::V_28;
+
+} // namespace stellar

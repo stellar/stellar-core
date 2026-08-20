@@ -1386,6 +1386,12 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
             {
                 CLOG_WARNING(SCP, "Network does not enjoy quorum intersection");
             }
+            else if (status == QuorumCheckerStatus::NO_QUORUM)
+            {
+                CLOG_WARNING(SCP, "Network has no quorum -- the configuration "
+                                  "admits no quorum at all, which does not "
+                                  "enjoy quorum intersection");
+            }
             else
             {
                 CLOG_WARNING(SCP, "UNKNOWN result -- quorum intersection "

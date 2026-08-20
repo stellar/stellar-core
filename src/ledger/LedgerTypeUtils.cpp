@@ -59,11 +59,26 @@ ledgerEntrySizeForRent(LedgerEntry const& entry, uint32_t entryXdrSize,
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
         isCodeEntry)
     {
-        uint32_t memorySize = rust_bridge::contract_code_memory_size_for_rent(
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
-            toCxxBuf(entry.data.contractCode()),
-            toCxxBuf(sorobanConfig.cpuCostParams()),
-            toCxxBuf(sorobanConfig.memCostParams()));
+        auto const& codeEntry = entry.data.contractCode();
+        uint32_t memorySize;
+        // Starting from p28 we use a more optimal version of rent size
+        // computation function.
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_28))
+        {
+            memorySize = rust_bridge::contract_code_memory_size_for_rent_v2(
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+                toCxxBuf(codeEntry.ext),
+                static_cast<uint32_t>(codeEntry.code.size()),
+                toCxxBuf(sorobanConfig.cpuCostParams()),
+                toCxxBuf(sorobanConfig.memCostParams()));
+        }
+        else
+        {
+            memorySize = rust_bridge::contract_code_memory_size_for_rent(
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+                toCxxBuf(codeEntry), toCxxBuf(sorobanConfig.cpuCostParams()),
+                toCxxBuf(sorobanConfig.memCostParams()));
+        }
         uint64_t totalSize = static_cast<uint64_t>(entrySizeForRent) +
                              static_cast<uint64_t>(memorySize);
         entrySizeForRent = static_cast<uint32_t>(std::min(

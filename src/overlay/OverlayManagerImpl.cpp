@@ -360,7 +360,7 @@ OverlayManagerImpl::start()
 }
 
 uint32_t
-OverlayManagerImpl::getFlowControlBytesTotal() const
+OverlayManagerImpl::getFlowControlFloodByteCapacity() const
 {
     releaseAssert(threadIsMain());
     auto const maxTxSize = mApp.getHerder().getMaxTxSize();

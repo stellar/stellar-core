@@ -169,6 +169,12 @@ AppConnector::threadIsType(Application::ThreadType type) const
     return mApp.threadIsType(type);
 }
 
+BatchExecutor&
+AppConnector::getBatchExecutor()
+{
+    return mApp.getBatchExecutor();
+}
+
 ImmutableLedgerView
 AppConnector::copyImmutableLedgerView()
 {

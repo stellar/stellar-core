@@ -1345,6 +1345,39 @@ hasMuxedAccount(TransactionEnvelope const& e)
     return c.mHasMuxedAccount;
 }
 
+bool
+validateXDRForProtocol(uint32_t currProtocol, Config const& cfg,
+                       TransactionEnvelope const& envelope)
+{
+    uint32_t rustDepthLimit = 1000;
+    // Rust XDR parser may measure depth to be deeper than depth measured by
+    // the C++ parser. Before p28 we didn't do the Rust parsing check at all
+    // and instead relied on the C++ check with a reduced depth limit to
+    // approximate for that fact.
+    // Starting with p28 build we do the Rust parsing check unconditionally both
+    // to ensure that XDR can be parsed with the parser for the given protocol
+    // version, and to ensure that the depth limit is not exceeded. However, in
+    // order to avoid divergence with p27 builds, we still do a C++ depth check
+    // and relax the Rust depth limit (so that it's a basically no-op) in order
+    // to ensure identical behavior in both builds.
+    // Note, that the actual 50'000 depth won't be reachable in practice, so we
+    // don't need to worry about the stack overflow in the Rust parser.
+    if (protocolVersionIsBefore(currProtocol, ProtocolVersion::V_28))
+    {
+        if (!xdr::check_xdr_depth(envelope, 500))
+        {
+            return false;
+        }
+        rustDepthLimit = 50'000;
+    }
+
+    uint32_t maxProtocol = cfg.CURRENT_LEDGER_PROTOCOL_VERSION;
+    auto cxxBuf = CxxBuf{
+        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(envelope))};
+    return rust_bridge::can_parse_transaction(maxProtocol, currProtocol, cxxBuf,
+                                              rustDepthLimit);
+}
+
 uint64_t
 getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
 {

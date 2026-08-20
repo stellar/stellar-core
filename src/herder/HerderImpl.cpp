@@ -331,13 +331,9 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     TxSetXDRFrameConstPtr externalizedSet;
     if (std::holds_alternative<EmptyTxSet>(result))
     {
-#ifdef CAP_0083
         auto const& ov = value.ext.proposedValue();
         externalizedSet = TxSetXDRFrame::makeEmpty(ov.previousLedgerHash,
                                                    ov.previousLedgerVersion);
-#else
-        releaseAssert(false);
-#endif // CAP_0083
     }
     else
     {
@@ -644,6 +640,12 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
     ZoneScoped;
     TransactionQueue::AddResult result(
         TransactionQueue::AddResultCode::ADD_STATUS_COUNT);
+#ifdef BUILD_TESTS
+    if (submittedFromSelf)
+    {
+        mLedgerManager.recordTxSubmission(tx->getContentsHash());
+    }
+#endif
 
     // Allow txs of the same kind to reach the tx queue in case it can be
     // replaced by fee
@@ -1441,8 +1443,18 @@ HerderImpl::setupTriggerNextLedger()
 
     auto now = mApp.getClock().now();
 
+    // Starting from protocol 28 the trigger timer is anchored on the
+    // network-agreed consensus close time.
+    // FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER forces the older
+    // prepare-start anchor as an emergency fallback.
+    bool const useConsensusCloseTimeAnchor =
+        protocolVersionStartsFrom(
+            lcl.header.ledgerVersion,
+            CONSENSUS_CLOSE_TIME_TRIGGER_PROTOCOL_VERSION) &&
+        !mApp.getConfig().FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER;
+
     auto lastLedgerStartingPoint =
-        mApp.getConfig().EXPERIMENTAL_TRIGGER_TIMER
+        useConsensusCloseTimeAnchor
             ? triggerAnchorFromConsensusCloseTime(lastIndex, now, milliseconds)
             : triggerAnchorFromPrepareStart(lastIndex, now, milliseconds);
 
@@ -2434,6 +2446,7 @@ HerderImpl::restoreSCPState()
             }
             for (auto const& e : scpState.v1().scpEnvelopes)
             {
+                getHerderSCPDriver().markSlotAsRestored(e.statement.slotIndex);
                 auto envW = getHerderSCPDriver().wrapEnvelope(e);
                 getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
                 mLastSlotSaved =
@@ -2896,7 +2909,6 @@ HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
                                                          sv.txSetHash,
                                                          sv.closeTime))
             .valid;
-#ifdef CAP_0083
     case STELLAR_VALUE_EMPTY_TX_SET:
     {
         auto const& ov = sv.ext.proposedValue();
@@ -2907,7 +2919,6 @@ HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
                                       sv.closeTime))
             .valid;
     }
-#endif // CAP_0083
     default:
         releaseAssert(false);
     }

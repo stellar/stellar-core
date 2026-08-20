@@ -90,6 +90,8 @@ class ApplicationImpl : public Application
     virtual asio::io_context& getOverlayIOContext() override;
     virtual asio::io_context& getLedgerCloseIOContext() override;
 
+    virtual BatchExecutor& getBatchExecutor() override;
+
     virtual void postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type) override;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
@@ -238,6 +240,8 @@ class ApplicationImpl : public Application
     // higher-priority worker thread type, but for now we only need a single
     // thread for eviction scans.
     std::unique_ptr<std::thread> mEvictionThread;
+
+    std::unique_ptr<BatchExecutor> mBatchExecutor;
 
     // NOTE: It is important that this map not be updated outside of the
     // constructor. `unordered_map` is safe for multiple threads to read from,

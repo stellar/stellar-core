@@ -6,47 +6,54 @@
 #include "crypto/ByteSlice.h"
 #include "crypto/CryptoError.h"
 #include "crypto/Curve25519.h"
+#include "rust/RustBridge.h"
 #include "util/NonCopyable.h"
 #include <Tracy.hpp>
 #include <sodium.h>
+#include <vector>
 
 namespace stellar
 {
 
-// Plain SHA256
+// Plain SHA256, routed through the Rust bridge.
 uint256
 sha256(ByteSlice const& bin)
 {
     ZoneScoped;
     uint256 out;
-    if (crypto_hash_sha256(out.data(), bin.data(), bin.size()) != 0)
-    {
-        throw CryptoError("error from crypto_hash_sha256");
-    }
+    rust_bridge::compute_sha256(bin.data(), bin.size(), out.data());
     return out;
 }
 
 Hash
 subSha256(ByteSlice const& seed, uint64_t counter)
 {
+    ZoneScoped;
     SHA256 sha;
     sha.add(seed);
     sha.add(xdr::xdr_to_opaque(counter));
     return sha.finish();
 }
 
-SHA256::SHA256()
+class SHA256::Impl
 {
-    reset();
+  public:
+    Impl() : rust_impl(rust_bridge::new_rust_sha256())
+    {
+    }
+    rust::Box<rust_bridge::RustSha256> rust_impl;
+};
+
+SHA256::SHA256() : mImpl(std::make_unique<SHA256::Impl>())
+{
 }
+
+SHA256::~SHA256() = default;
 
 void
 SHA256::reset()
 {
-    if (crypto_hash_sha256_init(&mState) != 0)
-    {
-        throw CryptoError("error from crypto_hash_sha256_init");
-    }
+    mImpl->rust_impl->reset();
     mFinished = false;
 }
 
@@ -58,26 +65,18 @@ SHA256::add(ByteSlice const& bin)
     {
         throw std::runtime_error("adding bytes to finished SHA256");
     }
-    if (crypto_hash_sha256_update(&mState, bin.data(), bin.size()) != 0)
-    {
-        throw CryptoError("error from crypto_hash_sha256_update");
-    }
+    mImpl->rust_impl->update(bin.data(), bin.size());
 }
 
 uint256
 SHA256::finish()
 {
-    uint256 out;
-    static_assert(sizeof(out) == crypto_hash_sha256_BYTES,
-                  "unexpected crypto_hash_sha256_BYTES");
     if (mFinished)
     {
         throw std::runtime_error("finishing already-finished SHA256");
     }
-    if (crypto_hash_sha256_final(&mState, out.data()) != 0)
-    {
-        throw CryptoError("error from crypto_hash_sha256_final");
-    }
+    uint256 out;
+    mImpl->rust_impl->finalize(out.data());
     mFinished = true;
     return out;
 }

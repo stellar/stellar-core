@@ -5,13 +5,16 @@
 #pragma once
 
 #include "overlay/PeerManager.h"
+#include <chrono>
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace stellar
 {
 
 class Application;
+class Peer;
 class Simulation;
 
 namespace overlaytestutils
@@ -42,6 +45,18 @@ bool knowsAsPreferred(Application& knowingApp, Application& knownApp);
 int numberOfAppConnections(Application& app);
 
 int numberOfSimulationConnections(std::shared_ptr<Simulation> simulation);
+
+std::shared_ptr<Peer> getPeerConnectedTo(Application& from, Application& to);
+
+std::pair<std::shared_ptr<Peer>, std::shared_ptr<Peer>> crankUntilAuthenticated(
+    std::shared_ptr<Simulation> simulation, Application& a, Application& b,
+    std::chrono::seconds timeout = std::chrono::seconds(30));
+
+void
+crankUntilDisconnected(std::shared_ptr<Simulation> simulation,
+                       std::shared_ptr<Peer> const& p0,
+                       std::shared_ptr<Peer> const& p1,
+                       std::chrono::seconds timeout = std::chrono::seconds(30));
 
 std::shared_ptr<StellarMessage> makeStellarMessage(uint32_t wasmSize);
 }

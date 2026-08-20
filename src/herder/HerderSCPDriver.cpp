@@ -41,11 +41,7 @@ namespace
 bool
 isEmptyTxSetStellarValue(StellarValue const& sv)
 {
-#ifdef CAP_0083
     return sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET;
-#else
-    return false;
-#endif
 }
 }
 
@@ -80,6 +76,8 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "timing", "self-to-others-externalize-lag"}))
     , mBallotBlockedOnTxSet(app.getMetrics().NewTimer(
           {"scp", "timing", "ballot-blocked-on-txset"}))
+    , mTxSetValidation(
+          app.getMetrics().NewTimer({"herder", "txset", "validate"}))
     , mEmptyTxSetExternalized(
           app.getMetrics().NewCounter({"scp", "empty-tx-set", "externalized"}))
     , mEmptyTxSetValueReplaced(app.getMetrics().NewCounter(
@@ -315,7 +313,6 @@ HerderSCPDriver::validatePastOrFutureValue(
                        slotIndex, b.closeTime, lcl.header.scpValue.closeTime);
             return SCPDriver::kInvalidValue;
         }
-#ifdef CAP_0083
         if (isEmptyTxSetStellarValue(b))
         {
             if (!protocolAllowsEmptyTxSetValues())
@@ -338,7 +335,6 @@ HerderSCPDriver::validatePastOrFutureValue(
                 return SCPDriver::kInvalidValue;
             }
         }
-#endif // CAP_0083
     }
     else if (slotIndex < lcl.header.ledgerSeq)
     {
@@ -423,7 +419,6 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
             return SCPDriver::kInvalidValue;
         }
 
-#ifdef CAP_0083
         // For empty-tx-set values, validate that the previous ledger context
         // matches our LCL. Empty-tx-set values don't have a real tx set to
         // validate.
@@ -456,7 +451,6 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
             }
             return SCPDriver::kFullyValidatedValue;
         }
-#endif // CAP_0083
 
         Hash const& txSetHash = b.txSetHash;
         // Empty-tx-set values return early above, so this only runs for
@@ -468,8 +462,13 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
 
         if (!txSet)
         {
-            if (isParallelTxSetDownloadEnabled() &&
-                mPendingEnvelopes.getTxSetWaitingTime(txSetHash).has_value())
+            // Parallel tx set downloading must be enabled to get here. This
+            // check has a carve-out for slots restored from the database
+            // because the setting may have previously been enabled on those
+            // slots.
+            releaseAssert(isParallelTxSetDownloadEnabled() ||
+                          mRestoredSlotIndices.count(slotIndex));
+            if (protocolAllowsEmptyTxSetValues())
             {
                 res = SCPDriver::kStructurallyValidValue;
             }
@@ -683,7 +682,6 @@ HerderSCPDriver::getValueString(Value const& v) const
     }
 }
 
-#ifdef CAP_0083
 Value
 HerderSCPDriver::makeEmptyTxSetValueFromValue(Value const& v) const
 {
@@ -704,7 +702,6 @@ HerderSCPDriver::makeEmptyTxSetValueFromValue(Value const& v) const
         proposedValue.ext.lcValueSignature();
     return xdr::xdr_to_opaque(sv);
 }
-#endif
 
 bool
 HerderSCPDriver::isEmptyTxSetValue(Value const& v) const
@@ -1061,27 +1058,31 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
             }
             // else: EmptyTxSet -> cTxSet stays null, handled by existing
 
-            // Only valid applicable tx sets should be combined.
-            auto cApplicableTxSet =
-                cTxSet ? cTxSet->prepareForApply(mApp, lcl.header) : nullptr;
-            if (!cTxSet || cTxSet->previousLedgerHash() == lcl.hash)
+            // Prefer applicable tx sets. `compareTxSets` down-ranks
+            // non-applicable ones. Without CAP-0083 every candidate here is
+            // applicable (a mismatched one can't be ratified), so the
+            // non-applicable case doesn't arise. Under CAP-0083 a
+            // non-applicable candidate may be selected and is replaced with an
+            // empty-tx-set value during balloting.
+            ApplicableTxSetFrameConstPtr cApplicableTxSet = nullptr;
+            if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
             {
+                cApplicableTxSet = cTxSet->prepareForApply(mApp, lcl.header);
+            }
 
-                if (highest == candidateValues.cend() ||
-                    compareTxSets(
-                        highestApplicableTxSet, cApplicableTxSet,
-                        highest->txSetHash, sv.txSetHash,
-                        highestTxSet
-                            ? std::make_optional(highestTxSet->encodedSize())
-                            : std::nullopt,
-                        cTxSet ? std::make_optional(cTxSet->encodedSize())
-                               : std::nullopt,
-                        lcl.header, candidatesHash))
-                {
-                    highest = it;
-                    highestTxSet = cTxSet;
-                    highestApplicableTxSet = std::move(cApplicableTxSet);
-                }
+            if (highest == candidateValues.cend() ||
+                compareTxSets(highestApplicableTxSet, cApplicableTxSet,
+                              highest->txSetHash, sv.txSetHash,
+                              highestTxSet ? std::make_optional(
+                                                 highestTxSet->encodedSize())
+                                           : std::nullopt,
+                              cTxSet ? std::make_optional(cTxSet->encodedSize())
+                                     : std::nullopt,
+                              lcl.header, candidatesHash))
+            {
+                highest = it;
+                highestTxSet = cTxSet;
+                highestApplicableTxSet = std::move(cApplicableTxSet);
             }
         }
         if (highest == candidateValues.cend())
@@ -1860,12 +1861,17 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
                                          LedgerHeaderHistoryEntry const& lcl,
                                          uint64_t closeTimeOffset) const
 {
+    ZoneScoped;
+
     auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
                                 closeTimeOffset, closeTimeOffset};
 
     bool* pRes = mTxSetValidCache.maybeGet(key);
     if (pRes == nullptr)
     {
+        ZoneNamedN(txSetValidityMissZone, "txset validity cache miss", true);
+        auto validationTime = mSCPMetrics.mTxSetValidation.TimeScope();
+
         // The invariant here is that we only validate tx sets nominated
         // to be applied to the current ledger state. However, in case
         // if we receive a bad SCP value for the current state, we still
@@ -1896,6 +1902,7 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
     }
     else
     {
+        ZoneNamedN(txSetValidityHitZone, "txset validity cache hit", true);
         return *pRes;
     }
 }
@@ -1988,6 +1995,12 @@ HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
         return it->second.mNominationTimeoutCount;
     }
     return std::nullopt;
+}
+
+void
+HerderSCPDriver::markSlotAsRestored(uint64_t slotIndex)
+{
+    mRestoredSlotIndices.insert(slotIndex);
 }
 
 }

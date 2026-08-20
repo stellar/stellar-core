@@ -150,6 +150,12 @@ TEST_CASE("frozen ledger keys config setting does not exist prior to p26",
     cfg.LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(ProtocolVersion::V_25);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(ProtocolVersion::V_25);
+    if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
     auto app = createTestApplication(clock, cfg);
     auto root = app->getRoot();
     CheckValidLedgerViewWrapper ledgerView(*app);
@@ -166,6 +172,12 @@ TEST_CASE("freeze bypass txs config setting does not exist prior to p26",
     cfg.LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(ProtocolVersion::V_25);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(ProtocolVersion::V_25);
+    if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
     auto app = createTestApplication(clock, cfg);
     auto root = app->getRoot();
     CheckValidLedgerViewWrapper ledgerView(*app);

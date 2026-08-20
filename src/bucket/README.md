@@ -14,15 +14,16 @@ and/or intractable in its SQL storage form:
   is out of sync with the current ledger state and needs to "catch up".
 
 In order to support these two operations, the ledger entries are *redundantly*
-stored in a secondary structure called the [BucketList](BucketList.h), which is
-composed of a fixed number of "levels", each of which contains two
-[Buckets](Bucket.h). Each level's Buckets are a multiple of the size of the
+stored in a secondary structure called the [BucketList](LiveBucketList.h),
+which is composed of a fixed number of "levels", each of which contains two
+[Buckets](LiveBucket.h). Each level's Buckets are a multiple of the size of the
 Buckets in the previous level, and Buckets store entries based on their age:
 more-recently-modified entries reside in smaller, lower-level buckets.
 
 The cumulative hash of the bucket levels creates a single "BucketList hash",
-which is stored in the [ledger header](../xdr/Stellar-ledger.x) in order to
-unambiguously denote the set of entries that exist at each ledger-close.
+which is stored in the
+[ledger header](../protocol-curr/xdr/Stellar-ledger.x) in order to unambiguously
+denote the set of entries that exist at each ledger-close.
 
 The individual buckets that compose each level are checkpointed to history
 storage by the [history module](../history). The difference from the current bucket list (a subset

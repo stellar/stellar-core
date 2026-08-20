@@ -456,75 +456,26 @@ InMemorySorobanState::initializeStateFromSnapshot(
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(applyView);
-        // Check if entry is a DEADENTRY and add it to deletedKeys. Otherwise,
-        // check if the entry is shadowed by a DEADENTRY.
-        std::unordered_set<LedgerKey> deletedKeys;
-        auto shouldAddToMap = [&deletedKeys](BucketEntry const& be,
-                                             LedgerEntryType expectedType) {
-            if (be.type() == DEADENTRY)
-            {
-                deletedKeys.insert(be.deadEntry());
-                return false;
-            }
-
-            releaseAssertOrThrow(be.type() == LIVEENTRY ||
-                                 be.type() == INITENTRY);
-            auto lk = LedgerEntryKey(be.liveEntry());
-            releaseAssertOrThrow(lk.type() == expectedType);
-            return deletedKeys.find(lk) == deletedKeys.end();
+        auto contractDataHandler = [this](LedgerEntry const& le,
+                                          LedgerKey const&) {
+            createContractDataEntry(le);
         };
 
-        auto contractDataHandler = [this,
-                                    &shouldAddToMap](BucketEntry const& be) {
-            if (!shouldAddToMap(be, CONTRACT_DATA))
-            {
-                return Loop::INCOMPLETE;
-            }
-
-            auto lk = LedgerEntryKey(be.liveEntry());
-            if (!get(lk))
-            {
-                createContractDataEntry(be.liveEntry());
-            }
-
-            return Loop::INCOMPLETE;
+        auto ttlHandler = [this](LedgerEntry const& le, LedgerKey const&) {
+            createTTL(le);
         };
 
-        auto ttlHandler = [this, &shouldAddToMap](BucketEntry const& be) {
-            if (!shouldAddToMap(be, TTL))
-            {
-                return Loop::INCOMPLETE;
-            }
-
-            auto lk = LedgerEntryKey(be.liveEntry());
-            if (!hasTTL(lk))
-            {
-                createTTL(be.liveEntry());
-            }
-
-            return Loop::INCOMPLETE;
+        auto contractCodeHandler = [this, &sorobanConfig,
+                                    ledgerVersion](LedgerEntry const& le,
+                                                   LedgerKey const&) {
+            createContractCodeEntry(le, sorobanConfig, ledgerVersion);
         };
 
-        auto contractCodeHandler = [this, &shouldAddToMap, &sorobanConfig,
-                                    ledgerVersion](BucketEntry const& be) {
-            if (!shouldAddToMap(be, CONTRACT_CODE))
-            {
-                return Loop::INCOMPLETE;
-            }
-
-            auto lk = LedgerEntryKey(be.liveEntry());
-            if (!get(lk))
-            {
-                createContractCodeEntry(be.liveEntry(), sorobanConfig,
-                                        ledgerVersion);
-            }
-
-            return Loop::INCOMPLETE;
-        };
-
-        applyView.scanLiveEntriesOfType(CONTRACT_DATA, contractDataHandler);
-        applyView.scanLiveEntriesOfType(TTL, ttlHandler);
-        applyView.scanLiveEntriesOfType(CONTRACT_CODE, contractCodeHandler);
+        applyView.scanCurrentLiveEntriesOfType(CONTRACT_DATA,
+                                               contractDataHandler);
+        applyView.scanCurrentLiveEntriesOfType(TTL, ttlHandler);
+        applyView.scanCurrentLiveEntriesOfType(CONTRACT_CODE,
+                                               contractCodeHandler);
     }
 
     mLastClosedLedgerSeq = lclHeader.ledgerSeq;

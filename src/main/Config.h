@@ -83,6 +83,13 @@ enum class ApplyLoadModelTx
     CUSTOM_TOKEN,
     SOROSWAP
 };
+
+// Which apply-load timing path to use.
+enum class ApplyLoadTimingPhases
+{
+    APPLY_ONLY,
+    TX_SET_VALIDATION_AND_APPLY
+};
 #endif
 
 class Config : public std::enable_shared_from_this<Config>
@@ -330,6 +337,10 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
+    // Defaults to false. When set, measure the latency of self-submitted
+    // transactions from submission to meta generation.
+    bool LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING;
+
 #ifdef BUILD_TESTS
     // Config parameters that force transaction application during ledger
     // close to sleep for a certain amount of time.
@@ -421,6 +432,10 @@ class Config : public std::enable_shared_from_this<Config>
     // If set to true, database writes will count towards TPS calculation.
     // Otherwise, BucketList writes will not be counted.
     bool APPLY_LOAD_TIME_WRITES = true;
+
+    // Which apply-load timing path to use.
+    ApplyLoadTimingPhases APPLY_LOAD_TIMING_PHASES =
+        ApplyLoadTimingPhases::APPLY_ONLY;
 #endif // BUILD_TESTS
 
     // Waits for merges to complete before applying transactions during catchup
@@ -482,6 +497,12 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t PEER_FLOOD_READING_CAPACITY_BYTES;
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
 
+    // The number of total input bytes on a TCP connection that a receiver will
+    // read and start processing, before it temporarily pauses reading to finish
+    // processing them. As input-processing completes, the balance of this
+    // capacity is replenished.
+    uint32_t PEER_TOTAL_READING_CAPACITY_BYTES;
+
     // Byte limit for outbound transaction queue.
     uint32_t OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 
@@ -516,10 +537,10 @@ class Config : public std::enable_shared_from_this<Config>
     // index.
     size_t BUCKETLIST_DB_INDEX_CUTOFF;
 
-    // Enable parallel processing of overlay operations (experimental)
+    // Enable parallel processing of overlay operations
     bool BACKGROUND_OVERLAY_PROCESSING;
 
-    // Enable parallel block application (experimental)
+    // Enable parallel block application
     bool PARALLEL_LEDGER_APPLY;
 
     // Allow downloading of transaction sets in parallel with SCP (experimental)
@@ -542,9 +563,11 @@ class Config : public std::enable_shared_from_this<Config>
     // also enabled.
     bool BACKGROUND_TX_SIG_VERIFICATION;
 
-    // Experimental flag to use externalized close time for trigger timer
-    // calculation instead of prepare start time.
-    bool EXPERIMENTAL_TRIGGER_TIMER;
+    // Starting from protocol 28 the trigger-next-ledger timer is anchored on
+    // the externalized consensus close time. Setting this flag to true forces
+    // the older prepare-start based timer even on protocol 28 and later. This
+    // is an emergency fallback and defaults to false.
+    bool FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER;
 
     // Hostname of an NTP server to periodically query in order to detect drift
     // of this node's local clock. This is detection only: core never adjusts
@@ -921,6 +944,13 @@ class Config : public std::enable_shared_from_this<Config>
 
     // When set to true, ignores all message and tx set size limits for testing
     bool IGNORE_MESSAGE_LIMITS_FOR_TESTING;
+
+    // A config to allow gossiping (advertising and accepting in PEERS
+    // messages) and connecting to RFC1918 private addresses (10/8, 172.16/12,
+    // 192.168/16). Private addresses are normally filtered out of peer
+    // exchange, which disables gossip-based peer discovery in environments
+    // where every node has a private address (e.g. a Kubernetes pod network).
+    bool ALLOW_PRIVATE_ADDRESSES_FOR_TESTING;
 
     // When set, disables validation of the ledger target close time
     // bounds on config upgrades (for testing only).

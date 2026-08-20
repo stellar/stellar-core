@@ -40,6 +40,7 @@
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMeta.h"
 #include "transactions/TransactionUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Decoder.h"
 #include "util/Fs.h"
@@ -75,8 +76,10 @@
 #include <Tracy.hpp>
 
 #include "LedgerManagerImpl.h"
+#include <algorithm>
 #include <chrono>
 #include <future>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <regex>
@@ -228,6 +231,31 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
 {
 }
 
+#ifdef BUILD_TESTS
+// For simulations of e2e latency, we use these metrics instead of the V1
+// self-delay metric for a few reasons. First, the self-delay metric doesn't
+// exist on the overlay-v2 branch. Second, it is hard to unify what the
+// self-delay window is measuring between v1 and v2 (since it measures time from
+// mempool addition to removal). Third, the self-delay metric is a slightly
+// different window from the e2e number we want to report (we want the time from
+// tx sub to meta emission, but the existing metric, for example, includes an
+// extra delay for a postOnMainThread when background apply is enabled). Fourth,
+// even though the metric is a full Timer with percentiles, the 30-second
+// medida windowing makes interpretation more difficult.
+LedgerManagerImpl::TxLatencyMetrics::TxLatencyMetrics(MetricsRegistry& registry)
+    : mTxsSubmitted(registry.NewCounter({"loadgen", "tx-latency", "submitted"}))
+    , mTxsExternalized(
+          registry.NewCounter({"loadgen", "tx-latency", "externalized"}))
+    , mRunMin(registry.NewCounter({"loadgen", "tx-latency-run", "min-ms"}))
+    , mRunMax(registry.NewCounter({"loadgen", "tx-latency-run", "max-ms"}))
+    , mRunMean(registry.NewCounter({"loadgen", "tx-latency-run", "mean-ms"}))
+    , mRunP50(registry.NewCounter({"loadgen", "tx-latency-run", "p50-ms"}))
+    , mRunP75(registry.NewCounter({"loadgen", "tx-latency-run", "p75-ms"}))
+    , mRunP99(registry.NewCounter({"loadgen", "tx-latency-run", "p99-ms"}))
+{
+}
+#endif
+
 LedgerManagerImpl::ApplyState::ApplyState(Application& app)
     : mMetrics(app.getMetrics())
     , mAppConnector(app.getAppConnector())
@@ -351,6 +379,9 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
     , mState(LM_BOOTING_STATE)
+#ifdef BUILD_TESTS
+    , mTxLatencyMetrics(app.getMetrics())
+#endif
 {
     // At this point, we haven't called assumeState yet, so the BucketLists are
     // empty. We will create an "empty" snapshot that is not null, but
@@ -582,13 +613,11 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
         throw std::runtime_error("Bucket directory is corrupt");
     }
 
-    // Only restart merges in full startup mode. Many modes in core
-    // (standalone offline commands, in-memory setup) do not need to
-    // spin up expensive merge processes.
     auto assumeStart = mApp.getClock().now();
+    // We don't restart merges here so that in-memory state population is
+    // faster.
     auto assumeStateWork = mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-        has, latestLedgerHeader->ledgerVersion,
-        /* restartMerges */ !skipBuildingFullState);
+        has, latestLedgerHeader->ledgerVersion, /* restartMerges */ false);
     if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
     {
         std::chrono::duration<double> assumeSecs =
@@ -631,6 +660,12 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
         maybeRunSnapshotInvariantFromLedgerState(copyApplyLedgerView(),
                                                  /* runInParallel */ false);
+
+        // Only restart merges in full startup mode. Many modes in core
+        // (standalone offline commands, in-memory setup) do not need to spin up
+        // expensive merge processes.
+        mApp.getBucketManager().restartMerges(
+            mApp, has, latestLedgerHeader->ledgerVersion);
     }
     mApplyState.markEndOfSetupPhase();
 
@@ -896,6 +931,13 @@ LedgerManagerImpl::getInMemorySorobanStateForTesting()
 void
 LedgerManagerImpl::rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion)
 {
+    // Make sure we don't race on an in-progress compilation.
+    if (mApplyState.isCompilationRunning())
+    {
+        mApplyState.finishPendingCompilation();
+        mApplyState.markEndOfSetupPhase();
+    }
+
     mApplyState.resetToSetupPhase();
     mApplyState.getInMemorySorobanStateForTesting().clearForTesting();
     mApplyState.populateInMemorySorobanState();
@@ -1299,6 +1341,129 @@ LedgerManagerImpl::emitNextMeta()
     }
     mNextMetaToEmit.reset();
 }
+
+#ifdef BUILD_TESTS
+void
+LedgerManagerImpl::recordTxSubmission(Hash const& contentsHash)
+{
+    if (!mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING)
+    {
+        return;
+    }
+    MutexLocker guard(mTxLatencyMetrics.mMutex);
+    if (mTxLatencyMetrics.mTxSubmitTimes
+            .try_emplace(contentsHash, mApp.getClock().now())
+            .second)
+    {
+        mTxLatencyMetrics.mTxsSubmitted.inc();
+    }
+    else
+    {
+        CLOG_WARNING(Ledger, "Duplicate tx submission recorded for hash {}.",
+                     binToHex(contentsHash));
+    }
+}
+
+void
+LedgerManagerImpl::recordTxE2eLatency(ApplicableTxSetFrame const& txSet)
+{
+    if (!mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING)
+    {
+        return;
+    }
+    VirtualClock::time_point const applyEndTime = mApp.getClock().now();
+    MutexLocker guard(mTxLatencyMetrics.mMutex);
+    for (auto const& phase : txSet.getPhases())
+    {
+        for (auto const& tx : phase)
+        {
+            if (auto submitted = mTxLatencyMetrics.mTxSubmitTimes.find(
+                    tx->getContentsHash());
+                submitted != mTxLatencyMetrics.mTxSubmitTimes.end())
+            {
+                auto const latency = applyEndTime - submitted->second;
+                mTxLatencyMetrics.mTxsExternalized.inc();
+                int64_t const ms =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        latency)
+                        .count();
+                mTxLatencyMetrics.mSamples.push_back(std::clamp<int64_t>(
+                    ms, 0, std::numeric_limits<uint32_t>::max()));
+                mTxLatencyMetrics.mTxSubmitTimes.erase(submitted);
+            }
+        }
+    }
+}
+
+void
+LedgerManagerImpl::beginTxLatencyMeasurement(uint32_t expectedTxCount)
+{
+    if (!mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING)
+    {
+        return;
+    }
+    MutexLocker guard(mTxLatencyMetrics.mMutex);
+    if (!mTxLatencyMetrics.mTxSubmitTimes.empty())
+    {
+        CLOG_WARNING(Ledger,
+                     "Starting tx latency measurement with {} unmatched "
+                     "submissions from prior run",
+                     mTxLatencyMetrics.mTxSubmitTimes.size());
+        mTxLatencyMetrics.mTxSubmitTimes.clear();
+    }
+    mTxLatencyMetrics.mSamples.clear();
+    mTxLatencyMetrics.mSamples.reserve(expectedTxCount);
+
+    // Clear the per-run latency metrics.
+    mTxLatencyMetrics.mRunMin.clear();
+    mTxLatencyMetrics.mRunMax.clear();
+    mTxLatencyMetrics.mRunMean.clear();
+    mTxLatencyMetrics.mRunP50.clear();
+    mTxLatencyMetrics.mRunP75.clear();
+    mTxLatencyMetrics.mRunP99.clear();
+}
+
+void
+LedgerManagerImpl::finalizeTxLatencyMeasurement()
+{
+    if (!mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING)
+    {
+        return;
+    }
+    MutexLocker guard(mTxLatencyMetrics.mMutex);
+    auto& samples = mTxLatencyMetrics.mSamples;
+    if (samples.empty())
+    {
+        CLOG_WARNING(Ledger,
+                     "Finalizing tx latency measurement with no samples");
+        return;
+    }
+    std::sort(samples.begin(), samples.end());
+    size_t const n = samples.size();
+
+    auto percentile = [&](size_t p)
+                          REQUIRES(mTxLatencyMetrics.mMutex) -> uint32_t {
+        // Calculate ceiling of rank
+        size_t rank = (p * n + 99) / 100;
+        rank = std::clamp<size_t>(rank, 1, n);
+        return samples[rank - 1];
+    };
+
+    uint64_t sum = 0;
+    for (uint32_t s : samples)
+    {
+        sum += s;
+    }
+
+    mTxLatencyMetrics.mRunMin.set_count(samples.front());
+    mTxLatencyMetrics.mRunMax.set_count(samples.back());
+    // Mean rounded to the nearest millisecond.
+    mTxLatencyMetrics.mRunMean.set_count((sum + n / 2) / n);
+    mTxLatencyMetrics.mRunP50.set_count(percentile(50));
+    mTxLatencyMetrics.mRunP75.set_count(percentile(75));
+    mTxLatencyMetrics.mRunP99.set_count(percentile(99));
+}
+#endif
 
 namespace
 {
@@ -1879,6 +2044,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 #ifdef BUILD_TESTS
     maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(),
                        applyLedgerTime, mApplySleepRng);
+    recordTxE2eLatency(*applicableTxSet);
 #endif
 
     // Steps 6, 7, 8 are done in `advanceLedgerStateAndPublish`
@@ -2415,12 +2581,13 @@ LedgerManagerImpl::applyThread(
 {
     for (auto const& txBundle : cluster)
     {
-        // Apply timer
-        std::optional<medida::TimerContext> txTime;
+        // Apply timer; samples go into the thread's metrics batch and are
+        // published at ledger close.
+        std::optional<BatchedTimerScope> txTime;
         if (!mApp.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
         {
-            txTime.emplace(
-                mApplyState.getMetrics().mTransactionApply.TimeScope());
+            txTime.emplace(getSorobanMetrics(),
+                           &SorobanMetrics::ApplyMetricsBatch::mTxApplyNsecs);
         }
 
         Hash txSubSeed = subSha256(sorobanBasePrngSeed, txBundle.getTxNum());
@@ -2462,42 +2629,37 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 {
     ZoneScoped;
 
-    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> threadStates;
-    std::vector<std::future<std::unique_ptr<ThreadParallelApplyLedgerState>>>
-        threadFutures;
-
     DeactivateScopeGuard globalStateDeactivateGuard(globalState);
 
+    std::vector<
+        std::function<std::unique_ptr<ThreadParallelApplyLedgerState>()>>
+        tasks;
+    tasks.reserve(stage.numClusters());
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
-        auto const& cluster = stage.getCluster(i);
-        auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
-            app, globalState, cluster, i);
-        threadFutures.emplace_back(std::async(
-            std::launch::async, &LedgerManagerImpl::applyThread, this,
-            std::ref(app), std::move(threadStatePtr), std::cref(cluster),
-            std::cref(config), ledgerInfo, sorobanBasePrngSeed));
+        tasks.emplace_back([this, &app, &globalState, &stage, i, &config,
+                            &ledgerInfo, &sorobanBasePrngSeed]() {
+            auto const& cluster = stage.getCluster(i);
+            auto threadStatePtr =
+                std::make_unique<ThreadParallelApplyLedgerState>(
+                    app, globalState, cluster, i);
+            return applyThread(app, std::move(threadStatePtr), cluster, config,
+                               ledgerInfo, sorobanBasePrngSeed);
+        });
     }
 
-    for (auto& threadFuture : threadFutures)
+    try
     {
-        releaseAssert(threadFuture.valid());
-        try
-        {
-            auto futureResult = threadFuture.get();
-            threadStates.emplace_back(std::move(futureResult));
-        }
-        catch (std::exception const& e)
-        {
-            printErrorAndAbort("Exception on apply thread: ", e.what());
-        }
-        catch (...)
-        {
-            printErrorAndAbort("Unknown exception on apply thread");
-        }
+        return app.getBatchExecutor().executeBatch(std::move(tasks));
     }
-    threadFutures.clear();
-    return threadStates;
+    catch (std::exception const& e)
+    {
+        printErrorAndAbort("Exception on apply thread: ", e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception on apply thread");
+    }
 }
 
 void

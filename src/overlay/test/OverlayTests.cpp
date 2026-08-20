@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/BanManager.h"
+#include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/Peer.h"
 #include "overlay/PeerManager.h"
@@ -32,6 +33,7 @@
 #include "transactions/TransactionBridge.h"
 #include <fmt/format.h>
 #include <numeric>
+#include <thread>
 
 using namespace stellar;
 using namespace stellar::overlaytestutils;
@@ -191,7 +193,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 
         uint64_t expectedCapacity{0};
         expectedCapacity =
-            app2->getOverlayManager().getFlowControlBytesTotal() - txSize;
+            app2->getOverlayManager().getFlowControlFloodByteCapacity() -
+            txSize;
 
         SECTION("basic capacity accounting")
         {
@@ -235,12 +238,13 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     (currentRecvCount + shouldRequestMore));
 
             // Nodes are back to full capacity
-            REQUIRE(conn.getAcceptor()
-                        ->getFlowControl()
-                        ->getCapacityBytes()
-                        .getCapacity()
-                        .mFloodCapacity ==
-                    app2->getOverlayManager().getFlowControlBytesTotal());
+            REQUIRE(
+                conn.getAcceptor()
+                    ->getFlowControl()
+                    ->getCapacityBytes()
+                    .getCapacity()
+                    .mFloodCapacity ==
+                app2->getOverlayManager().getFlowControlFloodByteCapacity());
             if (shouldRequestMore)
             {
                 REQUIRE(conn.getInitiator()->checkCapacity(conn.getAcceptor()));
@@ -251,7 +255,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                             ->getFlowControl()
                             ->getCapacityBytes()
                             .getOutboundCapacity() ==
-                        (app2->getOverlayManager().getFlowControlBytesTotal() -
+                        (app2->getOverlayManager()
+                             .getFlowControlFloodByteCapacity() -
                          txSize));
             }
             REQUIRE(conn.getAcceptor()->checkCapacity(conn.getInitiator()));
@@ -373,8 +378,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             txtest::executeUpgrade(*app, txtest::makeConfigUpgrade(*res));
         };
 
-        auto& txsRecv = app2->getMetrics().NewCounter(
-            {"overlay", "recv-transaction", "count"});
+        auto& txsRecv =
+            app2->getMetrics().NewTimer({"overlay", "recv", "transaction"});
         auto start = txsRecv.count();
         conn.getInitiator()->sendMessage(std::make_shared<StellarMessage>(tx1));
 
@@ -537,6 +542,175 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             }
         }
     }
+}
+
+TEST_CASE("flow control total byte capacity throttles non-flood traffic",
+          "[overlay][flowcontrol][!hide]")
+{
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.resize(4000);
+    std::fill(qSet.validators.begin(), qSet.validators.end(),
+              getTestConfig(0).NODE_SEED.getPublicKey());
+
+    auto scpQSetMsg = std::make_shared<StellarMessage const>([&]() {
+        StellarMessage msg;
+        msg.type(SCP_QUORUMSET);
+        msg.qSet() = qSet;
+        return msg;
+    }());
+    REQUIRE(!OverlayManager::isFloodMessage(*scpQSetMsg));
+
+    auto const msgSize = FlowControlCapacity::msgBodySize(*scpQSetMsg);
+    uint64_t constexpr MESSAGES_TO_FLOOR = 3;
+    uint64_t constexpr MESSAGES_PER_BURST = MESSAGES_TO_FLOOR + 1;
+    auto const byteCapacity = msgSize * MESSAGES_TO_FLOOR - 1;
+    auto const totalCapacity =
+        FlowControlByteCapacity::BYTE_CAPACITY_READ_FLOOR + byteCapacity;
+
+    auto cfg1 = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY);
+    cfg2.PEER_READING_CAPACITY = 100000;
+    cfg2.PEER_TOTAL_READING_CAPACITY_BYTES =
+        static_cast<uint32_t>(byteCapacity);
+    cfg1.NODE_IS_VALIDATOR = false;
+    cfg1.FORCE_SCP = false;
+    cfg2.NODE_IS_VALIDATOR = false;
+    cfg2.FORCE_SCP = false;
+
+    auto networkID = sha256(cfg1.NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(
+        Simulation::OVER_TCP, networkID,
+        [](int i) { return getTestConfig(i + 10, Config::TESTDB_IN_MEMORY); });
+
+    SCPQuorumSet nodeQSet;
+    nodeQSet.threshold = 1;
+    nodeQSet.validators.push_back(cfg1.NODE_SEED.getPublicKey());
+    nodeQSet.validators.push_back(cfg2.NODE_SEED.getPublicKey());
+
+    auto app1 = simulation->addNode(cfg1.NODE_SEED, nodeQSet, &cfg1);
+    auto app2 = simulation->addNode(cfg2.NODE_SEED, nodeQSet, &cfg2);
+
+    simulation->addPendingConnection(cfg1.NODE_SEED.getPublicKey(),
+                                     cfg2.NODE_SEED.getPublicKey());
+    simulation->startAllNodes();
+
+    Peer::pointer sender;
+    Peer::pointer receiver;
+    simulation->crankUntil(
+        [&]() {
+            sender = app1->getOverlayManager().getConnectedPeer(
+                PeerBareAddress{"127.0.0.1", app2->getConfig().PEER_PORT});
+            receiver = app2->getOverlayManager().getConnectedPeer(
+                PeerBareAddress{"127.0.0.1", app1->getConfig().PEER_PORT});
+            return sender && receiver && sender->isAuthenticatedForTesting() &&
+                   receiver->isAuthenticatedForTesting();
+        },
+        std::chrono::seconds(10), false);
+
+    REQUIRE(sender);
+    REQUIRE(receiver);
+    REQUIRE(sender->isAuthenticatedForTesting());
+    REQUIRE(receiver->isAuthenticatedForTesting());
+
+    auto getReceiverCapacity = [&]() {
+        return receiver->getFlowControl()->getCapacityBytes().getCapacity();
+    };
+    auto getReadThrottleCount = [&]() {
+        return app2->getOverlayManager()
+            .getOverlayMetrics()
+            .mConnectionReadThrottle.count();
+    };
+    auto waitFor = [&](std::string const& phase, auto&& predicate) {
+        auto timeout = std::chrono::seconds(10);
+        auto start = std::chrono::steady_clock::now();
+
+        while (!predicate() &&
+               std::chrono::steady_clock::now() - start <= timeout)
+        {
+            if (simulation->crankAllNodes() == 0)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+
+        auto capacity = getReceiverCapacity();
+        CAPTURE(phase);
+        CAPTURE(capacity.mTotalCapacity);
+        CAPTURE(totalCapacity);
+        CAPTURE(capacity.mFloodCapacity);
+        CAPTURE(receiver->getFlowControl()->isThrottled());
+        CAPTURE(receiver->getFlowControl()->canRead());
+        CAPTURE(sender->isConnectedForTesting());
+        CAPTURE(receiver->isConnectedForTesting());
+        CAPTURE(getReadThrottleCount());
+
+        REQUIRE(predicate());
+    };
+    auto waitForReceiverThrottle = [&]() {
+        auto timeout = std::chrono::seconds(10);
+        auto start = std::chrono::steady_clock::now();
+
+        while (!receiver->getFlowControl()->isThrottled() &&
+               std::chrono::steady_clock::now() - start <= timeout)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        auto capacity = getReceiverCapacity();
+        CAPTURE(capacity.mTotalCapacity);
+        CAPTURE(totalCapacity);
+        CAPTURE(capacity.mFloodCapacity);
+        CAPTURE(receiver->getFlowControl()->isThrottled());
+        CAPTURE(receiver->getFlowControl()->canRead());
+        CAPTURE(sender->isConnectedForTesting());
+        CAPTURE(receiver->isConnectedForTesting());
+        CAPTURE(getReadThrottleCount());
+
+        REQUIRE(receiver->getFlowControl()->isThrottled());
+    };
+    auto drainReceiver = [&]() {
+        waitFor("receiver drains", [&]() {
+            return getReceiverCapacity().mTotalCapacity == totalCapacity &&
+                   !receiver->getFlowControl()->isThrottled();
+        });
+        REQUIRE(getReceiverCapacity().mTotalCapacity == totalCapacity);
+        REQUIRE(!receiver->getFlowControl()->isThrottled());
+    };
+
+    drainReceiver();
+    auto const initialFloodCapacity = getReceiverCapacity().mFloodCapacity;
+    auto requireReceiverTotalCapacity = [&](uint64_t total) {
+        auto capacity = getReceiverCapacity();
+        REQUIRE(capacity.mTotalCapacity == total);
+        REQUIRE(capacity.mFloodCapacity == initialFloodCapacity);
+    };
+
+    requireReceiverTotalCapacity(totalCapacity);
+    REQUIRE(receiver->getFlowControl()->canRead());
+    REQUIRE(!receiver->getFlowControl()->isThrottled());
+
+    for (size_t i = 0; i < 100; ++i)
+    {
+        CAPTURE(i);
+        drainReceiver();
+        auto const initialReadThrottleCount = getReadThrottleCount();
+        CAPTURE(initialReadThrottleCount);
+        for (size_t j = 0; j < MESSAGES_PER_BURST; ++j)
+        {
+            sender->sendMessage(scpQSetMsg);
+        }
+
+        waitForReceiverThrottle();
+        drainReceiver();
+        REQUIRE(getReadThrottleCount() > initialReadThrottleCount);
+        requireReceiverTotalCapacity(totalCapacity);
+        REQUIRE(receiver->getFlowControl()->canRead());
+        REQUIRE(sender->isConnectedForTesting());
+        REQUIRE(receiver->isConnectedForTesting());
+    }
+
+    simulation->stopAllNodes();
 }
 
 TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
@@ -2687,7 +2861,7 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                         .count() == 2);
             REQUIRE(apps[2]
                         ->getMetrics()
-                        .NewCounter({"overlay", "recv-transaction", "count"})
+                        .NewTimer({"overlay", "recv", "transaction"})
                         .count() == 1);
             REQUIRE(getAdvertisedHashCount(apps[2]) == 0);
         }
@@ -3112,9 +3286,7 @@ TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
 
     int const NUM_MESSAGES = 1000;
     auto initialTxCount =
-        n0->getMetrics()
-            .NewCounter({"overlay", "recv-transaction", "count"})
-            .count();
+        n0->getMetrics().NewTimer({"overlay", "recv", "transaction"}).count();
 
     SECTION("p1 never reads")
     {
@@ -3141,7 +3313,7 @@ TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
         REQUIRE(finalQueueDrops > initialQueueDrops);
         REQUIRE(finalQueueSize < NUM_MESSAGES);
         REQUIRE(n1->getMetrics()
-                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .NewTimer({"overlay", "recv", "transaction"})
                     .count() == initialTxCount);
     }
     SECTION("p1 received all txs")
@@ -3154,7 +3326,7 @@ TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
         s->crankForAtLeast(std::chrono::seconds(1), false);
 
         REQUIRE(n1->getMetrics()
-                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .NewTimer({"overlay", "recv", "transaction"})
                     .count() == initialTxCount + NUM_MESSAGES);
         REQUIRE(p0->getFlowControl()->getQueuesForTesting()[1].size() == 0);
         // No new messages were dropped

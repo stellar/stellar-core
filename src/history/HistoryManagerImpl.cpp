@@ -403,6 +403,11 @@ HistoryManagerImpl::publishQueuedHistory()
         return 0;
     }
 
+    if (!mApp.getHistoryArchiveManager().publishEnabled())
+    {
+        return 0;
+    }
+
 #ifdef BUILD_TESTS
     if (!mPublicationEnabled)
     {

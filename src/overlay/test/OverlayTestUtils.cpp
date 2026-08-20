@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
+#include "overlay/Peer.h"
 #include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
@@ -118,6 +119,43 @@ numberOfSimulationConnections(std::shared_ptr<Simulation> simulation)
                                    return x + numberOfAppConnections(*app);
                                });
     return num;
+}
+
+std::shared_ptr<Peer>
+getPeerConnectedTo(Application& from, Application& to)
+{
+    return from.getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", to.getConfig().PEER_PORT});
+}
+
+std::pair<std::shared_ptr<Peer>, std::shared_ptr<Peer>>
+crankUntilAuthenticated(std::shared_ptr<Simulation> simulation, Application& a,
+                        Application& b, std::chrono::seconds timeout)
+{
+    std::shared_ptr<Peer> pa;
+    std::shared_ptr<Peer> pb;
+    simulation->crankUntil(
+        [&]() {
+            pa = getPeerConnectedTo(a, b);
+            pb = getPeerConnectedTo(b, a);
+            return pa && pb && pa->isAuthenticatedForTesting() &&
+                   pb->isAuthenticatedForTesting();
+        },
+        timeout, false);
+    return {pa, pb};
+}
+
+void
+crankUntilDisconnected(std::shared_ptr<Simulation> simulation,
+                       std::shared_ptr<Peer> const& p0,
+                       std::shared_ptr<Peer> const& p1,
+                       std::chrono::seconds timeout)
+{
+    simulation->crankUntil(
+        [&]() {
+            return !p0->isConnectedForTesting() && !p1->isConnectedForTesting();
+        },
+        timeout, false);
 }
 
 std::shared_ptr<StellarMessage>

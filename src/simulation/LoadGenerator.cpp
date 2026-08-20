@@ -86,15 +86,17 @@ getTxCount(Application& app, bool isSoroban)
 {
     if (isSoroban)
     {
-        return app.getMetrics()
-            .NewCounter({"herder", "pending-soroban-txs", "self-count"})
-            .count();
+        return static_cast<uint32_t>(
+            app.getMetrics()
+                .NewTimer({"herder", "pending-soroban-txs", "self-delay"})
+                .count());
     }
     else
     {
-        return app.getMetrics()
-            .NewCounter({"herder", "pending-txs", "self-count"})
-            .count();
+        return static_cast<uint32_t>(
+            app.getMetrics()
+                .NewTimer({"herder", "pending-txs", "self-delay"})
+                .count());
     }
 }
 
@@ -470,6 +472,7 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
                               0));
         }
     }
+    mApp.getLedgerManager().beginTxLatencyMeasurement(cfg.nTxs);
     mStarted = true;
 }
 
@@ -1381,6 +1384,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         if (checkMinimumSorobanSuccess(cfg))
         {
             CLOG_INFO(LoadGen, "Load generation complete.");
+            mApp.getLedgerManager().finalizeTxLatencyMeasurement();
             mLoadgenComplete.Mark();
             reset();
         }
@@ -1457,6 +1461,7 @@ LoadGenerator::waitTillCompleteWithoutChecks()
                 "for high traffic due to tx queue limiter evictions.",
                 inconsistencies.size());
         }
+        mApp.getLedgerManager().finalizeTxLatencyMeasurement();
         mLoadgenComplete.Mark();
         reset();
         return;

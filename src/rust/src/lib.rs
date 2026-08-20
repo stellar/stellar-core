@@ -34,6 +34,7 @@ mod i128;
 mod log;
 mod ntp;
 mod quorum_checker;
+mod sha256;
 mod soroban_invoke;
 mod soroban_module_cache;
 mod soroban_test_wasm;
@@ -43,6 +44,17 @@ mod soroban_test_extra_protocol;
 
 mod soroban_fuzz;
 
+// When built against a C++ tcmalloc, route all Rust allocations (including the
+// linked-in soroban hosts) through it via a custom global allocator. See
+// tcmalloc.rs for details. Gated on the `tcmalloc` feature so tcmalloc-less
+// builds keep using Rust's default allocator.
+#[cfg(feature = "tcmalloc")]
+mod tcmalloc;
+
+#[cfg(feature = "tcmalloc")]
+#[global_allocator]
+static GLOBAL_ALLOCATOR: tcmalloc::TcMalloc = tcmalloc::TcMalloc;
+
 use soroban_module_cache::SorobanModuleCache;
 
 mod bridge;
@@ -51,6 +63,7 @@ use rust_bridge::BridgeError;
 use rust_bridge::CxxBuf;
 use rust_bridge::CxxFeeConfiguration;
 use rust_bridge::CxxLedgerEntryRentChange;
+use rust_bridge::CxxLedgerEntryWithTtlMeta;
 use rust_bridge::CxxLedgerInfo;
 use rust_bridge::CxxRentFeeConfiguration;
 

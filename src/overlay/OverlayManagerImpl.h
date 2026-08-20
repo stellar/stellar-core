@@ -215,7 +215,7 @@ class OverlayManagerImpl : public OverlayManager
     void extractPeersFromMap(std::map<NodeID, Peer::pointer> const& peerMap,
                              std::vector<Peer::pointer>& result);
     void shufflePeerList(std::vector<Peer::pointer>& peerList);
-    uint32_t getFlowControlBytesTotal() const override;
+    uint32_t getFlowControlFloodByteCapacity() const override;
 
     // Returns `true` iff the overlay can accept the outbound peer at `address`.
     // Logs whenever a peer cannot be accepted.

@@ -26,9 +26,7 @@ SimpleTimer::SimpleTimer(MetricsRegistry& registry, SimpleTimerName const& name,
 void
 SimpleTimer::syncMax()
 {
-    MutexLocker lock{mLock};
-    mMaxSampleValue.set_count(mMax);
-    mMax = 0;
+    mMaxSampleValue.set_count(mMax.exchange(0, std::memory_order_relaxed));
 }
 
 std::int64_t
@@ -43,9 +41,11 @@ SimpleTimer::Update(std::chrono::nanoseconds d)
     int64_t converted = d / mDurationUnit;
     mSum.inc(converted);
     mSampleCount.inc(1);
+    // Lock-free max tracking.
+    int64_t prev = mMax.load(std::memory_order_relaxed);
+    while (prev < converted && !mMax.compare_exchange_weak(
+                                   prev, converted, std::memory_order_relaxed))
     {
-        MutexLocker lock{mLock};
-        mMax = std::max(mMax, converted);
     }
 }
 

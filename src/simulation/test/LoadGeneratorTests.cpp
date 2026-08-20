@@ -983,8 +983,12 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
 
 TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
 {
+    auto const timingPhases =
+        GENERATE(ApplyLoadTimingPhases::APPLY_ONLY,
+                 ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY);
     auto cfg = getTestConfig();
     cfg.APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
+    cfg.APPLY_LOAD_TIMING_PHASES = timingPhases;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -1053,9 +1057,20 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     auto sampleEntries = ledgerView.loadArchiveKeys(sampleKeys, "test");
     REQUIRE(sampleEntries.size() == sampleKeys.size());
 
+    auto const lclBeforeExecute =
+        app->getLedgerManager().getLastClosedLedgerNum();
     al.execute();
 
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >=
+            lclBeforeExecute + cfg.APPLY_LOAD_NUM_LEDGERS);
     REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
+    if (timingPhases == ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY)
+    {
+        // Each benchmark ledger runs at least one cold tx set validation.
+        REQUIRE(app->getMetrics()
+                    .NewTimer({"herder", "txset", "validate"})
+                    .count() >= cfg.APPLY_LOAD_NUM_LEDGERS);
+    }
 }
 
 TEST_CASE("apply load find max SAC TPS",
@@ -1101,9 +1116,13 @@ TEST_CASE("apply load find max SAC TPS",
 TEST_CASE("apply load benchmark model tx",
           "[loadgen][applyload][soroban][acceptance]")
 {
+    auto const timingPhases =
+        GENERATE(ApplyLoadTimingPhases::APPLY_ONLY,
+                 ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY);
     auto cfg = getTestConfig();
     cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
     cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
+    cfg.APPLY_LOAD_TIMING_PHASES = timingPhases;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -1122,13 +1141,24 @@ TEST_CASE("apply load benchmark model tx",
 
     ApplyLoad al(*app);
 
+    auto const lclBeforeExecute =
+        app->getLedgerManager().getLastClosedLedgerNum();
     al.execute();
 
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >=
+            lclBeforeExecute + cfg.APPLY_LOAD_NUM_LEDGERS);
     REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
 
     auto& successCountMetric =
         app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
     REQUIRE(successCountMetric.count() > 0);
+    if (timingPhases == ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY)
+    {
+        // Each benchmark ledger runs at least one cold tx set validation.
+        REQUIRE(app->getMetrics()
+                    .NewTimer({"herder", "txset", "validate"})
+                    .count() >= cfg.APPLY_LOAD_NUM_LEDGERS);
+    }
 }
 
 TEST_CASE("apply load benchmark custom token",

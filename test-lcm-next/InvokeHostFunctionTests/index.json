@@ -463,6 +463,7 @@
    "9c99d2135d9d7d77" : "archival_meta-protocol_version_26-persistent_entry_meta-restore_expired_but_not_evicted-restore,_update_value_in_next_tx-same_stage",
    "9cbd66b8c4018c16" : "Soroban_authorization-classic_account_with_weights-deep_tree-failure_for_tree_with_missing_node",
    "9ccccec1202f5b81" : "resource_fee_exceeds_uint32-self_fee_bump-failure-fee_bump_fee_is_not_sufficient_to_cover_the_resource_fee_with_high_inclusion_fee",
+   "9de1ea718b77ffa2" : "create_and_invoke_external_ref_contract",
    "9e44fefde737f8bc" : "contract_storage-protocol_version_26-footprint-RO_footprint_for_RW_entry",
    "9e7d59169e4ded64" : "Soroban_classic_account_authentication-account_with_weights_and_additional_signer-wrong_key_type",
    "9e81b4f36cfd3af7" : "Soroban_footprint_validation-restoreOp-invalid_readOnly_keys-invalid_asset_7",

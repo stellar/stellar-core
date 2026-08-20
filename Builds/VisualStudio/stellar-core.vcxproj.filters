@@ -462,9 +462,6 @@
     <ClCompile Include="..\..\src\work\test\WorkTests.cpp">
       <Filter>work\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\test\fuzz\FuzzMain.cpp">
-      <Filter>test\fuzz</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\test\fuzz\FuzzRegressionTests.cpp">
       <Filter>test\fuzz</Filter>
     </ClCompile>
@@ -1458,6 +1455,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\test\CovMark.cpp">
       <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\BatchExecutor.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\NtpProbe.cpp">
+      <Filter>main</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2589,6 +2592,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\CovMark.h">
       <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\BatchExecutor.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\NtpProbe.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

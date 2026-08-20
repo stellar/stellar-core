@@ -356,55 +356,6 @@ TransactionFrame::validateAccountFilterForFlooding(
 bool
 TransactionFrame::validateHostFn() const
 {
-    if (!isSoroban())
-    {
-        return true;
-    }
-
-    auto const& ops = getRawOperations();
-    if (ops.size() != 1)
-    {
-        return true;
-    }
-
-    auto const& op = ops.at(0);
-
-    if (op.body.type() != INVOKE_HOST_FUNCTION)
-    {
-        return true;
-    }
-    auto const& hostFn = op.body.invokeHostFunctionOp().hostFunction;
-
-    auto validateCreateContract =
-        [](ContractIDPreimage const& preimage,
-           ContractExecutable const& executable) -> bool {
-        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
-            executable.type() != CONTRACT_EXECUTABLE_STELLAR_ASSET)
-        {
-            return false;
-        }
-        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ADDRESS &&
-            executable.type() != CONTRACT_EXECUTABLE_WASM)
-        {
-            return false;
-        }
-        return true;
-    };
-
-    if (hostFn.type() == HOST_FUNCTION_TYPE_CREATE_CONTRACT)
-    {
-        return validateCreateContract(
-            hostFn.createContract().contractIDPreimage,
-            hostFn.createContract().executable);
-    }
-
-    if (hostFn.type() == HOST_FUNCTION_TYPE_CREATE_CONTRACT_V2)
-    {
-        return validateCreateContract(
-            hostFn.createContractV2().contractIDPreimage,
-            hostFn.createContractV2().executable);
-    }
-
     return true;
 }
 
@@ -1095,8 +1046,12 @@ TransactionFrame::updateSorobanMetrics(AppConnector& app) const
     SorobanMetrics& metrics = app.getSorobanMetrics();
     auto txSize = static_cast<int64_t>(this->getSize());
     auto const& r = sorobanResources();
-    // update the tx metrics
-    metrics.mTxSizeByte.Update(txSize);
+    // record the tx metrics into the per-thread batch (published once per
+    // ledger)
+    {
+        auto& batch = metrics.getApplyThreadBatch();
+        batch.mTxSizeByte.push_back(txSize);
+    }
     // accumulate the ledger-wide metrics, which will get emitted at the ledger
     // close
     metrics.accumulateLedgerTxCount(getNumOperations());
@@ -1979,11 +1934,13 @@ TransactionFrame::checkValidImpl(
     DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
     std::optional<uint32_t> validationLedgerSeq) const
 {
+    auto const& header = ledgerView.getLedgerHeader().current();
     // Subtle: this check has to happen in `checkValid` and not
     // `checkValidWithOptionallyChargedFee` in order to not validate the
     // envelope XDR twice for the fee bump transactions (they use
     // `checkValidWithOptionallyChargedFee` for the inner tx).
-    if (!xdr::check_xdr_depth(mEnvelope, 500))
+    if (!validateXDRForProtocol(header.ledgerVersion, app.getConfig(),
+                                mEnvelope))
     {
         return MutableTransactionResult::createTxError(txMALFORMED);
     }
@@ -1997,9 +1954,8 @@ TransactionFrame::checkValidImpl(
     // aren't the fees that would end up being applied. However, this is
     // what Core used to return for a while, and some users may rely on
     // this, so we maintain this logic for the time being.
-    int64_t minBaseFee = ledgerView.getLedgerHeader().current().baseFee;
-    auto feeCharged =
-        getFee(ledgerView.getLedgerHeader().current(), minBaseFee, false);
+    int64_t minBaseFee = header.baseFee;
+    auto feeCharged = getFee(header, minBaseFee, false);
     auto txResult = MutableTransactionResult::createSuccess(*this, feeCharged);
     checkValidWithOptionallyChargedFee(
         app, ledgerView, current, true, lowerBoundCloseTimeOffset,
@@ -2253,12 +2209,11 @@ TransactionFrame::parallelApply(
             ledgerInfo.getLedgerVersion() >=
             config.LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
 
-        std::optional<medida::TimerContext> opTimer;
+        std::optional<BatchedTimerScope> opTimer;
         if (!config.DISABLE_SOROBAN_METRICS_FOR_TESTING)
         {
-            opTimer.emplace(app.getMetrics()
-                                .NewTimer({"ledger", "operation", "apply"})
-                                .TimeScope());
+            opTimer.emplace(sorobanMetrics,
+                            &SorobanMetrics::ApplyMetricsBatch::mOpApplyNsecs);
         }
 
         releaseAssertOrThrow(mOperations.size() == 1);

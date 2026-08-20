@@ -31,7 +31,7 @@
 
 namespace stellar
 {
-uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 27
+uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 28
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                                                        + 1
 #endif
@@ -64,6 +64,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
     "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING",
+    "LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING",
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
     "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
@@ -77,7 +78,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
 
 // Options that should only be used for testing
 static std::unordered_set<std::string> const TESTING_SUGGESTED_OPTIONS = {
-    "ALLOW_LOCALHOST_FOR_TESTING"};
+    "ALLOW_LOCALHOST_FOR_TESTING", "ALLOW_PRIVATE_ADDRESSES_FOR_TESTING"};
 
 namespace
 {
@@ -140,6 +141,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_INSTRUCTIONS_FOR_TESTING = {};
     LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING = false;
     CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = false;
     ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING =
         std::chrono::minutes::zero();
@@ -155,14 +157,15 @@ Config::Config() : NODE_SEED(SecretKey::random())
     IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
     TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS = false;
     TESTING_NOMINATE_RANDOM_VALUES = false;
+    ALLOW_PRIVATE_ADDRESSES_FOR_TESTING = false;
 #endif
 
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
-    OVERLAY_PROTOCOL_MIN_VERSION = 40;
-    OVERLAY_PROTOCOL_VERSION = 41;
+    OVERLAY_PROTOCOL_MIN_VERSION = 41;
+    OVERLAY_PROTOCOL_VERSION = 42;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -177,7 +180,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     DISABLE_TX_META_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
-    EXPERIMENTAL_TRIGGER_TIMER = false;
+    FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = false;
     NTP_DRIFT_CHECK_SERVER = "pool.ntp.org";
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
@@ -283,6 +286,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_FLOOD_READING_CAPACITY_BYTES = 0;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 0;
     OUTBOUND_TX_QUEUE_BYTE_LIMIT = 1024 * 1024 * 3;
+    PEER_TOTAL_READING_CAPACITY_BYTES = 1024 * 1024;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
@@ -307,6 +311,12 @@ Config::Config() : NODE_SEED(SecretKey::random())
     QUORUM_INTERSECTION_CHECKER = true;
     USE_QUORUM_INTERSECTION_CHECKER_V2 = false;
     QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 5000; // 5 secs
+    // NB: this budget is compared against a conservative over-estimate of the
+    // solver's memory (charged per clause/variable), not measured allocator
+    // usage. Under the current tier-1 network configuration (7 orgs) usage
+    // stays well under this limit, but the solver's encoding grows
+    // combinatorially with a vertex's degree, so if the number of tier-1
+    // organizations ever increases we will have to revisit this limit.
     QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
         100 * 1024 * 1024; // 100 MiB
 
@@ -453,6 +463,23 @@ parseApplyLoadModelTx(ConfigItem const& item)
     throw std::invalid_argument(
         "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token, "
         "soroswap");
+}
+
+ApplyLoadTimingPhases
+parseApplyLoadTimingPhases(ConfigItem const& item)
+{
+    auto phases = readString(item);
+    if (phases == "apply")
+    {
+        return ApplyLoadTimingPhases::APPLY_ONLY;
+    }
+    if (phases == "txset-validation-and-apply")
+    {
+        return ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_TIMING_PHASES', expected one of: apply, "
+        "txset-validation-and-apply");
 }
 #endif
 
@@ -1133,6 +1160,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      PEER_FLOOD_READING_CAPACITY_BYTES =
                          readInt<uint32_t>(item, 0);
                  }},
+                {"PEER_TOTAL_READING_CAPACITY_BYTES",
+                 [&]() {
+                     PEER_TOTAL_READING_CAPACITY_BYTES =
+                         readInt<uint32_t>(item, 1);
+                 }},
                 {"FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES",
                  [&]() {
                      FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES =
@@ -1216,8 +1248,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() { BACKGROUND_TX_SIG_VERIFICATION = readBool(item); }},
-                {"EXPERIMENTAL_TRIGGER_TIMER",
-                 [&]() { EXPERIMENTAL_TRIGGER_TIMER = readBool(item); }},
+                {"FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER",
+                 [&]() {
+                     FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER =
+                         readBool(item);
+                 }},
                 {"NTP_DRIFT_CHECK_SERVER",
                  [&]() { NTP_DRIFT_CHECK_SERVER = readString(item); }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
@@ -1278,6 +1313,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"IGNORE_MESSAGE_LIMITS_FOR_TESTING",
                  [&]() { IGNORE_MESSAGE_LIMITS_FOR_TESTING = readBool(item); }},
+                {"ALLOW_PRIVATE_ADDRESSES_FOR_TESTING",
+                 [&]() {
+                     ALLOW_PRIVATE_ADDRESSES_FOR_TESTING = readBool(item);
+                 }},
 #endif // BUILD_TESTS
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
                  [&]() {
@@ -1687,6 +1726,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
                          readIntArray<uint32_t>(item);
                  }},
+                {"LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING =
+                         readBool(item);
+                 }},
 #ifdef BUILD_TESTS
                 {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
                  [&]() {
@@ -1839,6 +1883,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_TIME_WRITES",
                  [&]() { APPLY_LOAD_TIME_WRITES = readBool(item); }},
+                {"APPLY_LOAD_TIMING_PHASES",
+                 [&]() {
+                     APPLY_LOAD_TIMING_PHASES =
+                         parseApplyLoadTimingPhases(item);
+                 }},
 #endif // BUILD_TESTS
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {

@@ -311,7 +311,7 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     }
 
     // If throttled, schedule read as soon as a full batch is processed
-    if (mFlowControl->isThrottled() && res.numTotalMessages > 0)
+    if (mFlowControl->isThrottled() && mFlowControl->canRead())
     {
         mFlowControl->stopThrottling();
 #ifdef BUILD_TESTS
@@ -1965,7 +1965,7 @@ Peer::recvAuth(StellarMessage const& msg)
     }
 
     uint32_t fcBytes =
-        mAppConnector.getOverlayManager().getFlowControlBytesTotal();
+        mAppConnector.getOverlayManager().getFlowControlFloodByteCapacity();
 
     // Subtle: after successful auth, must send sendMore message first to
     // tell the other peer about the local node's reading capacity.
@@ -2018,7 +2018,12 @@ Peer::recvPeers(StellarMessage const& msg)
         releaseAssert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
 
-        if (address.isPrivate())
+        bool allowPrivateAddresses = false;
+#ifdef BUILD_TESTS
+        allowPrivateAddresses =
+            mAppConnector.getConfig().ALLOW_PRIVATE_ADDRESSES_FOR_TESTING;
+#endif
+        if (address.isPrivate() && !allowPrivateAddresses)
         {
             CLOG_DEBUG(Overlay, "ignoring received private address {}",
                        address.toString());

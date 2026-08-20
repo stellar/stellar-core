@@ -6,7 +6,6 @@
 
 #include "crypto/ByteSlice.h"
 #include "crypto/XDRHasher.h"
-#include "sodium/crypto_hash_sha256.h"
 #include "xdr/Stellar-types.h"
 #include <memory>
 
@@ -21,13 +20,17 @@ uint256 sha256(ByteSlice const& bin);
 Hash subSha256(ByteSlice const& seed, uint64_t counter);
 
 // SHA256 in incremental mode, for large inputs.
+// Backed by the Rust sha2 bridge and pimpl'd so this widely-included header
+// need not pull in the generated rust bridge.
 class SHA256
 {
-    crypto_hash_sha256_state mState;
+    class Impl;
+    std::unique_ptr<Impl> mImpl;
     bool mFinished{false};
 
   public:
     SHA256();
+    ~SHA256();
     void reset();
     void add(ByteSlice const& bin);
     uint256 finish();

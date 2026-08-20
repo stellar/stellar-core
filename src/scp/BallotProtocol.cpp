@@ -376,7 +376,6 @@ BallotProtocol::abandonBallot(uint32 n)
 bool
 BallotProtocol::maybeReplaceValueWithEmptyTxSet(Value& v) const
 {
-#ifdef CAP_0083
     if (mPhase != SCP_PHASE_PREPARE)
     {
         // Can only replace with an empty-tx-set value in the PREPARE phase
@@ -412,9 +411,11 @@ BallotProtocol::maybeReplaceValueWithEmptyTxSet(Value& v) const
             return false;
         }
     }
-    // If there is no waiting time for this value, then the value must
-    // reference an invalid tx set that the node already had prior to
-    // receiving the SCP envelope. Drop the tx set.
+    // If there is no waiting time for this value, then either the node already
+    // has the tx set and it is invalid, or the node restarted and lost the
+    // fetcher's in-memory state while its restored SCP state still references
+    // the missing tx set. Either way there is no download in progress to wait
+    // on. Drop the tx set.
 
     // Choose highest seen empty-tx-set value, or create one if no such values
     // exist.
@@ -423,10 +424,6 @@ BallotProtocol::maybeReplaceValueWithEmptyTxSet(Value& v) const
     mSlot.getSCPDriver().noteEmptyTxSetValueReplaced(mSlot.getSlotIndex());
 
     return true;
-#else
-    // Empty-tx-set values require CAP-0083
-    return false;
-#endif // CAP_0083
 }
 
 bool

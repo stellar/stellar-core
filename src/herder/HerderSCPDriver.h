@@ -78,14 +78,12 @@ class HerderSCPDriver : public SCPDriver
     std::string toShortString(NodeID const& pk) const override;
     std::string getValueString(Value const& v) const override;
 
-#ifdef CAP_0083
     // Construct a CAP-0083 empty-tx-set value from `v`. A few caveats about
     // this function:
     // * `v` must be a STELLAR_VALUE_SIGNED value.
     // * This function should only be called from slots with slot indices equal
     //   to LCL+1
     Value makeEmptyTxSetValueFromValue(Value const& v) const override;
-#endif
 
     // Returns true iff `v` is a CAP-0083 empty-tx-set value
     bool isEmptyTxSetValue(Value const& v) const override;
@@ -224,6 +222,9 @@ class HerderSCPDriver : public SCPDriver
     }
 #endif
 
+    // Mark a slot as restored from `PersistentState`
+    void markSlotAsRestored(uint64_t slotIndex);
+
   private:
     Application& mApp;
     HerderImpl& mHerder;
@@ -241,6 +242,9 @@ class HerderSCPDriver : public SCPDriver
     // available.
     std::map<Hash, std::vector<std::weak_ptr<SCPEnvelopeWrapper>>>
         mPendingTxSetEnvelopeWrappers;
+
+    // Indices of slots that were restored from `PersistentState`
+    UnorderedSet<uint64_t> mRestoredSlotIndices;
 
     struct SCPMetrics
     {
@@ -263,6 +267,9 @@ class HerderSCPDriver : public SCPDriver
         // Timer tracking how long balloting was blocked waiting for a txset
         // download
         medida::Timer& mBallotBlockedOnTxSet;
+
+        // Timer tracking time to check and cache a tx set
+        medida::Timer& mTxSetValidation;
 
         // Tracks how many ledgers we externalized an empty-tx-set value.
         medida::Counter& mEmptyTxSetExternalized;

@@ -8,10 +8,13 @@ use std::str::FromStr;
 
 use crate::{
     log::partition::TX,
-    soroban_proto_all::{get_host_module_for_protocol, p22, HostModule},
+    soroban_proto_all::{get_host_module_for_protocol, HostModule},
     CxxBuf, CxxLedgerInfo, CxxRentFeeConfiguration, InvokeHostFunctionOutput, RustBuf,
     SorobanModuleCache,
 };
+
+#[cfg(not(feature = "fastdev"))]
+use crate::soroban_proto_all::p22;
 use log::{info, warn};
 
 pub(super) fn maybe_invoke_host_function_again_and_compare_outputs(
@@ -80,12 +83,14 @@ pub(super) fn maybe_invoke_host_function_again_and_compare_outputs(
     }
 }
 
+#[cfg_attr(feature = "fastdev", allow(unused_variables))]
 fn modify_resources_for_extra_test_execution(
     instruction_limit: &mut u32,
     resources_buf: &mut CxxBuf,
     new_protocol: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match new_protocol {
+        #[cfg(not(feature = "fastdev"))]
         22 => {
             use p22::soroban_proto_any::{
                 inplace_modify_cxxbuf_encoded_type, xdr::SorobanResources,

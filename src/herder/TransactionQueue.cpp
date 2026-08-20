@@ -144,8 +144,8 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
     mQueueMetrics = std::make_unique<QueueMetrics>(
         sizeByAge,
         app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}),
-        app.getMetrics().NewSimpleTimer({"herder", "pending-txs"}),
-        app.getMetrics().NewSimpleTimer({"herder", "pending-txs", "self-"}),
+        app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}),
+        app.getMetrics().NewTimer({"herder", "pending-txs", "self-delay"}),
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "evicted-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
@@ -1112,9 +1112,9 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         sizeByAge,
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "banned"}),
-        app.getMetrics().NewSimpleTimer({"herder", "pending-soroban-txs"}),
-        app.getMetrics().NewSimpleTimer(
-            {"herder", "pending-soroban-txs", "self-"}),
+        app.getMetrics().NewTimer({"herder", "pending-soroban-txs", "delay"}),
+        app.getMetrics().NewTimer(
+            {"herder", "pending-soroban-txs", "self-delay"}),
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "evicted-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
