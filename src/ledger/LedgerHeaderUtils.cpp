@@ -8,6 +8,8 @@
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 
@@ -17,12 +19,206 @@
 namespace stellar
 {
 
+namespace
+{
+template <typename T>
+auto&
+getLcValueSignatureImpl(T& sv)
+{
+    switch (sv.ext.v())
+    {
+    case STELLAR_VALUE_SIGNED:
+        return sv.ext.lcValueSignature();
+    case STELLAR_VALUE_EMPTY_TX_SET:
+        return sv.ext.proposedValue().lcValueSignature;
+#ifdef MS_CLOSE_TIME
+    case STELLAR_VALUE_SIGNED_MS:
+        return sv.ext.signedMsValue().lcValueSignature;
+    case STELLAR_VALUE_EMPTY_TX_SET_MS:
+        return sv.ext.proposedMsValue().lcValueSignature;
+#endif
+    default:
+        releaseAssert(false);
+    }
+}
+}
+
+CloseTime
+CloseTime::next(uint32_t protocolVersion) const
+{
+    releaseAssert(closeTimeMs <= MAX_CLOSE_TIME_MS);
+    if (protocolVersionStartsFrom(protocolVersion,
+                                  MS_CLOSE_TIME_PROTOCOL_VERSION) &&
+        closeTimeMs < MAX_CLOSE_TIME_MS)
+    {
+        return {closeTime, closeTimeMs + 1};
+    }
+    return {closeTime + 1, 0};
+}
+
+VirtualClock::system_time_point
+CloseTime::toSystemTime() const
+{
+    releaseAssert(closeTimeMs <= MAX_CLOSE_TIME_MS);
+    return VirtualClock::from_time_t(static_cast<std::time_t>(closeTime)) +
+           std::chrono::milliseconds(closeTimeMs);
+}
+
+CloseTime
+CloseTime::fromSystemTime(VirtualClock::system_time_point time,
+                          uint32_t protocolVersion)
+{
+    auto const sinceEpoch =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            time.time_since_epoch());
+    releaseAssert(sinceEpoch.count() >= 0);
+    auto const seconds =
+        std::chrono::duration_cast<std::chrono::seconds>(sinceEpoch);
+    auto const milliseconds =
+        protocolVersionStartsFrom(protocolVersion,
+                                  MS_CLOSE_TIME_PROTOCOL_VERSION)
+            ? sinceEpoch - seconds
+            : std::chrono::milliseconds::zero();
+    return {static_cast<TimePoint>(seconds.count()),
+            static_cast<uint32_t>(milliseconds.count())};
+}
+
+uint32_t
+getCloseTimeMs(StellarValue const& sv)
+{
+    switch (sv.ext.v())
+    {
+#ifdef MS_CLOSE_TIME
+    case STELLAR_VALUE_SIGNED_MS:
+        return sv.ext.signedMsValue().closeTimeMs;
+    case STELLAR_VALUE_EMPTY_TX_SET_MS:
+        return sv.ext.proposedMsValue().closeTimeMs;
+#endif
+    default:
+        return 0;
+    }
+}
+
+CloseTime
+getCloseTime(StellarValue const& sv)
+{
+    return {sv.closeTime, getCloseTimeMs(sv)};
+}
+
+bool
+isSignedStellarValue(StellarValue const& sv)
+{
+    switch (sv.ext.v())
+    {
+    case STELLAR_VALUE_SIGNED:
+#ifdef MS_CLOSE_TIME
+    case STELLAR_VALUE_SIGNED_MS:
+#endif
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool
+isEmptyTxSetStellarValue(StellarValue const& sv)
+{
+    switch (sv.ext.v())
+    {
+    case STELLAR_VALUE_EMPTY_TX_SET:
+#ifdef MS_CLOSE_TIME
+    case STELLAR_VALUE_EMPTY_TX_SET_MS:
+#endif
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool
+isMsCloseTimeStellarValue(StellarValue const& sv)
+{
+    switch (sv.ext.v())
+    {
+#ifdef MS_CLOSE_TIME
+    case STELLAR_VALUE_SIGNED_MS:
+    case STELLAR_VALUE_EMPTY_TX_SET_MS:
+        return true;
+#endif
+    default:
+        return false;
+    }
+}
+
+bool
+validateMsCloseTimeFormat(StellarValue const& sv, bool allowMsTime,
+                          bool allowWholeSecondTime)
+{
+    if (getCloseTimeMs(sv) > CloseTime::MAX_CLOSE_TIME_MS)
+    {
+        return false;
+    }
+    return isMsCloseTimeStellarValue(sv) ? allowMsTime : allowWholeSecondTime;
+}
+
+LedgerCloseValueSignature&
+getLcValueSignature(StellarValue& sv)
+{
+    return getLcValueSignatureImpl(sv);
+}
+
+LedgerCloseValueSignature const&
+getLcValueSignature(StellarValue const& sv)
+{
+    return getLcValueSignatureImpl(sv);
+}
+
+Hash const&
+getProposedTxSetHash(StellarValue const& sv)
+{
+#ifdef MS_CLOSE_TIME
+    if (sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET_MS)
+    {
+        return sv.ext.proposedMsValue().txSetHash;
+    }
+#endif
+    releaseAssert(sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
+    return sv.ext.proposedValue().txSetHash;
+}
+
+Hash const&
+getProposedPreviousLedgerHash(StellarValue const& sv)
+{
+#ifdef MS_CLOSE_TIME
+    if (sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET_MS)
+    {
+        return sv.ext.proposedMsValue().previousLedgerHash;
+    }
+#endif
+    releaseAssert(sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
+    return sv.ext.proposedValue().previousLedgerHash;
+}
+
+uint32_t
+getProposedPreviousLedgerVersion(StellarValue const& sv)
+{
+#ifdef MS_CLOSE_TIME
+    if (sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET_MS)
+    {
+        return sv.ext.proposedMsValue().previousLedgerVersion;
+    }
+#endif
+    releaseAssert(sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
+    return sv.ext.proposedValue().previousLedgerVersion;
+}
+
 static bool
 isValid(LedgerHeader const& lh)
 {
     bool res = (lh.ledgerSeq <= INT32_MAX);
 
     res = res && (lh.scpValue.closeTime <= INT64_MAX);
+    res = res && (getCloseTimeMs(lh.scpValue) <= CloseTime::MAX_CLOSE_TIME_MS);
     res = res && (lh.feePool >= 0);
     res = res && (lh.idPool <= INT64_MAX);
     return res;

@@ -330,7 +330,15 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 
     auto const& values = maybeValues.value();
-    if (std::any_of(values.begin(), values.end(), [this](auto const& value) {
+    auto const& scpDriver = mHerder.getHerderSCPDriver();
+    // The protocol gates below are judged against the local LCL, which only
+    // governs slots up to lcl+1. A node that has fallen behind a protocol
+    // upgrade cannot know which protocol governs later slots, so it must not
+    // drop protocol-gated values for future slots.
+    bool const beyondLocalProtocol =
+        envelope.statement.slotIndex >
+        mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
+    if (std::any_of(values.begin(), values.end(), [&](auto const& value) {
             switch (value.ext.v())
             {
             case STELLAR_VALUE_BASIC:
@@ -340,8 +348,19 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                 // Signed values are allowed
                 return false;
             case STELLAR_VALUE_EMPTY_TX_SET:
-                return !mHerder.getHerderSCPDriver()
-                            .protocolAllowsEmptyTxSetValues();
+                return !beyondLocalProtocol &&
+                       !scpDriver.protocolAllowsEmptyTxSetValues();
+#ifdef MS_CLOSE_TIME
+            case STELLAR_VALUE_SIGNED_MS:
+                // Millisecond close times are only permitted once the
+                // protocol uses them
+                return !beyondLocalProtocol &&
+                       !scpDriver.protocolUsesMsCloseTime();
+            case STELLAR_VALUE_EMPTY_TX_SET_MS:
+                return !beyondLocalProtocol &&
+                       !(scpDriver.protocolAllowsEmptyTxSetValues() &&
+                         scpDriver.protocolUsesMsCloseTime());
+#endif // MS_CLOSE_TIME
             default:
                 releaseAssert(false);
             }

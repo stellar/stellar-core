@@ -2666,3 +2666,34 @@ TEST_CASE("CheckpointBuilder", "[history][publish]")
         validateCheckpointFiles(*app, ledgerSeq, true);
     }
 }
+
+#ifdef MS_CLOSE_TIME
+TEST_CASE("History publish and catchup over sub-second ledgers",
+          "[history][catchup]")
+{
+    CatchupSimulation catchupSimulation{};
+    auto& lm = catchupSimulation.getApp().getLedgerManager();
+
+    // Generate a run of ledgers containing a same-second triple: one ledger
+    // at a whole second and two more within that second at increasing ms
+    catchupSimulation.generateRandomLedger();
+    auto const ct =
+        getCloseTime(lm.getLastClosedLedgerHeader().header.scpValue);
+    REQUIRE(ct.closeTimeMs == 0);
+    catchupSimulation.generateRandomLedger(0, CloseTime{ct.closeTime, 250});
+    catchupSimulation.generateRandomLedger(0, CloseTime{ct.closeTime, 750});
+    REQUIRE(lm.getLastClosedLedgerHeader().header.scpValue.closeTime ==
+            ct.closeTime);
+
+    // Fill up to a published checkpoint with normally-spaced ledgers
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+
+    // A full replay from genesis re-applies the sub-second ledgers through
+    // the ms-close-time format and monotonicity replay checks
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+        "sub-second-catchup");
+    REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
+}
+#endif // MS_CLOSE_TIME

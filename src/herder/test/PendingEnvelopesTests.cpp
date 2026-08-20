@@ -12,6 +12,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 
@@ -24,11 +25,22 @@ using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
 
 TxPair
 makeTxPair(HerderImpl& herder, SecretKey const& s, TxSetXDRFrameConstPtr txSet,
-           uint64_t closeTime, StellarValueType svt)
+           uint64_t closeTime)
 {
     StellarValue sv = herder.makeStellarValue(txSet->getContentsHash(),
                                               closeTime, emptyUpgradeSteps, s);
-    sv.ext.v(svt);
+    return TxPair{xdr::xdr_to_opaque(sv), txSet};
+}
+
+// An unsigned (STELLAR_VALUE_BASIC) value, which validation must reject.
+// Switching the arm discards the signature makeStellarValue produced.
+TxPair
+makeUnsignedTxPair(HerderImpl& herder, SecretKey const& s,
+                   TxSetXDRFrameConstPtr txSet, uint64_t closeTime)
+{
+    StellarValue sv = herder.makeStellarValue(txSet->getContentsHash(),
+                                              closeTime, emptyUpgradeSteps, s);
+    sv.ext.v(STELLAR_VALUE_BASIC);
     return TxPair{xdr::xdr_to_opaque(sv), txSet};
 }
 
@@ -137,7 +149,7 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
     auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
     auto txSet = makeTransactions(*app, accs, *root, numAccounts);
-    auto p = makeTxPair(herder, s, txSet, 10, STELLAR_VALUE_SIGNED);
+    auto p = makeTxPair(herder, s, txSet, 10);
     auto saneEnvelope =
         makeEnvelope(herder, s, p, saneQSetHash, lcl.header.ledgerSeq + 1);
     auto bigEnvelope =
@@ -486,7 +498,7 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
     SECTION("do not fetch if txsets are not signed")
     {
-        auto p2 = makeTxPair(herder, s, txSet, 10, STELLAR_VALUE_BASIC);
+        auto p2 = makeUnsignedTxPair(herder, s, txSet, 10);
         auto envNoSign =
             makeEnvelope(herder, s, p2, saneQSetHash, lcl.header.ledgerSeq + 1);
 
@@ -511,6 +523,59 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(badEnvelope) ==
                 Herder::ENVELOPE_STATUS_DISCARDED);
     }
+
+#ifdef MS_CLOSE_TIME
+    SECTION("ms value arms gated by MS_CLOSE_TIME_PROTOCOL_VERSION")
+    {
+        uint64_t const nextSlot = lcl.header.ledgerSeq + 1;
+        uint32_t const msVersion =
+            static_cast<uint32_t>(MS_CLOSE_TIME_PROTOCOL_VERSION);
+
+        // Hand-craft a correctly-signed SIGNED_MS value
+        StellarValue msSv;
+        msSv.ext.v(STELLAR_VALUE_SIGNED_MS);
+        msSv.txSetHash = txSet->getContentsHash();
+        msSv.closeTime = 10;
+        msSv.ext.signedMsValue().closeTimeMs = 1;
+        auto& msSig = msSv.ext.signedMsValue().lcValueSignature;
+        msSig.nodeID = s.getPublicKey();
+        msSig.signature = s.sign(xdr::xdr_to_opaque(
+            app->getNetworkID(), ENVELOPE_TYPE_SCPVALUE, msSv.txSetHash,
+            msSv.closeTime, msSv.ext.signedMsValue().closeTimeMs));
+        TxPair const msPair{xdr::xdr_to_opaque(msSv), txSet};
+
+        auto envelopeAt = [&](TxPair const& pair, uint64_t slot) {
+            return makeEnvelope(herder, s, pair, saneQSetHash, slot);
+        };
+
+        SECTION("ms arms dropped for governed slots before activation, kept "
+                "for later slots")
+        {
+            for_versions_to(msVersion - 1, *app, [&] {
+                REQUIRE(pendingEnvelopes.recvSCPEnvelope(
+                            envelopeAt(msPair, nextSlot)) ==
+                        Herder::ENVELOPE_STATUS_DISCARDED);
+                // A node that has fallen behind a protocol upgrade cannot
+                // know which protocol governs slots beyond lcl+1, so ms
+                // values for those must not be dropped (this is how a
+                // lagging node resyncs across the upgrade from relayed SCP
+                // state)
+                REQUIRE(pendingEnvelopes.recvSCPEnvelope(
+                            envelopeAt(msPair, nextSlot + 1)) !=
+                        Herder::ENVELOPE_STATUS_DISCARDED);
+            });
+        }
+
+        SECTION("ms arms accepted once ms close times activate")
+        {
+            for_versions_from(msVersion, *app, [&] {
+                REQUIRE(pendingEnvelopes.recvSCPEnvelope(
+                            envelopeAt(msPair, nextSlot)) !=
+                        Herder::ENVELOPE_STATUS_DISCARDED);
+            });
+        }
+    }
+#endif // MS_CLOSE_TIME
 
     SECTION("empty-tx-set value envelopes gated by "
             "EMPTY_TX_SET_PROTOCOL_VERSION")
@@ -549,8 +614,7 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
     {
         GeneralizedTransactionSet malformedXdrSet(1);
         auto malformedTxSet = TxSetXDRFrame::makeFromWire(malformedXdrSet);
-        auto p2 =
-            makeTxPair(herder, s, malformedTxSet, 10, STELLAR_VALUE_SIGNED);
+        auto p2 = makeTxPair(herder, s, malformedTxSet, 10);
         auto malformedEnvelope =
             makeEnvelope(herder, s, p2, saneQSetHash, lcl.header.ledgerSeq + 1);
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(malformedEnvelope) ==
@@ -685,7 +749,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope without parallel tx set download",
     auto saneQSetHash = sha256(xdr::xdr_to_opaque(saneQSet));
 
     auto txSet = makeTransactions(*app, accs, *root, numAccounts);
-    auto p = makeTxPair(herder, s, txSet, 10, STELLAR_VALUE_SIGNED);
+    auto p = makeTxPair(herder, s, txSet, 10);
 
     auto& pendingEnvelopes = herder.getPendingEnvelopes();
 

@@ -2028,15 +2028,15 @@ TEST_CASE("GET_SCP_STATE rate limiting", "[overlay]")
     // Bump up close time and max slots to remember to production levels. These
     // must be large enough that crankSome calls between requests don't cause a
     // window reset.
-    cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
-    cfg2.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
+    cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5000;
+    cfg2.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5000;
     cfg1.MAX_SLOTS_TO_REMEMBER = 12;
     cfg2.MAX_SLOTS_TO_REMEMBER = 12;
 
     // The window size + 1 second. Minimum time required to ensure the rate
     // limit window resets.
     std::chrono::seconds const WINDOW_CLEAR_DURATION(
-        cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING *
+        cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING / 1000 *
             cfg1.MAX_SLOTS_TO_REMEMBER +
         1);
 

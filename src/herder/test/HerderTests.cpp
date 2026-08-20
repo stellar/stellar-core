@@ -29,6 +29,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "lib/json/json.h"
 #include "main/CommandHandler.h"
 #include "main/PersistentState.h"
 #include "overlay/OverlayManager.h"
@@ -65,6 +66,24 @@ using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
 using namespace historytestutils;
+
+TEST_CASE("close time helpers", "[herder]")
+{
+    auto const systemTime =
+        VirtualClock::from_time_t(123) + std::chrono::milliseconds(456);
+    auto const msVersion =
+        static_cast<uint32_t>(MS_CLOSE_TIME_PROTOCOL_VERSION);
+    auto const closeTime = CloseTime::fromSystemTime(systemTime, msVersion);
+    REQUIRE(closeTime == (CloseTime{123, 456}));
+    REQUIRE(closeTime.toSystemTime() == systemTime);
+    REQUIRE(CloseTime::fromSystemTime(systemTime, msVersion - 1) ==
+            (CloseTime{123, 0}));
+    // From the ms protocol on, close times advance by 1ms (carrying into the
+    // seconds component); before it, they round up to the next whole second
+    REQUIRE((CloseTime{123, 456}).next(msVersion) == (CloseTime{123, 457}));
+    REQUIRE((CloseTime{123, 999}).next(msVersion) == (CloseTime{124, 0}));
+    REQUIRE((CloseTime{123, 456}).next(msVersion - 1) == (CloseTime{124, 0}));
+}
 
 TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 {
@@ -2843,7 +2862,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
             // Compare the returned StellarValue's contents with the
             // expected ones that we computed above.
-            REQUIRE(sv.ext.v() == STELLAR_VALUE_SIGNED);
+            REQUIRE(isSignedStellarValue(sv));
             REQUIRE(sv.txSetHash == expectedHash);
             REQUIRE(sv.closeTime == expectedCloseTime);
             REQUIRE(sv.upgrades == expectedUpgradeVector);
@@ -2872,8 +2891,29 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         auto v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         StellarValue sv;
         xdr::xdr_from_opaque(v->getValue(), sv);
-        REQUIRE(sv.ext.v() == STELLAR_VALUE_SIGNED);
+        REQUIRE(isSignedStellarValue(sv));
         REQUIRE(sv.txSetHash == txSetL2->getContentsHash());
+
+#ifdef MS_CLOSE_TIME
+        if (protocolVersionStartsFrom(protocolVersion,
+                                      MS_CLOSE_TIME_PROTOCOL_VERSION))
+        {
+            // Test that the winning candidate keeps both the whole second and
+            // millisecond component of close time.
+            auto txSetL3 = makeTransactions(maxTxSetSize, 1, 2000).first;
+            StellarValue msVal = herder.makeStellarValue(
+                txSetL3->getContentsHash(), {20, 7}, emptyUpgradeSteps,
+                root->getSecretKey());
+            addToCandidates(TxPair{xdr::xdr_to_opaque(msVal), txSetL3});
+            auto v2 =
+                herder.getHerderSCPDriver().combineCandidates(1, candidates);
+            StellarValue sv2;
+            xdr::xdr_from_opaque(v2->getValue(), sv2);
+            REQUIRE(sv2.ext.v() == STELLAR_VALUE_SIGNED_MS);
+            REQUIRE(getCloseTimeMs(sv2) == 7);
+            REQUIRE(sv2.txSetHash == txSetL3->getContentsHash());
+        }
+#endif // MS_CLOSE_TIME
     }
 
     SECTION("validateValue signatures")
@@ -2928,17 +2968,17 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                     // mutate in a few ways
                     SECTION("missing signature")
                     {
-                        sv.ext.lcValueSignature().signature.clear();
+                        getLcValueSignature(sv).signature.clear();
                         checkInvalid(sv, isNomination);
                     }
                     SECTION("wrong signature")
                     {
-                        sv.ext.lcValueSignature().signature[0] ^= 1;
+                        getLcValueSignature(sv).signature[0] ^= 1;
                         checkInvalid(sv, isNomination);
                     }
                     SECTION("wrong signature 2")
                     {
-                        sv.ext.lcValueSignature().nodeID.ed25519()[0] ^= 1;
+                        getLcValueSignature(sv).nodeID.ed25519()[0] ^= 1;
                         checkInvalid(sv, isNomination);
                     }
                 }
@@ -3026,63 +3066,87 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                                 TimePoint const nextCloseTime,
                                 bool const expectValid) {
             REQUIRE(nextCloseTime > lcl.header.scpValue.closeTime);
-            // Build a transaction set containing one transaction (which
-            // could be any transaction that is valid in all ways aside from
-            // its time bounds) with the given minTime and maxTime.
-            auto tx = makeMultiPayment(*root, *root, 10, 1000, 0, 100);
-            setMinTime(tx, minTime);
-            setMaxTime(tx, maxTime);
-            auto& sig = tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
+            // Each combination runs both with a whole-second close time and,
+            // once ms close times are active, with a random nonzero ms
+            // component on it. Time bounds enforcement rounds to whole seconds,
+            // so execution should be identical.
+            for (uint32_t ctMs :
+                 {0u, rand_uniform<uint32_t>(1, CloseTime::MAX_CLOSE_TIME_MS)})
+            {
+                if (ctMs != 0 && !scp.protocolUsesMsCloseTime())
+                {
+                    continue;
+                }
+                SECTION(ctMs == 0 ? "whole-second close time" : "ms close time")
+                {
+                    // Build a transaction set containing one transaction
+                    // (which could be any transaction that is valid in all
+                    // ways aside from its time bounds) with the given minTime
+                    // and maxTime.
+                    auto tx = makeMultiPayment(*root, *root, 10, 1000, 0, 100);
+                    setMinTime(tx, minTime);
+                    setMaxTime(tx, maxTime);
+                    auto& sig =
+                        tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
                             ? tx->getMutableEnvelope().v0().signatures
                             : tx->getMutableEnvelope().v1().signatures;
-            sig.clear();
-            tx->addSignature(root->getSecretKey());
-            auto [txSet, applicableTxSet] =
-                testtxset::makeNonValidatedTxSetBasedOnLedgerVersion(
-                    {tx}, *app,
-                    app->getLedgerManager().getLastClosedLedgerHeader().hash);
+                    sig.clear();
+                    tx->addSignature(root->getSecretKey());
+                    auto [txSet, applicableTxSet] =
+                        testtxset::makeNonValidatedTxSetBasedOnLedgerVersion(
+                            {tx}, *app,
+                            app->getLedgerManager()
+                                .getLastClosedLedgerHeader()
+                                .hash);
 
-            // Build a StellarValue containing the transaction set we just
-            // built and the given next closeTime.
-            auto val = makeTxPair(herder, txSet, nextCloseTime);
-            auto const seq = herder.trackingConsensusLedgerIndex() + 1;
-            auto envelope = makeEnvelope(herder, val, {}, seq, true);
-            REQUIRE(herder.recvSCPEnvelope(envelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(txSet->getContentsHash(), txSet));
+                    // Build a StellarValue containing the transaction set we
+                    // just built and the given next closeTime.
+                    StellarValue sv = herder.makeStellarValue(
+                        txSet->getContentsHash(),
+                        CloseTime{nextCloseTime, ctMs}, emptyUpgradeSteps,
+                        root->getSecretKey());
+                    auto val = TxPair{xdr::xdr_to_opaque(sv), txSet};
+                    auto const seq = herder.trackingConsensusLedgerIndex() + 1;
+                    auto envelope = makeEnvelope(herder, val, {}, seq, true);
+                    REQUIRE(herder.recvSCPEnvelope(envelope) ==
+                            Herder::ENVELOPE_STATUS_FETCHING);
+                    REQUIRE(herder.recvTxSet(txSet->getContentsHash(), txSet));
 
-            // Validate the StellarValue.
-            SCPDriver::ValidationLevel expectedValidationLevel =
-                SCPDriver::kFullyValidatedValue;
-            if (!expectValid)
-            {
-                if (scp.protocolAllowsEmptyTxSetValues())
-                {
-                    // If CAP-0083 is active, then this StellarValue is
-                    // considered structurally valid because only the tx set is
-                    // invalid.
-                    expectedValidationLevel =
-                        SCPDriver::kStructurallyValidValue;
-                }
-                else
-                {
-                    expectedValidationLevel = SCPDriver::kInvalidValue;
+                    // Validate the StellarValue.
+                    SCPDriver::ValidationLevel expectedValidationLevel =
+                        SCPDriver::kFullyValidatedValue;
+                    if (!expectValid)
+                    {
+                        if (scp.protocolAllowsEmptyTxSetValues())
+                        {
+                            // If CAP-0083 is active, then this StellarValue
+                            // is considered structurally valid because only
+                            // the tx set is invalid.
+                            expectedValidationLevel =
+                                SCPDriver::kStructurallyValidValue;
+                        }
+                        else
+                        {
+                            expectedValidationLevel = SCPDriver::kInvalidValue;
+                        }
+                    }
+                    REQUIRE(scp.validateValue(seq, val.first, true) ==
+                            expectedValidationLevel);
+
+                    // Confirm that getTxTrimList() as used by
+                    // makeTxSetFromTransactions() trims the transaction if
+                    // and only if we expect it to be invalid.
+                    auto closeTimeOffset = nextCloseTime - lclCloseTime;
+                    TxFrameList removed;
+                    UnorderedMap<AccountID, int64_t> accountFeeMap;
+                    TxSetUtils::trimInvalid(
+                        applicableTxSet->getPhase(TxSetPhase::CLASSIC)
+                            .getSequentialTxs(),
+                        *app, accountFeeMap, closeTimeOffset, closeTimeOffset,
+                        removed);
+                    REQUIRE(removed.size() == (expectValid ? 0 : 1));
                 }
             }
-            REQUIRE(scp.validateValue(seq, val.first, true) ==
-                    expectedValidationLevel);
-
-            // Confirm that getTxTrimList() as used by
-            // makeTxSetFromTransactions() trims the transaction if
-            // and only if we expect it to be invalid.
-            auto closeTimeOffset = nextCloseTime - lclCloseTime;
-            TxFrameList removed;
-            UnorderedMap<AccountID, int64_t> accountFeeMap;
-            TxSetUtils::trimInvalid(
-                applicableTxSet->getPhase(TxSetPhase::CLASSIC)
-                    .getSequentialTxs(),
-                *app, accountFeeMap, closeTimeOffset, closeTimeOffset, removed);
-            REQUIRE(removed.size() == (expectValid ? 0 : 1));
         };
 
         auto t1 = lclCloseTime + 1, t2 = lclCloseTime + 2;
@@ -3340,6 +3404,298 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                          : SCPDriver::kInvalidValue));
         }
     }
+
+#ifdef MS_CLOSE_TIME
+    SECTION("validateValue ms close times")
+    {
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getHerderSCPDriver();
+        auto seq = herder.trackingConsensusLedgerIndex() + 1;
+        auto ct = app->timeNow() + 1;
+
+        auto txSet0 = makeTransactions(0, 1, 100).first;
+        {
+            // make sure that txSet0 is loaded
+            auto p = makeTxPair(herder, txSet0, ct);
+            auto envelope = makeEnvelope(herder, p, {}, seq, true);
+            REQUIRE(herder.recvSCPEnvelope(envelope) ==
+                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(herder.recvTxSet(txSet0->getContentsHash(), txSet0));
+        }
+
+        auto check = [&](StellarValue const& sv, bool expectValid) {
+            auto v = xdr::xdr_to_opaque(sv);
+            auto res = scp.validateValue(seq, v, /*nomination=*/true);
+            if (expectValid)
+            {
+                REQUIRE(res == SCPDriver::kFullyValidatedValue);
+            }
+            else
+            {
+                REQUIRE(res == SCPDriver::kInvalidValue);
+            }
+        };
+
+        if (protocolVersionStartsFrom(protocolVersion,
+                                      MS_CLOSE_TIME_PROTOCOL_VERSION))
+        {
+            // Craft a legacy (pre-ms) STELLAR_VALUE_SIGNED value with a
+            // valid signature
+            auto makeLegacySignedValue = [&](uint64_t closeTime) {
+                StellarValue sv;
+                sv.ext.v(STELLAR_VALUE_SIGNED);
+                sv.txSetHash = txSet0->getContentsHash();
+                sv.closeTime = closeTime;
+                sv.upgrades = emptyUpgradeSteps;
+                sv.ext.lcValueSignature().nodeID = s.getPublicKey();
+                sv.ext.lcValueSignature().signature = s.sign(xdr::xdr_to_opaque(
+                    app->getNetworkID(), ENVELOPE_TYPE_SCPVALUE, sv.txSetHash,
+                    sv.closeTime));
+                return sv;
+            };
+
+            SECTION("ms value is valid and carries its ms component")
+            {
+                StellarValue sv = herder.makeStellarValue(
+                    txSet0->getContentsHash(), {ct, 123}, emptyUpgradeSteps, s);
+                REQUIRE(sv.ext.v() == STELLAR_VALUE_SIGNED_MS);
+                REQUIRE(getCloseTimeMs(sv) == 123);
+                check(sv, true);
+            }
+            SECTION("legacy signed value rejected for ratifiable slots")
+            {
+                check(makeLegacySignedValue(ct), false);
+            }
+            SECTION("legacy values for past slots")
+            {
+                // Close some ledgers so that past slots exist. Values for
+                // slots at or before the LCL may predate the ms upgrade, so
+                // the legacy arm stays relayable for them, but only with a
+                // close time consistent with what was externalized
+                closeLedgerOn(
+                    *app, app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                    ct);
+                closeLedgerOn(
+                    *app, app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                    ct + 1);
+                auto const pastSlot =
+                    app->getLedgerManager().getLastClosedLedgerNum() - 1;
+                // Strictly-older close time for an older slot: relayable
+                REQUIRE(scp.validateValue(
+                            pastSlot,
+                            xdr::xdr_to_opaque(makeLegacySignedValue(ct)),
+                            /*nomination=*/false) ==
+                        SCPDriver::kMaybeValidNotCurrentValue);
+                // Newer-than-externalized close time for an older slot:
+                // rejected
+                REQUIRE(scp.validateValue(
+                            pastSlot,
+                            xdr::xdr_to_opaque(makeLegacySignedValue(ct + 60)),
+                            /*nomination=*/false) == SCPDriver::kInvalidValue);
+            }
+            SECTION("legacy signed value rejected for future slots")
+            {
+                // Once we upgrade to MS block times, reject all future slots
+                // with legacy values.
+                herder.lostSync();
+                REQUIRE(scp.validateValue(
+                            seq + 1,
+                            xdr::xdr_to_opaque(makeLegacySignedValue(ct)),
+                            /*nomination=*/false) == SCPDriver::kInvalidValue);
+            }
+            SECTION("legacy empty-tx-set value rejected for ratifiable slots")
+            {
+                auto const legacyEmpty = scp.makeEmptyTxSetValueFromValue(
+                    xdr::xdr_to_opaque(makeLegacySignedValue(ct)));
+                StellarValue esv;
+                xdr::xdr_from_opaque(legacyEmpty, esv);
+                REQUIRE(esv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
+                REQUIRE(scp.validateValue(seq, legacyEmpty,
+                                          /*nomination=*/false) ==
+                        SCPDriver::kInvalidValue);
+            }
+            SECTION("ms component out of range")
+            {
+                StellarValue sv = herder.makeStellarValue(
+                    txSet0->getContentsHash(), {ct, 999}, emptyUpgradeSteps, s);
+                // Re-sign an out-of-range ms so that only the ms range check
+                // (not the signature check) can reject the value
+                sv.ext.signedMsValue().closeTimeMs = 1000;
+                sv.ext.signedMsValue().lcValueSignature.signature =
+                    s.sign(xdr::xdr_to_opaque(
+                        app->getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
+                        sv.txSetHash, sv.closeTime,
+                        sv.ext.signedMsValue().closeTimeMs));
+                check(sv, false);
+            }
+            SECTION("tampered ms component breaks the value signature")
+            {
+                StellarValue sv = herder.makeStellarValue(
+                    txSet0->getContentsHash(), {ct, 5}, emptyUpgradeSteps, s);
+                sv.ext.signedMsValue().closeTimeMs = 6;
+                check(sv, false);
+            }
+            SECTION("sub-second ordering against the last close time")
+            {
+                auto lclCt = app->getLedgerManager()
+                                 .getLastClosedLedgerHeader()
+                                 .header.scpValue;
+                REQUIRE(getCloseTimeMs(lclCt) == 0);
+                // Same whole second as the LCL, ms strictly greater: valid
+                StellarValue sv = herder.makeStellarValue(
+                    txSet0->getContentsHash(), {lclCt.closeTime, 1},
+                    emptyUpgradeSteps, s);
+                check(sv, true);
+                // Exactly the LCL combined close time: too old
+                StellarValue svEq = herder.makeStellarValue(
+                    txSet0->getContentsHash(), {lclCt.closeTime, 0},
+                    emptyUpgradeSteps, s);
+                check(svEq, false);
+            }
+            SECTION("tx time bounds at a zero whole-second offset")
+            {
+                // A sub-second ledger closes within the same whole second as
+                // the LCL, so the tx-set validation offsets (which stay at
+                // second resolution per the time-bounds contract) are 0.
+                // Close a ledger at a nonzero whole second first: the genesis
+                // close time is 0, and a maxTime of 0 means "no upper bound",
+                // which would make the expiring-tx case below trivially correct
+                closeLedgerOn(
+                    *app, app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                    ct);
+                auto const lclCt = app->getLedgerManager()
+                                       .getLastClosedLedgerHeader()
+                                       .header.scpValue.closeTime;
+                REQUIRE(lclCt == ct);
+                auto const zSeq = herder.trackingConsensusLedgerIndex() + 1;
+                auto testTxBoundsAtZeroOffset = [&](TimePoint const minTime,
+                                                    TimePoint const maxTime,
+                                                    bool const expectValid) {
+                    auto tx = makeMultiPayment(*root, *root, 10, 1000, 0, 100);
+                    setMinTime(tx, minTime);
+                    setMaxTime(tx, maxTime);
+                    auto& sig =
+                        tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                            ? tx->getMutableEnvelope().v0().signatures
+                            : tx->getMutableEnvelope().v1().signatures;
+                    sig.clear();
+                    tx->addSignature(root->getSecretKey());
+                    auto [txSet, applicableTxSet] =
+                        testtxset::makeNonValidatedTxSetBasedOnLedgerVersion(
+                            {tx}, *app,
+                            app->getLedgerManager()
+                                .getLastClosedLedgerHeader()
+                                .hash);
+
+                    // The value closes a random number of milliseconds into
+                    // the LCL's whole second (any nonzero ms keeps the
+                    // combined close time strictly ahead of the LCL)
+                    StellarValue msv = herder.makeStellarValue(
+                        txSet->getContentsHash(),
+                        CloseTime{lclCt, rand_uniform<uint32_t>(
+                                             1, CloseTime::MAX_CLOSE_TIME_MS)},
+                        emptyUpgradeSteps, s);
+                    auto val = TxPair{xdr::xdr_to_opaque(msv), txSet};
+                    auto envelope = makeEnvelope(herder, val, {}, zSeq, true);
+                    REQUIRE(herder.recvSCPEnvelope(envelope) ==
+                            Herder::ENVELOPE_STATUS_FETCHING);
+                    REQUIRE(herder.recvTxSet(txSet->getContentsHash(), txSet));
+
+                    // Empty-tx-set values are always allowed at the ms
+                    // protocol, so an invalid tx set downgrades the value to
+                    // structurally-valid rather than invalid
+                    auto const expected =
+                        expectValid ? SCPDriver::kFullyValidatedValue
+                                    : SCPDriver::kStructurallyValidValue;
+                    REQUIRE(scp.validateValue(zSeq, val.first, true) ==
+                            expected);
+
+                    TxFrameList removed;
+                    UnorderedMap<AccountID, int64_t> accountFeeMap;
+                    TxSetUtils::trimInvalid(
+                        applicableTxSet->getPhase(TxSetPhase::CLASSIC)
+                            .getSequentialTxs(),
+                        *app, accountFeeMap, 0, 0, removed);
+                    REQUIRE(removed.size() == (expectValid ? 0 : 1));
+                };
+
+                SECTION("tx expiring at the LCL's second stays includable")
+                {
+                    // Suppose a transaction expires at second X. N-1 closes at
+                    // X.0, N closes at X.1. Confirm the transaction is valid in
+                    // both N - 1 and N.
+                    testTxBoundsAtZeroOffset(0, lclCt, true);
+                }
+                SECTION("tx valid only from the next second is excluded")
+                {
+                    // Suppose a transaction becomes valid at second X + 1. N-1
+                    // closes at X.0, N closes at X.1. Confirm the transaction
+                    // is invalid in both N - 1 and N.
+                    testTxBoundsAtZeroOffset(lclCt + 1, 0, false);
+                }
+            }
+            SECTION("future slip bound includes milliseconds")
+            {
+                auto const maxCloseTime =
+                    CloseTime::fromSystemTime(app->getClock().system_now() +
+                                                  Herder::MAX_TIME_SLIP_SECONDS,
+                                              protocolVersion);
+                check(herder.makeStellarValue(txSet0->getContentsHash(),
+                                              maxCloseTime, emptyUpgradeSteps,
+                                              s),
+                      true);
+                check(
+                    herder.makeStellarValue(txSet0->getContentsHash(),
+                                            maxCloseTime.next(protocolVersion),
+                                            emptyUpgradeSteps, s),
+                    false);
+            }
+            SECTION("empty-tx-set conversion preserves ms and signature")
+            {
+                StellarValue sv = herder.makeStellarValue(
+                    txSet0->getContentsHash(), {ct, 42}, emptyUpgradeSteps, s);
+                auto emptyVal =
+                    scp.makeEmptyTxSetValueFromValue(xdr::xdr_to_opaque(sv));
+                StellarValue esv;
+                xdr::xdr_from_opaque(emptyVal, esv);
+                REQUIRE(esv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET_MS);
+                REQUIRE(getCloseTimeMs(esv) == 42);
+                REQUIRE(esv.txSetHash == Herder::EMPTY_TX_SET_HASH);
+                REQUIRE(getProposedTxSetHash(esv) == txSet0->getContentsHash());
+                REQUIRE(herder.verifyStellarValueSignature(esv));
+            }
+        }
+        else
+        {
+            // Before the ms protocol activates, ms values are rejected
+            // outright for ratifiable slots. The value is correctly signed
+            // over the ms-inclusive payload so that only the protocol gate
+            // can be the cause of rejection
+            StellarValue msv;
+            msv.ext.v(STELLAR_VALUE_SIGNED_MS);
+            msv.txSetHash = txSet0->getContentsHash();
+            msv.closeTime = ct;
+            msv.ext.signedMsValue().closeTimeMs = 1;
+            auto& sig = msv.ext.signedMsValue().lcValueSignature;
+            sig.nodeID = s.getPublicKey();
+            sig.signature = s.sign(xdr::xdr_to_opaque(
+                app->getNetworkID(), ENVELOPE_TYPE_SCPVALUE, msv.txSetHash,
+                msv.closeTime, msv.ext.signedMsValue().closeTimeMs));
+            check(msv, false);
+
+            // For slots beyond lcl+1 the governing protocol is unknowable to
+            // an out-of-sync node (the network may have upgraded ahead of
+            // it), so the same value must stay relayable: this is how a node
+            // that fell further behind than its peers remember slots ever
+            // externalizes the network's current slots, which is what
+            // triggers catchup
+            herder.lostSync();
+            REQUIRE(scp.validateValue(seq + 1, xdr::xdr_to_opaque(msv),
+                                      /*nomination=*/false) ==
+                    SCPDriver::kMaybeValidNotCurrentValue);
+        }
+    }
+#endif // MS_CLOSE_TIME
 }
 
 TEST_CASE("SCP Driver", "[herder][acceptance]")
@@ -9319,8 +9675,8 @@ TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
                 StellarValue sv;
                 xdr::xdr_from_opaque(
                     ext->statement.pledges.externalize().commit.value, sv);
-                if (sv.ext.v() == STELLAR_VALUE_SIGNED &&
-                    sv.ext.lcValueSignature().nodeID == *driftedKey)
+                if (isSignedStellarValue(sv) &&
+                    getLcValueSignature(sv).nodeID == *driftedKey)
                 {
                     ++result.driftedLedSlots;
                 }
@@ -9479,3 +9835,97 @@ TEST_CASE("trigger timer switches anchor at protocol 28 upgrade",
         REQUIRE(result.postUpgrade + cadenceMargin > result.preUpgrade);
     }
 }
+
+#ifdef MS_CLOSE_TIME
+TEST_CASE("ms close times support subsecond ledgers", "[herder]")
+{
+    auto mode = Simulation::OVER_LOOPBACK;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    // Close ledgers every 400ms so that consecutive ledgers land within the
+    // same whole second
+    auto sim = Topologies::core(3, 1.0, mode, networkID, [](int i) {
+        auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 400;
+        // Remember enough slots that the scan below covers the whole run
+        cfg.MAX_SLOTS_TO_REMEMBER = 32;
+        return cfg;
+    });
+    sim->startAllNodes();
+
+    auto node0 = sim->getNode(sim->getNodeIDs()[0]);
+
+    sim->crankUntil([&]() { return sim->haveAllExternalized(20, 2); },
+                    std::chrono::seconds(60), false);
+
+    // These nodes run the ms protocol from genesis, so every live-consensus
+    // value must carry a ms close time
+    for (auto const& nodeID : sim->getNodeIDs())
+    {
+        auto node = sim->getNode(nodeID);
+        auto const& lcl = node->getLedgerManager().getLastClosedLedgerHeader();
+        REQUIRE(protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                          MS_CLOSE_TIME_PROTOCOL_VERSION));
+        REQUIRE(isMsCloseTimeStellarValue(lcl.header.scpValue));
+    }
+
+    // Collect all the externalized close times from node0's SCP state
+    auto& herder = static_cast<HerderImpl&>(node0->getHerder());
+    auto& scp = herder.getSCP();
+    std::map<uint32_t, CloseTime> closeTimes;
+    for (uint32_t slot = herder.getMinLedgerSeqToRemember();
+         slot <= herder.trackingConsensusLedgerIndex(); slot++)
+    {
+        auto const envs = scp.getExternalizingState(slot);
+        auto const ext =
+            std::find_if(envs.begin(), envs.end(), [](SCPEnvelope const& e) {
+                return e.statement.pledges.type() == SCP_ST_EXTERNALIZE;
+            });
+        if (ext == envs.end())
+        {
+            continue;
+        }
+        StellarValue sv;
+        xdr::xdr_from_opaque(ext->statement.pledges.externalize().commit.value,
+                             sv);
+        REQUIRE(isMsCloseTimeStellarValue(sv));
+        closeTimes.emplace(slot, getCloseTime(sv));
+    }
+
+    // Check that close times strictly increase and we maintain concensus, even
+    // if multiple blocks occur in the same whole second.
+    REQUIRE(closeTimes.size() >= 16);
+    size_t sameSecondPairs = 0;
+    for (auto it = std::next(closeTimes.begin()); it != closeTimes.end(); ++it)
+    {
+        auto const prev = std::prev(it);
+        REQUIRE(it->second > prev->second);
+        if (it->first == prev->first + 1 &&
+            it->second.closeTime == prev->second.closeTime)
+        {
+            ++sameSecondPairs;
+        }
+    }
+    REQUIRE(sameSecondPairs > 0);
+}
+#endif // MS_CLOSE_TIME
+
+#ifdef MS_CLOSE_TIME
+TEST_CASE("info reports the ms close time component", "[herder]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+
+    // These test networks run the ms protocol from genesis
+    REQUIRE(protocolVersionStartsFrom(
+        lm.getLastClosedLedgerHeader().header.ledgerVersion,
+        MS_CLOSE_TIME_PROTOCOL_VERSION));
+
+    TimePoint const T =
+        lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, CloseTime{T, 250});
+    auto const ledgerInfo = app->getJsonInfo(false)["info"]["ledger"];
+    REQUIRE(ledgerInfo["closeTime"].asUInt64() == T);
+    REQUIRE(ledgerInfo["closeTimeMs"].asUInt() == 250);
+}
+#endif // MS_CLOSE_TIME

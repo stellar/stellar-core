@@ -8,6 +8,7 @@
 #include "Upgrades.h"
 #include "herder/QuorumTracker.h"
 #include "herder/TransactionQueue.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "lib/json/json-forwards.h"
 #include "overlay/Peer.h"
 #include "overlay/StellarXDR.h"
@@ -176,7 +177,7 @@ class Herder
 
     virtual void
     externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
-                     uint64_t closeTime,
+                     CloseTime closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
 
@@ -228,7 +229,7 @@ class Herder
 
     // helper function to craft an SCPValue
     virtual StellarValue
-    makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
+    makeStellarValue(Hash const& txSetHash, CloseTime closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) = 0;
 

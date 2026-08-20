@@ -1945,7 +1945,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMinTime(txFrame, start + 1000);
                         setMaxTime(txFrame, start + 10000);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
 
                         REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
@@ -1960,7 +1961,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         getSignatures(txFrame).clear();
                         txFrame->addSignature(*root);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
                         REQUIRE(txFrame->getResultCode() == txSUCCESS);
                     }
@@ -1972,7 +1974,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMinTime(txFrame, 1000);
                         setMaxTime(txFrame, start);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
                         REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                     }
@@ -1985,7 +1988,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMaxTime(txFrame, 0);
 
                         TimePoint lastClose = getTestDate(1, 1, 2020);
-                        closeLedgerOn(*app, nextLedgerSeq, lastClose);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, lastClose));
 
                         TimePoint const nextOffset = 2;
                         auto const nextClose = lastClose + nextOffset;
@@ -3180,3 +3184,60 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
         runTest(ProtocolVersion::V_23, true);
     }
 }
+
+#ifdef MS_CLOSE_TIME
+TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+    auto root = app->getRoot();
+
+    // These test networks run the ms protocol from genesis
+    REQUIRE(protocolVersionStartsFrom(
+        lm.getLastClosedLedgerHeader().header.ledgerVersion,
+        MS_CLOSE_TIME_PROTOCOL_VERSION));
+
+    // Establish a known whole-second close time and a funded account
+    TimePoint const T =
+        lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
+    auto a1 = root->create("a1", lm.getLastMinBalance(3) + 100000);
+
+    auto reSign = [](TransactionTestFramePtr const& tx, TestAccount& acc) {
+        auto& sig = tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                        ? tx->getMutableEnvelope().v0().signatures
+                        : tx->getMutableEnvelope().v1().signatures;
+        sig.clear();
+        tx->addSignature(acc.getSecretKey());
+    };
+    auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
+
+    SECTION("tx expiring at the current second applies in a same-second "
+            "ledger")
+    {
+        auto tx = a1.tx({payment(*root, 1)});
+        setMaxTime(tx, T);
+        reSign(tx, a1);
+        auto r = closeLedgerOn(*app, nextSeq(), {T, 400}, {tx});
+        checkTx(0, r, txSUCCESS);
+        REQUIRE(getCloseTime(lm.getLastClosedLedgerHeader().header.scpValue) ==
+                (CloseTime{T, 400}));
+    }
+
+    SECTION("tx valid from the next second stays too early in a same-second "
+            "ledger")
+    {
+        auto tx = a1.tx({payment(*root, 1)});
+        setMinTime(tx, T + 1);
+        reSign(tx, a1);
+        auto r = closeLedgerOn(*app, nextSeq(), {T, 400}, {tx},
+                               /*strictOrder=*/true);
+        checkTx(0, r, txTOO_EARLY);
+        // The same transaction applies once the next whole second is reached
+        auto r2 = closeLedgerOn(*app, nextSeq(), {T + 1, 0}, {tx},
+                                /*strictOrder=*/true);
+        checkTx(0, r2, txSUCCESS);
+    }
+}
+#endif // MS_CLOSE_TIME

@@ -17,6 +17,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
 
@@ -104,7 +105,15 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
     {
         for_versions_from(19, *app, [&]() {
             closeLedger(*app);
-            closeLedger(*app);
+            // Re-close at the same close time, adding an ms component once
+            // ms close times are active: minSeqAge/minSeqLedgerGap read
+            // whole seconds and must behave identically against a
+            // sub-second LCL
+            closeLedgerOn(
+                *app, app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                withMsCloseTime(*app, app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.scpValue.closeTime));
 
             auto tx1 = transactionFrameFromOps(app->getNetworkID(), *root,
                                                {a.op(bumpSequence(0))}, {a});
@@ -139,3 +148,58 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
         });
     }
 }
+
+#ifdef MS_CLOSE_TIME
+TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+    auto root = app->getRoot();
+
+    // These test networks run the ms protocol from genesis
+    REQUIRE(protocolVersionStartsFrom(
+        lm.getLastClosedLedgerHeader().header.ledgerVersion,
+        MS_CLOSE_TIME_PROTOCOL_VERSION));
+
+    // Establish a known whole-second close time and a funded account
+    TimePoint const T =
+        lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
+    auto a1 = root->create("a1", lm.getLastMinBalance(3) + 100000);
+    auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
+
+    // a1's sequence number moves in a sub-second ledger; seqTime records the
+    // whole second only
+    auto r0 =
+        closeLedgerOn(*app, nextSeq(), {T, 100}, {a1.tx({payment(*root, 1)})});
+    checkTx(0, r0, txSUCCESS);
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto acc = stellar::loadAccount(ltx, a1.getPublicKey());
+        REQUIRE(
+            getAccountEntryExtensionV3(acc.current().data.account()).seqTime ==
+            T);
+    }
+
+    PreconditionsV2 cond;
+    cond.minSeqAge = 1;
+    auto tx2 = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+
+    SECTION("sub-second ledger in the same whole second: age still 0")
+    {
+        auto r = closeLedgerOn(*app, nextSeq(), {T, 800}, {tx2},
+                               /*strictOrder=*/true);
+
+        // We always round down to whole seconds, so a subsecond ledger should
+        // not advance minSeqAge.
+        checkTx(0, r, txBAD_MIN_SEQ_AGE_OR_GAP);
+    }
+    SECTION("whole-second ledger one second later: age requirement met")
+    {
+        auto r = closeLedgerOn(*app, nextSeq(), {T + 1, 0}, {tx2},
+                               /*strictOrder=*/true);
+        checkTx(0, r, txSUCCESS);
+    }
+}
+#endif // MS_CLOSE_TIME

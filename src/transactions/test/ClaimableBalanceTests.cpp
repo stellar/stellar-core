@@ -619,8 +619,9 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                             asset, amount, {makeClaimant(acc2, pred)});
 
                         // move closeTime forward by a day
-                        closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, 2,
-                                      1, 2016);
+                        closeLedgerOn(
+                            *app, lm.getLastClosedLedgerNum() + 1,
+                            withMsCloseTime(*app, getTestDate(2, 1, 2016)));
                         REQUIRE_THROWS_AS(
                             acc2.claimClaimableBalance(balanceID),
                             ex_CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM);
@@ -721,8 +722,9 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                             asset, amount, {makeClaimant(acc2, pred)});
 
                         // move closeTime forward by a day
-                        closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, 2,
-                                      1, 2016);
+                        closeLedgerOn(
+                            *app, lm.getLastClosedLedgerNum() + 1,
+                            withMsCloseTime(*app, getTestDate(2, 1, 2016)));
                         acc2.claimClaimableBalance(balanceID);
                     };
 
@@ -1329,3 +1331,53 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
         }
     });
 }
+
+#ifdef MS_CLOSE_TIME
+TEST_CASE("claimable balance absBefore under sub-second ledgers",
+          "[tx][claimablebalance]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+    auto root = app->getRoot();
+
+    // These test networks run the ms protocol from genesis
+    REQUIRE(protocolVersionStartsFrom(
+        lm.getLastClosedLedgerHeader().header.ledgerVersion,
+        MS_CLOSE_TIME_PROTOCOL_VERSION));
+
+    // Establish a known whole-second close time and a funded account
+    TimePoint const T =
+        lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
+    auto a1 = root->create("a1", lm.getLastMinBalance(3) + 100000);
+    auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
+
+    ClaimPredicate pred;
+    pred.type(CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME);
+    pred.absBefore() = static_cast<int64_t>(T + 1);
+    Claimant claimant;
+    claimant.v0().destination = a1.getPublicKey();
+    claimant.v0().predicate = pred;
+
+    auto rc = closeLedgerOn(*app, nextSeq(), {T, 100},
+                            {root->tx({createClaimableBalance(
+                                makeNativeAsset(), 100, {claimant})})});
+    checkTx(0, rc, txSUCCESS);
+    auto balanceID = root->getBalanceID(0);
+
+    SECTION("claim within the same second succeeds")
+    {
+        auto r = closeLedgerOn(*app, nextSeq(), {T, 900},
+                               {a1.tx({claimClaimableBalance(balanceID)})});
+        checkTx(0, r, txSUCCESS);
+    }
+    SECTION("claim in the next second fails")
+    {
+        auto r = closeLedgerOn(*app, nextSeq(), {T + 1, 0},
+                               {a1.tx({claimClaimableBalance(balanceID)})},
+                               /*strictOrder=*/true);
+        checkTx(0, r, txFAILED);
+    }
+}
+#endif // MS_CLOSE_TIME

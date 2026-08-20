@@ -636,5 +636,6 @@
 		"mPG9aVxWUEo=",
 		"lkaO24R1wEA="
 	],
-	"bump sequence|protocol version 9|not supported" : [ "/lfj8xIFS8I=" ]
+	"bump sequence|protocol version 9|not supported" : [ "/lfj8xIFS8I=" ],
+	"minSeqAge under sub-second ledgers" : [ "DXfbo737FZ8=", "DXfbo737FZ8=" ]
 }

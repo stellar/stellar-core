@@ -7,6 +7,7 @@
 #include "crypto/SecretKey.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/test/TransactionTestFrame.h"
 #include <optional>
@@ -100,7 +101,7 @@ closeLedgerOn(Application& app, int day, int month, int year,
               bool strictOrder = false);
 
 TransactionResultSet
-closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
+closeLedgerOn(Application& app, uint32 ledgerSeq, CloseTime closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false,
               xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
@@ -109,8 +110,12 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
 TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 
 TransactionResultSet closeLedgerOn(Application& app, uint32 ledgerSeq,
-                                   time_t closeTime,
+                                   CloseTime closeTime,
                                    TxSetXDRFrameConstPtr txSet);
+
+// Returns the requested whole-second close time with a random ms component
+// added if the protocol supports ms close time.
+CloseTime withMsCloseTime(Application& app, TimePoint closeTimeSec);
 
 TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,

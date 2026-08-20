@@ -1,6 +1,8 @@
 {
+   "067f5fa9f796ef3b" : "liabilities_match_created_offer-protocol_version_29-maximum_limits",
    "1f16368433da1628" : "liabilities_match_created_offer-protocol_version_28-minimum_limits",
    "457999c2534447ae" : "liabilities_match_created_offer-protocol_version_28-maximum_limits",
+   "d335812f2158f0bf" : "liabilities_match_created_offer-protocol_version_29-minimum_limits",
    "f7a7364752aecebb" : "liabilities_match_created_offer-protocol_version_26-minimum_limits",
    "fd69a358c98c0b3e" : "liabilities_match_created_offer-protocol_version_26-maximum_limits"
 }
