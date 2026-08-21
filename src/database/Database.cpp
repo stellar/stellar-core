@@ -7,7 +7,6 @@
 #include "database/DatabaseConnectionString.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "main/Application.h"
-#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "util/Decoder.h"
@@ -309,8 +308,13 @@ Database::applyMiscSchemaUpgrade(unsigned long vers)
         getRawMiscSession() << "DETACH DATABASE source_db";
         return;
     case 2:
-        // Add banned accounts table for persistent account filtering.
-        BannedAccountsPersistor::maybeDropAndCreateNew(mMiscSession.session());
+        getRawMiscSession() << "DROP TABLE IF EXISTS bannedaccounts;";
+        getRawMiscSession() << "CREATE TABLE bannedaccounts (accountid "
+                               "VARCHAR(56) PRIMARY KEY);";
+        break;
+    case 3:
+        // The account banning feature was removed; drop its table.
+        getRawMiscSession() << "DROP TABLE IF EXISTS bannedaccounts;";
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
@@ -407,11 +411,16 @@ Database::applySchemaUpgrade(unsigned long vers)
         // for Postgres and in-memory SQLite, create in the main DB.
         if (!canUseMiscDB())
         {
-            BannedAccountsPersistor::maybeDropAndCreateNew(getRawSession());
+            getRawSession() << "DROP TABLE IF EXISTS bannedaccounts;";
+            getRawSession() << "CREATE TABLE bannedaccounts (accountid "
+                               "VARCHAR(56) PRIMARY KEY);";
         }
         break;
     case 28:
         migrateLedgerHeadersToStoreState(*this);
+        break;
+    case 29:
+        getRawSession() << "DROP TABLE IF EXISTS bannedaccounts;";
         break;
 
     default:

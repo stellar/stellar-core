@@ -12,7 +12,6 @@
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
-#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
@@ -715,10 +714,6 @@ TEST_CASE("schema parity across DB backends", "[db][schematest]")
     TmpDir tmpDir("schema-parity-test");
     Config cfg1 = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
     cfg1.DATABASE = SecretValue{"sqlite3://" + tmpDir.getName() + "/test.db"};
-    // Use non-empty FILTERED_G_ADDRESSES to test migration as well
-    cfg1.FILTERED_G_ADDRESSES = {
-        "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC",
-        "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU3RT2UAMVZH"};
 
     VirtualClock clock1;
     Application::pointer app1 = createTestApplication(clock1, cfg1);
@@ -744,9 +739,6 @@ TEST_CASE("schema parity across DB backends", "[db][schematest]")
 
     // ---- PostgreSQL: compare tables and row counts ----
     Config cfg2 = getTestConfig(1, Config::TESTDB_POSTGRESQL);
-    cfg2.FILTERED_G_ADDRESSES = {
-        "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC",
-        "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU3RT2UAMVZH"};
 
     VirtualClock clock2;
     Application::pointer app2 = createTestApplication(clock2, cfg2);

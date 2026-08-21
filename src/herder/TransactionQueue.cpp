@@ -109,19 +109,8 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
         app.getConfig().EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
     mFilteredTypes.insert(filteredTypes.begin(), filteredTypes.end());
 
-    for (auto const& addr : app.getConfig().FILTERED_G_ADDRESSES)
-    {
-        mFilteredAccounts.emplace(KeyUtils::fromStrKey<PublicKey>(addr));
-    }
-
     mBroadcastSeed =
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
-}
-
-void
-TransactionQueue::setFilteredAccounts(std::set<AccountID> const& accounts)
-{
-    mFilteredAccounts = accounts;
 }
 
 ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
@@ -153,9 +142,7 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "filtered-due-to-fp-keys"}),
-        app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "filtered-due-to-account-keys"}));
+            {"herder", "pending-txs", "filtered-due-to-fp-keys"}));
     mBroadcastOpCarryover.resize(1,
                                  Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
 }
@@ -315,8 +302,7 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
-    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
-    bool force
+    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict
 #ifdef BUILD_TESTS
     ,
     bool isLoadgenTx
@@ -338,12 +324,6 @@ TransactionQueue::canAdd(
         mQueueMetrics->mTxsFilteredDueToFootprintKeys.inc();
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
-    if (!force && !tx->validateAccountFilterForFlooding(mFilteredAccounts))
-    {
-        mQueueMetrics->mTxsFilteredDueToAccountKeys.inc();
-        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
-    }
-
     int64_t newFullFee = tx->getFullFee();
     if (newFullFee < 0 || tx->getInclusionFee() < 0)
     {
@@ -673,8 +653,7 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
 }
 
 TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                         bool force
+TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
 #ifdef BUILD_TESTS
                          ,
                          bool isLoadgenTx
@@ -692,7 +671,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
     AccountStates::iterator stateIter;
 
     std::vector<std::pair<TransactionFrameBasePtr, bool>> txsToEvict;
-    auto res = canAdd(tx, stateIter, txsToEvict, force
+    auto res = canAdd(tx, stateIter, txsToEvict
 #ifdef BUILD_TESTS
                       ,
                       isLoadgenTx
@@ -1122,9 +1101,7 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         app.getMetrics().NewCounter({"herder", "pending-soroban-txs",
                                      "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}),
-        app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "filtered-due-to-account-keys"}));
+            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
     mKeysToFilter = keysToFilter;
 }
