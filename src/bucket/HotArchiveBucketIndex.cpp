@@ -28,6 +28,12 @@ HotArchiveBucketIndex::HotArchiveBucketIndex(
                mDiskIndex.getPageSize(), filename);
 }
 
+std::optional<std::pair<std::streamoff, std::streamoff>>
+HotArchiveBucketIndex::getRangeForType(LedgerEntryType type) const
+{
+    return mDiskIndex.getRangeForType(type);
+}
+
 std::streamoff
 HotArchiveBucketIndex::getPageSize(Config const& cfg, size_t bucketSize)
 {

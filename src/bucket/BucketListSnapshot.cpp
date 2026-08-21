@@ -709,9 +709,10 @@ namespace
 // to be positioned at the start of the type range. This is basically the same
 // as SearchableLiveBucketListSnapshot::scanForEntriesOfType's scanBucket except
 // with more control over when iteration happens.
-class BucketEntryIterator
+template <typename BucketT> class BucketEntryIterator
 {
-    BucketEntry mEntry;
+    BUCKET_TYPE_ASSERT(BucketT);
+    BucketT::EntryT mEntry;
     LedgerKey mKey;
     XDRInputFileStream mStream;
     LedgerEntryType const mType;
@@ -722,7 +723,7 @@ class BucketEntryIterator
     {
     }
 
-    BucketEntry const&
+    BucketT::EntryT const&
     getEntry() const
     {
         return mEntry;
@@ -738,7 +739,7 @@ class BucketEntryIterator
     {
         while (mStream.readOne(mEntry))
         {
-            if (isBucketMetaEntry<LiveBucket>(mEntry))
+            if (isBucketMetaEntry<BucketT>(mEntry))
             {
                 continue;
             }
@@ -758,10 +759,11 @@ class BucketEntryIterator
 };
 } // namespace
 
+template <class BucketT>
 void
-SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
+SearchableBucketListSnapshot<BucketT>::scanForCurrentEntriesOfType(
     LedgerEntryType type,
-    std::function<void(LedgerEntry const&, LedgerKey const&)> callback) const
+    std::function<Loop(LedgerEntry const&, LedgerKey const&)> callback) const
 {
     ZoneScoped;
     // We implement this as a k-way merge over all buckets. We use a loser tree
@@ -777,9 +779,9 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
     // intermediate nodes, we just store an index, since copying the XDR types
     // is probably more expensive than the extra indirection.
 
-    std::vector<BucketEntryIterator> iterators;
+    std::vector<BucketEntryIterator<BucketT>> iterators;
     loopAllBuckets(
-        [&iterators, type](std::shared_ptr<LiveBucket const> const& bucket) {
+        [&iterators, type](std::shared_ptr<BucketT const> const& bucket) {
             if (bucket->isEmpty())
             {
                 return Loop::INCOMPLETE;
@@ -878,9 +880,27 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
         {
             last = key;
             auto& entry = iter.getEntry();
-            if (entry.type() == LIVEENTRY || entry.type() == INITENTRY)
+            if constexpr (std::is_same_v<BucketT, LiveBucket>)
             {
-                callback(entry.liveEntry(), key);
+                if (entry.type() == LIVEENTRY || entry.type() == INITENTRY)
+                {
+                    if (callback(entry.liveEntry(), key) == Loop::COMPLETE)
+                    {
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                              "unexpected bucket type");
+                if (entry.type() == HOT_ARCHIVE_ARCHIVED)
+                {
+                    if (callback(entry.archivedEntry(), key) == Loop::COMPLETE)
+                    {
+                        return;
+                    }
+                }
             }
         }
         first = false;

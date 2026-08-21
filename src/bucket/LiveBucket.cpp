@@ -371,12 +371,6 @@ LiveBucket::getMaxCacheSize() const
 }
 #endif // BUILD_TESTS
 
-std::optional<std::pair<std::streamoff, std::streamoff>>
-LiveBucket::getRangeForType(LedgerEntryType type) const
-{
-    return getIndex().getRangeForType(type);
-}
-
 std::vector<BucketEntry>
 LiveBucket::convertToBucketEntry(bool useInit,
                                  std::vector<LedgerEntry> const& initEntries,

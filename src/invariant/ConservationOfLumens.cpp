@@ -180,17 +180,10 @@ ConservationOfLumens::checkOnOperationApply(
 // Helper function that processes an entry if it hasn't been seen before.
 // Returns true on success, false on error (with error set in errorMsg).
 static bool
-processEntryIfNew(LedgerEntry const& entry, LedgerKey const& key,
-                  std::unordered_set<LedgerKey>& countedKeys,
-                  Asset const& asset,
-                  AssetContractInfo const& assetContractInfo,
-                  int64_t& sumBalance, std::string& errorMsg)
+processEntry(LedgerEntry const& entry, LedgerKey const& key, Asset const& asset,
+             AssetContractInfo const& assetContractInfo, int64_t& sumBalance,
+             std::string& errorMsg)
 {
-    if (countedKeys.count(key) != 0)
-    {
-        return true;
-    }
-
     auto result = getAssetBalance(entry, asset, assetContractInfo);
 
     if (result.overflowed)
@@ -216,8 +209,6 @@ processEntryIfNew(LedgerEntry const& entry, LedgerKey const& key,
         return false;
     }
 
-    countedKeys.emplace(key);
-
     return true;
 }
 
@@ -236,28 +227,17 @@ scanLiveBuckets(ApplyLedgerView const& applyView, Asset const& asset,
             continue;
         }
 
-        std::unordered_set<LedgerKey> countedKeys;
-
-        applyView.scanLiveEntriesOfType(
-            type, [&](BucketEntry const& be) -> Loop {
+        applyView.scanCurrentLiveEntriesOfType(
+            type, [&](LedgerEntry const& le, LedgerKey const& key) -> Loop {
                 if (isStopping())
                 {
                     return Loop::COMPLETE;
                 }
 
-                if (be.type() == LIVEENTRY || be.type() == INITENTRY)
+                if (!processEntry(le, key, asset, assetContractInfo, sumBalance,
+                                  errorMsg))
                 {
-                    if (!processEntryIfNew(
-                            be.liveEntry(), LedgerEntryKey(be.liveEntry()),
-                            countedKeys, asset, assetContractInfo, sumBalance,
-                            errorMsg))
-                    {
-                        return Loop::COMPLETE;
-                    }
-                }
-                else if (be.type() == DEADENTRY)
-                {
-                    countedKeys.emplace(be.deadEntry());
+                    return Loop::COMPLETE;
                 }
                 return Loop::INCOMPLETE;
             });
@@ -275,36 +255,35 @@ scanHotArchiveBuckets(ApplyLedgerView const& applyView, Asset const& asset,
                       int64_t& sumBalance, std::string& errorMsg,
                       std::function<bool()> const& isStopping)
 {
-    std::unordered_set<LedgerKey> countedKeys;
-    applyView.scanAllArchiveEntries([&](HotArchiveBucketEntry const& be) {
-        if (isStopping())
+    // Scan all entry types that can hold the native asset
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        LedgerEntryType type = static_cast<LedgerEntryType>(let);
+        if (!canHoldAsset(type, asset))
         {
-            return Loop::COMPLETE;
+            continue;
         }
 
-        if (be.type() == HOT_ARCHIVE_ARCHIVED)
-        {
-            if (!canHoldAsset(be.archivedEntry().data.type(), asset))
-            {
+        applyView.scanCurrentHotArchiveEntriesOfType(
+            type, [&](LedgerEntry const& le, LedgerKey const& key) -> Loop {
+                if (isStopping())
+                {
+                    return Loop::COMPLETE;
+                }
+
+                if (!processEntry(le, key, asset, assetContractInfo, sumBalance,
+                                  errorMsg))
+                {
+                    return Loop::COMPLETE;
+                }
                 return Loop::INCOMPLETE;
-            }
-            if (!processEntryIfNew(be.archivedEntry(),
-                                   LedgerEntryKey(be.archivedEntry()),
-                                   countedKeys, asset, assetContractInfo,
-                                   sumBalance, errorMsg))
-            {
-                return Loop::COMPLETE;
-            }
-        }
-        else if (be.type() == HOT_ARCHIVE_LIVE &&
-                 canHoldAsset(be.key().type(), asset))
+            });
+
+        if (!errorMsg.empty())
         {
-            // HOT_ARCHIVE_LIVE means entry was restored from archive,
-            // so mark it as seen (shadowing any archived versions)
-            countedKeys.emplace(be.key());
+            return;
         }
-        return Loop::INCOMPLETE;
-    });
+    }
 }
 
 std::string
@@ -340,8 +319,7 @@ ConservationOfLumens::checkSnapshot(
             sumBalance, header.feePool);
     }
 
-    // Scan the Live BucketList for native balances using loopAllBuckets
-
+    // Scan the Live BucketList for native balances
     scanLiveBuckets(applyView, nativeAsset, mLumenContractInfo, sumBalance,
                     errorMsg, isStopping);
 
