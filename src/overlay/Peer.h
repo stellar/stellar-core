@@ -508,6 +508,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
         releaseAssert(threadIsMain());
         return mSCPStateQueryInfo.mNumQueries;
     }
+
+    // Testing only function to expose the query rate-limiting check
+    bool
+    processQueryForTesting(QueryInfo& queryInfo)
+    {
+        return process(queryInfo);
+    }
 #endif
 
     // Public thread-safe methods that access Peer's state

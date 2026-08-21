@@ -81,7 +81,7 @@ stellarValueToString(Config const& c, StellarValue const& sv)
     }
     res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime;
 #ifdef MS_CLOSE_TIME
-    if (getCloseTimeMs(sv) != 0 || isMsCloseTimeStellarValue(sv))
+    if (isMsCloseTimeStellarValue(sv))
     {
         res << ", ctMs: " << getCloseTimeMs(sv);
     }
