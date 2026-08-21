@@ -35,6 +35,9 @@
 		27,
 		28
 	],
+	"getUpperBoundCloseTimeOffset under sub-second ledgers|fractional-second close times round up, not down" : [ "EbIPrt4owbA=", "kAwIMT7FxME=", "+8eXWHGepSo=", "Pk+9/t2Sw1Q=" ],
+	"getUpperBoundCloseTimeOffset under sub-second ledgers|sub-second close times round the buffer up to a whole second" : [ "EbIPrt4owbA=", "kAwIMT7FxME=", "+8eXWHGepSo=", "Pk+9/t2Sw1Q=" ],
+	"getUpperBoundCloseTimeOffset under sub-second ledgers|whole-second close times keep the legacy 2x buffer" : [ "EbIPrt4owbA=", "kAwIMT7FxME=", "+8eXWHGepSo=", "Pk+9/t2Sw1Q=" ],
 	"overlay validation handles ed25519 signed payload signers|protocol version 19" : 
 	[
 		"bXrfFM/EOrA=",

@@ -502,12 +502,15 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     }
 
     // During load submission, we must have enough unique source accounts (with
-    // a buffer) to accommodate the desired tx rate.
-    auto closeTimeSeconds = std::chrono::duration_cast<std::chrono::seconds>(
-        mApp.getLedgerManager().getExpectedLedgerCloseTime());
-    if (cfg.nTxs > cfg.nAccounts && (cfg.txRate * closeTimeSeconds.count()) *
-                                            MIN_UNIQUE_ACCOUNT_MULTIPLIER >
-                                        cfg.nAccounts)
+    // a buffer) to accommodate the desired tx rate. txRate is per second, so
+    // (txRate * closeTime) is the per-ledger tx count; round it up so
+    // sub-second close times don't truncate it to 0 and disable the check.
+    auto const closeTime = mApp.getLedgerManager().getExpectedLedgerCloseTime();
+    auto const txsPerLedger = std::chrono::ceil<std::chrono::seconds>(
+                                  closeTime * static_cast<int64_t>(cfg.txRate))
+                                  .count();
+    if (cfg.nTxs > cfg.nAccounts &&
+        txsPerLedger * MIN_UNIQUE_ACCOUNT_MULTIPLIER > cfg.nAccounts)
     {
         errorMsg = fmt::format(
             "Tx rate is too high, there are not enough unique accounts. Make "

@@ -1387,10 +1387,12 @@ getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
     uint64_t closeTimeDrift =
         currentTime <= lastCloseTime ? 0 : currentTime - lastCloseTime;
 
-    return std::chrono::duration_cast<std::chrono::seconds>(
-               app.getLedgerManager().getExpectedLedgerCloseTime())
-                   .count() *
-               EXPECTED_CLOSE_TIME_MULT +
+    // Round up so sub-second expected close times still leave at least a one
+    // second buffer (time bounds are whole-second quantities).
+    return std::chrono::ceil<std::chrono::seconds>(
+               app.getLedgerManager().getExpectedLedgerCloseTime() *
+               EXPECTED_CLOSE_TIME_MULT)
+               .count() +
            closeTimeDrift;
 }
 

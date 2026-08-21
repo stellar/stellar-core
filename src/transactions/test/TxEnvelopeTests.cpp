@@ -3241,3 +3241,79 @@ TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
     }
 }
 #endif // MS_CLOSE_TIME
+
+TEST_CASE("getUpperBoundCloseTimeOffset under sub-second ledgers",
+          "[tx][envelope]")
+{
+    // The offset is consumed at transaction queue admission: a tx whose
+    // maxTime falls inside [lclCloseTime, lclCloseTime + offset) is rejected
+    // as txTOO_LATE by Herder::recvTransaction, since it would likely be
+    // expired by the time it lands in a ledger. Exercise that path end to end
+    // and assert exactly where the admission boundary sits.
+    auto testWithCloseTimeMs = [](uint32_t closeTimeMs,
+                                  uint64_t expectedBuffer) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = closeTimeMs;
+        auto app = createTestApplication(clock, cfg);
+        auto& lm = app->getLedgerManager();
+        auto root = app->getRoot();
+
+        // Close a ledger at a known whole second T, then align the clock with
+        // it so the offset's drift term starts at zero
+        TimePoint const T =
+            VirtualClock::to_time_t(app->getClock().system_now()) + 1000;
+        closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
+
+        // The queue admits one pending tx per source account, so give every
+        // submission its own account
+        int accountIndex = 0;
+        auto submitWithMaxTime = [&](TimePoint maxTime) {
+            auto acc =
+                root->create("sub-second-" + std::to_string(accountIndex++),
+                             lm.getLastMinBalance(0) + 10000);
+            auto tx = acc.tx({payment(*root, 1)});
+            setMaxTime(tx, maxTime);
+            getSignatures(tx).clear();
+            tx->addSignature(acc.getSecretKey());
+            return app->getHerder().recvTransaction(tx, true);
+        };
+        auto expectTooLate = [&](TimePoint maxTime) {
+            auto r = submitWithMaxTime(maxTime);
+            REQUIRE(r.code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+            REQUIRE(r.txResult->getResultCode() == txTOO_LATE);
+        };
+        auto expectAdmitted = [&](TimePoint maxTime) {
+            REQUIRE(submitWithMaxTime(maxTime).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        };
+
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(T));
+
+        // With no drift, the first admissible maxTime is T + buffer
+        expectTooLate(T + expectedBuffer - 1);
+        expectAdmitted(T + expectedBuffer);
+
+        // Wall-clock time elapsed since the last close is added on top
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(T + 7));
+        expectTooLate(T + expectedBuffer + 7 - 1);
+        expectAdmitted(T + expectedBuffer + 7);
+    };
+
+    SECTION("whole-second close times keep the legacy 2x buffer")
+    {
+        testWithCloseTimeMs(5000, 10);
+    }
+    SECTION("sub-second close times round the buffer up to a whole second")
+    {
+        // 2 * 400ms rounds up to 1s rather than truncating to 0, which would
+        // erase the admission-time expiry buffer entirely
+        testWithCloseTimeMs(400, 1);
+    }
+    SECTION("fractional-second close times round up, not down")
+    {
+        // 2 * 1300ms = 2600ms rounds up to 3s
+        testWithCloseTimeMs(1300, 3);
+    }
+}
