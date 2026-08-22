@@ -20,13 +20,13 @@
 
 use crate::rust_bridge::FuzzResultCode;
 
-// Stub implementation when testutils feature is disabled
+// Stub implementation when fuzz_targets feature is disabled
 #[cfg(not(feature = "fuzz_targets"))]
 pub fn run_soroban_fuzz_target(_name: &str, _data: &[u8]) -> FuzzResultCode {
     FuzzResultCode::FUZZ_DISABLED
 }
 
-// When testutils feature is enabled, import and use the actual implementations
+// When fuzz_targets feature is enabled, import and use the actual targets
 #[cfg(feature = "fuzz_targets")]
 use soroban_fuzz_targets::{self as fuzz, FuzzResult};
 

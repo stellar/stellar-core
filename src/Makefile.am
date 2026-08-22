@@ -324,14 +324,32 @@ $(SOROBAN_BUILD_DIR)/%/target/git-state.txt: $(top_srcdir)/.git/modules/src/rust
 # only work well when built this way), and use the non-unified build (with
 # separate .a files for each separate soroban version) for production builds.
 #
-# One important caveat: the $(CARGO_FEATURE_FUZZ_TARGETS) feature should _not_
-# be passed to fastdev mode. It pulls in a separate copy of the soroban host
-# with `testutils` enabled, which winds up up causing `testutils` to be enabled
-# _on the production soroban host_ as well, which causes the build to diverge if
-# run against mainnet. Leave $(CARGO_FEATURE_FUZZ_TARGETS) for the non-fastdev
-# build.
 
 if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+
+# Another delicate bit: the $(CARGO_FEATURE_FUZZ_TARGETS) feature.
+#
+# It pulls in a separate copy of the soroban host with `testutils` enabled,
+# which, in fastdev mode, winds up causing `testutils` to be enabled _on the
+# production soroban host_ as well (due to cargo feature unification), which
+# will cause the build to have slightly different costs and therefore diverge if
+# run against mainnet. Because of this, we are selective about it:
+#
+#   - Regular build: turn on $(CARGO_FEATURE_FUZZ_TARGETS) for smoke-testing
+#   - Fastdev build: turn off, to avoid divergence risk
+#   - Fastdev + ENABLE_FUZZ: turn back on, to allow fuzzing
+#
+# This does mean that a fastdev + ENABLE_FUZZ build might diverge when run
+# against mainnet. But such a build is very slow, typically with multiple
+# sanitizers as well as the fuzzer instrumentation, and should not usually be
+# run against production traffic anyways. It exists just for running fuzzing
+# loops offline.
+
+if ENABLE_FUZZ
+FASTDEV_CARGO_FEATURE_FUZZ_TARGETS=$(CARGO_FEATURE_FUZZ_TARGETS)
+else
+FASTDEV_CARGO_FEATURE_FUZZ_TARGETS=
+endif
 
 # In the fastdev build, we have to pass the --target flag. This actually breaks
 # the non-unified build, so we wind up setting LIBRUST_STELLAR_CORE separately
@@ -359,6 +377,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
 		$(CARGO_FEATURE_FASTDEV) $(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
+		$(FASTDEV_CARGO_FEATURE_FUZZ_TARGETS) \
 		$(CARGO_FEATURE_TCMALLOC)
 
 else # !ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
