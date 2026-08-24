@@ -469,6 +469,23 @@ parseApplyLoadModelTx(ConfigItem const& item)
         "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token, "
         "soroswap");
 }
+
+ApplyLoadTimingPhases
+parseApplyLoadTimingPhases(ConfigItem const& item)
+{
+    auto phases = readString(item);
+    if (phases == "apply")
+    {
+        return ApplyLoadTimingPhases::APPLY_ONLY;
+    }
+    if (phases == "txset-validation-and-apply")
+    {
+        return ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_TIMING_PHASES', expected one of: apply, "
+        "txset-validation-and-apply");
+}
 #endif
 
 template <typename T>
@@ -1875,6 +1892,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_TIME_WRITES",
                  [&]() { APPLY_LOAD_TIME_WRITES = readBool(item); }},
+                {"APPLY_LOAD_TIMING_PHASES",
+                 [&]() {
+                     APPLY_LOAD_TIMING_PHASES =
+                         parseApplyLoadTimingPhases(item);
+                 }},
 #endif // BUILD_TESTS
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {

@@ -9,7 +9,6 @@
 // metrics have been removed — the Rust overlay uses different stream
 // protocols and doesn't have the old per-message framing.
 
-#include "util/SimpleTimer.h"
 namespace medida
 {
 class Timer;
@@ -38,8 +37,7 @@ struct OverlayMetrics
     medida::Meter& mErrorWrite;
 
     // ── Recv timers (aggregate) ──
-    // SimpleTimer: high-frequency TX recv path
-    SimpleTimer& mRecvTransactionTimer;
+    medida::Timer& mRecvTransactionTimer;
     medida::Timer& mRecvSCPMessageTimer;
 
     // ── Send meters (per logical message type) ──

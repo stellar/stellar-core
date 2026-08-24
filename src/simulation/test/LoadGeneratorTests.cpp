@@ -269,3 +269,143 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
         },
         100 * simulation->getExpectedLedgerCloseTime(), false);
 }
+
+TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
+{
+    auto const timingPhases =
+        GENERATE(ApplyLoadTimingPhases::APPLY_ONLY,
+                 ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY);
+    auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
+    cfg.APPLY_LOAD_TIMING_PHASES = timingPhases;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
+
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
+
+    // BL generation parameters
+    cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS = 10000;
+    cfg.APPLY_LOAD_BL_WRITE_FREQUENCY = 1000;
+    cfg.APPLY_LOAD_BL_BATCH_SIZE = 1000;
+    cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS = 300;
+    cfg.APPLY_LOAD_BL_LAST_BATCH_SIZE = 100;
+
+    cfg.APPLY_LOAD_EVENT_COUNT = {100};
+    cfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION = {1};
+
+    // Ledger and transaction limits
+    cfg.APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 500'000'000;
+    cfg.APPLY_LOAD_TX_MAX_INSTRUCTIONS = 100'000'000;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
+
+    cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES = 200;
+    cfg.APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES = 10;
+    cfg.APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE = 100;
+
+    cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES = 1'000'000;
+    cfg.APPLY_LOAD_TX_MAX_DISK_READ_BYTES = 200'000;
+
+    cfg.APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1250;
+    cfg.APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES = 50;
+
+    cfg.APPLY_LOAD_LEDGER_MAX_WRITE_BYTES = 700'000;
+    cfg.APPLY_LOAD_TX_MAX_WRITE_BYTES = 66560;
+
+    cfg.APPLY_LOAD_MAX_TX_SIZE_BYTES = 71680;
+    cfg.APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES = 800'000;
+
+    cfg.APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 8198;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 50;
+
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
+
+    cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    ApplyLoad al(*app);
+
+    // Sample a few indices to verify hot archive is properly initialized
+    uint32_t expectedArchivedEntries = al.getTotalHotArchiveEntries();
+    std::vector<uint32_t> sampleIndices = {0, expectedArchivedEntries / 2,
+                                           expectedArchivedEntries - 1};
+    std::set<LedgerKey, LedgerEntryIdCmp> sampleKeys;
+
+    auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+
+    for (auto idx : sampleIndices)
+    {
+        sampleKeys.insert(ApplyLoad::getKeyForArchivedEntry(idx));
+    }
+
+    auto sampleEntries = ledgerView.loadArchiveKeys(sampleKeys, "test");
+    REQUIRE(sampleEntries.size() == sampleKeys.size());
+
+    auto const lclBeforeExecute =
+        app->getLedgerManager().getLastClosedLedgerNum();
+    al.execute();
+
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >=
+            lclBeforeExecute + cfg.APPLY_LOAD_NUM_LEDGERS);
+    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
+    if (timingPhases == ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY)
+    {
+        // Each benchmark ledger runs at least one cold tx set validation.
+        REQUIRE(app->getMetrics()
+                    .NewTimer({"herder", "txset", "validate"})
+                    .count() >= cfg.APPLY_LOAD_NUM_LEDGERS);
+    }
+}
+
+TEST_CASE("apply load benchmark model tx",
+          "[loadgen][applyload][soroban][acceptance]")
+{
+    auto const timingPhases =
+        GENERATE(ApplyLoadTimingPhases::APPLY_ONLY,
+                 ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY);
+    auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
+    cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
+    cfg.APPLY_LOAD_TIMING_PHASES = timingPhases;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 2000;
+
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 500;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
+    cfg.APPLY_LOAD_BATCH_SAC_COUNT = 2;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    ApplyLoad al(*app);
+
+    auto const lclBeforeExecute =
+        app->getLedgerManager().getLastClosedLedgerNum();
+    al.execute();
+
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >=
+            lclBeforeExecute + cfg.APPLY_LOAD_NUM_LEDGERS);
+    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
+
+    auto& successCountMetric =
+        app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
+    REQUIRE(successCountMetric.count() > 0);
+    if (timingPhases == ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY)
+    {
+        // Each benchmark ledger runs at least one cold tx set validation.
+        REQUIRE(app->getMetrics()
+                    .NewTimer({"herder", "txset", "validate"})
+                    .count() >= cfg.APPLY_LOAD_NUM_LEDGERS);
+    }
+}

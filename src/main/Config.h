@@ -83,6 +83,13 @@ enum class ApplyLoadModelTx
     CUSTOM_TOKEN,
     SOROSWAP
 };
+
+// Which apply-load timing path to use.
+enum class ApplyLoadTimingPhases
+{
+    APPLY_ONLY,
+    TX_SET_VALIDATION_AND_APPLY
+};
 #endif
 
 class Config : public std::enable_shared_from_this<Config>
@@ -425,6 +432,10 @@ class Config : public std::enable_shared_from_this<Config>
     // If set to true, database writes will count towards TPS calculation.
     // Otherwise, BucketList writes will not be counted.
     bool APPLY_LOAD_TIME_WRITES = true;
+
+    // Which apply-load timing path to use.
+    ApplyLoadTimingPhases APPLY_LOAD_TIMING_PHASES =
+        ApplyLoadTimingPhases::APPLY_ONLY;
 #endif // BUILD_TESTS
 
     // Waits for merges to complete before applying transactions during catchup

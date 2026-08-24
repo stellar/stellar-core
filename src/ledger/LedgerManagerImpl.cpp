@@ -240,9 +240,8 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
 // different window from the e2e number we want to report (we want the time from
 // tx sub to meta emission, but the existing metric, for example, includes an
 // extra delay for a postOnMainThread when background apply is enabled). Fourth,
-// as of writing, the metric is a SimpleTimer, so it is lacking most of the
-// percentile data we want, but even if we switch it to be a full Timer, the
-// 30-second medida windowing makes interpretation more difficult.
+// even though the metric is a full Timer with percentiles, the 30-second
+// medida windowing makes interpretation more difficult.
 LedgerManagerImpl::TxLatencyMetrics::TxLatencyMetrics(MetricsRegistry& registry)
     : mTxsSubmitted(registry.NewCounter({"loadgen", "tx-latency", "submitted"}))
     , mTxsExternalized(

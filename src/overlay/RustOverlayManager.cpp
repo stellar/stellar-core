@@ -264,8 +264,8 @@ RustOverlayManager::syncOverlayMetrics()
         m.mPendingPeersSize.inc(val - current);
     }
 
-    // ── recv-transaction SimpleTimer ──
-    // SimpleTimer only supports Update(duration) — compute deltas and
+    // ── recv-transaction timer ──
+    // The timer only supports Update(duration) — compute deltas and
     // issue individual updates with average duration.
     if (root.isMember("recv_transaction_sum_us") &&
         root.isMember("recv_transaction_count"))
