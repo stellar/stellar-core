@@ -833,7 +833,8 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
  * - scp.timing.externalized (time from prepare to externalize)
  * - ledger.ledger.close (total ledger close time)
  */
-TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc-large]")
+TEST_CASE("Rust overlay SCP latency under TX load",
+          "[overlay-ipc-large][acceptance]")
 {
     std::string overlayBinary = requireOverlayBinary();
     // Test parameters - tx per ledger batch
@@ -1172,7 +1173,8 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc-large]")
 // TODO: fix unexpected WARN stellar_overlay: TxSet [5e, f3, 64, 4e]... NOT IN
 // CACHE - cannot serve to 12D3KooWHv5WjYX6rhexEgNwD8nR1rjXmQMLDJ4Bge9ZLRPMsdHE
 // (cache has 0 entries)
-TEST_CASE("Rust overlay 15-node 2000 TPS stress test", "[overlay-ipc-large]")
+TEST_CASE("Rust overlay 15-node 2000 TPS stress test",
+          "[overlay-ipc-large][acceptance]")
 {
     std::string overlayBinary = requireOverlayBinary();
     LOG_INFO(DEFAULT_LOG, "");
