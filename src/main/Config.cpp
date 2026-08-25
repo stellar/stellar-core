@@ -1381,7 +1381,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      AUTOMATIC_SELF_CHECK_PERIOD =
                          std::chrono::seconds{readInt<uint32_t>(item)};
                  }},
-                {"MANUAL_CLOSE", [&]() { MANUAL_CLOSE = readBool(item); }},
+                {"MANUAL_CLOSE",
+                 [&]() {
+                     // Manual close relies on building tx sets locally, which
+                     // the Rust overlay's mempool does not support yet.
+                     if (readBool(item))
+                     {
+                         throw std::invalid_argument(
+                             "MANUAL_CLOSE is not supported with the Rust "
+                             "overlay");
+                     }
+                     MANUAL_CLOSE = false;
+                 }},
                 {"LOG_FILE_PATH", [&]() { LOG_FILE_PATH = readString(item); }},
                 {"LOG_COLOR", [&]() { LOG_COLOR = readBool(item); }},
                 {"BUCKET_DIR_PATH",

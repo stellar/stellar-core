@@ -42,9 +42,11 @@ RustOverlayManager::start()
 
     if (cfg.RUN_STANDALONE)
     {
-        CLOG_INFO(Overlay,
-                  "Skipping RustOverlayManager start in standalone mode");
-        return;
+        // The Rust overlay has no standalone mode: transactions submitted to
+        // a standalone node would be silently dropped (no mempool), so fail
+        // loudly instead.
+        throw std::runtime_error(
+            "RUN_STANDALONE is not supported with the Rust overlay");
     }
 
     CLOG_INFO(Overlay, "Starting RustOverlayManager");
