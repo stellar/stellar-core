@@ -77,10 +77,18 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         qSet.validators.push_back(vNode2NodeID);
         qSet.validators.push_back(vNode3NodeID);
 
-        Config const& cfg1 = getTestConfig(1);
-        Config const& cfg2 = getTestConfig(2);
-        Config const& cfg3 = getTestConfig(3);
+        Config cfg1 = getTestConfig(1);
+        Config cfg2 = getTestConfig(2);
+        Config cfg3 = getTestConfig(3);
         Config cfg4 = getTestConfig(4);
+
+        // Star topology around node1: addPendingConnection is a no-op with
+        // the Rust overlay, so wire the peers via KNOWN_PEERS instead
+        // (libp2p connections are bidirectional).
+        cfg1.KNOWN_PEERS = {
+            fmt::format(FMT_STRING("127.0.0.1:{}"), cfg2.PEER_PORT),
+            fmt::format(FMT_STRING("127.0.0.1:{}"), cfg3.PEER_PORT),
+            fmt::format(FMT_STRING("127.0.0.1:{}"), cfg4.PEER_PORT)};
 
         // Step 2: open writable files and pass them to watcher config
         cfg4.NODE_IS_VALIDATOR = false;
@@ -99,10 +107,6 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         auto app2 = simulation->addNode(vNode2SecretKey, qSet, &cfg2);
         auto app3 = simulation->addNode(vNode3SecretKey, qSet, &cfg3);
         auto app4 = simulation->addNode(vNode4SecretKey, qSet, &cfg4);
-
-        simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
-        simulation->addPendingConnection(vNode1NodeID, vNode3NodeID);
-        simulation->addPendingConnection(vNode1NodeID, vNode4NodeID);
 
         simulation->startAllNodes();
         bool watchersAreCorrupted = false;

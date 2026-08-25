@@ -17,6 +17,7 @@
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include <filesystem>
+#include <fmt/format.h>
 #include <fstream>
 
 using namespace stellar;
@@ -65,6 +66,10 @@ TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
     cfg2.FORCE_SCP = false;
     cfg2.NODE_IS_VALIDATOR = false;
     cfg2.MODE_DOES_CATCHUP = false;
+    // addPendingConnection is a no-op with the Rust overlay: point the
+    // watcher at the validator via KNOWN_PEERS instead.
+    cfg2.KNOWN_PEERS = {
+        fmt::format(FMT_STRING("127.0.0.1:{}"), cfg1.PEER_PORT)};
 
     auto validator = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
     Application::pointer watcher;
@@ -72,7 +77,6 @@ TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
     SECTION("in sync with the network")
     {
         watcher = simulation->addNode(vNode2SecretKey, qSet, &cfg2);
-        simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
         simulation->startAllNodes();
     }
     SECTION("buffer ledgers")
@@ -80,7 +84,6 @@ TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
         simulation->startAllNodes();
         simulation->crankForAtLeast(std::chrono::minutes(2), false);
         watcher = simulation->addNode(vNode2SecretKey, qSet, &cfg2);
-        simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
         simulation->startAllNodes();
     }
 
