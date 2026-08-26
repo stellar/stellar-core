@@ -32,6 +32,7 @@ class SignatureChecker;
 class ParallelLedgerInfo;
 class TxEffects;
 class ThreadParallelApplyLedgerState;
+struct SorobanApplyMetrics;
 
 class MutableTransactionResultBase;
 using MutableTxResultPtr = std::unique_ptr<MutableTransactionResultBase>;
@@ -154,16 +155,18 @@ class TransactionFrameBase
     apply(AppConnector& app, AbstractLedgerTxn& ltx,
           TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
           std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-          Hash const& sorobanBasePrngSeed) const = 0;
+          Hash const& sorobanBasePrngSeed,
+          SorobanApplyMetrics& sorobanMetrics) const = 0;
 
     // The read-only half of the Soroban pre-apply: validation, signature checks
     // and the operation's checkValid. Performs no writes. Safe to run
     // concurrently for distinct transactions, provided `ls` supports concurrent
-    // reads.
+    // reads and `sorobanMetrics` is not shared across the concurrent calls.
     virtual void preParallelApplyReadOnly(
         AppConnector& app, CheckValidLedgerViewWrapper const& ls,
         TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-        SorobanNetworkConfig const& sorobanConfig) const = 0;
+        SorobanNetworkConfig const& sorobanConfig,
+        SorobanApplyMetrics& sorobanMetrics) const = 0;
 
     // The write half of the Soroban pre-apply. Has to run on the thread that
     // owns `ltx`, serially across transactions, in canonical transaction order.
@@ -178,7 +181,7 @@ class TransactionFrameBase
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,
-        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        SorobanApplyMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
         TxEffects& effects) const = 0;
 
     // When validationLedgerSeq is set, ledger sequence precondition

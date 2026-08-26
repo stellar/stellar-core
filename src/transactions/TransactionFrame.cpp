@@ -1012,7 +1012,8 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
 }
 
 void
-TransactionFrame::updateSorobanMetrics(AppConnector& app) const
+TransactionFrame::updateSorobanMetrics(
+    AppConnector& app, SorobanApplyMetrics& sorobanMetrics) const
 {
     releaseAssertOrThrow(isSoroban());
     if (app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
@@ -1020,26 +1021,17 @@ TransactionFrame::updateSorobanMetrics(AppConnector& app) const
         return;
     }
 
-    SorobanMetrics& metrics = app.getSorobanMetrics();
     auto txSize = static_cast<int64_t>(this->getSize());
     auto const& r = sorobanResources();
-    // record the tx metrics into the per-thread batch (published once per
-    // ledger)
-    {
-        auto& batch = metrics.getApplyThreadBatch();
-        batch.mTxSizeByte.push_back(txSize);
-    }
-    // accumulate the ledger-wide metrics, which will get emitted at the ledger
-    // close
-    metrics.accumulateLedgerTxCount(getNumOperations());
-    metrics.accumulateLedgerCpuInsn(r.instructions);
-    metrics.accumulateLedgerTxsSizeByte(txSize);
-    metrics.accumulateLedgerReadEntry(static_cast<int64_t>(
-        r.footprint.readOnly.size() + r.footprint.readWrite.size()));
-    metrics.accumulateLedgerReadByte(r.diskReadBytes);
-    metrics.accumulateLedgerWriteEntry(
-        static_cast<int64_t>(r.footprint.readWrite.size()));
-    metrics.accumulateLedgerWriteByte(r.writeBytes);
+    sorobanMetrics.mTxSizeByte.push_back(txSize);
+    sorobanMetrics.mLedgerTxCount += getNumOperations();
+    sorobanMetrics.mLedgerCpuInsn += r.instructions;
+    sorobanMetrics.mLedgerTxsSizeByte += txSize;
+    sorobanMetrics.mLedgerReadEntry +=
+        r.footprint.readOnly.size() + r.footprint.readWrite.size();
+    sorobanMetrics.mLedgerReadByte += r.diskReadBytes;
+    sorobanMetrics.mLedgerWriteEntry += r.footprint.readWrite.size();
+    sorobanMetrics.mLedgerWriteByte += r.writeBytes;
 }
 
 bool
@@ -2006,7 +1998,11 @@ TransactionFrame::apply(
 {
     TransactionMetaBuilder tm(true, *this,
                               ltx.loadHeader().current().ledgerVersion, app);
-    return apply(app, ltx, tm, txResult, sorobanConfig, sorobanBasePrngSeed);
+    // Direct test applies run outside of a ledger close, so the apply metrics
+    // recorded here are simply dropped.
+    SorobanApplyMetrics sorobanMetrics;
+    return apply(app, ltx, tm, txResult, sorobanConfig, sorobanBasePrngSeed,
+                 sorobanMetrics);
 }
 #endif
 
@@ -2101,13 +2097,14 @@ void
 TransactionFrame::preParallelApplyReadOnly(
     AppConnector& app, CheckValidLedgerViewWrapper const& ls,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig) const
+    SorobanNetworkConfig const& sorobanConfig,
+    SorobanApplyMetrics& sorobanMetrics) const
 {
     try
     {
         preParallelApplyReadOnlyWithOptionallyChargedFee(
             /*chargeFee=*/true, app, ls, meta, txResult, sorobanConfig,
-            getContentsHash());
+            getContentsHash(), sorobanMetrics);
     }
     catch (std::exception& e)
     {
@@ -2126,8 +2123,8 @@ TransactionFrame::preParallelApplyReadOnlyWithOptionallyChargedFee(
     bool chargeFee, AppConnector& app,
     CheckValidLedgerViewWrapper const& ledgerView, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig,
-    Hash const& envelopeContentsHash) const
+    SorobanNetworkConfig const& sorobanConfig, Hash const& envelopeContentsHash,
+    SorobanApplyMetrics& sorobanMetrics) const
 {
     ZoneScoped;
 
@@ -2140,7 +2137,7 @@ TransactionFrame::preParallelApplyReadOnlyWithOptionallyChargedFee(
     bool ok = signatureChecker != nullptr;
     if (ok)
     {
-        updateSorobanMetrics(app);
+        updateSorobanMetrics(app, sorobanMetrics);
 
         auto& opResult = txResult.getOpResultAt(0);
         ok = mOperations.front()->checkValid(
@@ -2191,7 +2188,7 @@ std::optional<ParallelTxSuccessVal>
 TransactionFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
+    MutableTransactionResultBase& txResult, SorobanApplyMetrics& sorobanMetrics,
     Hash const& txPrngSeed, TxEffects& effects) const
 {
     ZoneScoped;
@@ -2216,12 +2213,7 @@ TransactionFrame::parallelApply(
             ledgerInfo.getLedgerVersion() >=
             config.LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
 
-        std::optional<BatchedTimerScope> opTimer;
-        if (!config.DISABLE_SOROBAN_METRICS_FOR_TESTING)
-        {
-            opTimer.emplace(sorobanMetrics,
-                            &SorobanMetrics::ApplyMetricsBatch::mOpApplyNsecs);
-        }
+        auto applyStart = std::chrono::steady_clock::now();
 
         releaseAssertOrThrow(mOperations.size() == 1);
 
@@ -2252,6 +2244,10 @@ TransactionFrame::parallelApply(
             txResult.setInnermostError(txFAILED);
         }
 
+        sorobanMetrics.mOpApplyNsecs.push_back(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - applyStart)
+                .count());
         return res;
     }
     catch (std::bad_alloc& e)
@@ -2303,7 +2299,7 @@ TransactionFrame::applyOperations(
     AbstractLedgerTxn& ltx, TransactionMetaBuilder& outerMeta,
     MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    Hash const& sorobanBasePrngSeed) const
+    Hash const& sorobanBasePrngSeed, SorobanApplyMetrics& sorobanMetrics) const
 {
     ZoneScoped;
     if (!maybeAdoptFailedReplayResult(txResult))
@@ -2354,9 +2350,9 @@ TransactionFrame::applyOperations(
             }
             ++opNum;
             auto& opMeta = outerMeta.getOperationMetaBuilderAt(i);
-            bool txRes =
-                op->apply(app, signatureChecker, ltxOp, sorobanConfig, subSeed,
-                          opResult, txResult.getRefundableFeeTracker(), opMeta);
+            bool txRes = op->apply(
+                app, signatureChecker, ltxOp, sorobanConfig, subSeed, opResult,
+                txResult.getRefundableFeeTracker(), opMeta, sorobanMetrics);
 #ifdef BUILD_TESTS
             maybeTriggerTestInternalError(mEnvelope);
 #endif
@@ -2499,7 +2495,8 @@ TransactionFrame::apply(
     bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    Hash const& sorobanBasePrngSeed, Hash const& envelopeContentsHash) const
+    Hash const& sorobanBasePrngSeed, Hash const& envelopeContentsHash,
+    SorobanApplyMetrics& sorobanMetrics) const
 {
     ZoneScoped;
     try
@@ -2525,12 +2522,12 @@ TransactionFrame::apply(
             {
                 if (isSoroban())
                 {
-                    updateSorobanMetrics(app);
+                    updateSorobanMetrics(app, sorobanMetrics);
                 }
 
-                ok =
-                    applyOperations(*signatureChecker, app, ltx, meta, txResult,
-                                    sorobanConfig, sorobanBasePrngSeed);
+                ok = applyOperations(*signatureChecker, app, ltx, meta,
+                                     txResult, sorobanConfig,
+                                     sorobanBasePrngSeed, sorobanMetrics);
             }
             return ok;
         }
@@ -2562,10 +2559,10 @@ TransactionFrame::apply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    Hash const& sorobanBasePrngSeed) const
+    Hash const& sorobanBasePrngSeed, SorobanApplyMetrics& sorobanMetrics) const
 {
     return apply(true, app, ltx, meta, txResult, sorobanConfig,
-                 sorobanBasePrngSeed, getContentsHash());
+                 sorobanBasePrngSeed, getContentsHash(), sorobanMetrics);
 }
 
 void

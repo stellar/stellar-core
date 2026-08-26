@@ -143,7 +143,7 @@ OperationFrame::apply(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     Hash const& sorobanBasePrngSeed, OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+    OperationMetaBuilder& opMeta, SorobanApplyMetrics& sorobanMetrics) const
 {
     ZoneScoped;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
@@ -157,9 +157,9 @@ OperationFrame::apply(
         if (isSoroban())
         {
             releaseAssertOrThrow(sorobanConfig);
-            applyRes =
-                doApplyForSoroban(app, ltx, *sorobanConfig, sorobanBasePrngSeed,
-                                  res, refundableFeeTracker, opMeta);
+            applyRes = doApplyForSoroban(
+                app, ltx, *sorobanConfig, sorobanBasePrngSeed, res,
+                refundableFeeTracker, opMeta, sorobanMetrics);
         }
         else
         {
@@ -176,7 +176,7 @@ std::optional<ParallelTxSuccessVal>
 OperationFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    SorobanMetrics& sorobanMetrics, OperationResult& res,
+    SorobanApplyMetrics& sorobanMetrics, OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta, Hash const& txPrngSeed) const
 {
@@ -192,7 +192,7 @@ std::optional<ParallelTxSuccessVal>
 OperationFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
-    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+    ParallelLedgerInfo const& ledgerInfo, SorobanApplyMetrics& sorobanMetrics,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
@@ -377,7 +377,7 @@ OperationFrame::doApplyForSoroban(
     SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+    OperationMetaBuilder& opMeta, SorobanApplyMetrics& sorobanMetrics) const
 {
     // This implementation is just a stub for classic operations, it's not
     // supposed to be called by them.

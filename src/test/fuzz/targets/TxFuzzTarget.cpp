@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "invariant/OrderBookIsNotCrossed.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/SorobanMetrics.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "test/Catch2.h"
@@ -160,8 +161,12 @@ FuzzTransactionFrame::attemptApplication(Application& app,
                               app.getAppConnector());
     std::optional<SorobanNetworkConfig const> sorobanNetworkConfig;
     Hash sorobanRngSeed;
+    // Fuzzed applies run outside of a ledger close, so the apply metrics
+    // recorded here are simply dropped.
+    SorobanApplyMetrics sorobanMetrics;
     applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
-                    *mTxResult, sorobanNetworkConfig, sorobanRngSeed);
+                    *mTxResult, sorobanNetworkConfig, sorobanRngSeed,
+                    sorobanMetrics);
     if (mTxResult->getResultCode() == txINTERNAL_ERROR)
     {
         throw std::runtime_error("Internal error while fuzzing");

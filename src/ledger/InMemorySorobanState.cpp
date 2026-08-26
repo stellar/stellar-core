@@ -487,7 +487,7 @@ InMemorySorobanState::updateState(
     LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
     LedgerKeyRefs deadEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    SorobanMetrics& metrics)
+    SorobanMetricsRegistry& metrics)
 {
     // After initialization, we must apply every ledger in order to the
     // in-memory state with no gaps.
@@ -574,7 +574,7 @@ InMemorySorobanState::getSize() const
 }
 
 void
-InMemorySorobanState::reportMetrics(SorobanMetrics& metrics) const
+InMemorySorobanState::reportMetrics(SorobanMetricsRegistry& metrics) const
 {
     metrics.mContractCodeStateSize.set_count(mContractCodeStateSize);
     metrics.mContractDataStateSize.set_count(mContractDataStateSize);
