@@ -28,7 +28,8 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
                       SorobanNetworkConfig const& sorobanConfig,
                       Hash const& sorobanBasePrngSeed, OperationResult& res,
                       std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta) const override;
+                      OperationMetaBuilder& opMeta,
+                      SorobanApplyMetrics& sorobanMetrics) const override;
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
@@ -45,7 +46,7 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
                     ThreadParallelApplyLedgerState const& threadState,
                     Config const& appConfig, Hash const& txPrngSeed,
                     ParallelLedgerInfo const& ledgerInfo,
-                    SorobanMetrics& sorobanMetrics, OperationResult& res,
+                    SorobanApplyMetrics& sorobanMetrics, OperationResult& res,
                     std::optional<RefundableFeeTracker>& refundableFeeTracker,
                     OperationMetaBuilder& opMeta) const override;
 

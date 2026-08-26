@@ -27,6 +27,7 @@ class DiagnosticEventManager;
 class RefundableFeeTracker;
 class OperationMetaBuilder;
 class ThreadParallelApplyLedgerState;
+struct SorobanApplyMetrics;
 
 enum class ThresholdLevel
 {
@@ -53,7 +54,8 @@ class OperationFrame
                       SorobanNetworkConfig const& sorobanConfig,
                       Hash const& sorobanBasePrngSeed, OperationResult& res,
                       std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta) const;
+                      OperationMetaBuilder& opMeta,
+                      SorobanApplyMetrics& sorobanMetrics) const;
     virtual bool
     doApply(AppConnector& app, AbstractLedgerTxn& ltx,
             std::optional<SorobanNetworkConfig const> const& sorobanConfig,
@@ -67,7 +69,7 @@ class OperationFrame
                     ThreadParallelApplyLedgerState const& threadState,
                     Config const& config, Hash const& txPrngSeed,
                     ParallelLedgerInfo const& ledgerInfo,
-                    SorobanMetrics& sorobanMetrics, OperationResult& res,
+                    SorobanApplyMetrics& sorobanMetrics, OperationResult& res,
                     std::optional<RefundableFeeTracker>& refundableFeeTracker,
                     OperationMetaBuilder& opMeta) const;
 
@@ -114,13 +116,14 @@ class OperationFrame
                std::optional<SorobanNetworkConfig const> const& sorobanConfig,
                Hash const& sorobanBasePrngSeed, OperationResult& res,
                std::optional<RefundableFeeTracker>& refundableFeeTracker,
-               OperationMetaBuilder& opMeta) const;
+               OperationMetaBuilder& opMeta,
+               SorobanApplyMetrics& sorobanMetrics) const;
 
     // Returns std::nullopt if operation fails.
     std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,
-        SorobanMetrics& sorobanMetrics, OperationResult& res,
+        SorobanApplyMetrics& sorobanMetrics, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, Hash const& sorobanBasePrngSeed) const;
 

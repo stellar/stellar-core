@@ -143,7 +143,8 @@ class TransactionFrame : public TransactionFrameBase
         SignatureChecker& checker, AppConnector& app, AbstractLedgerTxn& ltx,
         TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
         std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-        Hash const& sorobanBasePrngSeed) const;
+        Hash const& sorobanBasePrngSeed,
+        SorobanApplyMetrics& sorobanMetrics) const;
 
     void processSeqNum(AbstractLedgerTxn& ltx) const;
 
@@ -159,7 +160,8 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanOpsConsistency() const;
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
-    void updateSorobanMetrics(AppConnector& app) const;
+    void updateSorobanMetrics(AppConnector& app,
+                              SorobanApplyMetrics& sorobanMetrics) const;
     bool accessesFrozenKey(SorobanNetworkConfig const& cfg) const;
 
 #ifdef BUILD_TESTS
@@ -311,19 +313,20 @@ class TransactionFrame : public TransactionFrameBase
                           AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
                           MutableTransactionResultBase& txResult,
                           SorobanNetworkConfig const& sorobanConfig,
-                          Hash const& envelopeContentsHash) const;
+                          Hash const& envelopeContentsHash,
+                          SorobanApplyMetrics& sorobanMetrics) const;
 
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
+    void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaBuilder& meta,
+                          MutableTransactionResultBase& txResult,
+                          SorobanNetworkConfig const& sorobanConfig,
+                          SorobanApplyMetrics& sorobanMetrics) const override;
 
     std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,
-        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        SorobanApplyMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
         TxEffects& effects) const override;
 
     // apply this transaction to the current ledger
@@ -333,12 +336,14 @@ class TransactionFrame : public TransactionFrameBase
                MutableTransactionResultBase& txResult,
                std::optional<SorobanNetworkConfig const> const& sorobanConfig,
                Hash const& sorobanBasePrngSeed,
-               Hash const& envelopeContentsHash) const;
+               Hash const& envelopeContentsHash,
+               SorobanApplyMetrics& sorobanMetrics) const;
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaBuilder& meta,
                MutableTransactionResultBase& txResult,
                std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-               Hash const& sorobanBasePrngSeed) const override;
+               Hash const& sorobanBasePrngSeed,
+               SorobanApplyMetrics& sorobanMetrics) const override;
 
     // Performs the necessary post-apply transaction processing.
     // This has to be called after both `processFeeSeqNum` and
