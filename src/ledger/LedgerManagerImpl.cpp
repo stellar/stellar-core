@@ -1554,8 +1554,24 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
     }
 }
 
+// Completion stage of the apply pipeline: performs the LCL transition and all
+// post-close publishing on the main thread.
+//
+// NB: under background ledger apply this runs concurrently with application of
+// the *next* ledger(s) -- see the pipeline invariant on applyLedger. That is
+// safe here because every input is one of:
+//  * appliedLedgerState: an immutable snapshot shared with ApplyState; both
+//    threads may read it concurrently, while neither mutates it;
+//  * main-thread-only state: mCurrentlyApplyingLedger, the LM state machine,
+//    Herder notification.
+//  * (Not recommended unless absolutely necessary) lock-guarded shared state:
+//  the LCL swap takes mLastClosedLedgerStateMutex
+//    exclusively, bucket GC takes mLedgerStateMutex. Be sure to evaluate
+//    performance impact of locking.
+// Do *NOT* add access of apply-thread state here without one of those
+// protections.
 void
-LedgerManagerImpl::advanceLedgerStateAndPublish(
+LedgerManagerImpl::completeLedgerClose(
     uint32_t ledgerSeq, bool calledViaExternalize,
     LedgerCloseData const& ledgerData, ImmutableLedgerDataPtr newLedgerState,
     bool upgradeApplied)
@@ -1601,15 +1617,27 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
 
     // Maybe set LedgerManager into synced state, maybe let
     // Herder trigger next ledger
-    ledgerCloseComplete(ledgerSeq, calledViaExternalize, ledgerData,
-                        upgradeApplied);
+    notifyLedgerCloseComplete(ledgerSeq, calledViaExternalize, ledgerData,
+                              upgradeApplied);
     CLOG_INFO(Ledger, "Ledger close complete: {}", ledgerSeq);
 }
 
-// This is the main entrypoint for the apply thread (and/or synchronous
-// application happening on the main thread -- it can happen on either).
-// It is called from the LedgerApplyManager and will post its results
-// back to the main thread when done, if running on the apply thread.
+// This is the main entrypoint for ledger application. It runs either
+// synchronously on the main thread, or on the single dedicated ledger-close
+// thread when background ledger apply is enabled. It is called from the
+// LedgerApplyManager and posts its completion stage
+// (completeLedgerClose) back to the main thread.
+//
+// Apply pipeline concurrency invariant:
+//  * Application is strictly serialized: there is exactly one ledger-close
+//    thread and LedgerApplyManager queues ledgers to it in sequence order, so
+//    applyLedger(N+1) never starts before applyLedger(N) returns.
+//  * Completion runs on the main thread in ledger order (FIFO posts from the
+//    single apply thread).
+//  * Completion is PIPELINED with application: applyLedger(N+1) may run
+//    concurrently with completeLedgerClose(N) on main
+//    (LedgerApplyManager queues applies up to
+//    MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT ledgers ahead of the LCL).
 void
 LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                                bool calledViaExternalize)

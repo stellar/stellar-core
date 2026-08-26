@@ -157,6 +157,26 @@ class InMemorySorobanState;
 // the actions taken and variables updated by the main thread _after_ apply, and
 // the term "apply" to refer to actions taken and variables updated by the apply
 // thread.
+//
+// Concretely, there are three distinct ledger states in flight at any time,
+// and identifiers are named for which one they refer to:
+//
+//   - "lastClosed" / LCL: the CANONICAL state, owned by the main thread
+//     (mLastClosedLedgerState, guarded by mLastClosedLedgerStateMutex). This
+//     is the only state that consensus, transaction admission, fee/limit
+//     queries, overlay, and HTTP responses may read. A ledger is "closed"
+//     only once the main thread has adopted it as LCL in
+//     completeLedgerClose.
+//
+//   - "apply": the WORKING state of the apply pipeline (mApplyState, the
+//     live bucketlist and DB, ledger A on the ladder above). It may be up to
+//     MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT ledgers ahead of LCL and is mutated
+//     while the main thread runs.
+//
+//   - "applied": the OUTPUT of apply for one ledger (ImmutableLedgerData):
+//     committed and immutable, but not yet adopted as LCL. It is handed off by
+//     value from the apply thread to the main thread, which adopts it in
+//     completeLedgerClose.
 class LedgerManager
 {
 
