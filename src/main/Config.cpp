@@ -2088,7 +2088,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
-        if (PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
+        if (PARALLEL_LEDGER_APPLY && !backgroundLedgerApply())
         {
             LOG_WARNING(DEFAULT_LOG,
                         "PARALLEL_LEDGER_APPLY is not supported with "
@@ -2667,7 +2667,7 @@ Config::allBucketsInMemory() const
 }
 
 bool
-Config::parallelLedgerClose() const
+Config::backgroundLedgerApply() const
 {
     return PARALLEL_LEDGER_APPLY && DATABASE.value != "sqlite3://:memory:";
 }

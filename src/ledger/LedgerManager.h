@@ -58,7 +58,7 @@ class InMemorySorobanState;
 //      m │    │ i │    │  │  (or triggers catchup)    │
 //      e │    │ n │    │  │                           │
 //        │    │   │    │  │ ┌───────────────────┐     │    ┌───┐
-//      p │    │ T │    │  ▼ │  mSyncingLedgers  │─────┼───►│   │
+//      p │    │ T │    │  ▼ │  mBufferedLedgers │─────┼───►│   │
 //      a │    │ h │    │    └───────────────────┘     │    │   │
 //      s │    │ r │    │   H                     Q    │    │   │
 //      s │    │ e │    └──────────────────────────────┘    │   │
@@ -99,12 +99,12 @@ class InMemorySorobanState;
 //
 //     H -- LedgerApplyManagerImpl::mLargestLedgerSeqHeard tracks this, it is
 //          the ledger sequence number of the most recent ledger added to
-//          mSyncingLedgers (whether or not any ledgers are still _in_
-//          mSyncingLedgers, it may have been emptied by the apply thread).
+//          mBufferedLedgers (whether or not any ledgers are still _in_
+//          mBufferedLedgers, it may have been emptied by the apply thread).
 //
 //     Q -- LedgerApplyManagerImpl::mLastQueuedToApply tracks this, it is the
 //          ledger sequence number of the most recent ledger _dequeued_ from
-//          mSyncingLedgers and posted over to the apply thread. This does not
+//          mBufferedLedgers and posted over to the apply thread. This does not
 //          mean it has been applied! Just posted to the apply thread.
 //
 //     A -- The LedgerCloseData::mLedgerSeq of the argument passed to
@@ -373,11 +373,11 @@ class LedgerManager
     // upgradeApplied should be true if a protocol or network config setting
     // upgrade occurred during the ledger close. If inMemorySnapshotForInvariant
     // is not null, this will kick off a snapshot invariant check.
-    virtual void
-    advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
-                                 LedgerCloseData const& ledgerData,
-                                 ImmutableLedgerDataPtr newLedgerState,
-                                 bool upgradeApplied) = 0;
+    virtual void completeLedgerClose(uint32_t ledgerSeq,
+                                     bool calledViaExternalize,
+                                     LedgerCloseData const& ledgerData,
+                                     ImmutableLedgerDataPtr appliedLedgerState,
+                                     bool upgradeApplied) = 0;
 
     virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS

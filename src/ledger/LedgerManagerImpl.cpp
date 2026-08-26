@@ -310,7 +310,7 @@ LedgerManagerImpl::ApplyState::setLedgerStateForTesting(
 void
 LedgerManagerImpl::ApplyState::threadInvariant() const
 {
-    if (mAppConnector.getConfig().parallelLedgerClose())
+    if (mAppConnector.getConfig().backgroundLedgerApply())
     {
         releaseAssert(threadIsMain() || mAppConnector.threadIsType(
                                             Application::ThreadType::APPLY));
@@ -1501,16 +1501,17 @@ maybeSimulateSleep(Config const& cfg, size_t opSize,
 asio::io_context&
 getMetaIOContext(Application& app)
 {
-    return app.getConfig().parallelLedgerClose()
-               ? app.getLedgerCloseIOContext()
+    return app.getConfig().backgroundLedgerApply()
+               ? app.getLedgerApplyIOContext()
                : app.getClock().getIOContext();
 }
 } // namespace
 
 void
-LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
-                                       LedgerCloseData const& ledgerData,
-                                       bool upgradeApplied)
+LedgerManagerImpl::notifyLedgerCloseComplete(uint32_t lcl,
+                                             bool calledViaExternalize,
+                                             LedgerCloseData const& ledgerData,
+                                             bool upgradeApplied)
 {
     // We just finished applying `lcl`, maybe change LM's state
     // Also notify Herder so it can trigger next ledger.
@@ -1529,7 +1530,7 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
 
     // Without parallel ledger apply, this should always be true
     bool doneApplying = lcl == latestQueuedToApply;
-    releaseAssert(doneApplying || mApp.getConfig().parallelLedgerClose());
+    releaseAssert(doneApplying || mApp.getConfig().backgroundLedgerApply());
     if (doneApplying)
     {
         mCurrentlyApplyingLedger = false;
@@ -1573,13 +1574,13 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
 void
 LedgerManagerImpl::completeLedgerClose(
     uint32_t ledgerSeq, bool calledViaExternalize,
-    LedgerCloseData const& ledgerData, ImmutableLedgerDataPtr newLedgerState,
-    bool upgradeApplied)
+    LedgerCloseData const& ledgerData,
+    ImmutableLedgerDataPtr appliedLedgerState, bool upgradeApplied)
 {
 #ifdef BUILD_TESTS
-    if (mAdvanceLedgerStateAndPublishOverride)
+    if (mCompleteLedgerCloseOverride)
     {
-        mAdvanceLedgerStateAndPublishOverride();
+        mCompleteLedgerCloseOverride();
         return;
     }
 #endif
@@ -1588,12 +1589,12 @@ LedgerManagerImpl::completeLedgerClose(
     // off publishing, cleanup bucket files, notify herder to trigger next
     // ledger.
     releaseAssert(threadIsMain());
-    advanceLastClosedLedgerState(newLedgerState);
+    advanceLastClosedLedgerState(appliedLedgerState);
 
     // Push the new state to the QueryServer. To avoid gaps in history, the
     // query server should only store ledgers we have actually applied, so we
     // update the snapshot here instead of advanceLastClosedLedgerState.
-    mApp.getCommandHandler().addSnapshot(newLedgerState);
+    mApp.getCommandHandler().addSnapshot(appliedLedgerState);
 
     // We can publish Soroban metrics at any point after advancing the LCL
     // state.
@@ -1623,13 +1624,13 @@ LedgerManagerImpl::completeLedgerClose(
 }
 
 // This is the main entrypoint for ledger application. It runs either
-// synchronously on the main thread, or on the single dedicated ledger-close
+// synchronously on the main thread, or on the single dedicated ledger apply
 // thread when background ledger apply is enabled. It is called from the
 // LedgerApplyManager and posts its completion stage
 // (completeLedgerClose) back to the main thread.
 //
 // Apply pipeline concurrency invariant:
-//  * Application is strictly serialized: there is exactly one ledger-close
+//  * Application is strictly serialized: there is exactly one ledger apply
 //    thread and LedgerApplyManager queues ledgers to it in sequence order, so
 //    applyLedger(N+1) never starts before applyLedger(N) returns.
 //  * Completion runs on the main thread in ledger order (FIFO posts from the
@@ -2075,24 +2076,22 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     recordTxE2eLatency(*applicableTxSet);
 #endif
 
-    // Steps 6, 7, 8 are done in `advanceLedgerStateAndPublish`
+    // Steps 6, 7, 8 are done in `completeLedgerClose`
     // NB: appliedLedgerState is invalidated after this call.
     if (threadIsMain())
     {
-        advanceLedgerStateAndPublish(ledgerSeq, calledViaExternalize,
-                                     ledgerData, std::move(appliedLedgerState),
-                                     upgradeApplied);
+        completeLedgerClose(ledgerSeq, calledViaExternalize, ledgerData,
+                            std::move(appliedLedgerState), upgradeApplied);
     }
     else
     {
         auto cb = [this, ledgerSeq, calledViaExternalize, ledgerData,
                    appliedLedgerState = std::move(appliedLedgerState),
                    upgradeApplied]() mutable {
-            advanceLedgerStateAndPublish(
-                ledgerSeq, calledViaExternalize, ledgerData,
-                std::move(appliedLedgerState), upgradeApplied);
+            completeLedgerClose(ledgerSeq, calledViaExternalize, ledgerData,
+                                std::move(appliedLedgerState), upgradeApplied);
         };
-        mApp.postOnMainThread(std::move(cb), "advanceLedgerStateAndPublish");
+        mApp.postOnMainThread(std::move(cb), "completeLedgerClose");
     }
 
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
@@ -2294,10 +2293,10 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
 
 void
 LedgerManagerImpl::advanceLastClosedLedgerState(
-    ImmutableLedgerDataPtr newLedgerState)
+    ImmutableLedgerDataPtr appliedLedgerState)
 {
     releaseAssert(threadIsMain());
-    releaseAssert(newLedgerState);
+    releaseAssert(appliedLedgerState);
 
     {
         JITTER_INJECT_DELAY();
@@ -2310,9 +2309,9 @@ LedgerManagerImpl::advanceLastClosedLedgerState(
                 ledgerAbbrev(
                     mLastClosedLedgerState->getLastClosedLedgerHeader().header),
                 ledgerAbbrev(
-                    newLedgerState->getLastClosedLedgerHeader().header));
+                    appliedLedgerState->getLastClosedLedgerHeader().header));
         }
-        mLastClosedLedgerState = newLedgerState;
+        mLastClosedLedgerState = appliedLedgerState;
     }
 }
 
@@ -2369,7 +2368,7 @@ ApplyLedgerView
 LedgerManagerImpl::copyApplyLedgerView() const
 {
     // Apply-thread state may be ahead of mLastClosedLedgerState during
-    // parallel ledger close, so always read from ApplyState.
+    // background ledger apply, so always read from ApplyState.
     mApplyState.threadInvariant();
     return mApplyState.copyApplyLedgerView();
 }

@@ -1020,7 +1020,11 @@ class Config : public std::enable_shared_from_this<Config>
     bool modeDoesCatchupWithBucketList() const;
     bool allBucketsInMemory() const;
     void logBasicInfo() const;
-    bool parallelLedgerClose() const;
+    // Whether ledgers are applied on the background apply thread rather than
+    // the main thread. NB: can be false even when PARALLEL_LEDGER_APPLY is
+    // set (in-memory SQLite doesn't support it; a warning is logged and the
+    // flag is cleared during config validation).
+    bool backgroundLedgerApply() const;
 
     // Returns true if this node should run the NTP clock-drift check: an NTP
     // server is configured and the node is a validator (clock drift only hurts

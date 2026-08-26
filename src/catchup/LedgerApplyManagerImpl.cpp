@@ -90,7 +90,7 @@ LedgerApplyManager::create(Application& app)
 LedgerApplyManagerImpl::LedgerApplyManagerImpl(Application& app)
     : mApp(app)
     , mCatchupWork(nullptr)
-    , mSyncingLedgersSize(
+    , mBufferedLedgersSize(
           app.getMetrics().NewCounter({"ledger", "memory", "queued-ledgers"}))
     , mLargestLedgerSeqHeard(0)
 {
@@ -145,17 +145,17 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     }
 
     // Always add a newer ledger, maybe apply
-    mSyncingLedgers.emplace(lastReceivedLedgerSeq, ledgerData);
+    mBufferedLedgers.emplace(lastReceivedLedgerSeq, ledgerData);
     mLargestLedgerSeqHeard =
         std::max(mLargestLedgerSeqHeard, lastReceivedLedgerSeq);
 
     // 1. CatchupWork is not running yet
     // 2. LedgerApplyManager received  ledger that should be immediately applied
     // by LedgerManager: check if we have any sequential ledgers. If so, attempt
-    // to apply mSyncingLedgers and possibly get back in sync
+    // to apply mBufferedLedgers and possibly get back in sync
     if (!mCatchupWork && lastReceivedLedgerSeq == *mLastQueuedToApply + 1)
     {
-        tryApplySyncingLedgers();
+        tryApplyBufferedLedgers();
         return ProcessLedgerResult::PROCESSED_ALL_LEDGERS_SEQUENTIALLY;
     }
 
@@ -170,8 +170,8 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     // state machine to ledger L-1 (the end of the checkpoint covering K) and
     // then replay buffered ledgers from L onwards.
     CLOG_INFO(Ledger,
-              "Close of ledger {} buffered. mSyncingLedgers has {} ledgers",
-              ledgerData.getLedgerSeq(), mSyncingLedgers.size());
+              "Close of ledger {} buffered. mBufferedLedgers has {} ledgers",
+              ledgerData.getLedgerSeq(), mBufferedLedgers.size());
 
     // First: if CatchupWork has started, just buffer and return early.
     if (mCatchupWork)
@@ -184,14 +184,14 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
             return ProcessLedgerResult::WAIT_TO_APPLY_BUFFERED_OR_CATCHUP;
         }
 
-        trimSyncingLedgers();
+        trimBufferedLedgers();
         logAndUpdateCatchupStatus(true);
         return ProcessLedgerResult::WAIT_TO_APPLY_BUFFERED_OR_CATCHUP;
     }
 
     // Next, we buffer every out of sync ledger to allow us to get back in sync
     // in case the ledgers we're missing are received.
-    trimSyncingLedgers();
+    trimBufferedLedgers();
 
     // Finally we wait some number of ledgers beyond the smallest buffered
     // checkpoint ledger before we trigger the CatchupWork. This could be any
@@ -200,8 +200,8 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     // we just check for any ledger larger than the checkpoint
 
     std::string message;
-    uint32_t firstLedgerInBuffer = mSyncingLedgers.begin()->first;
-    uint32_t lastLedgerInBuffer = mSyncingLedgers.crbegin()->first;
+    uint32_t firstLedgerInBuffer = mBufferedLedgers.begin()->first;
+    uint32_t lastLedgerInBuffer = mBufferedLedgers.crbegin()->first;
     if (mApp.getConfig().modeDoesCatchupWithBucketList() &&
         HistoryManager::isFirstLedgerInCheckpoint(firstLedgerInBuffer,
                                                   mApp.getConfig()) &&
@@ -286,7 +286,7 @@ LedgerApplyManagerImpl::startCatchup(CatchupConfiguration configuration,
     }
 
     // Offline catchup isn't triggered by buffered ledgers
-    releaseAssert(configuration.offline() == mSyncingLedgers.empty());
+    releaseAssert(configuration.offline() == mBufferedLedgers.empty());
 
     releaseAssert(!mCatchupWork);
 
@@ -365,12 +365,12 @@ LedgerApplyManagerImpl::maybeGetNextBufferedLedgerToApply()
     // Since we just applied a ledger, refresh mLastQueuedToApply
     updateLastQueuedToApply();
 
-    trimSyncingLedgers();
-    if (!mSyncingLedgers.empty() &&
-        mSyncingLedgers.begin()->first == *mLastQueuedToApply + 1)
+    trimBufferedLedgers();
+    if (!mBufferedLedgers.empty() &&
+        mBufferedLedgers.begin()->first == *mLastQueuedToApply + 1)
     {
         return std::make_optional<LedgerCloseData>(
-            mSyncingLedgers.begin()->second);
+            mBufferedLedgers.begin()->second);
     }
     else
     {
@@ -382,10 +382,10 @@ std::optional<LedgerCloseData>
 LedgerApplyManagerImpl::maybeGetLargestBufferedLedger()
 {
     releaseAssert(threadIsMain());
-    if (!mSyncingLedgers.empty())
+    if (!mBufferedLedgers.empty())
     {
         return std::make_optional<LedgerCloseData>(
-            mSyncingLedgers.crbegin()->second);
+            mBufferedLedgers.crbegin()->second);
     }
     else
     {
@@ -412,7 +412,7 @@ void
 LedgerApplyManagerImpl::syncMetrics()
 {
     releaseAssert(threadIsMain());
-    mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+    mBufferedLedgersSize.set_count(mBufferedLedgers.size());
 }
 
 void
@@ -435,12 +435,12 @@ void
 LedgerApplyManagerImpl::startOnlineCatchup()
 {
     releaseAssert(threadIsMain());
-    releaseAssert(mSyncingLedgers.size() > 1);
+    releaseAssert(mBufferedLedgers.size() > 1);
 
     // catchup just before first buffered ledger that way we will have a
     // way to verify history consistency - compare previousLedgerHash of
     // buffered ledger with last one downloaded from history
-    auto const& lcd = mSyncingLedgers.begin()->second;
+    auto const& lcd = mBufferedLedgers.begin()->second;
     auto firstBufferedLedgerSeq = lcd.getLedgerSeq();
     auto hash = std::make_optional<Hash>(lcd.getTxSet()->previousLedgerHash());
     startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
@@ -449,21 +449,21 @@ LedgerApplyManagerImpl::startOnlineCatchup()
 }
 
 void
-LedgerApplyManagerImpl::trimSyncingLedgers()
+LedgerApplyManagerImpl::trimBufferedLedgers()
 {
     releaseAssert(threadIsMain());
     auto removeLedgersLessThan = [&](uint32_t ledger) {
         // lower_bound returns an iterator pointing to the first element whose
         // key is not considered to go before k. Thus we get the iterator to
         // `ledger` if exists, or the first one after `ledger`.
-        auto it = mSyncingLedgers.lower_bound(ledger);
+        auto it = mBufferedLedgers.lower_bound(ledger);
         // This erases [begin, it).
-        mSyncingLedgers.erase(mSyncingLedgers.begin(), it);
+        mBufferedLedgers.erase(mBufferedLedgers.begin(), it);
     };
     removeLedgersLessThan(*mLastQueuedToApply + 1);
-    if (!mSyncingLedgers.empty())
+    if (!mBufferedLedgers.empty())
     {
-        auto const lastBufferedLedger = mSyncingLedgers.rbegin()->first;
+        auto const lastBufferedLedger = mBufferedLedgers.rbegin()->first;
         if (HistoryManager::isFirstLedgerInCheckpoint(lastBufferedLedger,
                                                       mApp.getConfig()))
         {
@@ -490,17 +490,17 @@ LedgerApplyManagerImpl::trimSyncingLedgers()
 }
 
 void
-LedgerApplyManagerImpl::tryApplySyncingLedgers()
+LedgerApplyManagerImpl::tryApplyBufferedLedgers()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    auto const parallelLedgerClose = mApp.getConfig().parallelLedgerClose();
+    auto const backgroundLedgerApply = mApp.getConfig().backgroundLedgerApply();
     uint32_t nextToApply = *mLastQueuedToApply + 1;
 
     // We can apply multiple ledgers here, which might be slow. This is a rare
     // occurrence so we should be fine.
-    auto it = mSyncingLedgers.cbegin();
-    while (it != mSyncingLedgers.cend())
+    auto it = mBufferedLedgers.cbegin();
+    while (it != mBufferedLedgers.cend())
     {
         auto const& lcd = it->second;
 
@@ -512,7 +512,7 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
 
         // If we have too many ledgers queued to apply, just stop scheduling
         // more and let the node gracefully go into catchup.
-        if (parallelLedgerClose)
+        if (backgroundLedgerApply)
         {
             auto const lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
             releaseAssert(mLastQueuedToApply >= lcl);
@@ -526,7 +526,7 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
             }
             // Notify LM that application has started
             mApp.getLedgerManager().beginApply();
-            mApp.postOnLedgerCloseThread(
+            mApp.postOnLedgerApplyThread(
                 [&app = mApp, lcd]() {
                     // No-op if app is shutting down
                     if (app.isStopping())
@@ -548,7 +548,7 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
         ++nextToApply;
     }
 
-    mSyncingLedgers.erase(mSyncingLedgers.cbegin(), it);
+    mBufferedLedgers.erase(mBufferedLedgers.cbegin(), it);
 }
 
 void

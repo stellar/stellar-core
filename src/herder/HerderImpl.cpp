@@ -521,7 +521,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // the overhead of externalization in the way we track SCP)
         // Note: this only makes sense in the context of synchronous ledger
         // application on the main thread.
-        if (!mApp.getConfig().parallelLedgerClose())
+        if (!mApp.getConfig().backgroundLedgerApply())
         {
             trackingHeartBeat();
         }
@@ -1653,7 +1653,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (mLedgerManager.isApplying())
     {
         // This can only happen when closing ledgers in parallel
-        releaseAssert(mApp.getConfig().parallelLedgerClose());
+        releaseAssert(mApp.getConfig().backgroundLedgerApply());
         CLOG_DEBUG(Herder, "triggerNextLedger: skipping (applying) : {}",
                    mApp.getStateHuman());
         return;
