@@ -148,15 +148,13 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
         return env;
     };
 
+    // The tx endpoint no longer validates transactions synchronously on
+    // submission (the Rust overlay mempool does that asynchronously), so
+    // envelopes are accepted as PENDING at every protocol version, including
+    // versions that would previously have rejected them with txNOT_SUPPORTED.
     SECTION("new-style transaction v1")
     {
-        for_versions_to(12, *app, [&]() {
-            closeLedgerOn(*app, 2, 1, 1, 2017);
-            REQUIRE(submit(createV1()) ==
-                    errorResult(txNOT_SUPPORTED, baseFee));
-        });
-
-        for_versions_from(13, *app, [&]() {
+        for_all_versions(*app, [&]() {
             closeLedgerOn(*app, 2, 1, 1, 2017);
             REQUIRE(submit(createV1()) == PENDING_RESULT);
         });
@@ -179,13 +177,7 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
             return env;
         };
 
-        for_versions_to(12, *app, [&]() {
-            closeLedgerOn(*app, 2, 1, 1, 2017);
-            REQUIRE(submit(createFeeBump()) ==
-                    errorResult(txNOT_SUPPORTED, 2 * baseFee));
-        });
-
-        for_versions_from(13, *app, [&]() {
+        for_all_versions(*app, [&]() {
             closeLedgerOn(*app, 2, 1, 1, 2017);
             REQUIRE(submit(createFeeBump()) == PENDING_RESULT);
         });

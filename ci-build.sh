@@ -204,17 +204,24 @@ if [ $DISABLE_POSTGRES != '--disable-postgres' ] ; then
     fi
 fi
 
-export ALL_VERSIONS=0
-export NUM_PARTITIONS=1
-export RUN_PARTITIONS=0
+# Run tests at the current protocol version only. run-selftest-* adds
+# --all-versions whenever ALL_VERSIONS is non-empty (even "0"), so it must be
+# unset here, not set to 0.
+unset ALL_VERSIONS
+export NUM_PARTITIONS=$((NPROCS*2))
+export RUN_PARTITIONS
 export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
 ulimit -n 65536
 export INTERACTIVE=0
-
-export TEST_SPEC='[overlay-ipc],[loadgen],[overlay-ipc-large]'
-export SKIP_SOROBAN_TESTS=true
 export STELLAR_OVERLAY_BINARY="${SRC_DIR}/build-${CC}-${PROTOCOL}/stellar-overlay"
+
+# Everything a plain `make check` runs (the default spec, first alternative;
+# this also runs the Soroban host tests via check-sorobans), plus the Rust
+# overlay IPC tests, which are hidden ([.]) so they don't run by default.
+# Benchmark-style tests ([acceptance]: the loadgen apply-load benchmarks and
+# the multi-node TPS stress tests) are deliberately not run in CI.
+export TEST_SPEC='~[acceptance]~[.],[overlay-ipc]'
 time make check
 
 # echo Running fixed check-test-tx-meta tests

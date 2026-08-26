@@ -63,6 +63,12 @@ TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
 
     Config cfg1 = getTestConfig(1);
     Config cfg2 = getTestConfig(2, Config::TESTDB_IN_MEMORY);
+    // The Rust overlay runs simulations in real time, and the watcher has to
+    // observe a checkpoint boundary below: with accelerated time that is
+    // ledger 7 (1s ledgers, checkpoint every 8) instead of ledger 63 at 5s
+    // per ledger.
+    cfg1.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+    cfg2.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     cfg2.FORCE_SCP = false;
     cfg2.NODE_IS_VALIDATOR = false;
     cfg2.MODE_DOES_CATCHUP = false;
@@ -88,11 +94,12 @@ TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
     }
 
     LedgerNumHashPair authPair;
-    while (!authPair.second)
-    {
-        simulation->crankForAtMost(std::chrono::seconds(1), false);
-        setAuthenticatedLedgerHashPair(watcher, authPair, 0, "");
-    }
+    simulation->crankUntil(
+        [&]() {
+            setAuthenticatedLedgerHashPair(watcher, authPair, 0, "");
+            return authPair.second.has_value();
+        },
+        60 * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(authPair.second);
     REQUIRE(authPair.first);

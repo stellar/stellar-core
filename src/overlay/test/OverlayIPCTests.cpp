@@ -7,6 +7,7 @@
 #include "overlay/OverlayIPC.h"
 #include "rust/RustBridge.h"
 #include "test/TestUtils.h"
+#include "test/test.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/TmpDir.h"
 #include "xdr/Stellar-SCP.h"
@@ -22,10 +23,11 @@ using namespace stellar;
  *
  * To run these tests:
  * 1. Build the Rust overlay: cd overlay && cargo build --release
- * 2. Run tests: stellar-core test '[overlay-ipc-rust]'
+ * 2. Run tests: stellar-core test '[overlay-ipc]'
  *
- * Tests are tagged with [.] so they don't run by default (require overlay
- * binary).
+ * The IPC-level tests are tagged [.] and only run when [overlay-ipc] is
+ * selected explicitly (CI does); the simulation-level tests run as part of
+ * the default `make check` selection. All of them need the overlay binary.
  */
 
 namespace
@@ -66,14 +68,14 @@ makeMockSCPEnvelope(uint64_t slotIndex, uint32_t nodeId)
 
 } // anonymous namespace
 
-TEST_CASE("OverlayIPC connects to Rust overlay", "[overlay-ipc-rust][.]")
+TEST_CASE("OverlayIPC connects to Rust overlay", "[overlay-ipc]")
 {
     auto overlayBinary = requireOverlayBinary();
 
     TmpDir tmpDir("overlay-ipc-test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
-    OverlayIPC ipc(socketPath, overlayBinary, 11625);
+    OverlayIPC ipc(socketPath, overlayBinary, getTestConfig().PEER_PORT);
 
     SECTION("start and connect")
     {
@@ -93,7 +95,7 @@ TEST_CASE("OverlayIPC broadcasts SCP to Rust overlay", "[overlay-ipc][.]")
     TmpDir tmpDir("overlay-ipc-broadcast-test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
-    OverlayIPC ipc(socketPath, overlayBinary, 11625);
+    OverlayIPC ipc(socketPath, overlayBinary, getTestConfig().PEER_PORT);
     REQUIRE(ipc.start());
 
     SECTION("broadcast SCP envelope")
@@ -126,7 +128,7 @@ TEST_CASE("OverlayIPC receives SCP from Rust overlay", "[overlay-ipc][.]")
     TmpDir tmpDir("overlay-ipc-receive-test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
-    OverlayIPC ipc(socketPath, overlayBinary, 11625);
+    OverlayIPC ipc(socketPath, overlayBinary, getTestConfig().PEER_PORT);
 
     std::atomic<int> receivedCount{0};
     ipc.setOnSCPReceived([&](SCPEnvelope const& env) { ++receivedCount; });
@@ -153,7 +155,7 @@ TEST_CASE("OverlayIPC ledger close notification", "[overlay-ipc][.]")
     TmpDir tmpDir("overlay-ipc-ledger-test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
-    OverlayIPC ipc(socketPath, overlayBinary, 11625);
+    OverlayIPC ipc(socketPath, overlayBinary, getTestConfig().PEER_PORT);
     REQUIRE(ipc.start());
 
     SECTION("notify ledger closed")
@@ -192,8 +194,8 @@ TEST_CASE("Two Cores communicate via Rust overlays", "[overlay-ipc][.]")
     // For now, we skip the actual connectivity test and just verify
     // the IPC mechanism works independently.
 
-    OverlayIPC ipcA(socketPathA, overlayBinary, 11626);
-    OverlayIPC ipcB(socketPathB, overlayBinary, 11627);
+    OverlayIPC ipcA(socketPathA, overlayBinary, getTestConfig(1).PEER_PORT);
+    OverlayIPC ipcB(socketPathB, overlayBinary, getTestConfig(2).PEER_PORT);
 
     REQUIRE(ipcA.start());
     REQUIRE(ipcB.start());
@@ -237,6 +239,35 @@ TEST_CASE("Two Cores communicate via Rust overlays", "[overlay-ipc][.]")
 #include "transactions/TransactionUtils.h"
 #include "util/MetricsRegistry.h"
 
+namespace
+{
+// Build one config per node using the instance-derived PEER_PORT/HTTP_PORT
+// that Simulation::newConfig() assigns (unique per --base-instance, so tests
+// in concurrently running partitions never collide on ports), and wire every
+// node to know every other node. Callers must not override the ports.
+std::vector<Config>
+makeFullMeshConfigs(Simulation& simulation, size_t numNodes)
+{
+    std::vector<Config> cfgs;
+    for (size_t i = 0; i < numNodes; i++)
+    {
+        cfgs.push_back(simulation.newConfig());
+    }
+    for (size_t i = 0; i < numNodes; i++)
+    {
+        for (size_t j = 0; j < numNodes; j++)
+        {
+            if (i != j)
+            {
+                cfgs[i].KNOWN_PEERS.push_back(
+                    fmt::format("127.0.0.1:{}", cfgs[j].PEER_PORT));
+            }
+        }
+    }
+    return cfgs;
+}
+} // namespace
+
 /**
  * End-to-end test using Simulation framework to verify SCP consensus
  * works correctly over the Rust overlay.
@@ -266,13 +297,9 @@ TEST_CASE("Rust overlay SCP consensus", "[overlay-ipc][.]")
     qSet.validators.push_back(key1.getPublicKey());
 
     // Configure nodes with each other as known peers
-    auto cfg0 = simulation->newConfig();
-    cfg0.PEER_PORT = 11626;
-    cfg0.KNOWN_PEERS.push_back("127.0.0.1:11627");
-
-    auto cfg1 = simulation->newConfig();
-    cfg1.PEER_PORT = 11627;
-    cfg1.KNOWN_PEERS.push_back("127.0.0.1:11626");
+    auto cfgs = makeFullMeshConfigs(*simulation, 2);
+    auto& cfg0 = cfgs[0];
+    auto& cfg1 = cfgs[1];
 
     auto node0 = simulation->addNode(key0, qSet, &cfg0);
     auto node1 = simulation->addNode(key1, qSet, &cfg1);
@@ -322,7 +349,7 @@ TEST_CASE("Rust overlay get top transactions", "[overlay-ipc][.]")
     std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_get_top_txs_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
-    uint16_t peerPort = 11625;
+    uint16_t peerPort = getTestConfig(0).PEER_PORT;
 
     auto ipc =
         std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
@@ -351,7 +378,7 @@ TEST_CASE("Rust overlay TX submission", "[overlay-ipc][.]")
     std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_tx_submit_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
-    uint16_t peerPort = 11626;
+    uint16_t peerPort = getTestConfig(1).PEER_PORT;
 
     auto ipc =
         std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
@@ -435,7 +462,7 @@ TEST_CASE("Rust overlay TX inclusion", "[overlay-ipc][.]")
     std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_tx_inclusion_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
-    uint16_t peerPort = 11627;
+    uint16_t peerPort = getTestConfig(2).PEER_PORT;
 
     auto ipc =
         std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
@@ -480,7 +507,7 @@ TEST_CASE("Rust overlay TX fee per op inclusion", "[overlay-ipc][.]")
     std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_tx_fee_per_op_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
-    uint16_t peerPort = 11628;
+    uint16_t peerPort = getTestConfig(3).PEER_PORT;
 
     auto ipc =
         std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
@@ -524,7 +551,7 @@ TEST_CASE("Rust overlay mempool eviction", "[overlay-ipc][.]")
     std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_mempool_eviction_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
-    uint16_t peerPort = 11629;
+    uint16_t peerPort = getTestConfig(4).PEER_PORT;
 
     auto ipc =
         std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
@@ -578,7 +605,7 @@ TEST_CASE("Rust overlay TX deduplication", "[overlay-ipc][.]")
     std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_tx_dedup_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
-    uint16_t peerPort = 11630;
+    uint16_t peerPort = getTestConfig(5).PEER_PORT;
 
     auto ipc =
         std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
@@ -612,7 +639,7 @@ TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
     std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_mempool_clear_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
-    uint16_t peerPort = 11631;
+    uint16_t peerPort = getTestConfig(6).PEER_PORT;
 
     auto ipc =
         std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
@@ -669,8 +696,8 @@ TEST_CASE("Rust overlay TX flooding between peers", "[overlay-ipc][.]")
     TmpDir tmpDirB("overlay_ipc_flood_test_b");
     std::string socketPathA = tmpDirA.getName() + "/overlay.sock";
     std::string socketPathB = tmpDirB.getName() + "/overlay.sock";
-    uint16_t peerPortA = 11640;
-    uint16_t peerPortB = 11641;
+    uint16_t peerPortA = getTestConfig(15).PEER_PORT;
+    uint16_t peerPortB = getTestConfig(16).PEER_PORT;
 
     auto ipcA =
         std::make_unique<OverlayIPC>(socketPathA, overlayBinary, peerPortA);
@@ -744,13 +771,9 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
     qSet.validators.push_back(key1.getPublicKey());
 
     // Configure nodes with each other as known peers
-    auto cfg0 = simulation->newConfig();
-    cfg0.PEER_PORT = 11626;
-    cfg0.KNOWN_PEERS.push_back("127.0.0.1:11627");
-
-    auto cfg1 = simulation->newConfig();
-    cfg1.PEER_PORT = 11627;
-    cfg1.KNOWN_PEERS.push_back("127.0.0.1:11626");
+    auto cfgs = makeFullMeshConfigs(*simulation, 2);
+    auto& cfg0 = cfgs[0];
+    auto& cfg1 = cfgs[1];
 
     auto node0 = simulation->addNode(key0, qSet, &cfg0);
     auto node1 = simulation->addNode(key1, qSet, &cfg1);
@@ -864,15 +887,10 @@ TEST_CASE("Rust overlay SCP latency under TX load",
     };
     std::vector<Results> allResults;
 
-    // Use unique base port per section to avoid port conflicts when
-    // Catch2 re-runs the test for each SECTION (previous overlay processes
-    // may still be releasing ports).
-    int sectionIdx = 0;
     for (auto const& run : runs)
     {
         SECTION(run.label)
         {
-            uint16_t basePort = static_cast<uint16_t>(11626 + sectionIdx * 10);
             LOG_INFO(DEFAULT_LOG, "========================================");
             LOG_INFO(DEFAULT_LOG, "Starting stress test: {}", run.label);
             LOG_INFO(DEFAULT_LOG, "========================================");
@@ -895,46 +913,16 @@ TEST_CASE("Rust overlay SCP latency under TX load",
 
             // Configure genesis accounts for high TX throughput
             int totalTxs = run.txPerLedger * run.ledgerCount;
-            auto cfg0 = simulation->newConfig();
-            cfg0.PEER_PORT = basePort;
-            cfg0.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 1));
-            cfg0.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 2));
-            cfg0.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 3));
-            cfg0.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
-            cfg0.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
-
-            auto cfg1 = simulation->newConfig();
-            cfg1.PEER_PORT = basePort + 1;
-            cfg1.KNOWN_PEERS.push_back(fmt::format("127.0.0.1:{}", basePort));
-            cfg1.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 2));
-            cfg1.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 3));
-            cfg1.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
-            cfg1.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
-
-            auto cfg2 = simulation->newConfig();
-            cfg2.PEER_PORT = basePort + 2;
-            cfg2.KNOWN_PEERS.push_back(fmt::format("127.0.0.1:{}", basePort));
-            cfg2.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 1));
-            cfg2.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 3));
-            cfg2.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
-            cfg2.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
-
-            auto cfg3 = simulation->newConfig();
-            cfg3.PEER_PORT = basePort + 3;
-            cfg3.KNOWN_PEERS.push_back(fmt::format("127.0.0.1:{}", basePort));
-            cfg3.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 1));
-            cfg3.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort + 2));
-            cfg3.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
-            cfg3.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
+            auto cfgs = makeFullMeshConfigs(*simulation, 4);
+            for (auto& cfg : cfgs)
+            {
+                cfg.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
+            }
+            auto& cfg0 = cfgs[0];
+            auto& cfg1 = cfgs[1];
+            auto& cfg2 = cfgs[2];
+            auto& cfg3 = cfgs[3];
 
             auto node0 = simulation->addNode(key0, qSet, &cfg0);
             auto node1 = simulation->addNode(key1, qSet, &cfg1);
@@ -1083,7 +1071,6 @@ TEST_CASE("Rust overlay SCP latency under TX load",
                      run.label, txSubmitted, res.txIncluded, duration);
             REQUIRE(txSubmitted == res.txIncluded);
         }
-        sectionIdx++;
     }
 
     // Print summary table
@@ -1220,25 +1207,12 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test",
 
     // Configure nodes - fully connected mesh
     std::vector<Application::pointer> nodes;
-    int basePort = 11650;
-    int baseHttpPort = 11800;
+    auto cfgs = makeFullMeshConfigs(*simulation, numNodes);
 
     for (int i = 0; i < numNodes; i++)
     {
-        auto cfg = simulation->newConfig();
-        cfg.PEER_PORT = basePort + i;
-        cfg.HTTP_PORT = baseHttpPort + i;
+        auto& cfg = cfgs[i];
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
-
-        // Fully connected: each node knows all other nodes
-        for (int j = 0; j < numNodes; j++)
-        {
-            if (j != i)
-            {
-                cfg.KNOWN_PEERS.push_back(
-                    fmt::format("127.0.0.1:{}", basePort + j));
-            }
-        }
 
         // High throughput configuration. One genesis account per transaction
         // so every tx has a unique source: the mempool is fee-ordered and
@@ -1412,14 +1386,17 @@ TEST_CASE("Rust overlay 10-node network consensus", "[overlay-ipc-large]")
     // Each node knows 3 neighbors: prev, next, and one random peer
     // This ensures connectivity while testing Kademlia discovery
     std::vector<Application::pointer> nodes;
-    int basePort = 11630;     // Start at 11630 to avoid conflicts
-    int baseHttpPort = 11700; // HTTP ports in separate range to avoid conflicts
+    // Instance-derived ports (see makeFullMeshConfigs); the ring topology
+    // below is wired by hand from each config's PEER_PORT.
+    std::vector<Config> cfgs;
+    for (int i = 0; i < 10; i++)
+    {
+        cfgs.push_back(simulation->newConfig());
+    }
 
     for (int i = 0; i < 10; i++)
     {
-        auto cfg = simulation->newConfig();
-        cfg.PEER_PORT = basePort + i;
-        cfg.HTTP_PORT = baseHttpPort + i; // Avoid HTTP/PEER port collisions
+        auto& cfg = cfgs[i];
 
         // Configure KNOWN_PEERS: ring topology with one cross-connection
         // Node i knows: node (i-1) % 10, node (i+1) % 10, node (i+5) % 10
@@ -1427,15 +1404,16 @@ TEST_CASE("Rust overlay 10-node network consensus", "[overlay-ipc-large]")
         int next = (i + 1) % 10;
         int cross = (i + 5) % 10;
 
-        cfg.KNOWN_PEERS.push_back(fmt::format("127.0.0.1:{}", basePort + prev));
-        cfg.KNOWN_PEERS.push_back(fmt::format("127.0.0.1:{}", basePort + next));
-        cfg.KNOWN_PEERS.push_back(
-            fmt::format("127.0.0.1:{}", basePort + cross));
+        for (int peer : {prev, next, cross})
+        {
+            cfg.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", cfgs[peer].PEER_PORT));
+        }
 
         LOG_INFO(DEFAULT_LOG,
                  "Node {}: port={}, http={}, known_peers=[{}, {}, {}]", i,
-                 cfg.PEER_PORT, cfg.HTTP_PORT, basePort + prev, basePort + next,
-                 basePort + cross);
+                 cfg.PEER_PORT, cfg.HTTP_PORT, cfgs[prev].PEER_PORT,
+                 cfgs[next].PEER_PORT, cfgs[cross].PEER_PORT);
 
         auto node = simulation->addNode(keys[i], qSet, &cfg);
         nodes.push_back(node);
@@ -1512,30 +1490,16 @@ TEST_CASE("Rust overlay pre-Soroban TX set handling", "[overlay-ipc]")
     qSet.validators.push_back(v1NodeID);
     qSet.validators.push_back(v2NodeID);
 
-    // Configure nodes with explicit KNOWN_PEERS and ports
-    int basePort = 11800;
-    int baseHttpPort = 11900;
-
+    // Fully connected mesh on instance-derived ports
     std::vector<SecretKey> keys = {v0SecretKey, v1SecretKey, v2SecretKey};
+    auto cfgs = makeFullMeshConfigs(*simulation, keys.size());
 
     for (size_t i = 0; i < keys.size(); i++)
     {
-        auto cfg = simulation->newConfig();
+        auto& cfg = cfgs[i];
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 19; // Pre-Soroban
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-        cfg.PEER_PORT = basePort + static_cast<int>(i);
-        cfg.HTTP_PORT = baseHttpPort + static_cast<int>(i);
-
-        // Each node knows all other nodes
-        for (size_t j = 0; j < keys.size(); j++)
-        {
-            if (i != j)
-            {
-                cfg.KNOWN_PEERS.push_back(
-                    fmt::format("127.0.0.1:{}", basePort + j));
-            }
-        }
 
         simulation->addNode(keys[i], qSet, &cfg);
     }
@@ -1566,8 +1530,7 @@ TEST_CASE("Rust overlay pre-Soroban TX set handling", "[overlay-ipc]")
  * Protocol >= 20: Uses GeneralizedTransactionSet
  * TX sets should be cached to Rust overlay.
  */
-TEST_CASE("Rust overlay Soroban TX set handling",
-          "[overlay-ipc-rust][simulation][!hide][.]")
+TEST_CASE("Rust overlay Soroban TX set handling", "[overlay-ipc][simulation]")
 {
     // Network at protocol 25 (Soroban, generalized TX sets)
     Hash networkID = sha256("Test network passphrase for Soroban");
@@ -1585,30 +1548,16 @@ TEST_CASE("Rust overlay Soroban TX set handling",
     qSet.validators.push_back(v1NodeID);
     qSet.validators.push_back(v2NodeID);
 
-    // Configure nodes with explicit KNOWN_PEERS and ports
-    int basePort = 11850;
-    int baseHttpPort = 11950;
-
+    // Fully connected mesh on instance-derived ports
     std::vector<SecretKey> keys = {v0SecretKey, v1SecretKey, v2SecretKey};
+    auto cfgs = makeFullMeshConfigs(*simulation, keys.size());
 
     for (size_t i = 0; i < keys.size(); i++)
     {
-        auto cfg = simulation->newConfig();
+        auto& cfg = cfgs[i];
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 25; // Soroban
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-        cfg.PEER_PORT = basePort + static_cast<int>(i);
-        cfg.HTTP_PORT = baseHttpPort + static_cast<int>(i);
-
-        // Each node knows all other nodes
-        for (size_t j = 0; j < keys.size(); j++)
-        {
-            if (i != j)
-            {
-                cfg.KNOWN_PEERS.push_back(
-                    fmt::format("127.0.0.1:{}", basePort + j));
-            }
-        }
 
         simulation->addNode(keys[i], qSet, &cfg);
     }
@@ -1652,29 +1601,16 @@ TEST_CASE("Rust overlay applies Soroban TX count upgrade", "[overlay-ipc]")
     qSet.validators.push_back(v1NodeID);
     qSet.validators.push_back(v2NodeID);
 
-    int basePort = 11980;
-    int baseHttpPort = 12080;
-
     std::vector<SecretKey> keys = {v0SecretKey, v1SecretKey, v2SecretKey};
+    auto cfgs = makeFullMeshConfigs(*simulation, keys.size());
 
     for (size_t i = 0; i < keys.size(); i++)
     {
-        auto cfg = simulation->newConfig();
+        auto& cfg = cfgs[i];
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
             Config::CURRENT_LEDGER_PROTOCOL_VERSION;
         cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
         cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
-        cfg.PEER_PORT = basePort + static_cast<int>(i);
-        cfg.HTTP_PORT = baseHttpPort + static_cast<int>(i);
-
-        for (size_t j = 0; j < keys.size(); j++)
-        {
-            if (i != j)
-            {
-                cfg.KNOWN_PEERS.push_back(
-                    fmt::format("127.0.0.1:{}", basePort + j));
-            }
-        }
 
         simulation->addNode(keys[i], qSet, &cfg);
     }
