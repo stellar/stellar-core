@@ -270,6 +270,230 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
         100 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
+TEST_CASE("generate load with unique accounts", "[loadgen]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    uint32_t const nAccounts = 1000;
+    // Sized for a real-time simulation (the Rust overlay has no virtual-time
+    // mode): each section finishes in well under a minute.
+    uint32_t const nTxs = 2000;
+
+    Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
+        auto cfg = getTestConfig(i);
+        configureOverlayV2Pair(cfg, i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
+        uint32_t baseSize = 148;
+        uint32_t opSize = 56;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {0, baseSize + opSize * 2,
+                                              baseSize + opSize * 10};
+        cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {80, 19, 1};
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = nAccounts * 10;
+        return cfg;
+    });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    std::string fileName =
+        app.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+    auto cleanup = gsl::finally([&]() { std::remove(fileName.c_str()); });
+
+    generateTransactions(app, fileName, nTxs, nAccounts,
+                         /* offset */ nAccounts);
+
+    auto& loadGen = app.getLoadGenerator();
+
+    auto getSuccessfulTxCount = [&]() {
+        return nodes[0]
+            ->getMetrics()
+            .NewCounter({"ledger", "apply", "success"})
+            .count();
+    };
+
+    SECTION("pregenerated transactions")
+    {
+        auto const& cfg = app.getConfig();
+        loadGen.generateLoad(GeneratedLoadConfig::pregeneratedTxLoad(
+            nAccounts, /* nTxs */ nTxs, /* txRate */ 200,
+            /* offset*/ nAccounts, cfg.LOADGEN_PREGENERATED_TRANSACTIONS_FILE));
+        simulation->crankUntil(
+            [&]() {
+                return app.getMetrics()
+                           .NewMeter({"loadgen", "run", "complete"}, "run")
+                           .count() == 1;
+            },
+            120 * simulation->getExpectedLedgerCloseTime(), false);
+        REQUIRE(getSuccessfulTxCount() == nTxs);
+    }
+    SECTION("success")
+    {
+        uint32_t const nTxs = 1000;
+
+        loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
+                                                         nAccounts, nTxs,
+                                                         /* txRate */ 100));
+        simulation->crankUntil(
+            [&]() {
+                return app.getMetrics()
+                           .NewMeter({"loadgen", "run", "complete"}, "run")
+                           .count() == 1;
+            },
+            120 * simulation->getExpectedLedgerCloseTime(), false);
+        REQUIRE(getSuccessfulTxCount() == nTxs);
+    }
+    SECTION("invalid loadgen parameters")
+    {
+        uint32 numAccounts = 100;
+        loadGen.generateLoad(
+            GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
+                                        /* nAccounts */ numAccounts,
+                                        /* nTxs */ numAccounts * 2,
+                                        /* txRate */ 100));
+        simulation->crankUntil(
+            [&]() {
+                return app.getMetrics()
+                           .NewMeter({"loadgen", "run", "failed"}, "run")
+                           .count() == 1;
+            },
+            10 * simulation->getExpectedLedgerCloseTime(), false);
+    }
+    SECTION("stop loadgen")
+    {
+        loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
+                                                         /* nAccounts */ 1000,
+                                                         /* nTxs */ 1000 * 2,
+                                                         /* txRate */ 1));
+        simulation->crankForAtLeast(std::chrono::seconds(10), false);
+        auto& acc = app.getMetrics().NewMeter({"loadgen", "account", "created"},
+                                              "account");
+        auto numAccounts = acc.count();
+        REQUIRE(app.getMetrics()
+                    .NewMeter({"loadgen", "run", "failed"}, "run")
+                    .count() == 0);
+        loadGen.stop();
+        REQUIRE(app.getMetrics()
+                    .NewMeter({"loadgen", "run", "failed"}, "run")
+                    .count() == 1);
+        // No new txs submitted
+        simulation->crankForAtLeast(std::chrono::seconds(10), false);
+        REQUIRE(acc.count() == numAccounts);
+    }
+}
+
+TEST_CASE("modify soroban network config", "[loadgen][soroban]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
+        auto cfg = getTestConfig(i);
+        configureOverlayV2Pair(cfg, i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        return cfg;
+    });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    uint32_t const ledgerMaxTxCount = 42;
+    uint32_t const liveSorobanStateSizeWindowSampleSize = 99;
+    // Upgrade the network config.
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = ledgerMaxTxCount;
+            cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSampleSize =
+                liveSorobanStateSizeWindowSampleSize;
+        },
+        simulation);
+    // Check that the settings were properly updated.
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto contractExecutionLanesSettingsEntry =
+        ltx.load(configSettingKey(CONFIG_SETTING_CONTRACT_EXECUTION_LANES));
+    auto stateArchivalConfigSettinsgEntry =
+        ltx.load(configSettingKey(CONFIG_SETTING_STATE_ARCHIVAL));
+    auto& contractExecutionLanesSettings =
+        contractExecutionLanesSettingsEntry.current().data.configSetting();
+    auto& stateArchivalSettings =
+        stateArchivalConfigSettinsgEntry.current().data.configSetting();
+    REQUIRE(contractExecutionLanesSettings.contractExecutionLanes()
+                .ledgerMaxTxCount == ledgerMaxTxCount);
+    REQUIRE(stateArchivalSettings.stateArchivalSettings()
+                .liveSorobanStateSizeWindowSampleSize ==
+            liveSorobanStateSizeWindowSampleSize);
+}
+
+TEST_CASE("Multi-byte payment transactions are valid", "[loadgen]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    uint32_t constexpr baseSize = 148;
+    uint32_t constexpr opSize = 56;
+    uint32_t constexpr frameSize = baseSize + opSize * 3;
+    Simulation::pointer simulation = Topologies::pair(networkID, [](int i) {
+        auto cfg = getTestConfig(i);
+        configureOverlayV2Pair(cfg, i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {frameSize};
+        cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {1};
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
+        return cfg;
+    });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    uint32_t txRate = 5;
+    auto& loadGen = app.getLoadGenerator();
+    try
+    {
+        auto config = GeneratedLoadConfig::txLoad(
+            LoadGenMode::PAY, app.getConfig().GENESIS_TEST_ACCOUNT_COUNT, 100,
+            txRate);
+        loadGen.generateLoad(config);
+        simulation->crankUntil(
+            [&]() {
+                return app.getMetrics()
+                           .NewMeter({"loadgen", "run", "complete"}, "run")
+                           .count() == 1;
+            },
+            60 * simulation->getExpectedLedgerCloseTime(), false);
+    }
+    catch (...)
+    {
+        auto problems = loadGen.checkAccountSynced(app);
+        REQUIRE(problems.empty());
+    }
+
+    REQUIRE(app.getMetrics()
+                .NewMeter({"loadgen", "txn", "rejected"}, "txn")
+                .count() == 0);
+    auto ops = app.getMetrics()
+                   .NewMeter({"loadgen", "payment", "submitted"}, "op")
+                   .count();
+    REQUIRE(ops == 100);
+
+    auto bytes = app.getMetrics()
+                     .NewMeter({"loadgen", "payment", "bytes"}, "txn")
+                     .count();
+    REQUIRE(bytes == ops * frameSize);
+}
+
 TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
 {
     auto const timingPhases =
