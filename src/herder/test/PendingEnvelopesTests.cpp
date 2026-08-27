@@ -25,10 +25,11 @@ using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
 
 TxPair
 makeTxPair(HerderImpl& herder, SecretKey const& s, TxSetXDRFrameConstPtr txSet,
-           uint64_t closeTime)
+           TimePoint closeTime)
 {
     StellarValue sv = herder.makeStellarValue(txSet->getContentsHash(),
-                                              closeTime, emptyUpgradeSteps, s);
+                                              makeConsensusTime(closeTime),
+                                              emptyUpgradeSteps, s);
     return TxPair{xdr::xdr_to_opaque(sv), txSet};
 }
 
@@ -36,10 +37,11 @@ makeTxPair(HerderImpl& herder, SecretKey const& s, TxSetXDRFrameConstPtr txSet,
 // Switching the arm discards the signature makeStellarValue produced.
 TxPair
 makeUnsignedTxPair(HerderImpl& herder, SecretKey const& s,
-                   TxSetXDRFrameConstPtr txSet, uint64_t closeTime)
+                   TxSetXDRFrameConstPtr txSet, TimePoint closeTime)
 {
     StellarValue sv = herder.makeStellarValue(txSet->getContentsHash(),
-                                              closeTime, emptyUpgradeSteps, s);
+                                              makeConsensusTime(closeTime),
+                                              emptyUpgradeSteps, s);
     sv.ext.v(STELLAR_VALUE_BASIC);
     return TxPair{xdr::xdr_to_opaque(sv), txSet};
 }
@@ -88,7 +90,7 @@ makeTransactions(Application& app, std::vector<TestAccount>& accs,
     size_t index = 0;
     std::generate(std::begin(txs), std::end(txs),
                   [&]() { return accs[index++].tx({payment(root, 1)}); });
-    return makeTxSetFromTransactions(txs, app, 0, 0).first;
+    return makeTxSetFromTransactions(txs, app, ApplyTimeOffset{}).first;
 }
 
 PublicKey
@@ -536,12 +538,12 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
         msSv.ext.v(STELLAR_VALUE_SIGNED_MS);
         msSv.txSetHash = txSet->getContentsHash();
         msSv.closeTime = 10;
-        msSv.ext.signedMsValue().closeTimeMs = 1;
+        msSv.ext.signedMsValue().closeTimeMs = 10001;
         auto& msSig = msSv.ext.signedMsValue().lcValueSignature;
         msSig.nodeID = s.getPublicKey();
         msSig.signature = s.sign(xdr::xdr_to_opaque(
             app->getNetworkID(), ENVELOPE_TYPE_SCPVALUE, msSv.txSetHash,
-            msSv.closeTime, msSv.ext.signedMsValue().closeTimeMs));
+            msSv.closeTime, getConsensusTime(msSv).milliseconds()));
         TxPair const msPair{xdr::xdr_to_opaque(msSv), txSet};
 
         auto envelopeAt = [&](TxPair const& pair, uint64_t slot) {
@@ -634,8 +636,8 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
         auto& scpDriver = herder.getHerderSCPDriver();
         auto txSetHash = txSet->getContentsHash();
 
-        StellarValue sv =
-            herder.makeStellarValue(txSetHash, 10, emptyUpgradeSteps, s);
+        StellarValue sv = herder.makeStellarValue(
+            txSetHash, makeConsensusTime(10), emptyUpgradeSteps, s);
 
         SECTION("wrapStellarValue registers and receives tx set")
         {

@@ -30,6 +30,7 @@ We can get it in from the DB or from the wire
 namespace stellar
 {
 class AbstractLedgerTxn;
+class ApplyTime;
 class Application;
 class Database;
 class OperationFrame;
@@ -95,14 +96,14 @@ class TransactionFrame : public TransactionFrameBase
         kMaybeValid
     };
 
-    virtual bool isTooEarly(uint32_t ledgerVersion, uint64_t closeTime,
+    virtual bool isTooEarly(uint32_t ledgerVersion, ApplyTime closeTime,
                             uint32_t ledgerSeq,
                             uint64_t lowerBoundCloseTimeOffset) const;
-    virtual bool isTooLate(uint32_t ledgerVersion, uint64_t closeTime,
+    virtual bool isTooLate(uint32_t ledgerVersion, ApplyTime closeTime,
                            uint32_t ledgerSeq,
                            uint64_t upperBoundCloseTimeOffset) const;
 
-    bool isTooEarlyForAccount(uint32_t ledgerVersion, uint64_t closeTime,
+    bool isTooEarlyForAccount(uint32_t ledgerVersion, ApplyTime closeTime,
                               uint32_t ledgerSeq,
                               LedgerEntryWrapper const& sourceAccount,
                               uint64_t lowerBoundCloseTimeOffset) const;

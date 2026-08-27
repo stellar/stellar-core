@@ -795,7 +795,7 @@ TxSetXDRFrame::makeFromStoredTxSet(StoredTransactionSet const& storedSet)
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     PerPhaseTransactionList const& txPhases, Application& app,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset
+    ApplyTimeOffset closeTimeOffset
 #ifdef BUILD_TESTS
     ,
     bool skipValidation,
@@ -805,8 +805,7 @@ makeTxSetFromTransactions(
 {
     PerPhaseTransactionList invalidTxs;
     invalidTxs.resize(txPhases.size());
-    return makeTxSetFromTransactions(txPhases, app, lowerBoundCloseTimeOffset,
-                                     upperBoundCloseTimeOffset, invalidTxs
+    return makeTxSetFromTransactions(txPhases, app, closeTimeOffset, invalidTxs
 #ifdef BUILD_TESTS
                                      ,
                                      skipValidation, parallelSorobanOrder
@@ -817,8 +816,7 @@ makeTxSetFromTransactions(
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     PerPhaseTransactionList const& txPhases, Application& app,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    PerPhaseTransactionList& invalidTxs
+    ApplyTimeOffset closeTimeOffset, PerPhaseTransactionList& invalidTxs
 #ifdef BUILD_TESTS
     ,
     bool skipValidation,
@@ -857,8 +855,8 @@ makeTxSetFromTransactions(
         {
 #endif
             validatedTxs = TxSetUtils::trimInvalid(
-                phaseTxs, app, accountFeeMap, lowerBoundCloseTimeOffset,
-                upperBoundCloseTimeOffset, invalid);
+                phaseTxs, app, accountFeeMap, closeTimeOffset.seconds(),
+                closeTimeOffset.seconds(), invalid);
 #ifdef BUILD_TESTS
         }
 #endif
@@ -949,7 +947,7 @@ makeTxSetFromTransactions(
     // We already trimmed invalid transactions in an earlier call to
     // `trimInvalid`, so skip transaction validation here
     auto validationResult = outputApplicableTxSet->checkValidInternalWithResult(
-        app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, true);
+        app, closeTimeOffset.seconds(), closeTimeOffset.seconds(), true);
     if (validationResult != TxSetValidationResult::VALID)
     {
         throw std::runtime_error(fmt::format(
@@ -1002,21 +1000,20 @@ TxSetXDRFrame::makeFromHistoryTransactions(Hash const& previousLedgerHash,
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
-    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset, bool enforceTxsApplyOrder,
+    TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+    bool enforceTxsApplyOrder,
     txtest::ParallelSorobanOrder const& parallelSorobanOrder)
 {
     TxFrameList invalid;
-    return makeTxSetFromTransactions(
-        txs, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, invalid,
-        enforceTxsApplyOrder, parallelSorobanOrder);
+    return makeTxSetFromTransactions(txs, app, closeTimeOffset, invalid,
+                                     enforceTxsApplyOrder,
+                                     parallelSorobanOrder);
 }
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
-    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
-    bool enforceTxsApplyOrder,
+    TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+    TxFrameList& invalidTxs, bool enforceTxsApplyOrder,
     txtest::ParallelSorobanOrder const& parallelSorobanOrder)
 {
     releaseAssert(threadIsMain());
@@ -1040,9 +1037,9 @@ makeTxSetFromTransactions(
     }
     PerPhaseTransactionList invalid;
     invalid.resize(perPhaseTxs.size());
-    auto res = makeTxSetFromTransactions(
-        perPhaseTxs, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-        invalid, enforceTxsApplyOrder, parallelSorobanOrder);
+    auto res =
+        makeTxSetFromTransactions(perPhaseTxs, app, closeTimeOffset, invalid,
+                                  enforceTxsApplyOrder, parallelSorobanOrder);
     if (enforceTxsApplyOrder)
     {
         auto const& resPhases = res.second->getPhases();

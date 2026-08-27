@@ -6,11 +6,13 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 
 #include <lib/catch.hpp>
 
 using namespace stellar;
+using namespace stellar::txtest;
 
 TEST_CASE("cannot close ledger with unsupported ledger version", "[ledger]")
 {
@@ -22,7 +24,7 @@ TEST_CASE("cannot close ledger with unsupported ledger version", "[ledger]")
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto txSet = TxSetXDRFrame::makeEmpty(lcl);
         StellarValue sv = app->getHerder().makeStellarValue(
-            txSet->getContentsHash(), 1, emptyUpgradeSteps,
+            txSet->getContentsHash(), makeConsensusTime(1), emptyUpgradeSteps,
             app->getConfig().NODE_SEED);
 
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);

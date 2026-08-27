@@ -26,6 +26,7 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "herder/HerderUtils.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -66,24 +67,6 @@ using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
 using namespace historytestutils;
-
-TEST_CASE("close time helpers", "[herder]")
-{
-    auto const systemTime =
-        VirtualClock::from_time_t(123) + std::chrono::milliseconds(456);
-    auto const msVersion =
-        static_cast<uint32_t>(MS_CLOSE_TIME_PROTOCOL_VERSION);
-    auto const closeTime = CloseTime::fromSystemTime(systemTime, msVersion);
-    REQUIRE(closeTime == (CloseTime{123, 456}));
-    REQUIRE(closeTime.toSystemTime() == systemTime);
-    REQUIRE(CloseTime::fromSystemTime(systemTime, msVersion - 1) ==
-            (CloseTime{123, 0}));
-    // From the ms protocol on, close times advance by 1ms (carrying into the
-    // seconds component); before it, they round up to the next whole second
-    REQUIRE((CloseTime{123, 456}).next(msVersion) == (CloseTime{123, 457}));
-    REQUIRE((CloseTime{123, 999}).next(msVersion) == (CloseTime{124, 0}));
-    REQUIRE((CloseTime{123, 456}).next(msVersion - 1) == (CloseTime{124, 0}));
-}
 
 TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 {
@@ -315,7 +298,8 @@ testTxSet(uint32 protocolVersion)
 
     SECTION("valid set")
     {
-        auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
+        auto txSet =
+            makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{}).second;
         REQUIRE(txSet->sizeTxTotal() == nbAccounts);
         REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
                 TxSetValidationResult::VALID);
@@ -327,7 +311,8 @@ testTxSet(uint32 protocolVersion)
         {
             genTx();
         }
-        auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
+        auto txSet =
+            makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{}).second;
         REQUIRE(txSet->sizeTxTotal() == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
                 TxSetValidationResult::VALID);
@@ -352,8 +337,9 @@ testTxSet(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+                auto txSet = makeTxSetFromTransactions(
+                                 txs, *app, ApplyTimeOffset{}, removed)
+                                 .second;
                 REQUIRE(removed.size() == 1);
                 REQUIRE(removed.back() == badTx);
                 REQUIRE(txSet->sizeTxTotal() == nbAccounts);
@@ -382,8 +368,9 @@ testTxSet(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+                auto txSet = makeTxSetFromTransactions(
+                                 txs, *app, ApplyTimeOffset{}, removed)
+                                 .second;
                 REQUIRE(removed.size() == 1);
                 REQUIRE(removed.back() == badTx);
                 REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
@@ -415,8 +402,9 @@ testTxSet(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+                auto txSet = makeTxSetFromTransactions(
+                                 txs, *app, ApplyTimeOffset{}, removed)
+                                 .second;
                 REQUIRE(removed.size() == 1);
                 REQUIRE(removed.back() == badTx);
                 REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
@@ -447,8 +435,9 @@ testTxSet(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+                auto txSet = makeTxSetFromTransactions(
+                                 txs, *app, ApplyTimeOffset{}, removed)
+                                 .second;
                 REQUIRE(removed.size() == 1);
                 REQUIRE(removed.back() == badTx);
                 REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
@@ -629,8 +618,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList invalidTxs;
-                auto txSet =
-                    makeTxSetFromTransactions({fb1}, *app, 0, 0, invalidTxs);
+                auto txSet = makeTxSetFromTransactions(
+                    {fb1}, *app, ApplyTimeOffset{}, invalidTxs);
                 compareTxs(invalidTxs, {fb1});
             }
             SECTION("validate block")
@@ -658,8 +647,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList invalidTxs;
-                auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
-                                                       invalidTxs);
+                auto txSet = makeTxSetFromTransactions(
+                    {fb1, fb2}, *app, ApplyTimeOffset{}, invalidTxs);
                 // fb1 is rejected
                 compareTxs(invalidTxs, {fb1});
             }
@@ -686,8 +675,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList invalidTxs;
-                auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
-                                                       invalidTxs);
+                auto txSet = makeTxSetFromTransactions(
+                    {fb1, fb2}, *app, ApplyTimeOffset{}, invalidTxs);
                 compareTxs(invalidTxs, {fb2});
             }
             SECTION("validate block")
@@ -715,8 +704,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList invalidTxs;
-                auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
-                                                       invalidTxs);
+                auto txSet = makeTxSetFromTransactions(
+                    {fb1, fb2}, *app, ApplyTimeOffset{}, invalidTxs);
                 compareTxs(invalidTxs, {fb2});
             }
             SECTION("validate block")
@@ -751,8 +740,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             SECTION("build block")
             {
                 TxFrameList invalidTxs;
-                auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0,
-                                                       0, invalidTxs);
+                auto txSet = makeTxSetFromTransactions(
+                    {fb1, fb2, fb3}, *app, ApplyTimeOffset{}, invalidTxs);
                 compareTxs(invalidTxs, {fb1, fb2, fb3});
             }
             SECTION("validate block")
@@ -794,8 +783,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             TxFrameList invalidTxs;
             SECTION("build block")
             {
-                auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
-                                                       invalidTxs);
+                auto txSet = makeTxSetFromTransactions(
+                    {fb1, fb2}, *app, ApplyTimeOffset{}, invalidTxs);
                 // Both are marked invalid because their combined fees exceed
                 // account2's balance
                 compareTxs(invalidTxs, {fb1, fb2});
@@ -870,8 +859,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             invalidPerPhase.resize(2);
             SECTION("build block")
             {
-                auto txSet = makeTxSetFromTransactions({{}, {fb1, fb2}}, *app,
-                                                       0, 0, invalidPerPhase);
+                auto txSet = makeTxSetFromTransactions(
+                    {{}, {fb1, fb2}}, *app, ApplyTimeOffset{}, invalidPerPhase);
                 // Both are marked invalid because their combined fees exceed
                 // feeSourceAccount's balance
                 compareTxs(invalidPerPhase[1], {fb1, fb2});
@@ -944,7 +933,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             SECTION("build block")
             {
                 auto txSet = makeTxSetFromTransactions(
-                    {{classicFb}, {sorobanFb}}, *app, 0, 0, invalidPerPhase);
+                    {{classicFb}, {sorobanFb}}, *app, ApplyTimeOffset{},
+                    invalidPerPhase);
                 compareTxs(invalidPerPhase[0], {});
                 compareTxs(invalidPerPhase[1], {sorobanFb});
             }
@@ -1127,9 +1117,9 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             auto txInvalid = transactionWithV2Precondition(
                 *app, a1, 1, 100, minSeqAgeCond(minGap + 1));
             TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions({txInvalid}, *app, 0, 0, removed)
-                    .second;
+            auto txSet = makeTxSetFromTransactions({txInvalid}, *app,
+                                                   ApplyTimeOffset{}, removed)
+                             .second;
             REQUIRE(removed.back() == txInvalid);
             REQUIRE(txSet->sizeTxTotal() == 0);
 
@@ -1159,14 +1149,14 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             removed.clear();
             if (minSeqNumTxIsFeeBump)
             {
-                txSet = makeTxSetFromTransactions({fb1, fb2Invalid}, *app, 0, 0,
-                                                  removed)
+                txSet = makeTxSetFromTransactions({fb1, fb2Invalid}, *app,
+                                                  ApplyTimeOffset{}, removed)
                             .second;
             }
             else
             {
-                txSet = makeTxSetFromTransactions({tx1, tx2Invalid}, *app, 0, 0,
-                                                  removed)
+                txSet = makeTxSetFromTransactions({tx1, tx2Invalid}, *app,
+                                                  ApplyTimeOffset{}, removed)
                             .second;
             }
 
@@ -1228,8 +1218,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             SECTION("build block")
             {
                 TxFrameList removed;
-                auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app,
-                                                       0, 0, removed);
+                auto txSet = makeTxSetFromTransactions(
+                    {tx1, txInvalid}, *app, ApplyTimeOffset{}, removed);
                 REQUIRE(removed.back() == txInvalid);
             }
             SECTION("validate block")
@@ -1251,8 +1241,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             auto tx2 = transactionWithV2Precondition(
                 *app, a2, 1, 100, ledgerBoundsCond(lclNum + 1, 0));
             TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
+            auto txSet = makeTxSetFromTransactions({tx1, tx2}, *app,
+                                                   ApplyTimeOffset{}, removed);
             REQUIRE(removed.empty());
         }
         SECTION("maxLedger")
@@ -1262,8 +1252,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             SECTION("build block")
             {
                 TxFrameList removed;
-                auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app,
-                                                       0, 0, removed);
+                auto txSet = makeTxSetFromTransactions(
+                    {tx1, txInvalid}, *app, ApplyTimeOffset{}, removed);
                 REQUIRE(removed.back() == txInvalid);
             }
             SECTION("validate block")
@@ -1285,8 +1275,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             auto tx2 = transactionWithV2Precondition(
                 *app, a2, 1, 100, ledgerBoundsCond(0, lclNum + 2));
             TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
+            auto txSet = makeTxSetFromTransactions({tx1, tx2}, *app,
+                                                   ApplyTimeOffset{}, removed);
             REQUIRE(removed.empty());
         }
     }
@@ -1306,8 +1296,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             {
                 tx->addSignature(root->getSecretKey());
                 TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                auto txSet = makeTxSetFromTransactions(
+                    {tx}, *app, ApplyTimeOffset{}, removed);
                 REQUIRE(removed.empty());
             }
             SECTION("fail")
@@ -1315,8 +1305,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
                 SECTION("build block")
                 {
                     TxFrameList removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                    auto txSet = makeTxSetFromTransactions(
+                        {tx}, *app, ApplyTimeOffset{}, removed);
                     REQUIRE(removed.back() == tx);
                 }
                 SECTION("validate block")
@@ -1348,8 +1338,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             {
                 tx->addSignature(a2.getSecretKey());
                 TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                auto txSet = makeTxSetFromTransactions(
+                    {tx}, *app, ApplyTimeOffset{}, removed);
                 REQUIRE(removed.empty());
             }
             SECTION("fail")
@@ -1357,8 +1347,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
                 SECTION("build block")
                 {
                     TxFrameList removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                    auto txSet = makeTxSetFromTransactions(
+                        {tx}, *app, ApplyTimeOffset{}, removed);
                     REQUIRE(removed.back() == tx);
                 }
                 SECTION("validate block")
@@ -1385,8 +1375,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             SECTION("build block")
             {
                 TxFrameList removed;
-                auto txSet = makeTxSetFromTransactions({txDupeSigner}, *app, 0,
-                                                       0, removed);
+                auto txSet = makeTxSetFromTransactions(
+                    {txDupeSigner}, *app, ApplyTimeOffset{}, removed);
                 REQUIRE(removed.back() == txDupeSigner);
                 REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
             }
@@ -1408,8 +1398,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             auto rootTx =
                 transactionWithV2Precondition(*app, *root, 1, 100, cond);
             TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions({rootTx}, *app, 0, 0, removed);
+            auto txSet = makeTxSetFromTransactions({rootTx}, *app,
+                                                   ApplyTimeOffset{}, removed);
             REQUIRE(removed.empty());
         }
         SECTION("signer overlap with added account signer")
@@ -1423,8 +1413,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
                 tx->addSignature(root->getSecretKey());
 
                 TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                auto txSet = makeTxSetFromTransactions(
+                    {tx}, *app, ApplyTimeOffset{}, removed);
                 REQUIRE(removed.empty());
             }
             SECTION("signature missing")
@@ -1432,8 +1422,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
                 SECTION("build block")
                 {
                     TxFrameList removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                    auto txSet = makeTxSetFromTransactions(
+                        {tx}, *app, ApplyTimeOffset{}, removed);
                     REQUIRE(removed.back() == tx);
                 }
                 SECTION("validate block")
@@ -1462,7 +1452,8 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
                                               {*root}, cond);
 
             TxFrameList removed;
-            auto txSet = makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+            auto txSet = makeTxSetFromTransactions({tx}, *app,
+                                                   ApplyTimeOffset{}, removed);
             REQUIRE(removed.empty());
         }
     }
@@ -1524,7 +1515,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
             txs.push_back(tx);
         }
         auto [txSet, applicableTxSet] =
-            makeTxSetFromTransactions(txs, *app, 0, 0);
+            makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{});
         REQUIRE(applicableTxSet->size(lhCopy) == lim);
         REQUIRE(extraAccounts >= 2);
 
@@ -1777,8 +1768,8 @@ TEST_CASE("tx set hits overlay byte limit during construction",
             phases = PerPhaseTransactionList{txs, {}};
         }
 
-        auto [txSet, applicableTxSet] =
-            makeTxSetFromTransactions(phases, *app, 0, 0, invalidPhases);
+        auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
+            phases, *app, ApplyTimeOffset{}, invalidPhases);
         REQUIRE(txSet->encodedSize() <= MAX_MESSAGE_SIZE);
 
         REQUIRE(invalidPhases[static_cast<size_t>(phase)].empty());
@@ -1825,8 +1816,9 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             auto tx = makeMultiPayment(destAccount, *root, 1, 100, 0, 1);
 
             TxFrameList invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({tx}, *app, 0, 0, invalidTxs).second;
+            auto txSet = makeTxSetFromTransactions(
+                             {tx}, *app, ApplyTimeOffset{}, invalidTxs)
+                             .second;
 
             // Transaction is valid, but trimmed by surge pricing.
             REQUIRE(invalidTxs.empty());
@@ -1854,8 +1846,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             PerPhaseTransactionList invalidTxs;
             invalidTxs.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
             auto txSet = makeTxSetFromTransactions(
-                             PerPhaseTransactionList{{}, {sorobanTx}}, *app, 0,
-                             0, invalidTxs)
+                             PerPhaseTransactionList{{}, {sorobanTx}}, *app,
+                             ApplyTimeOffset{}, invalidTxs)
                              .second;
 
             // Transaction is valid, but trimmed by surge pricing.
@@ -1970,7 +1962,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                     auto txSet =
                         makeTxSetFromTransactions(
                             PerPhaseTransactionList{{tx}, {invalidSoroban}},
-                            *app, 0, 0, invalidPhases)
+                            *app, ApplyTimeOffset{}, invalidPhases)
                             .second;
 
                     // Soroban tx is rejected
@@ -2021,7 +2013,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                     auto txSet =
                         makeTxSetFromTransactions(
                             PerPhaseTransactionList{{tx}, {soroban1, soroban2}},
-                            *app, 0, 0, invalidPhases)
+                            *app, ApplyTimeOffset{}, invalidPhases)
                             .second;
                     // Both txs are valid individually, but only one fits
                     REQUIRE(txSet->sizeTxTotal() == 2);
@@ -2056,7 +2048,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             invalidPhases.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
             auto txSet = makeTxSetFromTransactions(
                              PerPhaseTransactionList{{tx}, {sorobanTx}}, *app,
-                             0, 0, invalidPhases)
+                             ApplyTimeOffset{}, invalidPhases)
                              .second;
 
             // Everything fits
@@ -2070,7 +2062,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             invalidPhases.resize(1);
             REQUIRE_THROWS_AS(makeTxSetFromTransactions(
                                   PerPhaseTransactionList{{tx, sorobanTx}},
-                                  *app, 0, 0, invalidPhases),
+                                  *app, ApplyTimeOffset{}, invalidPhases),
                               std::runtime_error);
         }
         SECTION("soroban surge pricing, classic unaffected")
@@ -2083,7 +2075,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             auto txSet = makeTxSetFromTransactions(
                              PerPhaseTransactionList{
                                  {tx}, {sorobanTx, sorobanTxHighFee}},
-                             *app, 0, 0, invalidPhases)
+                             *app, ApplyTimeOffset{}, invalidPhases)
                              .second;
 
             REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
@@ -2127,7 +2119,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                     PerPhaseTransactionList{
                         {tx},
                         {sorobanTxHighFee, smallSorobanLowFee, sorobanTx}},
-                    *app, 0, 0, invalidPhases)
+                    *app, ApplyTimeOffset{}, invalidPhases)
                     .second;
 
             REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
@@ -2159,7 +2151,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                     auto txSet = makeTxSetFromTransactions(
                                      PerPhaseTransactionList{
                                          {tx}, generateTxs(accounts, conf)},
-                                     *app, 0, 0, invalidPhases)
+                                     *app, ApplyTimeOffset{}, invalidPhases)
                                      .second;
 
                     REQUIRE(std::all_of(
@@ -2232,7 +2224,8 @@ TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
                        size_t expectedTxsC, size_t expectedTxsD,
                        int64_t expectedNonDexBaseFee,
                        int64_t expectedDexBaseFee) {
-        auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
+        auto txSet =
+            makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{}).second;
         size_t cntA = 0, cntB = 0, cntC = 0, cntD = 0;
         auto const& phases = txSet->getPhasesInApplyOrder();
 
@@ -2442,7 +2435,8 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
         for (int iter = 0; iter < 50; ++iter)
         {
             auto txs = genTxs(txCountDistr(Catch::rng()));
-            auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
+            auto txSet =
+                makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{}).second;
 
             auto const& phases = txSet->getPhasesInApplyOrder();
             std::array<uint32_t, 2> opsCounts{};
@@ -2718,16 +2712,16 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
     auto makeTxUpgradePair =
-        [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
-            SVUpgrades const& upgrades) {
-            StellarValue sv =
-                herder.makeStellarValue(txSet->getContentsHash(), closeTime,
-                                        upgrades, root->getSecretKey());
+        [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet,
+            TimePoint closeTime, SVUpgrades const& upgrades) {
+            StellarValue sv = herder.makeStellarValue(
+                txSet->getContentsHash(), makeConsensusTime(closeTime),
+                upgrades, root->getSecretKey());
             auto v = xdr::xdr_to_opaque(sv);
             return TxPair{v, txSet};
         };
     auto makeTxPair = [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet,
-                          uint64_t closeTime) {
+                          TimePoint closeTime) {
         return makeTxUpgradePair(herder, txSet, closeTime, emptyUpgradeSteps);
     };
     auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash qSetHash,
@@ -2762,7 +2756,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                                     feeMulti);
         });
 
-        return makeTxSetFromTransactions(txs, *app, 0, 0);
+        return makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{});
     };
 
     SECTION("combineCandidates")
@@ -2898,19 +2892,20 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         if (protocolVersionStartsFrom(protocolVersion,
                                       MS_CLOSE_TIME_PROTOCOL_VERSION))
         {
-            // Test that the winning candidate keeps both the whole second and
-            // millisecond component of close time.
+            // Test that the winning candidate keeps its full ms close time
+            // along with the redundant whole-second close time.
             auto txSetL3 = makeTransactions(maxTxSetSize, 1, 2000).first;
             StellarValue msVal = herder.makeStellarValue(
-                txSetL3->getContentsHash(), {20, 7}, emptyUpgradeSteps,
-                root->getSecretKey());
+                txSetL3->getContentsHash(), makeConsensusTime(20, 7),
+                emptyUpgradeSteps, root->getSecretKey());
             addToCandidates(TxPair{xdr::xdr_to_opaque(msVal), txSetL3});
             auto v2 =
                 herder.getHerderSCPDriver().combineCandidates(1, candidates);
             StellarValue sv2;
             xdr::xdr_from_opaque(v2->getValue(), sv2);
             REQUIRE(sv2.ext.v() == STELLAR_VALUE_SIGNED_MS);
-            REQUIRE(getCloseTimeMs(sv2) == 7);
+            REQUIRE(sv2.closeTime == 20);
+            REQUIRE(getConsensusTime(sv2).milliseconds() == 20007);
             REQUIRE(sv2.txSetHash == txSetL3->getContentsHash());
         }
 #endif // MS_CLOSE_TIME
@@ -3014,8 +3009,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 // Create signed stellar value with empty tx set hash and
                 // validate.
                 StellarValue sv = herder.makeStellarValue(
-                    Herder::EMPTY_TX_SET_HASH, ct, emptyUpgradeSteps,
-                    root->getSecretKey());
+                    Herder::EMPTY_TX_SET_HASH, makeConsensusTime(ct),
+                    emptyUpgradeSteps, root->getSecretKey());
                 checkInvalidMismatch(sv);
             }
 
@@ -3068,10 +3063,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             REQUIRE(nextCloseTime > lcl.header.scpValue.closeTime);
             // Each combination runs both with a whole-second close time and,
             // once ms close times are active, with a random nonzero ms
-            // component on it. Time bounds enforcement rounds to whole seconds,
+            // remainder on it. Time bounds enforcement rounds to whole seconds,
             // so execution should be identical.
-            for (uint32_t ctMs :
-                 {0u, rand_uniform<uint32_t>(1, CloseTime::MAX_CLOSE_TIME_MS)})
+            for (uint32_t ctMs : {0u, rand_uniform<uint32_t>(1, 999)})
             {
                 if (ctMs != 0 && !scp.protocolUsesMsCloseTime())
                 {
@@ -3103,8 +3097,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                     // just built and the given next closeTime.
                     StellarValue sv = herder.makeStellarValue(
                         txSet->getContentsHash(),
-                        CloseTime{nextCloseTime, ctMs}, emptyUpgradeSteps,
-                        root->getSecretKey());
+                        makeConsensusTime(nextCloseTime, ctMs),
+                        emptyUpgradeSteps, root->getSecretKey());
                     auto val = TxPair{xdr::xdr_to_opaque(sv), txSet};
                     auto const seq = herder.trackingConsensusLedgerIndex() + 1;
                     auto envelope = makeEnvelope(herder, val, {}, seq, true);
@@ -3441,7 +3435,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         {
             // Craft a legacy (pre-ms) STELLAR_VALUE_SIGNED value with a
             // valid signature
-            auto makeLegacySignedValue = [&](uint64_t closeTime) {
+            auto makeLegacySignedValue = [&](TimePoint closeTime) {
                 StellarValue sv;
                 sv.ext.v(STELLAR_VALUE_SIGNED);
                 sv.txSetHash = txSet0->getContentsHash();
@@ -3454,12 +3448,16 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 return sv;
             };
 
-            SECTION("ms value is valid and carries its ms component")
+            SECTION("ms value is valid and carries its full ms close time")
             {
                 StellarValue sv = herder.makeStellarValue(
-                    txSet0->getContentsHash(), {ct, 123}, emptyUpgradeSteps, s);
+                    txSet0->getContentsHash(), makeConsensusTime(ct, 123),
+                    emptyUpgradeSteps, s);
                 REQUIRE(sv.ext.v() == STELLAR_VALUE_SIGNED_MS);
-                REQUIRE(getCloseTimeMs(sv) == 123);
+                // closeTimeMs is the full close time; closeTime is redundant
+                // with it, rounded down to the whole second
+                REQUIRE(getConsensusTime(sv).milliseconds() == ct * 1000 + 123);
+                REQUIRE(sv.closeTime == ct);
                 check(sv, true);
             }
             SECTION("legacy signed value rejected for ratifiable slots")
@@ -3514,25 +3512,60 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                                           /*nomination=*/false) ==
                         SCPDriver::kInvalidValue);
             }
-            SECTION("ms component out of range")
+            SECTION("closeTime inconsistent with closeTimeMs")
             {
-                StellarValue sv = herder.makeStellarValue(
-                    txSet0->getContentsHash(), {ct, 999}, emptyUpgradeSteps, s);
-                // Re-sign an out-of-range ms so that only the ms range check
-                // (not the signature check) can reject the value
-                sv.ext.signedMsValue().closeTimeMs = 1000;
-                sv.ext.signedMsValue().lcValueSignature.signature =
-                    s.sign(xdr::xdr_to_opaque(
-                        app->getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
-                        sv.txSetHash, sv.closeTime,
-                        sv.ext.signedMsValue().closeTimeMs));
-                check(sv, false);
+                // closeTime must be closeTimeMs rounded down to the whole
+                // second. Re-sign each inconsistent value so that only the
+                // consistency check (not the signature check) can reject it
+                auto reSign = [&](StellarValue& sv) {
+                    sv.ext.signedMsValue().lcValueSignature.signature =
+                        s.sign(xdr::xdr_to_opaque(
+                            app->getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
+                            sv.txSetHash, sv.closeTime,
+                            getConsensusTime(sv).milliseconds()));
+                };
+                SECTION("closeTime behind closeTimeMs")
+                {
+                    StellarValue sv = herder.makeStellarValue(
+                        txSet0->getContentsHash(), makeConsensusTime(ct, 999),
+                        emptyUpgradeSteps, s);
+                    sv.ext.signedMsValue().closeTimeMs += 1;
+                    reSign(sv);
+                    check(sv, false);
+                    // Fixing up closeTime makes the value valid again
+                    sv.closeTime = ct + 1;
+                    reSign(sv);
+                    check(sv, true);
+                }
+                SECTION("closeTime ahead of closeTimeMs")
+                {
+                    StellarValue sv = herder.makeStellarValue(
+                        txSet0->getContentsHash(), makeConsensusTime(ct, 500),
+                        emptyUpgradeSteps, s);
+                    sv.closeTime = ct + 1;
+                    reSign(sv);
+                    check(sv, false);
+                }
+                SECTION("closeTimeMs holding only the ms remainder")
+                {
+                    StellarValue sv = herder.makeStellarValue(
+                        txSet0->getContentsHash(), makeConsensusTime(ct, 500),
+                        emptyUpgradeSteps, s);
+                    // closeTimeMs is the full close time, so a value carrying
+                    // just the sub-second remainder is inconsistent
+                    sv.ext.signedMsValue().closeTimeMs = 500;
+                    reSign(sv);
+                    check(sv, false);
+                }
             }
-            SECTION("tampered ms component breaks the value signature")
+            SECTION("tampered ms close time breaks the value signature")
             {
                 StellarValue sv = herder.makeStellarValue(
-                    txSet0->getContentsHash(), {ct, 5}, emptyUpgradeSteps, s);
-                sv.ext.signedMsValue().closeTimeMs = 6;
+                    txSet0->getContentsHash(), makeConsensusTime(ct, 5),
+                    emptyUpgradeSteps, s);
+                // Stay within the same whole second so that only the
+                // signature check can reject the value
+                sv.ext.signedMsValue().closeTimeMs += 1;
                 check(sv, false);
             }
             SECTION("sub-second ordering against the last close time")
@@ -3540,16 +3573,17 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 auto lclCt = app->getLedgerManager()
                                  .getLastClosedLedgerHeader()
                                  .header.scpValue;
-                REQUIRE(getCloseTimeMs(lclCt) == 0);
+                REQUIRE(getConsensusTime(lclCt).isWholeSecond());
                 // Same whole second as the LCL, ms strictly greater: valid
                 StellarValue sv = herder.makeStellarValue(
-                    txSet0->getContentsHash(), {lclCt.closeTime, 1},
-                    emptyUpgradeSteps, s);
+                    txSet0->getContentsHash(),
+                    makeConsensusTime(lclCt.closeTime, 1), emptyUpgradeSteps,
+                    s);
                 check(sv, true);
-                // Exactly the LCL combined close time: too old
+                // Exactly the LCL close time: too old
                 StellarValue svEq = herder.makeStellarValue(
-                    txSet0->getContentsHash(), {lclCt.closeTime, 0},
-                    emptyUpgradeSteps, s);
+                    txSet0->getContentsHash(),
+                    makeConsensusTime(lclCt.closeTime), emptyUpgradeSteps, s);
                 check(svEq, false);
             }
             SECTION("tx time bounds at a zero whole-second offset")
@@ -3588,12 +3622,12 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                                 .hash);
 
                     // The value closes a random number of milliseconds into
-                    // the LCL's whole second (any nonzero ms keeps the
-                    // combined close time strictly ahead of the LCL)
+                    // the LCL's whole second (any nonzero ms keeps the close
+                    // time strictly ahead of the LCL)
                     StellarValue msv = herder.makeStellarValue(
                         txSet->getContentsHash(),
-                        CloseTime{lclCt, rand_uniform<uint32_t>(
-                                             1, CloseTime::MAX_CLOSE_TIME_MS)},
+                        makeConsensusTime(lclCt,
+                                          rand_uniform<uint32_t>(1, 999)),
                         emptyUpgradeSteps, s);
                     auto val = TxPair{xdr::xdr_to_opaque(msv), txSet};
                     auto envelope = makeEnvelope(herder, val, {}, zSeq, true);
@@ -3636,10 +3670,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             }
             SECTION("future slip bound includes milliseconds")
             {
-                auto const maxCloseTime =
-                    CloseTime::fromSystemTime(app->getClock().system_now() +
-                                                  Herder::MAX_TIME_SLIP_SECONDS,
-                                              protocolVersion);
+                auto const maxCloseTime = ConsensusTime::fromSystemTime(
+                    app->getClock().system_now() +
+                        Herder::MAX_TIME_SLIP_SECONDS,
+                    protocolVersion);
                 check(herder.makeStellarValue(txSet0->getContentsHash(),
                                               maxCloseTime, emptyUpgradeSteps,
                                               s),
@@ -3653,13 +3687,15 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             SECTION("empty-tx-set conversion preserves ms and signature")
             {
                 StellarValue sv = herder.makeStellarValue(
-                    txSet0->getContentsHash(), {ct, 42}, emptyUpgradeSteps, s);
+                    txSet0->getContentsHash(), makeConsensusTime(ct, 42),
+                    emptyUpgradeSteps, s);
                 auto emptyVal =
                     scp.makeEmptyTxSetValueFromValue(xdr::xdr_to_opaque(sv));
                 StellarValue esv;
                 xdr::xdr_from_opaque(emptyVal, esv);
                 REQUIRE(esv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET_MS);
-                REQUIRE(getCloseTimeMs(esv) == 42);
+                REQUIRE(esv.closeTime == ct);
+                REQUIRE(getConsensusTime(esv).milliseconds() == ct * 1000 + 42);
                 REQUIRE(esv.txSetHash == Herder::EMPTY_TX_SET_HASH);
                 REQUIRE(getProposedTxSetHash(esv) == txSet0->getContentsHash());
                 REQUIRE(herder.verifyStellarValueSignature(esv));
@@ -3675,12 +3711,12 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             msv.ext.v(STELLAR_VALUE_SIGNED_MS);
             msv.txSetHash = txSet0->getContentsHash();
             msv.closeTime = ct;
-            msv.ext.signedMsValue().closeTimeMs = 1;
+            msv.ext.signedMsValue().closeTimeMs = ct * 1000 + 1;
             auto& sig = msv.ext.signedMsValue().lcValueSignature;
             sig.nodeID = s.getPublicKey();
             sig.signature = s.sign(xdr::xdr_to_opaque(
                 app->getNetworkID(), ENVELOPE_TYPE_SCPVALUE, msv.txSetHash,
-                msv.closeTime, msv.ext.signedMsValue().closeTimeMs));
+                msv.closeTime, getConsensusTime(msv).milliseconds()));
             check(msv, false);
 
             // For slots beyond lcl+1 the governing protocol is unknowable to
@@ -3725,7 +3761,7 @@ TEST_CASE("combineCandidates with mismatched previousLedgerHash candidate",
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     uint32_t const ver = lcl.header.ledgerVersion;
-    uint64_t const closeTime = lcl.header.scpValue.closeTime + 1;
+    TimePoint const closeTime = lcl.header.scpValue.closeTime + 1;
     uint64_t const slotIndex = lcl.header.ledgerSeq + 1;
 
     // Two structurally-valid empty tx sets that differ only in
@@ -3739,9 +3775,9 @@ TEST_CASE("combineCandidates with mismatched previousLedgerHash candidate",
     // a candidate value referencing it.
     auto addCandidate = [&](TxSetXDRFrameConstPtr const& txSet) {
         pe.addTxSet(txSet->getContentsHash(), slotIndex, txSet);
-        StellarValue sv =
-            herder.makeStellarValue(txSet->getContentsHash(), closeTime,
-                                    emptyUpgradeSteps, cfg.NODE_SEED);
+        StellarValue sv = herder.makeStellarValue(
+            txSet->getContentsHash(), makeConsensusTime(closeTime),
+            emptyUpgradeSteps, cfg.NODE_SEED);
         candidates.emplace(driver.wrapValue(xdr::xdr_to_opaque(sv)));
     };
     auto combinedTxSetHash = [&]() {
@@ -6303,8 +6339,8 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
 
                     // close this ledger
                     StellarValue sv = node->getHerder().makeStellarValue(
-                        txSet->getContentsHash(), 1, emptyUpgradeSteps,
-                        node->getConfig().NODE_SEED);
+                        txSet->getContentsHash(), makeConsensusTime(1),
+                        emptyUpgradeSteps, node->getConfig().NODE_SEED);
                     LedgerCloseData ledgerData(lcl + 1, txSet, sv);
                     lm.applyLedger(ledgerData);
 
@@ -6454,16 +6490,17 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
     auto invalidTxSet = TxSetXDRFrame::makeEmpty(bogusLcl);
     auto invalidTxSetHash = invalidTxSet->getContentsHash();
 
-    uint64_t cLastCloseTime = C->getLedgerManager()
-                                  .getLastClosedLedgerHeader()
-                                  .header.scpValue.closeTime;
+    TimePoint cLastCloseTime = C->getLedgerManager()
+                                   .getLastClosedLedgerHeader()
+                                   .header.scpValue.closeTime;
     // Pick a close time slightly above both C's LCL close time and C's
     // current virtual clock, so the envelope passes the Herder close-time
     // filter (must be > lastCloseTime and within MAX_TIME_SLIP_SECONDS of
     // now).
-    uint64_t invalidCloseTime = std::max(cLastCloseTime, C->timeNow()) + 1;
+    TimePoint invalidCloseTime = std::max(cLastCloseTime, C->timeNow()) + 1;
     StellarValue invalidValue = herderC.makeStellarValue(
-        invalidTxSetHash, invalidCloseTime, emptyUpgradeSteps, keyA);
+        invalidTxSetHash, makeConsensusTime(invalidCloseTime),
+        emptyUpgradeSteps, keyA);
 
     SCPEnvelope invalidEnv{};
     invalidEnv.statement.slotIndex = invalidSlot;
@@ -6669,15 +6706,15 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
     txsPhases.emplace_back(sorobanTxs);
 
     auto [txSet, applicableTxSet] =
-        makeTxSetFromTransactions(txsPhases, app, 0, 0);
+        makeTxSetFromTransactions(txsPhases, app, ApplyTimeOffset{});
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
                                           txSet);
 
     auto lastCloseTime = lcl.header.scpValue.closeTime;
 
-    StellarValue sv =
-        herder.makeStellarValue(txSet->getContentsHash(), lastCloseTime,
-                                xdr::xvector<UpgradeType, 6>{}, sk);
+    StellarValue sv = herder.makeStellarValue(
+        txSet->getContentsHash(), makeConsensusTime(lastCloseTime),
+        xdr::xvector<UpgradeType, 6>{}, sk);
     herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                   xdr::xdr_to_opaque(sv));
     // With background apply, crank until the ledger is fully applied
@@ -6726,7 +6763,8 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
 
     auto const& lhhe = lm.getLastClosedLedgerHeader();
     auto txs = tq.getTransactions(lhhe.header);
-    auto [_, applicableTxSet] = makeTxSetFromTransactions(txs, *app, 0, 0);
+    auto [_, applicableTxSet] =
+        makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{});
     REQUIRE(applicableTxSet->sizeTxTotal() == 1);
     REQUIRE((*applicableTxSet->getPhase(TxSetPhase::CLASSIC).begin())
                 ->getContentsHash() == tx1a->getContentsHash());
@@ -7524,7 +7562,7 @@ TEST_CASE("slot herder policy", "[herder]")
 
         // sign values with the same secret key
         StellarValue sv = herder.makeStellarValue(
-            txSet->getContentsHash(), (TimePoint)slotIndex,
+            txSet->getContentsHash(), makeConsensusTime((TimePoint)slotIndex),
             xdr::xvector<UpgradeType, 6>{}, v1SecretKey);
         ext.commit.counter = 1;
         ext.commit.value = xdr::xdr_to_opaque(sv);
@@ -7708,11 +7746,14 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
                                      validatorBKey.getPublicKey());
     simulation->startAllNodes();
 
-    // Crank A and B until they're on ledger 2
+    // Crank A and B until they're on ledger 2. crankUntil only samples its
+    // predicate once per virtual second, and A and B keep closing ledgers on
+    // their own, so wait for "at least" rather than "exactly" a ledger: an
+    // exact match can be skipped over depending on the leader schedule.
     simulation->crankUntil(
         [&]() {
-            return A->getLedgerManager().getLastClosedLedgerNum() == 2 &&
-                   B->getLedgerManager().getLastClosedLedgerNum() == 2;
+            return A->getLedgerManager().getLastClosedLedgerNum() >= 2 &&
+                   B->getLedgerManager().getLastClosedLedgerNum() >= 2;
         },
         4 * simulation->getExpectedLedgerCloseTime(), false);
 
@@ -7797,11 +7838,11 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
         B->getHerder().recvSCPEnvelope(env);
     }
 
-    // Crank A and B until they're on ledger 3
+    // Crank A and B until they're on at least ledger 3
     simulation->crankUntil(
         [&]() {
-            return A->getLedgerManager().getLastClosedLedgerNum() == 3 &&
-                   B->getLedgerManager().getLastClosedLedgerNum() == 3;
+            return A->getLedgerManager().getLastClosedLedgerNum() >= 3 &&
+                   B->getLedgerManager().getLastClosedLedgerNum() >= 3;
         },
         4 * simulation->getExpectedLedgerCloseTime(), false);
 
@@ -9199,8 +9240,8 @@ TEST_CASE("far-future slots cleanup", "[herder]")
         auto txSet = TxSetXDRFrame::makeEmpty(
             app0->getLedgerManager().getLastClosedLedgerHeader());
         StellarValue sv = herder0.makeStellarValue(
-            txSet->getContentsHash(), ct, xdr::xvector<UpgradeType, 6>{},
-            v1SecretKey);
+            txSet->getContentsHash(), makeConsensusTime(ct),
+            xdr::xvector<UpgradeType, 6>{}, v1SecretKey);
         ext.commit.counter = 1;
         ext.commit.value = xdr::xdr_to_opaque(sv);
         ext.commitQuorumSetHash = qsetHash;
@@ -9271,8 +9312,9 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
             Hash fakeTxSetHash;
             fakeTxSetHash.fill(0xAB);
 
-            auto makePrepareFromPeer = [&](uint64_t closeTime) {
-                auto sv = herder.makeStellarValue(fakeTxSetHash, closeTime,
+            auto makePrepareFromPeer = [&](TimePoint closeTime) {
+                auto sv = herder.makeStellarValue(fakeTxSetHash,
+                                                  makeConsensusTime(closeTime),
                                                   emptyUpgradeSteps, peerKey);
                 auto opaqueValue = xdr::xdr_to_opaque(sv);
 
@@ -9288,7 +9330,7 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
                 return env;
             };
 
-            uint64_t const badCloseTime =
+            TimePoint const badCloseTime =
                 app->timeNow() + Herder::MAX_TIME_SLIP_SECONDS.count() + 60;
             auto env = makePrepareFromPeer(badCloseTime);
 
@@ -9372,7 +9414,8 @@ TEST_CASE("SCP state restore with missing tx set", "[herder]")
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         slot = lcl.header.ledgerSeq + 1;
 
-        auto sv = herder.makeStellarValue(fakeTxSetHash, app->timeNow() + 1,
+        auto sv = herder.makeStellarValue(fakeTxSetHash,
+                                          makeConsensusTime(app->timeNow() + 1),
                                           emptyUpgradeSteps, cfg.NODE_SEED);
         value = xdr::xdr_to_opaque(sv);
 
@@ -9871,7 +9914,7 @@ TEST_CASE("ms close times support subsecond ledgers", "[herder]")
     // Collect all the externalized close times from node0's SCP state
     auto& herder = static_cast<HerderImpl&>(node0->getHerder());
     auto& scp = herder.getSCP();
-    std::map<uint32_t, CloseTime> closeTimes;
+    std::map<uint32_t, ConsensusTime> closeTimes;
     for (uint32_t slot = herder.getMinLedgerSeqToRemember();
          slot <= herder.trackingConsensusLedgerIndex(); slot++)
     {
@@ -9888,10 +9931,10 @@ TEST_CASE("ms close times support subsecond ledgers", "[herder]")
         xdr::xdr_from_opaque(ext->statement.pledges.externalize().commit.value,
                              sv);
         REQUIRE(isMsCloseTimeStellarValue(sv));
-        closeTimes.emplace(slot, getCloseTime(sv));
+        closeTimes.emplace(slot, getConsensusTime(sv));
     }
 
-    // Check that close times strictly increase and we maintain concensus, even
+    // Check that close times strictly increase and we maintain consensus, even
     // if multiple blocks occur in the same whole second.
     REQUIRE(closeTimes.size() >= 16);
     size_t sameSecondPairs = 0;
@@ -9900,7 +9943,7 @@ TEST_CASE("ms close times support subsecond ledgers", "[herder]")
         auto const prev = std::prev(it);
         REQUIRE(it->second > prev->second);
         if (it->first == prev->first + 1 &&
-            it->second.closeTime == prev->second.closeTime)
+            it->second.toApplyTime() == prev->second.toApplyTime())
         {
             ++sameSecondPairs;
         }
@@ -9910,7 +9953,7 @@ TEST_CASE("ms close times support subsecond ledgers", "[herder]")
 #endif // MS_CLOSE_TIME
 
 #ifdef MS_CLOSE_TIME
-TEST_CASE("info reports the ms close time component", "[herder]")
+TEST_CASE("info reports the ms close time", "[herder]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -9923,9 +9966,11 @@ TEST_CASE("info reports the ms close time component", "[herder]")
 
     TimePoint const T =
         lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
-    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, CloseTime{T, 250});
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1,
+                  makeConsensusTime(T, 250));
     auto const ledgerInfo = app->getJsonInfo(false)["info"]["ledger"];
     REQUIRE(ledgerInfo["closeTime"].asUInt64() == T);
-    REQUIRE(ledgerInfo["closeTimeMs"].asUInt() == 250);
+    // closeTimeMs is the full close time in ms, not just the ms remainder
+    REQUIRE(ledgerInfo["closeTimeMs"].asUInt64() == T * 1000 + 250);
 }
 #endif // MS_CLOSE_TIME

@@ -5,6 +5,7 @@
 #include "transactions/TransactionUtils.h"
 #include "crypto/SHA.h"
 #include "ledger/InternalLedgerEntry.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -1379,13 +1380,15 @@ validateXDRForProtocol(uint32_t currProtocol, Config const& cfg,
 }
 
 uint64_t
-getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
+getUpperBoundCloseTimeOffset(Application& app, ApplyTime lastCloseTime)
 {
-    uint64_t currentTime = VirtualClock::to_time_t(app.getClock().system_now());
+    TimePoint currentTime =
+        VirtualClock::to_time_t(app.getClock().system_now());
 
     // account for the time between closeTime and now
-    uint64_t closeTimeDrift =
-        currentTime <= lastCloseTime ? 0 : currentTime - lastCloseTime;
+    uint64_t closeTimeDrift = currentTime <= lastCloseTime.timePoint()
+                                  ? 0
+                                  : currentTime - lastCloseTime.timePoint();
 
     // Round up so sub-second expected close times still leave at least a one
     // second buffer (time bounds are whole-second quantities).
@@ -1988,7 +1991,7 @@ maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
         auto& v3 =
             prepareAccountEntryExtensionV3(account.current().data.account());
         v3.seqLedger = header.current().ledgerSeq;
-        v3.seqTime = header.current().scpValue.closeTime;
+        v3.seqTime = getApplyTime(header.current().scpValue).timePoint();
     }
 }
 

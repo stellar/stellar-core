@@ -9,6 +9,7 @@
 #include "herder/SurgePricingUtils.h"
 #include "herder/TxQueueLimiter.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnImpl.h"
@@ -442,9 +443,8 @@ TransactionQueue::canAdd(
             TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
     }
 
-    auto closeTime = mApp.getLedgerManager()
-                         .getLastClosedLedgerHeader()
-                         .header.scpValue.closeTime;
+    auto closeTime = getApplyTime(
+        mApp.getLedgerManager().getLastClosedLedgerHeader().header.scpValue);
     // Validate minSeqLedgerGap and LedgerBounds against the next ledgerSeq,
     // which is what will be used at apply time.
     std::optional<uint32_t> validationLedgerSeq;

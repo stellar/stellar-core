@@ -433,7 +433,7 @@ TEST_CASE("manualclose", "[commandhandler]")
     SECTION("manual close time that overflows documented limit is detected and "
             "rejected")
     {
-        uint64_t const overflowingCloseTime = firstSecondOfYear2200GMT + 1ULL;
+        TimePoint const overflowingCloseTime = firstSecondOfYear2200GMT + 1ULL;
         std::string retStr;
         REQUIRE(lastLedgerNum() == LedgerManager::GENESIS_LEDGER_SEQ);
         CAPTURE(retStr);
@@ -507,7 +507,8 @@ TEST_CASE("manualclose", "[commandhandler]")
             setMinTime(txFrame, 0);
             TimePoint const maxTime =
                 lastCloseTime() + defaultManualCloseTimeInterval +
-                getUpperBoundCloseTimeOffset(*app, lastCloseTime());
+                getUpperBoundCloseTimeOffset(
+                    *app, ApplyTime::fromTimePoint(lastCloseTime()));
             setMaxTime(txFrame, maxTime);
             txFrame->getMutableEnvelope().v1().signatures.clear();
             txFrame->addSignature(*root);

@@ -1360,7 +1360,7 @@ TEST_CASE("claimable balance absBefore under sub-second ledgers",
     claimant.v0().destination = a1.getPublicKey();
     claimant.v0().predicate = pred;
 
-    auto rc = closeLedgerOn(*app, nextSeq(), {T, 100},
+    auto rc = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 100),
                             {root->tx({createClaimableBalance(
                                 makeNativeAsset(), 100, {claimant})})});
     checkTx(0, rc, txSUCCESS);
@@ -1368,13 +1368,13 @@ TEST_CASE("claimable balance absBefore under sub-second ledgers",
 
     SECTION("claim within the same second succeeds")
     {
-        auto r = closeLedgerOn(*app, nextSeq(), {T, 900},
+        auto r = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 900),
                                {a1.tx({claimClaimableBalance(balanceID)})});
         checkTx(0, r, txSUCCESS);
     }
     SECTION("claim in the next second fails")
     {
-        auto r = closeLedgerOn(*app, nextSeq(), {T + 1, 0},
+        auto r = closeLedgerOn(*app, nextSeq(), T + 1,
                                {a1.tx({claimClaimableBalance(balanceID)})},
                                /*strictOrder=*/true);
         checkTx(0, r, txFAILED);

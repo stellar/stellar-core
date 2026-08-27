@@ -33,6 +33,7 @@
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
@@ -338,14 +339,14 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     header.scpValue.closeTime = VirtualClock::to_time_t(genesis(0, 0));
 
 #ifdef MS_CLOSE_TIME
-    // Every case below also runs against a header whose close time carries a
-    // random nonzero ms component. This should get rounded down such that
-    // execution is identical.
+    // Every case below also runs against a header whose ms close time lands a
+    // random nonzero number of ms into the same whole second. Upgrade
+    // scheduling rounds down to the whole second, so execution is identical.
     if (GENERATE(false, true))
     {
         header.scpValue.ext.v(STELLAR_VALUE_SIGNED_MS);
         header.scpValue.ext.signedMsValue().closeTimeMs =
-            rand_uniform<uint32_t>(1, CloseTime::MAX_CLOSE_TIME_MS);
+            header.scpValue.closeTime * 1000 + rand_uniform<uint32_t>(1, 999);
     }
 #endif // MS_CLOSE_TIME
 
@@ -2517,11 +2518,11 @@ TEST_CASE("upgrade to version 11", "[upgrades][acceptance]")
         uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
-        uint64_t closeTime = 60 * 5 * ledgerSeq;
-        auto txSet =
-            makeTxSetFromTransactions(
-                {root->tx({txtest::createAccount(stranger, big)})}, *app, 0, 0)
-                .first;
+        TimePoint closeTime = 60 * 5 * ledgerSeq;
+        auto txSet = makeTxSetFromTransactions(
+                         {root->tx({txtest::createAccount(stranger, big)})},
+                         *app, ApplyTimeOffset{})
+                         .first;
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
         // ledger-protocol version upgrade to the new protocol, to activate
@@ -2538,7 +2539,7 @@ TEST_CASE("upgrade to version 11", "[upgrades][acceptance]")
         }
 
         StellarValue sv = app->getHerder().makeStellarValue(
-            txSet->getContentsHash(), closeTime, upgrades,
+            txSet->getContentsHash(), makeConsensusTime(closeTime), upgrades,
             app->getConfig().NODE_SEED);
         lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
@@ -2640,10 +2641,11 @@ TEST_CASE("upgrade to version 12", "[upgrades][acceptance]")
         uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
-        uint64_t closeTime = 60 * 5 * ledgerSeq;
+        TimePoint closeTime = 60 * 5 * ledgerSeq;
         TxSetXDRFrameConstPtr txSet =
             makeTxSetFromTransactions(
-                {root->tx({txtest::createAccount(stranger, big)})}, *app, 0, 0)
+                {root->tx({txtest::createAccount(stranger, big)})}, *app,
+                ApplyTimeOffset{})
                 .first;
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
@@ -2660,7 +2662,7 @@ TEST_CASE("upgrade to version 12", "[upgrades][acceptance]")
                       newProto);
         }
         StellarValue sv = app->getHerder().makeStellarValue(
-            txSet->getContentsHash(), closeTime, upgrades,
+            txSet->getContentsHash(), makeConsensusTime(closeTime), upgrades,
             app->getConfig().NODE_SEED);
         lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
@@ -3687,7 +3689,7 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
         bool updated = false;
         auto upgrades = Upgrades{cfg}.removeUpgrades(
             header.scpValue.upgrades.begin(), header.scpValue.upgrades.end(),
-            header.scpValue.closeTime, updated);
+            getApplyTime(header.scpValue), updated);
 
         REQUIRE(updated);
         REQUIRE(!upgrades.mProtocolVersion);
@@ -3707,7 +3709,7 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
         bool updated = false;
         auto upgrades = Upgrades{cfg}.removeUpgrades(
             header.scpValue.upgrades.begin(), header.scpValue.upgrades.end(),
-            header.scpValue.closeTime, updated);
+            getApplyTime(header.scpValue), updated);
 
         REQUIRE(!updated);
         REQUIRE(upgrades.mProtocolVersion);
@@ -4350,11 +4352,11 @@ TEST_CASE("millisecond close time upgrade boundary",
         REQUIRE(!isMsCloseTimeStellarValue(values.front().second));
         REQUIRE(isMsCloseTimeStellarValue(values.back().second));
 
-        // Combined close times strictly increase throughout
+        // Close times strictly increase throughout
         for (size_t i = 1; i < values.size(); i++)
         {
-            REQUIRE(getCloseTime(values[i].second) >
-                    getCloseTime(values[i - 1].second));
+            REQUIRE(getConsensusTime(values[i].second) >
+                    getConsensusTime(values[i - 1].second));
         }
 
         // Value types must flip from legacy to ms exactly once: every value
@@ -4446,9 +4448,11 @@ TEST_CASE("upgrade scheduling under sub-second ledgers", "[upgrades]")
     // Close a ledger partway into a known whole second; upgrade scheduling
     // must read the whole second only
     TimePoint const T = VirtualClock::to_time_t(genesis(0, 2));
-    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, {T, 500});
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1,
+                  ConsensusTime::fromMilliseconds(T * 1000 + 500));
     auto header = lm.getLastClosedLedgerHeader().header;
-    REQUIRE(getCloseTimeMs(header.scpValue) == 500);
+    REQUIRE(header.scpValue.closeTime == T);
+    REQUIRE(getConsensusTime(header.scpValue).milliseconds() == T * 1000 + 500);
 
     auto makeUpgradeCfg = [&](VirtualClock::system_time_point when) {
         Config ucfg = getTestConfig(1);
@@ -4467,7 +4471,7 @@ TEST_CASE("upgrade scheduling under sub-second ledgers", "[upgrades]")
     REQUIRE(due ==
             std::vector<LedgerUpgrade>{makeBaseFeeUpgrade(header.baseFee * 2)});
 
-    // Scheduled at the next second: the 500ms component does not reach it
+    // Scheduled at the next second: the 500ms remainder does not reach it
     auto notDue = Upgrades{makeUpgradeCfg(VirtualClock::from_time_t(T + 1))}
                       .createUpgradesFor(header, ledgerView, app->getConfig());
     REQUIRE(notDue.empty());

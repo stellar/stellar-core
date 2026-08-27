@@ -454,7 +454,9 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
             // create the transaction set containing this transaction
 
-            auto txSet = makeTxSetFromTransactions({tx1}, *inApp, 0, 0).first;
+            auto txSet =
+                makeTxSetFromTransactions({tx1}, *inApp, ApplyTimeOffset{})
+                    .first;
             auto& herder = static_cast<HerderImpl&>(inApp->getHerder());
 
             // build the quorum set used by this message
@@ -471,7 +473,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 lcl.header.scpValue.closeTime + 1,
                 VirtualClock::to_time_t(inApp->getClock().system_now()));
             StellarValue sv = herder.makeStellarValue(
-                txSet->getContentsHash(), ct, emptyUpgradeSteps, keys[0]);
+                txSet->getContentsHash(), makeConsensusTime(ct),
+                emptyUpgradeSteps, keys[0]);
 
             SCPEnvelope envelope;
 

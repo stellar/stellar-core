@@ -58,7 +58,8 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     auto tx1 = b1.tx({accountMerge(a1)});
     auto tx2 = a1.tx({a1.op(payment(*root, 112)), a1.op(payment(*root, 101))});
 
-    auto txSet = makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0).second;
+    auto txSet =
+        makeTxSetFromTransactions({tx1, tx2}, *app, ApplyTimeOffset{}).second;
 
     auto txs =
         txSet->getPhasesInApplyOrder()[static_cast<size_t>(TxSetPhase::CLASSIC)]
@@ -2073,8 +2074,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                     VirtualClock::from_time_t(closeTime + 5));
                             }
 
-                            auto offset =
-                                getUpperBoundCloseTimeOffset(*app, closeTime);
+                            auto offset = getUpperBoundCloseTimeOffset(
+                                *app, ApplyTime::fromTimePoint(closeTime));
                             auto upperBoundCloseTime = closeTime + offset;
 
                             SECTION("success")
@@ -3219,10 +3220,13 @@ TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
         auto tx = a1.tx({payment(*root, 1)});
         setMaxTime(tx, T);
         reSign(tx, a1);
-        auto r = closeLedgerOn(*app, nextSeq(), {T, 400}, {tx});
+        auto r =
+            closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400), {tx});
         checkTx(0, r, txSUCCESS);
-        REQUIRE(getCloseTime(lm.getLastClosedLedgerHeader().header.scpValue) ==
-                (CloseTime{T, 400}));
+        auto const& lclValue = lm.getLastClosedLedgerHeader().header.scpValue;
+        REQUIRE(getConsensusTime(lclValue).milliseconds() == T * 1000 + 400);
+        REQUIRE(lclValue.closeTime == T);
+        REQUIRE(getConsensusTime(lclValue).milliseconds() == T * 1000 + 400);
     }
 
     SECTION("tx valid from the next second stays too early in a same-second "
@@ -3231,11 +3235,11 @@ TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
         auto tx = a1.tx({payment(*root, 1)});
         setMinTime(tx, T + 1);
         reSign(tx, a1);
-        auto r = closeLedgerOn(*app, nextSeq(), {T, 400}, {tx},
+        auto r = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400), {tx},
                                /*strictOrder=*/true);
         checkTx(0, r, txTOO_EARLY);
         // The same transaction applies once the next whole second is reached
-        auto r2 = closeLedgerOn(*app, nextSeq(), {T + 1, 0}, {tx},
+        auto r2 = closeLedgerOn(*app, nextSeq(), T + 1, {tx},
                                 /*strictOrder=*/true);
         checkTx(0, r2, txSUCCESS);
     }

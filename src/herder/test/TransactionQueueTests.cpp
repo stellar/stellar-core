@@ -2995,14 +2995,15 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
         root->loadSequenceNumber();
-        auto [txSet, _] = makeTxSetFromTransactions({tx1b, tx2}, *app, 0, 0);
+        auto [txSet, _] =
+            makeTxSetFromTransactions({tx1b, tx2}, *app, ApplyTimeOffset{});
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
 
         auto lastCloseTime = lcl.header.scpValue.closeTime;
         StellarValue sv = herder.makeStellarValue(
-            txSet->getContentsHash(), lastCloseTime, emptyUpgradeSteps,
-            app->getConfig().NODE_SEED);
+            txSet->getContentsHash(), makeConsensusTime(lastCloseTime),
+            emptyUpgradeSteps, app->getConfig().NODE_SEED);
         herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                       xdr::xdr_to_opaque(sv));
 
@@ -3315,9 +3316,9 @@ TEST_CASE("TransactionQueue reset and rebuild on upgrades",
         auto lclHeader = lm.getLastClosedLedgerHeader();
         TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
 
-        app->getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
-                                          lclHeader.header.ledgerSeq + 1,
-                                          closeTime, {upgrade});
+        app->getHerder().externalizeValue(
+            TxSetXDRFrame::makeEmpty(lclHeader), lclHeader.header.ledgerSeq + 1,
+            makeConsensusTime(closeTime), {upgrade});
         app->getRoot()->loadSequenceNumber();
 
         // Check that the upgrade was actually applied.

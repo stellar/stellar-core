@@ -480,12 +480,13 @@ ApplicationImpl::getJsonInfo(bool verbose)
     auto const& lcl = lm.getLastClosedLedgerHeader();
     info["ledger"]["num"] = (int)lcl.header.ledgerSeq;
     info["ledger"]["hash"] = binToHex(lcl.hash);
-    info["ledger"]["closeTime"] = (Json::UInt64)lcl.header.scpValue.closeTime;
+    info["ledger"]["closeTime"] =
+        (Json::UInt64)getApplyTime(lcl.header.scpValue).timePoint();
 #ifdef MS_CLOSE_TIME
     if (isMsCloseTimeStellarValue(lcl.header.scpValue))
     {
         info["ledger"]["closeTimeMs"] =
-            (Json::UInt)getCloseTimeMs(lcl.header.scpValue);
+            (Json::UInt64)getConsensusTime(lcl.header.scpValue).milliseconds();
     }
 #endif // MS_CLOSE_TIME
     info["ledger"]["version"] = lcl.header.ledgerVersion;
@@ -1030,9 +1031,10 @@ ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 FMT_STRING("Manually closed ledger with sequence "
                            "number {:d} and closeTime {:d}"),
                 targetLedgerSeq,
-                getLedgerManager()
-                    .getLastClosedLedgerHeader()
-                    .header.scpValue.closeTime);
+                getApplyTime(getLedgerManager()
+                                 .getLastClosedLedgerHeader()
+                                 .header.scpValue)
+                    .timePoint());
         }
 
         return fmt::format(
@@ -1116,11 +1118,12 @@ ApplicationImpl::setManualCloseVirtualTime(
         "close time would allow runtime overflow in Herder");
 
     // Manual close always uses whole second close times
-    TimePoint const lastCloseTime = getLedgerManager()
-                                        .getLastClosedLedgerHeader()
-                                        .header.scpValue.closeTime;
-    uint64_t const now = VirtualClock::to_time_t(getClock().system_now());
-    uint64_t nextCloseTime = std::max(now, lastCloseTime + 1);
+    TimePoint const lastCloseTime =
+        getApplyTime(
+            getLedgerManager().getLastClosedLedgerHeader().header.scpValue)
+            .timePoint();
+    TimePoint const now = VirtualClock::to_time_t(getClock().system_now());
+    TimePoint nextCloseTime = std::max(now, lastCloseTime + 1);
 
     TimePoint const maxCloseTime = firstSecondOfYear2200GMT;
 
@@ -1140,7 +1143,7 @@ ApplicationImpl::setManualCloseVirtualTime(
         // Without an explicitly-provided closeTime, imitate what
         // HerderImpl::triggerNextLedger() would do in REAL_TIME
         // (unless that would move the virtual clock backwards).
-        uint64_t const defaultNextCloseTime =
+        TimePoint const defaultNextCloseTime =
             VirtualClock::to_time_t(std::chrono::system_clock::now());
         nextCloseTime = std::max(nextCloseTime, defaultNextCloseTime);
     }

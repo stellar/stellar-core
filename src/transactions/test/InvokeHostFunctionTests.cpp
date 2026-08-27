@@ -2660,7 +2660,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         auto lastCloseTime = lcl.header.scpValue.closeTime;
 
         test.getApp().getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
+            txSet, lcl.header.ledgerSeq + 1, makeConsensusTime(lastCloseTime),
             {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
 
         // validate upgrade succeeded

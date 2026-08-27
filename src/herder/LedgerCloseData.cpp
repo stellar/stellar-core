@@ -3,6 +3,7 @@
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "herder/Upgrades.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -79,13 +80,8 @@ stellarValueToString(Config const& c, StellarValue const& sv)
         res << " UNKNOWN";
         break;
     }
-    res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime;
-#ifdef MS_CLOSE_TIME
-    if (isMsCloseTimeStellarValue(sv))
-    {
-        res << ", ctMs: " << getCloseTimeMs(sv);
-    }
-#endif // MS_CLOSE_TIME
+    res << " txH: " << hexAbbrev(sv.txSetHash)
+        << ", ct: " << getConsensusTime(sv).toString();
     res << ", upgrades: [";
     for (auto const& upgrade : sv.upgrades)
     {
