@@ -171,7 +171,7 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
             (mWheat.type() == ASSET_TYPE_NATIVE)
                 ? getMaxAmountReceive(header, sourceAccount)
                 : wheatLineA.getMaxAmountReceive(header);
-        if (availableLimit < getOfferBuyingLiabilities())
+        if (availableLimit < getOfferBuyingLiabilities(ledgerVersion))
         {
             setResultLineFull(res);
             return false;
@@ -196,7 +196,7 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
             (mSheep.type() == ASSET_TYPE_NATIVE)
                 ? getAvailableBalance(header, sourceAccount)
                 : sheepLineA.getAvailableBalance(header);
-        if (availableBalance < getOfferSellingLiabilities())
+        if (availableBalance < getOfferSellingLiabilities(ledgerVersion))
         {
             setResultUnderfunded(res);
             return false;
@@ -473,7 +473,8 @@ ManageOfferOpFrameBase::doApply(
                     canBuyAtMost(header, sourceAccount, mWheat, wheatLineA);
                 applyOperationSpecificLimits(sheepSendLimit, sheepSent,
                                              wheatReceiveLimit, wheatReceived);
-                amount = adjustOffer(mPrice, sheepSendLimit, wheatReceiveLimit);
+                amount = adjustOffer(header.current().ledgerVersion, mPrice,
+                                     sheepSendLimit, wheatReceiveLimit);
             }
             else
             {
@@ -639,6 +640,29 @@ ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion,
         return false;
     }
 
+    return true;
+}
+
+bool
+ManageOfferOpFrameBase::doCheckValidForOverlay(uint32_t ledgerVersion,
+                                               OperationResult& res) const
+{
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_29))
+    {
+        return true;
+    }
+    if (isDeleteOffer())
+    {
+        return true;
+    }
+
+    auto amount = getOfferSellingLiabilities(ledgerVersion);
+    if (offerCanClearForZero(mPrice, amount) ||
+        offerCanClearForZero(mPrice, amount - 1))
+    {
+        setResultMalformed(res);
+        return false;
+    }
     return true;
 }
 

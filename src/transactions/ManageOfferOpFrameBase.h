@@ -43,6 +43,9 @@ class ManageOfferOpFrameBase : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
+    bool doCheckValidForOverlay(uint32_t ledgerVersion,
+                                OperationResult& res) const override;
+
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
@@ -62,8 +65,9 @@ class ManageOfferOpFrameBase : public OperationFrame
     virtual bool isAmountValid() const = 0;
     virtual bool isDeleteOffer() const = 0;
 
-    virtual int64_t getOfferBuyingLiabilities() const = 0;
-    virtual int64_t getOfferSellingLiabilities() const = 0;
+    virtual int64_t getOfferBuyingLiabilities(uint32_t ledgerVersion) const = 0;
+    virtual int64_t
+    getOfferSellingLiabilities(uint32_t ledgerVersion) const = 0;
 
     virtual void applyOperationSpecificLimits(int64_t& maxSheepSend,
                                               int64_t sheepSent,

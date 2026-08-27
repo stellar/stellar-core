@@ -1887,7 +1887,9 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         auto& opResult = txResult.getOpResultAt(i);
 
         if (!op->checkValid(app, signatureChecker, sorobanConfig, ledgerView,
-                            false, opResult, diagnosticEvents))
+                            false, opResult, diagnosticEvents) ||
+            (isOverlayValidation &&
+             !op->checkValidForOverlay(ledgerVersion, opResult)))
         {
             // it's OK to just fast fail here and not try to call
             // checkValid on all operations as the resulting object
