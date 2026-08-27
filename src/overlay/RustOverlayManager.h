@@ -8,7 +8,9 @@
 #include "overlay/OverlayIPC.h"
 #include "overlay/OverlayMetrics.h"
 #include <optional>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace stellar
 {
@@ -36,6 +38,13 @@ class RustOverlayManager
     void start();
     void shutdown();
     bool isShuttingDown() const;
+
+#ifdef BUILD_TESTS
+    // Advertise an additional peer address ("host:port") to the Rust overlay
+    // on top of the config's KNOWN_PEERS. Used by Simulation to wire test
+    // topologies; must be called before start().
+    void addKnownPeerForTesting(std::string const& addr);
+#endif
 
     // Network operations
     bool broadcastMessage(std::shared_ptr<StellarMessage const> msg,
@@ -82,6 +91,10 @@ class RustOverlayManager
     Application& mApp;
     std::unique_ptr<OverlayIPC> mOverlayIPC;
     std::atomic<bool> mShuttingDown{false};
+    std::vector<std::string> mExtraKnownPeers;
+
+    // Config KNOWN_PEERS plus any peers added via addKnownPeerForTesting.
+    std::vector<std::string> effectiveKnownPeers() const;
 
     OverlayMetrics mOverlayMetrics;
 

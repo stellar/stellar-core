@@ -23,28 +23,11 @@
 
 using namespace stellar;
 
-namespace
-{
-
-void
-configureOverlayV2Pair(Config& cfg, int i)
-{
-    if (i == 1 || i == 2)
-    {
-        auto peerIndex = i == 1 ? 2 : 1;
-        cfg.KNOWN_PEERS.push_back(
-            fmt::format("127.0.0.1:{}", getTestConfig(peerIndex).PEER_PORT));
-    }
-}
-
-}
-
 TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
         auto cfg = getTestConfig(i);
-        configureOverlayV2Pair(cfg, i);
         cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
         cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
@@ -121,7 +104,6 @@ TEST_CASE("multiple loadgen nodes in overlay-only mode", "[loadgen]")
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
         auto cfg = getTestConfig(i);
-        configureOverlayV2Pair(cfg, i);
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
@@ -178,7 +160,6 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
         auto cfg = getTestConfig(i);
-        configureOverlayV2Pair(cfg, i);
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
@@ -280,7 +261,6 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
 
     Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
         auto cfg = getTestConfig(i);
-        configureOverlayV2Pair(cfg, i);
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
         uint32_t baseSize = 148;
@@ -392,7 +372,6 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
         auto cfg = getTestConfig(i);
-        configureOverlayV2Pair(cfg, i);
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
         return cfg;
@@ -440,7 +419,6 @@ TEST_CASE("Multi-byte payment transactions are valid", "[loadgen]")
     uint32_t constexpr frameSize = baseSize + opSize * 3;
     Simulation::pointer simulation = Topologies::pair(networkID, [](int i) {
         auto cfg = getTestConfig(i);
-        configureOverlayV2Pair(cfg, i);
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
         cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {frameSize};

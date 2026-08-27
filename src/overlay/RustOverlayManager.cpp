@@ -10,6 +10,7 @@
 #include "util/Backtrace.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-overlay.h"
+#include <algorithm>
 #include <medida/counter.h>
 #include <medida/histogram.h>
 #include <medida/meter.h>
@@ -80,12 +81,37 @@ RustOverlayManager::start()
         throw std::runtime_error("Failed to start Rust overlay");
     }
 
-    mOverlayIPC->setPeerConfig(cfg.KNOWN_PEERS, cfg.PREFERRED_PEERS,
+    mOverlayIPC->setPeerConfig(effectiveKnownPeers(), cfg.PREFERRED_PEERS,
                                cfg.PEER_PORT);
 
     CLOG_INFO(Overlay, "RustOverlayManager started, peer_port={}",
               cfg.PEER_PORT);
 }
+
+std::vector<std::string>
+RustOverlayManager::effectiveKnownPeers() const
+{
+    auto peers = mApp.getConfig().KNOWN_PEERS;
+    for (auto const& p : mExtraKnownPeers)
+    {
+        if (std::find(peers.begin(), peers.end(), p) == peers.end())
+        {
+            peers.push_back(p);
+        }
+    }
+    return peers;
+}
+
+#ifdef BUILD_TESTS
+void
+RustOverlayManager::addKnownPeerForTesting(std::string const& addr)
+{
+    releaseAssert(!mOverlayIPC || !mOverlayIPC->isConnected());
+    releaseAssert(std::find(mExtraKnownPeers.begin(), mExtraKnownPeers.end(),
+                            addr) == mExtraKnownPeers.end());
+    mExtraKnownPeers.push_back(addr);
+}
+#endif
 
 void
 RustOverlayManager::shutdown()

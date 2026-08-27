@@ -58,10 +58,13 @@ class Simulation
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();
-    void
-    addPendingConnection(NodeID const& initiator, NodeID const& acceptor)
-    {
-    }
+    // Make `initiator` know `acceptor` as a peer (KNOWN_PEERS). libp2p
+    // connections are bidirectional, so this connects the two nodes. Both
+    // nodes must already have been added; works before or after start.
+    void addPendingConnection(NodeID const& initiator, NodeID const& acceptor);
+    void addConnection(NodeID const& initiator, NodeID const& acceptor);
+    // Connect every node to every other node (full mesh).
+    void fullyConnectAllPending();
 
     void startAllNodes();
     void stopAllNodes();
@@ -99,9 +102,6 @@ class Simulation
     }
 
   private:
-    // Configure KNOWN_PEERS on all nodes so they can discover each other
-    void configureKnownPeers();
-
     VirtualClock mClock;
     int mConfigCount;
     Application::pointer mIdleApp;
