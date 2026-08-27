@@ -21,21 +21,21 @@ typedef std::map<AccountID, std::map<TrustLineAsset, Liabilities>>
     LiabilitiesMap;
 
 static int64_t
-getOfferBuyingLiabilities(LedgerEntry const& le)
+getOfferBuyingLiabilities(uint32_t ledgerVersion, LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX,
+        ledgerVersion, oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX,
         RoundingType::NORMAL);
     return res.numSheepSend;
 }
 
 static int64_t
-getOfferSellingLiabilities(LedgerEntry const& le)
+getOfferSellingLiabilities(uint32_t ledgerVersion, LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX,
+        ledgerVersion, oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX,
         RoundingType::NORMAL);
     return res.numWheatReceived;
 }
@@ -139,7 +139,8 @@ checkAuthorized(std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
 }
 
 static void
-addOrSubtractLiabilities(LiabilitiesMap& deltaLiabilities,
+addOrSubtractLiabilities(uint32_t ledgerVersion,
+                         LiabilitiesMap& deltaLiabilities,
                          LedgerEntry const* entry, bool isAdd)
 {
     if (!entry)
@@ -174,38 +175,38 @@ addOrSubtractLiabilities(LiabilitiesMap& deltaLiabilities,
             deltaLiabilities[offer.sellerID]
                             [assetToTrustLineAsset(offer.selling)]
                                 .selling +=
-                sign * getOfferSellingLiabilities(*entry);
+                sign * getOfferSellingLiabilities(ledgerVersion, *entry);
         }
         if (!isIssuer(offer.sellerID, offer.buying))
         {
             deltaLiabilities[offer.sellerID]
                             [assetToTrustLineAsset(offer.buying)]
                                 .buying +=
-                sign * getOfferBuyingLiabilities(*entry);
+                sign * getOfferBuyingLiabilities(ledgerVersion, *entry);
         }
     }
 }
 
 static void
 addOrSubtractLiabilities(
-    LiabilitiesMap& deltaLiabilities,
+    uint32_t ledgerVersion, LiabilitiesMap& deltaLiabilities,
     std::shared_ptr<InternalLedgerEntry const> const& genEntry, bool isAdd)
 {
     if (genEntry && genEntry->type() == InternalLedgerEntryType::LEDGER_ENTRY)
     {
-        addOrSubtractLiabilities(deltaLiabilities, &genEntry->ledgerEntry(),
-                                 isAdd);
+        addOrSubtractLiabilities(ledgerVersion, deltaLiabilities,
+                                 &genEntry->ledgerEntry(), isAdd);
     }
 }
 
 static void
 accumulateLiabilities(
-    LiabilitiesMap& deltaLiabilities,
+    uint32_t ledgerVersion, LiabilitiesMap& deltaLiabilities,
     std::shared_ptr<InternalLedgerEntry const> const& current,
     std::shared_ptr<InternalLedgerEntry const> const& previous)
 {
-    addOrSubtractLiabilities(deltaLiabilities, current, true);
-    addOrSubtractLiabilities(deltaLiabilities, previous, false);
+    addOrSubtractLiabilities(ledgerVersion, deltaLiabilities, current, true);
+    addOrSubtractLiabilities(ledgerVersion, deltaLiabilities, previous, false);
 }
 
 static bool
@@ -341,7 +342,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(
             {
                 return checkAuthStr;
             }
-            accumulateLiabilities(deltaLiabilities, entryDelta.second.current,
+            accumulateLiabilities(ledgerVersion, deltaLiabilities,
+                                  entryDelta.second.current,
                                   entryDelta.second.previous);
         }
 
