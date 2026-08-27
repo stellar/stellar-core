@@ -12,6 +12,7 @@
 #include "history/HistoryUtils.h"
 #include "historywork/Progress.h"
 #include "ledger/CheckpointRange.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
@@ -286,31 +287,40 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     }
 
     // Check that we use the correct time format in the ledger header.
-    bool const msActive = protocolVersionStartsFrom(
-        lclHeader.header.ledgerVersion, MS_CLOSE_TIME_PROTOCOL_VERSION);
-    if (!validateMsCloseTimeFormat(header.scpValue,
-                                   /*allowMsTime=*/msActive,
-                                   /*allowWholeSecondTime=*/!msActive))
+    if (!hasValidCloseTime(header.scpValue))
     {
         throw std::runtime_error(fmt::format(
-            FMT_STRING("ledger header for {:d} has an invalid ms close time "
-                       "(StellarValue type {:d}, closeTimeMs {:d}) under "
-                       "protocol {:d}"),
-            header.ledgerSeq, static_cast<int32_t>(header.scpValue.ext.v()),
-            getCloseTimeMs(header.scpValue), lclHeader.header.ledgerVersion));
+            FMT_STRING("ledger header for {:d} has inconsistent close time "
+                       "fields: closeTime {:d}, consensus close time {}"),
+            header.ledgerSeq, header.scpValue.closeTime,
+            getConsensusTime(header.scpValue).toString()));
     }
 
-    // Check that close time never decreases
-    if (getCloseTime(header.scpValue) <=
-        getCloseTime(lclHeader.header.scpValue))
+    bool const hasMsCloseTime = isMsCloseTimeStellarValue(header.scpValue);
+    bool const protocolRequiresMsCloseTime =
+        protocolHasMsCloseTime(lclHeader.header.ledgerVersion);
+    if (hasMsCloseTime != protocolRequiresMsCloseTime)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("ledger header for {:d} has a {} close time "
+                       "(StellarValue type {:d}) but protocol {:d} requires a "
+                       "{} close time"),
+            header.ledgerSeq, hasMsCloseTime ? "millisecond" : "whole-second",
+            static_cast<int32_t>(header.scpValue.ext.v()),
+            lclHeader.header.ledgerVersion,
+            protocolRequiresMsCloseTime ? "millisecond" : "whole-second"));
+    }
+
+    // Close times must strictly increase from ledger to ledger
+    auto const previousCloseTime = getConsensusTime(lclHeader.header.scpValue);
+    auto const nextCloseTime = getConsensusTime(header.scpValue);
+    if (nextCloseTime <= previousCloseTime)
     {
         throw std::runtime_error(fmt::format(
             FMT_STRING("ledger header for {:d} has a non-advancing close "
-                       "time {:d}.{:03d} (previous {:d}.{:03d})"),
-            header.ledgerSeq, header.scpValue.closeTime,
-            getCloseTimeMs(header.scpValue),
-            lclHeader.header.scpValue.closeTime,
-            getCloseTimeMs(lclHeader.header.scpValue)));
+                       "time {} (previous ledger closed at {})"),
+            header.ledgerSeq, nextCloseTime.toString(),
+            previousCloseTime.toString()));
     }
 
     // We've verified the ledgerHeader (in the "trusted part of history"

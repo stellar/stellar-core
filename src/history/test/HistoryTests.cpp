@@ -39,6 +39,7 @@
 #include <lib/catch.hpp>
 
 using namespace stellar;
+using namespace stellar::txtest;
 using namespace historytestutils;
 
 TEST_CASE("checkpoint containing ledger", "[history]")
@@ -1259,64 +1260,66 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
             emptyTxSetSeq - 1);
 }
 
+// Start a node at `genesisVersion`, fabricate a checkpoint containing one
+// LCL+1 ledger header whose StellarValue is shaped by `mutate`, and return the
+// state ApplyCheckpointWork ends in when replaying it.
+static BasicWork::State
+applyFabricatedHeader(uint32_t genesisVersion,
+                      std::function<void(StellarValue&)> mutate)
+{
+    Config cfg(getTestConfig(0));
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = genesisVersion;
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+
+    LedgerHeaderHistoryEntry entry;
+    entry.header.ledgerSeq = lcl.header.ledgerSeq + 1;
+    entry.header.previousLedgerHash = lcl.hash;
+    entry.header.ledgerVersion = lcl.header.ledgerVersion;
+    mutate(entry.header.scpValue);
+    entry.hash = sha256(xdr::xdr_to_opaque(entry.header));
+
+    auto checkpoint = HistoryManager::checkpointContainingLedger(
+        entry.header.ledgerSeq, app->getConfig());
+    auto tmpDir = app->getTmpDirManager().tmpDir("fabricated-ledger-header");
+    FileTransferInfo hi(tmpDir, FileType::HISTORY_FILE_TYPE_LEDGER, checkpoint);
+    {
+        XDROutputFileStream out(app->getClock().getIOContext(), true);
+        out.open(hi.localPath_nogz());
+        out.writeOne(entry);
+    }
+    // The transactions file must exist even when empty
+    FileTransferInfo ti(tmpDir, FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
+                        checkpoint);
+    {
+        XDROutputFileStream out(app->getClock().getIOContext(), true);
+        out.open(ti.localPath_nogz());
+    }
+
+    auto range =
+        LedgerRange::inclusive(lcl.header.ledgerSeq, entry.header.ledgerSeq);
+    auto w = app->getWorkScheduler().executeWork<ApplyCheckpointWork>(
+        tmpDir, range, OnFailureCallback{});
+    return w->getState();
+}
+
 TEST_CASE("ApplyCheckpointWork rejects malformed empty-tx-set ledger headers",
           "[history][catchup]")
 {
-    auto runWithFabricatedHeader =
-        [](uint32_t genesisVersion, std::function<void(StellarValue&)> mutate) {
-            Config cfg(getTestConfig(0));
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = genesisVersion;
-            VirtualClock clock;
-            auto app = createTestApplication(clock, cfg);
-            auto const& lcl =
-                app->getLedgerManager().getLastClosedLedgerHeader();
-
-            LedgerHeaderHistoryEntry entry;
-            entry.header.ledgerSeq = lcl.header.ledgerSeq + 1;
-            entry.header.previousLedgerHash = lcl.hash;
-            entry.header.ledgerVersion = lcl.header.ledgerVersion;
-            mutate(entry.header.scpValue);
-            entry.hash = sha256(xdr::xdr_to_opaque(entry.header));
-
-            auto checkpoint = HistoryManager::checkpointContainingLedger(
-                entry.header.ledgerSeq, app->getConfig());
-            auto tmpDir =
-                app->getTmpDirManager().tmpDir("malformed-empty-tx-set-header");
-            FileTransferInfo hi(tmpDir, FileType::HISTORY_FILE_TYPE_LEDGER,
-                                checkpoint);
-            {
-                XDROutputFileStream out(app->getClock().getIOContext(), true);
-                out.open(hi.localPath_nogz());
-                out.writeOne(entry);
-            }
-            // The transactions file must exist even when empty
-            FileTransferInfo ti(
-                tmpDir, FileType::HISTORY_FILE_TYPE_TRANSACTIONS, checkpoint);
-            {
-                XDROutputFileStream out(app->getClock().getIOContext(), true);
-                out.open(ti.localPath_nogz());
-            }
-
-            auto range = LedgerRange::inclusive(lcl.header.ledgerSeq,
-                                                entry.header.ledgerSeq);
-            auto w = app->getWorkScheduler().executeWork<ApplyCheckpointWork>(
-                tmpDir, range, OnFailureCallback{});
-            return w->getState();
-        };
-
     SECTION("empty-tx-set hash without empty-tx-set value")
     {
-        REQUIRE(runWithFabricatedHeader(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                        [](StellarValue& sv) {
-                                            sv.txSetHash =
-                                                Herder::EMPTY_TX_SET_HASH;
-                                            // ext stays STELLAR_VALUE_BASIC
-                                        }) == BasicWork::State::WORK_FAILURE);
+        REQUIRE(applyFabricatedHeader(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                      [](StellarValue& sv) {
+                                          sv.txSetHash =
+                                              Herder::EMPTY_TX_SET_HASH;
+                                          // ext stays STELLAR_VALUE_BASIC
+                                      }) == BasicWork::State::WORK_FAILURE);
     }
 
     SECTION("empty-tx-set value before protocol support")
     {
-        REQUIRE(runWithFabricatedHeader(
+        REQUIRE(applyFabricatedHeader(
                     static_cast<uint32_t>(EMPTY_TX_SET_PROTOCOL_VERSION) - 1,
                     [](StellarValue& sv) {
                         sv.txSetHash = Herder::EMPTY_TX_SET_HASH;
@@ -1324,6 +1327,55 @@ TEST_CASE("ApplyCheckpointWork rejects malformed empty-tx-set ledger headers",
                     }) == BasicWork::State::WORK_FAILURE);
     }
 }
+
+#ifdef MS_CLOSE_TIME
+TEST_CASE("ApplyCheckpointWork rejects malformed ms close time ledger headers",
+          "[history][catchup]")
+{
+    auto const msVersion =
+        static_cast<uint32_t>(MS_CLOSE_TIME_PROTOCOL_VERSION);
+    auto setMsValue = [](StellarValue& sv, TimePoint closeTime,
+                         TimePointMilliseconds closeTimeMs) {
+        sv.ext.v(STELLAR_VALUE_SIGNED_MS);
+        sv.closeTime = closeTime;
+        sv.ext.signedMsValue().closeTimeMs = closeTimeMs;
+    };
+
+    SECTION("closeTime inconsistent with closeTimeMs")
+    {
+        REQUIRE(applyFabricatedHeader(msVersion, [&](StellarValue& sv) {
+                    setMsValue(sv, 10, 11'000);
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("closeTimeMs holding only the ms remainder")
+    {
+        REQUIRE(applyFabricatedHeader(msVersion, [&](StellarValue& sv) {
+                    setMsValue(sv, 10, 250);
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("ms value before protocol support")
+    {
+        REQUIRE(applyFabricatedHeader(msVersion - 1, [&](StellarValue& sv) {
+                    setMsValue(sv, 10, 10'250);
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("whole-second value once ms close times are active")
+    {
+        REQUIRE(applyFabricatedHeader(msVersion, [](StellarValue& sv) {
+                    sv.ext.v(STELLAR_VALUE_SIGNED);
+                    sv.closeTime = 10;
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("close time not advancing past the previous ledger")
+    {
+        // The test network's genesis ledger closes at time 0 (see
+        // "genesisledger"), so a value at 0 does not advance past it
+        REQUIRE(applyFabricatedHeader(msVersion, [&](StellarValue& sv) {
+                    setMsValue(sv, 0, 0);
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+}
+#endif // MS_CLOSE_TIME
 
 TEST_CASE("Publish works correctly post shadow removal", "[history]")
 {
@@ -1927,6 +1979,18 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
                 LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         }
     }
+    SECTION("millisecond close time upgrade")
+    {
+        // Replays the CAP-0088 boundary through history: the ledger that
+        // applies the upgrade still carries a whole-second close time while
+        // already reporting the new protocol version, and the ledger after it
+        // is the first with a millisecond close time
+        if (protocolVersionEquals(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                  MS_CLOSE_TIME_PROTOCOL_VERSION))
+        {
+            testUpgrade(MS_CLOSE_TIME_PROTOCOL_VERSION);
+        }
+    }
 }
 
 TEST_CASE("Catchup fatal failure", "[catchup][history]")
@@ -2000,10 +2064,11 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
             uint64_t minBalance = lm.getLastMinBalance(5);
             uint64_t big = minBalance + ledgerSeq;
-            uint64_t closeTime = 60 * 5 * ledgerSeq;
+            TimePoint closeTime = 60 * 5 * ledgerSeq;
 
             auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
-                {root->tx({txtest::createAccount(stranger, big)})}, *a, 0, 0);
+                {root->tx({txtest::createAccount(stranger, big)})}, *a,
+                ApplyTimeOffset{});
 
             // On first iteration of advance, perform a ledger-protocol version
             // upgrade to the new protocol, to activate INITENTRY behaviour.
@@ -2021,8 +2086,8 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
                 applicableTxSet->size(lm.getLastClosedLedgerHeader().header),
                 hexAbbrev(txSet->getContentsHash()));
             StellarValue sv = a->getHerder().makeStellarValue(
-                txSet->getContentsHash(), closeTime, upgrades,
-                a->getConfig().NODE_SEED);
+                txSet->getContentsHash(), makeConsensusTime(closeTime),
+                upgrades, a->getConfig().NODE_SEED);
             lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         }
 
@@ -2677,13 +2742,18 @@ TEST_CASE("History publish and catchup over sub-second ledgers",
     // Generate a run of ledgers containing a same-second triple: one ledger
     // at a whole second and two more within that second at increasing ms
     catchupSimulation.generateRandomLedger();
-    auto const ct =
-        getCloseTime(lm.getLastClosedLedgerHeader().header.scpValue);
-    REQUIRE(ct.closeTimeMs == 0);
-    catchupSimulation.generateRandomLedger(0, CloseTime{ct.closeTime, 250});
-    catchupSimulation.generateRandomLedger(0, CloseTime{ct.closeTime, 750});
-    REQUIRE(lm.getLastClosedLedgerHeader().header.scpValue.closeTime ==
-            ct.closeTime);
+    auto const closeTime =
+        getConsensusTime(lm.getLastClosedLedgerHeader().header.scpValue);
+    auto const applyTime = closeTime.toApplyTime();
+    REQUIRE(closeTime.isWholeSecond());
+    catchupSimulation.generateRandomLedger(
+        0, makeConsensusTime(applyTime.timePoint(), 250));
+    catchupSimulation.generateRandomLedger(
+        0, makeConsensusTime(applyTime.timePoint(), 750));
+    auto const& lclValue = lm.getLastClosedLedgerHeader().header.scpValue;
+    REQUIRE(getApplyTime(lclValue) == applyTime);
+    REQUIRE(getConsensusTime(lclValue) ==
+            makeConsensusTime(applyTime.timePoint(), 750));
 
     // Fill up to a published checkpoint with normally-spaced ledgers
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);

@@ -19,6 +19,7 @@ namespace stellar
 {
 
 class Application;
+class ApplyTime;
 class Config;
 class ConstLedgerTxnEntry;
 class ConstTrustLineWrapper;
@@ -271,7 +272,8 @@ bool hasMuxedAccount(TransactionEnvelope const& e);
 bool validateXDRForProtocol(uint32_t currProtocol, Config const& cfg,
                             TransactionEnvelope const& envelope);
 
-uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
+uint64_t getUpperBoundCloseTimeOffset(Application& app,
+                                      ApplyTime lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);
 bool hasAccountEntryExtV3(AccountEntry const& ae);

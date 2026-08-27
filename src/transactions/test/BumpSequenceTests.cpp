@@ -125,7 +125,7 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
             // Close two ledgers (sequence number is advanced twice), and set
             // the close time to 1 day from the initial close time.
             closeLedgerOn(*app, 2, 1, 2020);
-            // Re-close at the same close time, adding an ms component once
+            // Re-close at the same close time, adding an ms remainder once
             // ms close times are active: minSeqAge/minSeqLedgerGap read
             // whole seconds and must behave identically against a
             // sub-second LCL
@@ -214,8 +214,8 @@ TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
 
     // a1's sequence number moves in a sub-second ledger; seqTime records the
     // whole second only
-    auto r0 =
-        closeLedgerOn(*app, nextSeq(), {T, 100}, {a1.tx({payment(*root, 1)})});
+    auto r0 = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 100),
+                            {a1.tx({payment(*root, 1)})});
     checkTx(0, r0, txSUCCESS);
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -231,8 +231,9 @@ TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
 
     SECTION("sub-second ledger in the same whole second: age still 0")
     {
-        auto r = closeLedgerOn(*app, nextSeq(), {T, 800}, {tx2},
-                               /*strictOrder=*/true);
+        auto r =
+            closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 800), {tx2},
+                          /*strictOrder=*/true);
 
         // We always round down to whole seconds, so a subsecond ledger should
         // not advance minSeqAge.
@@ -240,7 +241,7 @@ TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
     }
     SECTION("whole-second ledger one second later: age requirement met")
     {
-        auto r = closeLedgerOn(*app, nextSeq(), {T + 1, 0}, {tx2},
+        auto r = closeLedgerOn(*app, nextSeq(), T + 1, {tx2},
                                /*strictOrder=*/true);
         checkTx(0, r, txSUCCESS);
     }

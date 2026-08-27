@@ -24,6 +24,7 @@ class Histogram;
 namespace stellar
 {
 class Application;
+class ConsensusTime;
 class HerderImpl;
 class LedgerManager;
 class PendingEnvelopes;
@@ -159,7 +160,7 @@ class HerderSCPDriver : public SCPDriver
     std::optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
 
     // validate close time as much as possible
-    bool checkCloseTime(uint64_t slotIndex, CloseTime lastCloseTime,
+    bool checkCloseTime(uint64_t slotIndex, ConsensusTime lastCloseTime,
                         StellarValue const& b) const;
 
     // wraps a *valid* StellarValue (throws if it can't find txSet/qSet)
@@ -212,7 +213,7 @@ class HerderSCPDriver : public SCPDriver
     };
     void cacheValidTxSet(ApplicableTxSetFrame const& txSet,
                          LedgerHeaderHistoryEntry const& lcl,
-                         uint64_t closeTimeOffset) const;
+                         ApplyTimeOffset closeTimeOffset) const;
 
     // Get the number of nomination timeouts that occurred for a given slot
     std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
@@ -358,7 +359,7 @@ class HerderSCPDriver : public SCPDriver
 
     bool checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
                                  LedgerHeaderHistoryEntry const& lcl,
-                                 uint64_t closeTimeOffset) const;
+                                 ApplyTimeOffset closeTimeOffset) const;
 
     bool deserializeAndValidateStellarValue(uint64_t slotIndex,
                                             Value const& value,

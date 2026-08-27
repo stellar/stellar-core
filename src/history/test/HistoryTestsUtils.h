@@ -261,7 +261,7 @@ class CatchupSimulation
 
     void generateRandomLedger(
         uint32_t version = 0,
-        std::optional<CloseTime> closeTimeOverride = std::nullopt);
+        std::optional<ConsensusTime> closeTimeOverride = std::nullopt);
 
     // Closes a CAP-0083 empty-tx-set ledger
     void generateEmptyTxSetLedger();

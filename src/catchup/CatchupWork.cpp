@@ -19,6 +19,7 @@
 #include "historywork/DownloadVerifyTxResultsWork.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/PersistentState.h"
@@ -69,7 +70,7 @@ setHerderStateTo(FileTransferInfo const& ft, uint32_t ledger, Application& app)
     app.getHerder().setTrackingSCPState(ledger, entry->header.scpValue,
                                         /* isTrackingNetwork */ false);
     CLOG_INFO(History, "Herder state is set! tracking={}, closeTime={}", ledger,
-              entry->header.scpValue.closeTime);
+              getConsensusTime(entry->header.scpValue).toString());
     return true;
 }
 
