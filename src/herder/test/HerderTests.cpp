@@ -3266,6 +3266,148 @@ TEST_CASE("combineCandidates with mismatched previousLedgerHash candidate",
     }
 }
 
+TEST_CASE("SCP checkpoint", "[catchup][herder]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(networkID);
+
+    auto histCfg = std::make_shared<TmpDirHistoryConfigurator>();
+
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(v0NodeID);
+
+    Config cfg1 = getTestConfig(1);
+    Config cfg2 = getTestConfig(2);
+    Config cfg3 = getTestConfig(3);
+
+    // Real-time simulation: 1s ledgers and 8-ledger checkpoints instead of
+    // 5s ledgers and 64-ledger checkpoints. The checkpoint slot is only
+    // retained separately when it falls outside the MAX_SLOTS_TO_REMEMBER
+    // window, so keep that window smaller than the checkpoint frequency.
+    for (auto* cfg : {&cfg1, &cfg2, &cfg3})
+    {
+        cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg->MAX_SLOTS_TO_REMEMBER = 4;
+    }
+
+    cfg2.FORCE_SCP = false;
+    cfg2.MODE_DOES_CATCHUP = true;
+    cfg3.FORCE_SCP = false;
+    cfg3.MODE_DOES_CATCHUP = true;
+    cfg1.MODE_DOES_CATCHUP = false;
+
+    cfg1 = histCfg->configure(cfg1, true);
+    cfg3 = histCfg->configure(cfg3, false);
+    cfg2 = histCfg->configure(cfg2, false);
+
+    auto mainNode = simulation->addNode(v0SecretKey, qSet, &cfg1);
+    simulation->startAllNodes();
+    auto firstCheckpoint = HistoryManager::firstLedgerAfterCheckpointContaining(
+        1, mainNode->getConfig());
+
+    // Crank until we are halfway through the second checkpoint
+    auto const halfCheckpoint =
+        HistoryManager::getCheckpointFrequency(mainNode->getConfig()) / 2;
+    simulation->crankUntil(
+        [&]() {
+            return simulation->haveAllExternalized(
+                firstCheckpoint + halfCheckpoint, 1);
+        },
+        2 * (firstCheckpoint + halfCheckpoint) *
+            simulation->getExpectedLedgerCloseTime(),
+        false);
+
+    SECTION("GC old checkpoints")
+    {
+        HerderImpl& herder = static_cast<HerderImpl&>(mainNode->getHerder());
+
+        // Should have MAX_SLOTS_TO_REMEMBER slots + checkpoint slot
+        REQUIRE(herder.getSCP().getKnownSlotsCount() ==
+                mainNode->getConfig().MAX_SLOTS_TO_REMEMBER + 1);
+
+        auto secondCheckpoint =
+            HistoryManager::firstLedgerAfterCheckpointContaining(
+                firstCheckpoint, mainNode->getConfig());
+
+        // Crank until we complete the 2nd checkpoint
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(secondCheckpoint, 1);
+            },
+            2 * halfCheckpoint * simulation->getExpectedLedgerCloseTime(),
+            false);
+
+        REQUIRE(mainNode->getLedgerManager().getLastClosedLedgerNum() ==
+                secondCheckpoint);
+
+        // Checkpoint is within [lcl, lcl - MAX_SLOTS_TO_REMEMBER], so we
+        // should only have MAX_SLOTS_TO_REMEMBER slots
+        REQUIRE(herder.getSCP().getKnownSlotsCount() ==
+                mainNode->getConfig().MAX_SLOTS_TO_REMEMBER);
+    }
+
+    SECTION("Out of sync node receives checkpoint")
+    {
+        // Start out of sync node
+        auto outOfSync = simulation->addNode(v1SecretKey, qSet, &cfg2);
+        simulation->addPendingConnection(v0NodeID, v1NodeID);
+        simulation->startAllNodes();
+        auto& lam = static_cast<LedgerApplyManagerImpl&>(
+            outOfSync->getLedgerApplyManager());
+
+        // Crank until outOfSync node has received checkpoint ledger and started
+        // catchup
+        simulation->crankUntil([&]() { return lam.isCatchupInitialized(); },
+                               2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
+
+        auto const& bufferedLedgers = lam.getBufferedLedgers();
+        REQUIRE(!bufferedLedgers.empty());
+        REQUIRE(bufferedLedgers.begin()->first == firstCheckpoint);
+        REQUIRE(bufferedLedgers.crbegin()->first ==
+                mainNode->getLedgerManager().getLastClosedLedgerNum());
+    }
+
+    SECTION("Two out of sync nodes receive checkpoint")
+    {
+        // Start two out of sync nodes
+        auto outOfSync1 = simulation->addNode(v1SecretKey, qSet, &cfg2);
+        auto outOfSync2 = simulation->addNode(v2SecretKey, qSet, &cfg3);
+
+        simulation->addPendingConnection(v0NodeID, v1NodeID);
+        simulation->addPendingConnection(v0NodeID, v2NodeID);
+
+        simulation->startAllNodes();
+        auto& cm1 = static_cast<LedgerApplyManagerImpl&>(
+            outOfSync1->getLedgerApplyManager());
+        auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
+            outOfSync2->getLedgerApplyManager());
+
+        // Crank until outOfSync node has received checkpoint ledger and started
+        // catchup
+        simulation->crankUntil(
+            [&]() {
+                return cm1.isCatchupInitialized() && cm2.isCatchupInitialized();
+            },
+            2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
+
+        auto const& bufferedLedgers1 = cm1.getBufferedLedgers();
+        REQUIRE(!bufferedLedgers1.empty());
+        REQUIRE(bufferedLedgers1.begin()->first == firstCheckpoint);
+        REQUIRE(bufferedLedgers1.crbegin()->first ==
+                mainNode->getLedgerManager().getLastClosedLedgerNum());
+        auto const& bufferedLedgers2 = cm2.getBufferedLedgers();
+        REQUIRE(!bufferedLedgers2.empty());
+        REQUIRE(bufferedLedgers2.begin()->first == firstCheckpoint);
+        REQUIRE(bufferedLedgers2.crbegin()->first ==
+                mainNode->getLedgerManager().getLastClosedLedgerNum());
+    }
+}
+
 TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);

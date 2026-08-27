@@ -969,8 +969,24 @@ HerderImpl::getSCPStateForPeer(uint32 ledgerSeq)
     std::vector<SCPEnvelope> envelopes;
     auto maxSlots = Herder::LEDGER_VALIDITY_BRACKET;
 
-    // Collect up to MAX_SLOTS_TO_SEND slots worth of envelopes
+    // SCP keeps the sequential recent slots plus the most recent checkpoint
+    // slot, which may be far behind them. Checkpoint messages are almost
+    // always outside MAXIMUM_LEDGER_CLOSETIME_DRIFT and are only accepted
+    // once the receiving node knows the network state from the recent
+    // messages, so if the oldest slot is such a detached checkpoint, send it
+    // *after* everything else.
+    std::vector<uint64> slots;
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
+        slots.push_back(seq);
+        return true;
+    });
+    std::optional<uint64> detachedCheckpoint;
+    if (slots.size() >= 2 && slots[1] > slots[0] + 1)
+    {
+        detachedCheckpoint = slots[0];
+    }
+
+    auto appendSlot = [&](uint64 seq) {
         bool slotHadData = false;
         getSCP().processCurrentState(
             seq,
@@ -980,12 +996,31 @@ HerderImpl::getSCPStateForPeer(uint32 ledgerSeq)
                 return true; // continue
             },
             false);
-        if (slotHadData)
+        return slotHadData;
+    };
+
+    // Collect up to maxSlots slots worth of envelopes
+    for (auto seq : slots)
+    {
+        if (detachedCheckpoint && seq == *detachedCheckpoint)
+        {
+            continue; // appended below
+        }
+        if (appendSlot(seq))
         {
             --maxSlots;
         }
-        return maxSlots != 0;
-    });
+        if (maxSlots == 0)
+        {
+            break;
+        }
+    }
+    // After sending the most recent slots, if we have a detached checkpoint,
+    // send it at the end
+    if (detachedCheckpoint)
+    {
+        appendSlot(*detachedCheckpoint);
+    }
 
     return envelopes;
 }
