@@ -629,8 +629,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TransactionQueue::AddResult
-HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                            bool force
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
 #ifdef BUILD_TESTS
                             ,
                             bool isLoadgenTx
@@ -672,7 +671,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
     }
     else if (!tx->isSoroban())
     {
-        result = mTransactionQueue.tryAdd(tx, submittedFromSelf, force
+        result = mTransactionQueue.tryAdd(tx, submittedFromSelf
 #ifdef BUILD_TESTS
                                           ,
                                           isLoadgenTx
@@ -681,7 +680,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
     }
     else if (mSorobanTransactionQueue)
     {
-        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf, force
+        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf
 #ifdef BUILD_TESTS
                                                   ,
                                                   isLoadgenTx
@@ -1865,16 +1864,6 @@ HerderImpl::getUpgradesJson()
 }
 
 void
-HerderImpl::setFilteredAccounts(std::set<AccountID> const& accounts)
-{
-    mTransactionQueue.setFilteredAccounts(accounts);
-    if (mSorobanTransactionQueue)
-    {
-        mSorobanTransactionQueue->setFilteredAccounts(accounts);
-    }
-}
-
-void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
     auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
@@ -2552,8 +2541,6 @@ HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
                     TRANSACTION_QUEUE_BAN_LEDGERS,
                     mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER,
                     recomputeKeysToFilter(protocolVersion));
-            setFilteredAccounts(
-                mApp.getBannedAccountsPersistor().getBannedAccounts());
         }
     }
     else if (mSorobanTransactionQueue)
@@ -2627,22 +2614,6 @@ HerderImpl::start()
     restoreUpgrades();
     startTxSetGCTimer();
     startCheckForDeadNodesInterval();
-
-    auto& bap = mApp.getBannedAccountsPersistor();
-    if (!mApp.getConfig().FILTERED_G_ADDRESSES.empty())
-    {
-        CLOG_WARNING(
-            Herder,
-            "FILTERED_G_ADDRESSES is deprecated and will be removed in a "
-            "future release. The current {} address(es) will be stored in the "
-            "database. You can safely remove FILTERED_G_ADDRESSES from the "
-            "config. Use 'banaccounts'/'unbanaccounts' HTTP commands to manage "
-            "banned accounts going forward.",
-            mApp.getConfig().FILTERED_G_ADDRESSES.size());
-        bap.addBannedAccounts(mApp.getConfig().FILTERED_G_ADDRESSES);
-    }
-
-    setFilteredAccounts(bap.getBannedAccounts());
 }
 
 void

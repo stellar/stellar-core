@@ -291,27 +291,16 @@ Most commands return their results in JSON format.
 * **bans**
   List current active bans
 
-* **banaccounts**
-  Manages the persistent list of banned accounts. Banned accounts are stored in
-  the database and survive restarts. Any transaction whose source account,
-  operation source account, fee-bump fee source, or (for Soroban transactions)
-  write footprint account entry matches a banned address will be rejected from
-  the transaction queue.
-  * `banaccounts`<br>
-    Lists the currently banned account addresses as a JSON array.<br>
-  * `banaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
-    Adds the specified addresses to the persistent ban list. Existing bans are
-    preserved (additive).<br>
+* **banaccounts** (deprecated)
+  Account banning has been removed; this endpoint is kept for backwards
+  compatibility and only returns a deprecation warning. See
+  [CAP-0077](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0077.md)
+  for a more robust alternative. The `FILTERED_G_ADDRESSES` configuration
+  option is likewise deprecated and has no effect.
 
-  Note: The `FILTERED_G_ADDRESSES` configuration option is deprecated. Any
-  addresses configured there will be automatically migrated to the persistent
-  ban list on startup.
-
-* **unbanaccounts**
-  * `unbanaccounts`<br>
-    Clears all banned accounts.<br>
-  * `unbanaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
-    Removes the specified addresses from the persistent ban list.<br>
+* **unbanaccounts** (deprecated)
+  Account banning has been removed; this endpoint is kept for backwards
+  compatibility and only returns a deprecation warning.
 
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
@@ -399,10 +388,9 @@ Most commands return their results in JSON format.
     * "FILTERED" - transaction rejected because it contains an operation type that Stellar Core filters out. See Stellar Core configuration `EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE` for more details.
 
   Optional parameters:
-    * `force=true` - bypasses banned account filtering (see `banaccounts`),
-      allowing the transaction into the mempool even if its source account or
-      fee source is on the ban list. Other filtering (operation type, Soroban
-      key filtering) still applies. Example: `tx?blob=Base64&force=true`
+    * `force=true` - deprecated and has no effect (it used to bypass
+      banned account filtering, which has been removed). Accepted for
+      backwards compatibility; the response includes a deprecation warning.
 
 * **upgrades**
   * `upgrades?mode=get`<br>

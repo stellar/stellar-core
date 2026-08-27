@@ -101,11 +101,11 @@ class HerderImpl : public Herder
 #ifdef BUILD_TESTS
     TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                    bool force = false, bool isLoadgenTx = false) override;
+                    bool isLoadgenTx = false) override;
 #else
-    TransactionQueue::AddResult recvTransaction(TransactionFrameBasePtr tx,
-                                                bool submittedFromSelf,
-                                                bool force = false) override;
+    TransactionQueue::AddResult
+    recvTransaction(TransactionFrameBasePtr tx,
+                    bool submittedFromSelf) override;
 #endif
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
@@ -194,8 +194,6 @@ class HerderImpl : public Herder
 
     void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;
-
-    void setFilteredAccounts(std::set<AccountID> const& accounts) override;
 
     void forceSCPStateIntoSyncWithLastClosedLedger() override;
 

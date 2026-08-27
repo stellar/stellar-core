@@ -356,8 +356,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKFILL_STELLAR_ASSET_EVENTS = false;
     BACKFILL_RESTORE_META = false;
 
-    FILTERED_G_ADDRESSES = {};
-
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     COMMANDS = {};
@@ -1654,17 +1652,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"FILTERED_G_ADDRESSES",
                  [&]() {
-                     FILTERED_G_ADDRESSES = readArray<std::string>(item);
-                     for (auto const& addr : FILTERED_G_ADDRESSES)
-                     {
-                         KeyUtils::fromStrKey<PublicKey>(addr);
-                     }
+                     // The account banning feature has been removed; accept
+                     // the entry for backwards compatibility but ignore it.
+                     readArray<std::string>(item);
                      CLOG_WARNING(
-                         Overlay,
-                         "FILTERED_G_ADDRESSES is deprecated. It will be "
-                         "removed in a future release. Please use "
-                         "`banaccounts` HTTP endpoint instead to ban accounts "
-                         "from submitting transactions to this node.");
+                         Herder,
+                         "FILTERED_G_ADDRESSES is deprecated and has no "
+                         "effect; account banning has been removed. Please "
+                         "remove it from the config. See CAP-0077 "
+                         "(https://github.com/stellar/stellar-protocol/blob/"
+                         "master/core/cap-0077.md) for a more robust "
+                         "alternative.");
                  }},
                 {"LOADGEN_BYTE_COUNT_FOR_TESTING",
                  [&]() {

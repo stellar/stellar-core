@@ -605,40 +605,32 @@ TEST_CASE("toggleoverlayonlymode", "[commandhandler]")
     }
 }
 
-TEST_CASE("tx force flag bypasses banned account filter", "[commandhandler]")
+TEST_CASE("deprecated banned account endpoints return warnings",
+          "[commandhandler]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig();
-    cfg.FILTERED_G_ADDRESSES = {};
-    auto app = createTestApplication(clock, cfg);
+    auto app = createTestApplication(clock, getTestConfig());
     auto& ch = app->getCommandHandler();
 
     closeLedgerOn(*app, 2, 1, 1, 2017);
 
+    // banaccounts/unbanaccounts are deprecated no-ops that return warnings
+    auto ret = ch.manualCmd(
+        "banaccounts?accountids=" +
+        KeyUtils::toStrKey(SecretKey::pseudoRandomForTesting().getPublicKey()));
+    REQUIRE(ret.find("deprecated") != std::string::npos);
+    ret = ch.manualCmd("unbanaccounts");
+    REQUIRE(ret.find("deprecated") != std::string::npos);
+
+    // The tx endpoint still accepts the deprecated `force` flag and submits
+    // the transaction normally, with a deprecation warning in the response.
     auto root = app->getRoot();
-    auto srcKey = SecretKey::pseudoRandomForTesting();
-    auto src = root->create(srcKey, 1000000000);
-
-    // Ban the source account
-    auto addr = KeyUtils::toStrKey(srcKey.getPublicKey());
-    ch.manualCmd("banaccounts?accountids=" + addr);
-
-    // Build a valid transaction from the banned account
     auto acc = getAccount("forceTestAcc");
-    auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+    auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
     auto blob = decoder::encode_b64(xdr::xdr_to_opaque(tx->getEnvelope()));
 
-    SECTION("without force flag, tx is filtered")
-    {
-        std::string ret;
-        ch.tx("?blob=" + blob, ret);
-        REQUIRE(ret.find("FILTERED") != std::string::npos);
-    }
-
-    SECTION("with force=true, tx bypasses account ban")
-    {
-        std::string ret;
-        ch.tx("?blob=" + blob + "&force=true", ret);
-        REQUIRE(ret.find("PENDING") != std::string::npos);
-    }
+    std::string txRet;
+    ch.tx("?blob=" + blob + "&force=true", txRet);
+    REQUIRE(txRet.find("PENDING") != std::string::npos);
+    REQUIRE(txRet.find("deprecated") != std::string::npos);
 }
