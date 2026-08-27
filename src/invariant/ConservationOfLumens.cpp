@@ -177,7 +177,7 @@ ConservationOfLumens::checkOnOperationApply(
     return {};
 }
 
-// Helper function that processes an entry if it hasn't been seen before.
+// Helper function that processes an entry.
 // Returns true on success, false on error (with error set in errorMsg).
 static bool
 processEntry(LedgerEntry const& entry, LedgerKey const& key, Asset const& asset,
