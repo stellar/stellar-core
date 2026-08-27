@@ -233,11 +233,34 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
 }
 
 void
-LoadGenerator::cleanupAccounts(PerPhaseTransactionList const& perPhaseTxs)
+LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
+                               PerPhaseTransactionList const& perPhaseTxs)
 {
     ZoneScoped;
     auto const& accounts = mTxGenerator.getAccounts();
 
+    // An account stays in use until the transaction it submitted has been
+    // applied, so that the next transaction generated for it sees the updated
+    // sequence number. Accounts whose transaction externalized in a ledger
+    // that has since been applied become available again.
+    auto lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+    for (auto it = mAccountsExternalized.begin();
+         it != mAccountsExternalized.end();)
+    {
+        if (it->second <= lcl)
+        {
+            mAccountsAvailable.insert(it->first);
+            it = mAccountsExternalized.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    // Accounts whose transaction is in the set externalized for `ledgerSeq`
+    // are released once that ledger is applied. Accounts whose transaction is
+    // not in it are still pending in the mempool and remain in use.
     UnorderedSet<AccountID> externalized;
     for (auto const& txs : perPhaseTxs)
     {
@@ -251,10 +274,10 @@ LoadGenerator::cleanupAccounts(PerPhaseTransactionList const& perPhaseTxs)
     {
         auto accIt = accounts.find(*it);
         releaseAssert(accIt != accounts.end());
-        if (externalized.find(accIt->second->getPublicKey()) ==
+        if (externalized.find(accIt->second->getPublicKey()) !=
             externalized.end())
         {
-            mAccountsAvailable.insert(*it);
+            mAccountsExternalized.emplace(*it, ledgerSeq);
             it = mAccountsInUse.erase(it);
         }
         else
@@ -271,7 +294,9 @@ LoadGenerator::reset()
 {
     mTxGenerator.reset();
     mAccountsInUse.clear();
+    mAccountsExternalized.clear();
     mAccountsAvailable.clear();
+    mNoAccountsAvailableSinceLedger.reset();
 
     mContractInstances.clear();
     mLoadTimer.reset();
@@ -747,12 +772,29 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         if (mAccountsAvailable.empty() &&
             cfg.mode != LoadGenMode::PAY_PREGENERATED && !cfg.modeMixesPregen())
         {
+            // Every account has a transaction pending. The mempool does not
+            // shed load the way the transaction queue did, so wait for pending
+            // transactions to be applied instead of generating more; only give
+            // up if nothing gets applied for TIMEOUT_NUM_LEDGERS ledgers.
+            if (!mAccountsInUse.empty() || !mAccountsExternalized.empty())
+            {
+                if (!mNoAccountsAvailableSinceLedger)
+                {
+                    mNoAccountsAvailableSinceLedger = ledgerNum;
+                }
+                if (ledgerNum - *mNoAccountsAvailableSinceLedger <
+                    TIMEOUT_NUM_LEDGERS)
+                {
+                    break;
+                }
+            }
             CLOG_WARNING(LoadGen,
                          "Load generation failed: no more accounts available");
             mLoadgenFail.Mark();
             reset();
             return;
         }
+        mNoAccountsAvailableSinceLedger.reset();
 
         uint64_t sourceAccountId = 0;
         if (cfg.mode != LoadGenMode::PAY_PREGENERATED && !cfg.modeMixesPregen())
@@ -1387,6 +1429,11 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         // safe to reuse for the instance-creation phase.
         mAccountsAvailable.insert(mAccountsInUse.begin(), mAccountsInUse.end());
         mAccountsInUse.clear();
+        for (auto const& kv : mAccountsExternalized)
+        {
+            mAccountsAvailable.insert(kv.first);
+        }
+        mAccountsExternalized.clear();
 
         // 1 deploy TX per instance
         cfg.nTxs = cfg.getSorobanConfig().nInstances;

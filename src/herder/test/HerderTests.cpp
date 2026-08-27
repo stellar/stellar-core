@@ -3322,6 +3322,18 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
             simulation->getExpectedLedgerCloseTime(),
         false);
 
+    // An out of sync node should buffer every ledger from the checkpoint up to
+    // the main node's latest. The main node applies ledgers asynchronously
+    // after externalizing them and the out of sync node hears about them
+    // asynchronously, so this only holds at moments where the two line up.
+    auto hasBufferedCheckpointToLcl = [&](LedgerApplyManagerImpl const& lam) {
+        auto const& buffered = lam.getBufferedLedgers();
+        return !buffered.empty() &&
+               buffered.begin()->first == firstCheckpoint &&
+               buffered.crbegin()->first ==
+                   mainNode->getLedgerManager().getLastClosedLedgerNum();
+    };
+
     SECTION("GC old checkpoints")
     {
         HerderImpl& herder = static_cast<HerderImpl&>(mainNode->getHerder());
@@ -3362,14 +3374,13 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
 
         // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
-        simulation->crankUntil([&]() { return lam.isCatchupInitialized(); },
-                               2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
-
-        auto const& bufferedLedgers = lam.getBufferedLedgers();
-        REQUIRE(!bufferedLedgers.empty());
-        REQUIRE(bufferedLedgers.begin()->first == firstCheckpoint);
-        REQUIRE(bufferedLedgers.crbegin()->first ==
-                mainNode->getLedgerManager().getLastClosedLedgerNum());
+        simulation->crankUntil(
+            [&]() {
+                return lam.isCatchupInitialized() &&
+                       hasBufferedCheckpointToLcl(lam);
+            },
+            2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
+        REQUIRE(hasBufferedCheckpointToLcl(lam));
     }
 
     SECTION("Two out of sync nodes receive checkpoint")
@@ -3391,20 +3402,14 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         // catchup
         simulation->crankUntil(
             [&]() {
-                return cm1.isCatchupInitialized() && cm2.isCatchupInitialized();
+                return cm1.isCatchupInitialized() &&
+                       cm2.isCatchupInitialized() &&
+                       hasBufferedCheckpointToLcl(cm1) &&
+                       hasBufferedCheckpointToLcl(cm2);
             },
             2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
-
-        auto const& bufferedLedgers1 = cm1.getBufferedLedgers();
-        REQUIRE(!bufferedLedgers1.empty());
-        REQUIRE(bufferedLedgers1.begin()->first == firstCheckpoint);
-        REQUIRE(bufferedLedgers1.crbegin()->first ==
-                mainNode->getLedgerManager().getLastClosedLedgerNum());
-        auto const& bufferedLedgers2 = cm2.getBufferedLedgers();
-        REQUIRE(!bufferedLedgers2.empty());
-        REQUIRE(bufferedLedgers2.begin()->first == firstCheckpoint);
-        REQUIRE(bufferedLedgers2.crbegin()->first ==
-                mainNode->getLedgerManager().getLastClosedLedgerNum());
+        REQUIRE(hasBufferedCheckpointToLcl(cm1));
+        REQUIRE(hasBufferedCheckpointToLcl(cm2));
     }
 }
 
@@ -4023,7 +4028,16 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
 {
     // Initialize simulation
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation = std::make_shared<Simulation>(networkID);
+    // A and B keep closing ledgers in real time while C is fed slot 2 by
+    // hand. Use a longer close time so that C's slot-2 EXTERNALIZE reaches
+    // A and B before they close ledger 3.
+    auto confGen = [](int i) {
+        auto cfg = getTestConfig(i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
+        return cfg;
+    };
+    auto simulation = std::make_shared<Simulation>(networkID, confGen);
 
     // Create three validators: A, B, and C
     auto validatorAKey = SecretKey::fromSeed(sha256("validator-A"));

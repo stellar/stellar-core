@@ -17,6 +17,7 @@
 #include "herder/RustQuorumCheckerAdaptor.h"
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/P23HotArchiveBug.h"
@@ -352,7 +353,8 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
             }
         }
 #ifdef BUILD_TESTS
-        mApp.getLoadGenerator().cleanupAccounts(txFramesList);
+        mApp.getLoadGenerator().cleanupAccounts(
+            static_cast<uint32_t>(slotIndex), txFramesList);
 #endif
     }
     mApp.getOverlayManager().notifyTxSetExternalized(value.txSetHash, txHashes);
@@ -1671,6 +1673,32 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
             classicTxs.push_back(txFrame);
         }
     }
+    // The mempool is fee-ordered and sequence-number-oblivious, so it can
+    // hand us several transactions from one source account (e.g. a chained
+    // pair). A tx set may only contain one tx per source account, so keep
+    // the lowest sequence number per account and let the others wait for a
+    // later ledger.
+    auto onePerSourceAccount = [](TxFrameList& txs) {
+        std::unordered_map<AccountID, size_t> firstBySource;
+        TxFrameList kept;
+        for (auto const& tx : txs)
+        {
+            auto [it, inserted] =
+                firstBySource.emplace(tx->getSourceID(), kept.size());
+            if (inserted)
+            {
+                kept.push_back(tx);
+            }
+            else if (tx->getSeqNum() < kept[it->second]->getSeqNum())
+            {
+                kept[it->second] = tx;
+            }
+        }
+        txs = std::move(kept);
+    };
+    onePerSourceAccount(classicTxs);
+    onePerSourceAccount(sorobanTxs);
+
     txPhases.emplace_back(std::move(classicTxs));
     if (supportsSoroban)
     {
@@ -1685,6 +1713,44 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                                   upperBoundCloseTimeOffset, invalidTxPhases);
     CLOG_INFO(Herder, "Proposed TX set has {} transactions",
               proposedSet->sizeTxTotal());
+
+    // The mempool does no stateful validation, so it would keep handing us the
+    // transactions that just failed validation (stale sequence number, can't
+    // pay fee, expired, ...) on every nomination, crowding out valid ones.
+    // Drop them, except for transactions with a *future* sequence number:
+    // those are chained behind a pending transaction from the same account
+    // and become valid once it applies.
+    std::vector<Hash> invalidTxHashes;
+    if (!invalidTxPhases.empty())
+    {
+        CheckValidLedgerViewWrapper ledgerView(mApp);
+        for (auto const& phase : invalidTxPhases)
+        {
+            for (auto const& tx : phase)
+            {
+                auto acc = ledgerView.getAccount(tx->getSourceID());
+                if (acc &&
+                    tx->getSeqNum() > acc.current().data.account().seqNum + 1)
+                {
+                    continue;
+                }
+                CLOG_DEBUG(Herder,
+                           "Dropping invalid tx {} from mempool: seq {} "
+                           "(account seq {})",
+                           hexAbbrev(tx->getFullHash()), tx->getSeqNum(),
+                           acc ? acc.current().data.account().seqNum : -1);
+                invalidTxHashes.push_back(tx->getFullHash());
+            }
+        }
+    }
+    if (!invalidTxHashes.empty())
+    {
+        CLOG_DEBUG(Herder,
+                   "Removing {} transactions that failed tx set validation "
+                   "from the mempool",
+                   invalidTxHashes.size());
+        overlayMgr.removeTransactions(invalidTxHashes);
+    }
 
     if (!applicableProposedSet)
     {

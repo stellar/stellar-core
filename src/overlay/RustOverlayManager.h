@@ -42,7 +42,9 @@ class RustOverlayManager
 #ifdef BUILD_TESTS
     // Advertise an additional peer address ("host:port") to the Rust overlay
     // on top of the config's KNOWN_PEERS. Used by Simulation to wire test
-    // topologies; must be called before start().
+    // topologies. May be called before start() (the peer is included in the
+    // initial peer config) or after it (the updated peer list is pushed to the
+    // Rust overlay immediately).
     void addKnownPeerForTesting(std::string const& addr);
 #endif
 
@@ -58,6 +60,10 @@ class RustOverlayManager
     // hashes
     void notifyTxSetExternalized(Hash const& txSetHash,
                                  std::vector<Hash> const& txHashes);
+
+    // Drop transactions from the Rust mempool (e.g. ones that failed
+    // validation while building a tx set).
+    void removeTransactions(std::vector<Hash> const& txHashes);
 
     // Request TX set from peers (via Rust overlay, async). slotIndex is the
     // slot the set is for, used to stamp the Rust-side cache entry.

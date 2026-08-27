@@ -106,10 +106,18 @@ RustOverlayManager::effectiveKnownPeers() const
 void
 RustOverlayManager::addKnownPeerForTesting(std::string const& addr)
 {
-    releaseAssert(!mOverlayIPC || !mOverlayIPC->isConnected());
     releaseAssert(std::find(mExtraKnownPeers.begin(), mExtraKnownPeers.end(),
                             addr) == mExtraKnownPeers.end());
     mExtraKnownPeers.push_back(addr);
+
+    // If the overlay is already running, push the updated peer list so the
+    // Rust side dials the new peer.
+    if (mOverlayIPC && mOverlayIPC->isConnected())
+    {
+        auto const& cfg = mApp.getConfig();
+        mOverlayIPC->setPeerConfig(effectiveKnownPeers(), cfg.PREFERRED_PEERS,
+                                   cfg.PEER_PORT);
+    }
 }
 #endif
 
@@ -190,6 +198,15 @@ RustOverlayManager::notifyTxSetExternalized(Hash const& txSetHash,
     if (mOverlayIPC && !mShuttingDown)
     {
         mOverlayIPC->notifyTxSetExternalized(txSetHash, txHashes);
+    }
+}
+
+void
+RustOverlayManager::removeTransactions(std::vector<Hash> const& txHashes)
+{
+    if (mOverlayIPC && !mShuttingDown)
+    {
+        mOverlayIPC->removeTransactions(txHashes);
     }
 }
 

@@ -82,9 +82,8 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         Config cfg3 = getTestConfig(3);
         Config cfg4 = getTestConfig(4);
 
-        // Star topology around node1: addPendingConnection is a no-op with
-        // the Rust overlay, so wire the peers via KNOWN_PEERS instead
-        // (libp2p connections are bidirectional).
+        // Star topology around node1, wired via KNOWN_PEERS (libp2p
+        // connections are bidirectional).
         cfg1.KNOWN_PEERS = {
             fmt::format(FMT_STRING("127.0.0.1:{}"), cfg2.PEER_PORT),
             fmt::format(FMT_STRING("127.0.0.1:{}"), cfg3.PEER_PORT),

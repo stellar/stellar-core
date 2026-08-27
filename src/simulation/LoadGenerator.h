@@ -12,6 +12,8 @@
 #include "test/TxTests.h"
 #include "util/NonCopyable.h"
 #include "xdr/Stellar-types.h"
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace medida
@@ -225,7 +227,8 @@ class LoadGenerator
 
     void stop();
 
-    void cleanupAccounts(PerPhaseTransactionList const& perPhaseTxs);
+    void cleanupAccounts(uint32_t ledgerSeq,
+                         PerPhaseTransactionList const& perPhaseTxs);
 
   private:
     struct TxMetrics
@@ -276,7 +279,13 @@ class LoadGenerator
     // Track account IDs that are currently being referenced by the transaction
     // queue (to avoid source account collisions during tx submission)
     std::unordered_set<uint64_t> mAccountsInUse;
+    // Accounts whose transaction externalized in the given ledger; released
+    // once that ledger is applied.
+    std::unordered_map<uint64_t, uint32_t> mAccountsExternalized;
     std::unordered_set<uint64_t> mAccountsAvailable;
+    // First ledger at which load generation stalled because every account had
+    // a pending transaction.
+    std::optional<uint32_t> mNoAccountsAvailableSinceLedger;
 
     std::optional<XDRInputFileStream> mPreloadedTransactionsFile;
     uint32_t mCurrPreloadedTransaction = 0;

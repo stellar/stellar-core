@@ -72,8 +72,7 @@ TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
     cfg2.FORCE_SCP = false;
     cfg2.NODE_IS_VALIDATOR = false;
     cfg2.MODE_DOES_CATCHUP = false;
-    // addPendingConnection is a no-op with the Rust overlay: point the
-    // watcher at the validator via KNOWN_PEERS instead.
+    // Point the watcher at the validator via KNOWN_PEERS.
     cfg2.KNOWN_PEERS = {
         fmt::format(FMT_STRING("127.0.0.1:{}"), cfg1.PEER_PORT)};
 
