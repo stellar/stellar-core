@@ -1672,17 +1672,17 @@ TEST_CASE("History catchup with different modes",
     }
 }
 
-TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
+TEST_CASE("Retriggering catchups after trimming mBufferedLedgers",
           "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
 
     // Try to get to ledger 1000 with 200 ledgers buffered
     // when there are 20 checkpoints available.
-    // In order to prevent mSyncingLedgers from growing indefinitely,
+    // In order to prevent mBufferedLedgers from growing indefinitely,
     // it gets trimmed periodically.
     // This test makes sure that we are able to catch up to the network
-    // even when some ledgers get trimmed from mSyncingLedgers.
+    // even when some ledgers get trimmed from mBufferedLedgers.
 
     auto const bufferLedgers = 200;
     auto const initLedger = 1000;
@@ -1694,7 +1694,7 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
 
     auto app = catchupSimulation.createCatchupApplication(
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
-        std::string("Retriggering catchups after trimming mSyncingLedgers"));
+        std::string("Retriggering catchups after trimming mBufferedLedgers"));
     auto& lm = app->getLedgerManager();
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -1737,7 +1737,7 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
         firstLedgerInCheckpoint, app->getConfig());
 
     // 1. The app hears initLedger, ..., dividingLedger - 1.
-    //    NB: dividingLedger must be chosen such that mSyncingLedgers gets
+    //    NB: dividingLedger must be chosen such that mBufferedLedgers gets
     //    trimmed in this step.
     // 2. We will let Catchup run right after hearing (dividingLedger - 1).
     // 3. The app hears dividingLedger, ..., triggerLedger + bufferLedgers.
@@ -1751,20 +1751,20 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
 
         // Let the catchup run.
         // We expect that it'll land at the checkpoint containing (initLedger -
-        // 1). It can't apply the buffered ledgers because mSyncingLedgers must
+        // 1). It can't apply the buffered ledgers because mBufferedLedgers must
         // have popped some elements in order to prevent it from growing
         // exponentially, and thus there is a gap between the LCL and
-        // mSyncingLedgers.
+        // mBufferedLedgers.
         runCatchup(HistoryManager::checkpointContainingLedger(
             initLedger - 1, app->getConfig()));
 
-        // As mentioned above, mSyncingLedgers must have been trimmed
+        // As mentioned above, mBufferedLedgers must have been trimmed
         // after hearing up to (dividingLedger - 1).
         // And if it has been trimmed, CatchupWork should not be able to catch
         // up without being re-triggered.
         REQUIRE(!lm.isSynced());
 
-        // In order to close the gap between the LCL and mSyncingLedgers,
+        // In order to close the gap between the LCL and mBufferedLedgers,
         // we need to run a CatchupWork again.
         // processLedger is responsible for that, and thus we call it
         // by externalizing ledgers.
@@ -1803,14 +1803,14 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
         runTest(dividingLedger);
     }
 
-    SECTION(
-        "mSyncingLedgers gets trimmed between the first and second Catchup run")
+    SECTION("mBufferedLedgers gets trimmed between the first and second "
+            "Catchup run")
     {
         // When adding the second ledger in a checkpoint,
         // we become certain that nodes started publishing the checkpoint.
         // Thus the ledgers before the checkpoint will be trimmed.
         // By setting dividingLedger to the second ledger in a checkpoint,
-        // we can make sure that mSyncingLedgers gets trimmed between the first
+        // we can make sure that mBufferedLedgers gets trimmed between the first
         // and second Catchup run.
         auto dividingLedger =
             HistoryManager::firstLedgerInCheckpointContaining(
@@ -2424,7 +2424,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     // ledger 133 (= init + 60) will be missing.
     // The app hears up to ledger 189 close. (189 = 129 + 60 where 129
     // is the trigger ledger and 60 is the number of ledgers to buffer.)
-    // Then mSyncingLedgers = {128, 129, ..., 132, 134, ..., 189}.
+    // Then mBufferedLedgers = {128, 129, ..., 132, 134, ..., 189}.
     // We get up to 127 using checkpoint data, and apply {128, ..., 132}.
     LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 60, init + 60));

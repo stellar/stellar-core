@@ -5068,7 +5068,9 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             REQUIRE(lcl == currentCLedger());
 
             waitForAB(fewLedgers, false);
-            REQUIRE(currentALedger() == nextLedger);
+            // waitForAB stops once A reaches nextLedger, but A may close one
+            // more ledger before crankUntil's periodic check observes it
+            REQUIRE(currentALedger() >= nextLedger);
             // C is at most a ledger behind
             REQUIRE(currentCLedger() >= nextLedger - 1);
         }
@@ -5111,7 +5113,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
         // would set isApplying to false
         LedgerManagerImpl& lmCImpl =
             static_cast<LedgerManagerImpl&>(getC()->getLedgerManager());
-        lmCImpl.mAdvanceLedgerStateAndPublishOverride = [&] { return true; };
+        lmCImpl.mCompleteLedgerCloseOverride = [&] { return true; };
 
         // Receive first ledger - this will start applying with delay
         receiveLedger(currentLedger + 1, herderC);
@@ -5900,7 +5902,7 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 REQUIRE(lm.getLastClosedLedgerNum() <= lcl);
 
                 // No-op, so we don't update read-only state after apply
-                lm.mAdvanceLedgerStateAndPublishOverride = [&] { return true; };
+                lm.mCompleteLedgerCloseOverride = [&] { return true; };
             }
 
             // Crank until one more ledger is externalized
@@ -6155,9 +6157,9 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
     REQUIRE_FALSE(scpHasEnvelopeFromAForinvalidSlot());
     REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target - 1);
 
-    // Wait for apply to finish. When it does, ledgerCloseComplete runs on
-    // the main thread, LCL advances to `target`, and
-    // Herder::lastClosedLedgerIncreased -> processSCPQueue
+    // Wait for apply to finish. completeLedgerClose then runs on the main
+    // thread, advances LCL to `target`, and calls
+    // Herder::lastClosedLedgerIncreased via notifyLedgerCloseComplete. This
     // finally drains the SCP queue for slot target+1. At that point the
     // LCL is fresh, so validateValue fully validates the tx-set against
     // the real previousLedgerHash and returns kInvalidValue (the bogus

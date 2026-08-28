@@ -101,12 +101,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
                                            *mOverlayIOContext)
                                      : nullptr)
-    , mLedgerCloseIOContext(mConfig.parallelLedgerClose()
+    , mLedgerApplyIOContext(mConfig.backgroundLedgerApply()
                                 ? std::make_unique<asio::io_context>(1)
                                 : nullptr)
-    , mLedgerCloseWork(
-          mLedgerCloseIOContext
-              ? std::make_unique<asio::io_context::work>(*mLedgerCloseIOContext)
+    , mLedgerApplyWork(
+          mLedgerApplyIOContext
+              ? std::make_unique<asio::io_context::work>(*mLedgerApplyIOContext)
               : nullptr)
     , mWorkerThreads()
     , mEvictionThread()
@@ -126,7 +126,9 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
     , mPostOnOverlayThreadDelay(
           mMetrics->NewTimer({"app", "post-on-overlay-thread", "delay"}))
-    , mPostOnLedgerCloseThreadDelay(
+    , mPostOnLedgerApplyThreadDelay(
+          // Metric key retains the thread's historical "ledger-close" name;
+          // external dashboards depend on it.
           mMetrics->NewTimer({"app", "post-on-ledger-close-thread", "delay"}))
     , mStartedOn(clock.system_now())
 {
@@ -212,11 +214,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
     }
 
-    if (mConfig.parallelLedgerClose())
+    if (mConfig.backgroundLedgerApply())
     {
-        mLedgerCloseThread = std::make_unique<std::thread>(
-            [this]() { mLedgerCloseIOContext->run(); });
-        mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
+        mLedgerApplyThread = std::make_unique<std::thread>(
+            [this]() { mLedgerApplyIOContext->run(); });
+        mThreadTypes[mLedgerApplyThread->get_id()] = ThreadType::APPLY;
     }
 }
 
@@ -839,11 +841,11 @@ ApplicationImpl::idempotentShutdown(bool forgetBuckets)
     // is still valid, join all worker threads, and finally allow destructors to
     // run once no asynchronous activity remains.
 
-    // Shutdown state-modifying ledger close thread first, while all subsystems
+    // Shutdown state-modifying ledger apply thread first, while all subsystems
     // are live and valid. Note that `joinAllThreads` will also attempt to
-    // shutdown mLedgerCloseThread for completeness, but since this method is
+    // shutdown mLedgerApplyThread for completeness, but since this method is
     // idempotent, the extra call is harmless.
-    shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
+    shutdownThread(mLedgerApplyThread, mLedgerApplyWork, "ledger apply");
 
     if (mCommandHandler)
     {
@@ -947,7 +949,7 @@ ApplicationImpl::joinAllThreads()
 {
     uint32_t joined = 0;
     joined +=
-        shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
+        shutdownThread(mLedgerApplyThread, mLedgerApplyWork, "ledger apply");
     for (auto& w : mWorkerThreads)
     {
         joined += shutdownThread(w, mWork, "worker");
@@ -1527,10 +1529,10 @@ ApplicationImpl::getOverlayIOContext()
 }
 
 asio::io_context&
-ApplicationImpl::getLedgerCloseIOContext()
+ApplicationImpl::getLedgerApplyIOContext()
 {
-    releaseAssert(mLedgerCloseIOContext);
-    return *mLedgerCloseIOContext;
+    releaseAssert(mLedgerApplyIOContext);
+    return *mLedgerApplyIOContext;
 }
 
 BatchExecutor&
@@ -1608,17 +1610,17 @@ ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
 }
 
 void
-ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
+ApplicationImpl::postOnLedgerApplyThread(std::function<void()>&& f,
                                          std::string jobName)
 {
     JITTER_INJECT_DELAY();
-    releaseAssert(mLedgerCloseIOContext);
+    releaseAssert(mLedgerApplyIOContext);
     getClock().newBackgroundWork();
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow]() {
+    asio::post(*mLedgerApplyIOContext, [this, f = std::move(f), isSlow]() {
         JITTER_INJECT_DELAY();
-        mPostOnLedgerCloseThreadDelay.Update(isSlow.checkElapsedTime());
+        mPostOnLedgerApplyThreadDelay.Update(isSlow.checkElapsedTime());
         try
         {
             f();

@@ -439,9 +439,9 @@ CatchupWork::runCatchupStep()
             if (mApplyBufferedLedgersWork)
             {
                 // ApplyBufferedLedgersWork will try to apply
-                // as many ledgers in mSyncingLedgers as possible.
+                // as many ledgers in mBufferedLedgers as possible.
                 // Note that it's not always possible to apply
-                // _all_ the ledgers in mSyncingLedgers due to gaps.
+                // _all_ the ledgers in mBufferedLedgers due to gaps.
                 if (mApplyBufferedLedgersWork->getState() ==
                     State::WORK_SUCCESS)
                 {

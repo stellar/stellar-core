@@ -133,6 +133,10 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay][tcppeer]")
             // Slow down the main thread to delay drops
             cfg.ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
                 std::chrono::milliseconds(300);
+            // Don't run SCP: this test counts messages received by each
+            // peer, and SCP traffic between the nodes would pollute the
+            // counts nondeterministically
+            cfg.FORCE_SCP = false;
             return cfg;
         });
 
@@ -157,9 +161,9 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay][tcppeer]")
         n0->getOverlayManager().getOverlayMetrics().mRecvErrorTimer;
     auto p0recvErrorCount = p0recvError.count();
 
-    auto const& msgRead =
-        n1->getOverlayManager().getOverlayMetrics().mMessageRead;
-    auto msgReadPrev = msgRead.count();
+    auto const& recvTx =
+        n1->getOverlayManager().getOverlayMetrics().mRecvTransactionTimer;
+    auto recvTxPrev = recvTx.count();
 
     auto msg = makeStellarMessage(1);
 
@@ -173,9 +177,7 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay][tcppeer]")
         {
             // p0 received ERROR from p1
             REQUIRE(p0recvErrorCount + 1 == p0recvError.count());
-            // p1 did not read the next message in the socket after receiving a
-            // malformed message
-            REQUIRE(msgReadPrev + 1 == msgRead.count());
+            REQUIRE(recvTx.count() == recvTxPrev);
         }
     };
 

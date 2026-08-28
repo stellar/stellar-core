@@ -252,7 +252,7 @@ class Application
     virtual asio::io_context& getWorkerIOContext() = 0;
     virtual asio::io_context& getEvictionIOContext() = 0;
     virtual asio::io_context& getOverlayIOContext() = 0;
-    virtual asio::io_context& getLedgerCloseIOContext() = 0;
+    virtual asio::io_context& getLedgerApplyIOContext() = 0;
 
     virtual void postOnMainThread(
         std::function<void()>&& f, std::string&& name,
@@ -266,7 +266,7 @@ class Application
                                                 std::string jobName) = 0;
     virtual void postOnOverlayThread(std::function<void()>&& f,
                                      std::string jobName) = 0;
-    virtual void postOnLedgerCloseThread(std::function<void()>&& f,
+    virtual void postOnLedgerApplyThread(std::function<void()>&& f,
                                          std::string jobName) = 0;
 
     // Get the shared executor for running batches of CPU-bound tasks in

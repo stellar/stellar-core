@@ -2821,7 +2821,7 @@ LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 
     if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
-        if (mApp.getConfig().parallelLedgerClose())
+        if (mApp.getConfig().backgroundLedgerApply())
         {
             mSession = std::make_unique<SessionWrapper>(
                 "ledgerClose", mApp.getDatabase().getPool());

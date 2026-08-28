@@ -86,7 +86,7 @@ class ApplicationImpl : public Application
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
     virtual asio::io_context& getOverlayIOContext() override;
-    virtual asio::io_context& getLedgerCloseIOContext() override;
+    virtual asio::io_context& getLedgerApplyIOContext() override;
 
     virtual BatchExecutor& getBatchExecutor() override;
 
@@ -99,7 +99,7 @@ class ApplicationImpl : public Application
 
     virtual void postOnOverlayThread(std::function<void()>&& f,
                                      std::string jobName) override;
-    virtual void postOnLedgerCloseThread(std::function<void()>&& f,
+    virtual void postOnLedgerApplyThread(std::function<void()>&& f,
                                          std::string jobName) override;
     virtual void start() override;
     void startServices();
@@ -172,8 +172,8 @@ class ApplicationImpl : public Application
     std::unique_ptr<asio::io_context> mOverlayIOContext;
     std::unique_ptr<asio::io_context::work> mOverlayWork;
 
-    std::unique_ptr<asio::io_context> mLedgerCloseIOContext;
-    std::unique_ptr<asio::io_context::work> mLedgerCloseWork;
+    std::unique_ptr<asio::io_context> mLedgerApplyIOContext;
+    std::unique_ptr<asio::io_context::work> mLedgerApplyWork;
 
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
@@ -230,7 +230,7 @@ class ApplicationImpl : public Application
 
     std::vector<std::unique_ptr<std::thread>> mWorkerThreads;
     std::unique_ptr<std::thread> mOverlayThread;
-    std::unique_ptr<std::thread> mLedgerCloseThread;
+    std::unique_ptr<std::thread> mLedgerApplyThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
     // medium priority thread. In the future, this may become a more general
@@ -261,7 +261,7 @@ class ApplicationImpl : public Application
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     medida::Timer& mPostOnOverlayThreadDelay;
-    medida::Timer& mPostOnLedgerCloseThreadDelay;
+    medida::Timer& mPostOnLedgerApplyThreadDelay;
 
     VirtualClock::system_time_point mStartedOn;
 

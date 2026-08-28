@@ -86,9 +86,9 @@ using TxParallelApplyEntry =
 
 // This is a map of all entries that will be read and/or written during parallel
 // apply phases: there is one such "global" map which disjoint per-thread maps
-// get split off of, modified during applyThread, and merged back into. Once all
-// threads return, the updates from each threads entry map should be committed
-// to LedgerTxn.
+// get split off of, modified during applyThread, and merged back into. Once
+// all threads return, the updates from each threads entry map should be
+// committed to LedgerTxn.
 template <StaticLedgerEntryScope S>
 using ParallelApplyEntryMap = UnorderedMap<LedgerKey, ParallelApplyEntry<S>>;
 using GlobalParallelApplyEntryMap =
