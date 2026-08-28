@@ -130,6 +130,41 @@ Simulation::addNode(SecretKey nodeKey, QuorumSetSpec qSet, Config const* cfg2,
     return app;
 }
 
+void
+Simulation::addPendingConnection(NodeID const& initiator,
+                                 NodeID const& acceptor)
+{
+    auto init = mNodes.find(initiator);
+    auto acc = mNodes.find(acceptor);
+    if (init == mNodes.end() || acc == mNodes.end())
+    {
+        throw std::runtime_error(
+            "Simulation::addPendingConnection: both nodes must be added first");
+    }
+    auto addr =
+        fmt::format("127.0.0.1:{}", acc->second.mApp->getConfig().PEER_PORT);
+    init->second.mApp->getOverlayManager().addKnownPeerForTesting(addr);
+}
+
+void
+Simulation::fullyConnectAllPending()
+{
+    auto nodes = getNodeIDs();
+    for (size_t from = 0; from + 1 < nodes.size(); from++)
+    {
+        for (size_t to = from + 1; to < nodes.size(); to++)
+        {
+            addPendingConnection(nodes.at(from), nodes.at(to));
+        }
+    }
+}
+
+void
+Simulation::addConnection(NodeID const& initiator, NodeID const& acceptor)
+{
+    addPendingConnection(initiator, acceptor);
+}
+
 Application::pointer
 Simulation::getNode(NodeID nodeID)
 {

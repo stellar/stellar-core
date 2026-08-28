@@ -62,17 +62,14 @@ crypto.verify.miss                        | meter     | number of signature cach
 crypto.verify.total                       | meter     | sum of both hits and misses
 crypto.verify.tx-valid-hit                | meter     | signature cache hits that occurred while validating transactions (outside of background signature validation)
 crypto.verify.tx-valid-total              | meter     | sum of both hits and misses during transaction validation (outside of background signature validation)
+herder.txset.validate                     | timer     | time spent turning a received tx set into an applicable tx set and validating it on a validity-cache miss
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions
 herder.pending[-soroban]-txs.age3         | counter   | number of gen3 pending transactions
 herder.pending[-soroban]-txs.banned       | counter   | number of transactions that got banned
-herder.pending[-soroban]-txs.sum          | counter   | sum of time (milliseconds) for transactions to be included in a ledger
-herder.pending[-soroban]-txs.count        | counter   | number of transactions to be included in a ledger
-herder.pending[-soroban]-txs.max          | counter   | largest time (milliseconds) for a transaction to be included in a ledger since last metrics call
-herder.pending[-soroban]-txs.self-sum     | counter   | sum of time (milliseconds) for transactions submitted from this node to be included in a ledger
-herder.pending[-soroban]-txs.self-count   | counter   | number of transactions submitted from this node to be included in a ledger
-herder.pending[-soroban]-txs.self-max     | counter   | largest time (milliseconds) for a transaction submitted from this node to be included in a ledger since last metrics call
+herder.pending[-soroban]-txs.delay        | timer     | time for transactions to be included in a ledger
+herder.pending[-soroban]-txs.self-delay   | timer     | time for transactions submitted from this node to be included in a ledger
 herder.pending[-soroban]-txs.evicted-due-to-low-fee-count   | counter   | Count of transactions evicted by higher fee txs when queue is near its capacity.
 herder.pending[-soroban]-txs.evicted-due-to-age-count   | counter   | Count of transactions that had low fee for too long and have not been included into several ledgers in a row.
 herder.pending[-soroban]-txs.not-included-due-to-low-fee-count   | counter   | Count of transactions that were not included into queue because it is at capacity and the fee is too low to replace other txs.
@@ -168,10 +165,7 @@ overlay.outbound.attempt                  | meter     | outbound connection atte
 overlay.outbound.cancel                   | meter     | outbound connection cancelled
 overlay.outbound.drop                     | meter     | outbound connection dropped
 overlay.outbound.establish                | meter     | outbound connection established (added to pending)
-overlay.recv.<X>                          | timer     | received message <X> (except transaction)
-overlay.recv-transaction.sum              | counter   | sum of time (microseconds) to receive transaction message
-overlay.recv-transaction.count            | counter   | number of transaction messages received
-overlay.recv-transaction.max              | counter   | maximum time (microseconds) to receive transaction message since last metrics call
+overlay.recv.<X>                          | timer     | received message <X>
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
 overlay.timeout.straggler                 | meter     | straggler peer timeout

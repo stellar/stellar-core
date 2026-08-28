@@ -20,8 +20,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewMeter({"overlay", "error", "read"}, "error"))
     , mErrorWrite(
           app.getMetrics().NewMeter({"overlay", "error", "write"}, "error"))
-    , mRecvTransactionTimer(app.getMetrics().NewSimpleTimer(
-          {"overlay", "recv-transaction", ""}, std::chrono::microseconds{1}))
+    , mRecvTransactionTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "transaction"}))
     , mRecvSCPMessageTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
     , mSendSCPMessageSetMeter(app.getMetrics().NewMeter(

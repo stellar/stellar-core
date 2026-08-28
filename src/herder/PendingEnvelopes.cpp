@@ -102,7 +102,8 @@ PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
     CLOG_TRACE(Herder, "Got SCPQSet {}", hexAbbrev(hash));
 
     // Only accept if we were actually fetching this
-    if (mPendingQSetFetches.find(hash) == mPendingQSetFetches.end())
+    auto it = mPendingQSetFetches.find(hash);
+    if (it == mPendingQSetFetches.end())
     {
         return false;
     }
@@ -111,7 +112,20 @@ PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
     bool res = isQuorumSetSane(q, false, errString);
     if (res)
     {
+        // Re-process every envelope that was waiting on this qset, mirroring
+        // what recvTxSet does when a tx set arrives. An envelope is only
+        // handed to SCP when a recv path notices it has become fully
+        // fetched, so whichever dependency arrives *last* must re-drive the
+        // waiting envelopes. Without this, an envelope whose qset arrives
+        // after its tx set is stranded in mFetchingEnvelopes
+        auto envs = std::move(it->second);
         addSCPQuorumSet(hash, q);
+        for (auto const& env : envs)
+        {
+            CLOG_TRACE(Herder, "Re-processing envelope after QSet {} fetch",
+                       hexAbbrev(hash));
+            mApp.getHerder().recvSCPEnvelope(env);
+        }
     }
     else
     {
@@ -128,24 +142,27 @@ PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
     CLOG_TRACE(Herder, "Discarding SCP Envelopes with SCPQSet {}",
                hexAbbrev(hash));
 
-    // Find all fetching envelopes that need this qset and discard them
-    for (auto& slotEnvs : mEnvelopes)
+    // Find all fetching envelopes that need this qset and discard them.
+    // Collect copies first, then discard: discardSCPEnvelope itself erases
+    // the envelope's node from mFetchingEnvelopes, so both iterating the map
+    // while calling it and passing it a reference to a map key would leave
+    // us with an invalidated iterator / dangling reference.
+    std::vector<SCPEnvelope> toDiscard;
+    for (auto const& slotEnvs : mEnvelopes)
     {
-        for (auto it = slotEnvs.second.mFetchingEnvelopes.begin();
-             it != slotEnvs.second.mFetchingEnvelopes.end();)
+        for (auto const& fetching : slotEnvs.second.mFetchingEnvelopes)
         {
             Hash qsetHash = Slot::getCompanionQuorumSetHashFromStatement(
-                it->first.statement);
+                fetching.first.statement);
             if (qsetHash == hash)
             {
-                discardSCPEnvelope(it->first);
-                it = slotEnvs.second.mFetchingEnvelopes.erase(it);
-            }
-            else
-            {
-                ++it;
+                toDiscard.push_back(fetching.first);
             }
         }
+    }
+    for (auto const& env : toDiscard)
+    {
+        discardSCPEnvelope(env);
     }
     mPendingQSetFetches.erase(hash);
 }

@@ -469,6 +469,23 @@ parseApplyLoadModelTx(ConfigItem const& item)
         "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token, "
         "soroswap");
 }
+
+ApplyLoadTimingPhases
+parseApplyLoadTimingPhases(ConfigItem const& item)
+{
+    auto phases = readString(item);
+    if (phases == "apply")
+    {
+        return ApplyLoadTimingPhases::APPLY_ONLY;
+    }
+    if (phases == "txset-validation-and-apply")
+    {
+        return ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_TIMING_PHASES', expected one of: apply, "
+        "txset-validation-and-apply");
+}
 #endif
 
 template <typename T>
@@ -1364,7 +1381,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      AUTOMATIC_SELF_CHECK_PERIOD =
                          std::chrono::seconds{readInt<uint32_t>(item)};
                  }},
-                {"MANUAL_CLOSE", [&]() { MANUAL_CLOSE = readBool(item); }},
+                {"MANUAL_CLOSE",
+                 [&]() {
+                     // Manual close relies on building tx sets locally, which
+                     // the Rust overlay's mempool does not support yet.
+                     if (readBool(item))
+                     {
+                         throw std::invalid_argument(
+                             "MANUAL_CLOSE is not supported with the Rust "
+                             "overlay");
+                     }
+                     MANUAL_CLOSE = false;
+                 }},
                 {"LOG_FILE_PATH", [&]() { LOG_FILE_PATH = readString(item); }},
                 {"LOG_COLOR", [&]() { LOG_COLOR = readBool(item); }},
                 {"BUCKET_DIR_PATH",
@@ -1875,6 +1903,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_TIME_WRITES",
                  [&]() { APPLY_LOAD_TIME_WRITES = readBool(item); }},
+                {"APPLY_LOAD_TIMING_PHASES",
+                 [&]() {
+                     APPLY_LOAD_TIMING_PHASES =
+                         parseApplyLoadTimingPhases(item);
+                 }},
 #endif // BUILD_TESTS
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {

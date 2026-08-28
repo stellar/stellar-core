@@ -10,6 +10,7 @@
 #include "util/Backtrace.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-overlay.h"
+#include <algorithm>
 #include <medida/counter.h>
 #include <medida/histogram.h>
 #include <medida/meter.h>
@@ -42,9 +43,11 @@ RustOverlayManager::start()
 
     if (cfg.RUN_STANDALONE)
     {
-        CLOG_INFO(Overlay,
-                  "Skipping RustOverlayManager start in standalone mode");
-        return;
+        // The Rust overlay has no standalone mode: transactions submitted to
+        // a standalone node would be silently dropped (no mempool), so fail
+        // loudly instead.
+        throw std::runtime_error(
+            "RUN_STANDALONE is not supported with the Rust overlay");
     }
 
     CLOG_INFO(Overlay, "Starting RustOverlayManager");
@@ -78,12 +81,45 @@ RustOverlayManager::start()
         throw std::runtime_error("Failed to start Rust overlay");
     }
 
-    mOverlayIPC->setPeerConfig(cfg.KNOWN_PEERS, cfg.PREFERRED_PEERS,
+    mOverlayIPC->setPeerConfig(effectiveKnownPeers(), cfg.PREFERRED_PEERS,
                                cfg.PEER_PORT);
 
     CLOG_INFO(Overlay, "RustOverlayManager started, peer_port={}",
               cfg.PEER_PORT);
 }
+
+std::vector<std::string>
+RustOverlayManager::effectiveKnownPeers() const
+{
+    auto peers = mApp.getConfig().KNOWN_PEERS;
+    for (auto const& p : mExtraKnownPeers)
+    {
+        if (std::find(peers.begin(), peers.end(), p) == peers.end())
+        {
+            peers.push_back(p);
+        }
+    }
+    return peers;
+}
+
+#ifdef BUILD_TESTS
+void
+RustOverlayManager::addKnownPeerForTesting(std::string const& addr)
+{
+    releaseAssert(std::find(mExtraKnownPeers.begin(), mExtraKnownPeers.end(),
+                            addr) == mExtraKnownPeers.end());
+    mExtraKnownPeers.push_back(addr);
+
+    // If the overlay is already running, push the updated peer list so the
+    // Rust side dials the new peer.
+    if (mOverlayIPC && mOverlayIPC->isConnected())
+    {
+        auto const& cfg = mApp.getConfig();
+        mOverlayIPC->setPeerConfig(effectiveKnownPeers(), cfg.PREFERRED_PEERS,
+                                   cfg.PEER_PORT);
+    }
+}
+#endif
 
 void
 RustOverlayManager::shutdown()
@@ -162,6 +198,15 @@ RustOverlayManager::notifyTxSetExternalized(Hash const& txSetHash,
     if (mOverlayIPC && !mShuttingDown)
     {
         mOverlayIPC->notifyTxSetExternalized(txSetHash, txHashes);
+    }
+}
+
+void
+RustOverlayManager::removeTransactions(std::vector<Hash> const& txHashes)
+{
+    if (mOverlayIPC && !mShuttingDown)
+    {
+        mOverlayIPC->removeTransactions(txHashes);
     }
 }
 
@@ -264,8 +309,8 @@ RustOverlayManager::syncOverlayMetrics()
         m.mPendingPeersSize.inc(val - current);
     }
 
-    // ── recv-transaction SimpleTimer ──
-    // SimpleTimer only supports Update(duration) — compute deltas and
+    // ── recv-transaction timer ──
+    // The timer only supports Update(duration) — compute deltas and
     // issue individual updates with average duration.
     if (root.isMember("recv_transaction_sum_us") &&
         root.isMember("recv_transaction_count"))

@@ -14,7 +14,9 @@
 #include <filesystem>
 #include <signal.h>
 #include <sstream>
+#include <sys/syscall.h>
 #include <sys/wait.h>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -221,9 +223,26 @@ OverlayIPC::shutdown()
         pid_t result = waitpid(mOverlayPid, &status, WNOHANG);
         if (result == 0)
         {
-            // Still running, send SIGTERM
+            // Still running, send SIGTERM and give it a bounded amount of time
+            // to exit before falling back to SIGKILL, so that a wedged overlay
+            // process cannot hang core's shutdown.
             kill(mOverlayPid, SIGTERM);
-            waitpid(mOverlayPid, &status, 0);
+            auto const deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while ((result = waitpid(mOverlayPid, &status, WNOHANG)) == 0 &&
+                   std::chrono::steady_clock::now() < deadline)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            }
+            if (result == 0)
+            {
+                CLOG_WARNING(Overlay,
+                             "Overlay process {} did not exit after SIGTERM, "
+                             "sending SIGKILL",
+                             mOverlayPid);
+                kill(mOverlayPid, SIGKILL);
+                waitpid(mOverlayPid, &status, 0);
+            }
         }
         mOverlayPid = -1;
     }
@@ -239,6 +258,7 @@ OverlayIPC::spawnOverlay()
         return false;
     }
 
+    long const maxFd = sysconf(_SC_OPEN_MAX);
     pid_t pid = fork();
     if (pid < 0)
     {
@@ -248,7 +268,25 @@ OverlayIPC::spawnOverlay()
 
     if (pid == 0)
     {
-        // Child process - exec overlay binary
+        // Child process. Close every descriptor inherited from core except
+        // stdin/stdout/stderr: otherwise the overlay keeps core's listening
+        // sockets bound after core exits and holds the read ends of sibling
+        // overlays' IPC sockets, which can leave a shutting-down sibling
+        // blocked forever on a write nobody will read. Only async-signal-safe
+        // calls are allowed between fork() and exec().
+        bool closed = false;
+#if defined(__linux__) && defined(SYS_close_range)
+        closed = syscall(SYS_close_range, 3, ~0U, 0) == 0;
+#endif
+        if (!closed)
+        {
+            for (long fd = 3; fd < maxFd; ++fd)
+            {
+                close(static_cast<int>(fd));
+            }
+        }
+
+        // Exec overlay binary
         // Arguments: <binary> --listen <socket-path> --peer-port <port>
         std::string portStr = std::to_string(mPeerPort);
         execl(overlayBinaryPath->c_str(), overlayBinaryPath->c_str(),
@@ -498,6 +536,16 @@ OverlayIPC::notifyTxSetExternalized(Hash const& txSetHash,
 
     std::lock_guard<std::mutex> lock(mSendMutex);
     mChannel->send(msg);
+}
+
+void
+OverlayIPC::removeTransactions(std::vector<Hash> const& txHashes)
+{
+    if (txHashes.empty())
+    {
+        return;
+    }
+    notifyTxSetExternalized(Hash{}, txHashes);
 }
 
 std::vector<TransactionEnvelope>

@@ -104,6 +104,14 @@ class OverlayIPC
                                  std::vector<Hash> const& txHashes);
 
     /**
+     * Remove transactions from the Rust mempool by hash, e.g. transactions
+     * that failed validation while building a tx set and would otherwise be
+     * handed back to Core on every nomination. Uses the TX_SET_EXTERNALIZED
+     * message with a zero tx set hash: the overlay only acts on the hashes.
+     */
+    void removeTransactions(std::vector<Hash> const& txHashes);
+
+    /**
      * Request top N transactions by fee for nomination.
      *
      * Synchronous: blocks until the overlay responds. Shutdown or loss of

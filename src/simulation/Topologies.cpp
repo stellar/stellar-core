@@ -162,6 +162,8 @@ Topologies::core(int nNodes, double quorumThresoldFraction,
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
 
+    simulation->fullyConnectAllPending();
+
     return simulation;
 }
 
@@ -176,6 +178,12 @@ Topologies::cycle(int nNodes, double quorumThresoldFraction,
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
 
+    for (int from = 0; from < nNodes; from++)
+    {
+        int to = (from + 1) % nNodes;
+        simulation->addPendingConnection(nodes[from], nodes[to]);
+    }
+
     return simulation;
 }
 
@@ -189,6 +197,15 @@ Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
 
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
+
+    for (int from = 0; from < nNodes; from++)
+    {
+        int to = (from + 1) % nNodes;
+        simulation->addPendingConnection(nodes[from], nodes[to]);
+
+        int other = (from + (nNodes / 2)) % nNodes;
+        simulation->addPendingConnection(nodes[from], nodes[other]);
+    }
 
     return simulation;
 }
@@ -221,6 +238,26 @@ Topologies::hierarchicalQuorum(
         {
             middletierKeys.push_back(SecretKey::fromSeed(sha256(
                 "NODE_SEED_" + to_string(i) + "_middle_" + to_string(j))));
+        }
+
+        int curCore = 0;
+        for (auto const& key : middletierKeys)
+        {
+            SCPQuorumSet qSetHere;
+            // self + any 2 from top tier
+            qSetHere.threshold = 2;
+            auto pk = key.getPublicKey();
+            qSetHere.validators.push_back(pk);
+            qSetHere.innerSets.push_back(qSetTopTier);
+            sim->addNode(key, qSetHere);
+
+            // connect to core nodes (round-robin)
+            curCore = (curCore + 1) % coreNodeIDs.size();
+            for (int j = 0; j < connectionsToCore; j++)
+            {
+                sim->addPendingConnection(
+                    pk, coreNodeIDs[(curCore + j) % coreNodeIDs.size()]);
+            }
         }
 
         //// the leaf node
@@ -260,6 +297,20 @@ Topologies::hierarchicalQuorumSimplified(
         coreNodeIDs.emplace_back(coreNodeID);
     }
     qSetBuilder.validators.emplace_back();
+    for (int i = 0; i < nbOuterNodes; i++)
+    {
+        SecretKey sk =
+            SecretKey::fromSeed(sha256("OUTER_NODE_SEED_" + to_string(i)));
+        auto const& pubKey = sk.getPublicKey();
+        qSetBuilder.validators.back() = pubKey;
+        sim->addNode(sk, qSetBuilder);
+
+        // connect it to the core nodes
+        for (int j = 0; j < connectionsToCore; j++)
+        {
+            sim->addPendingConnection(pubKey, coreNodeIDs[(i + j) % coreSize]);
+        }
+    }
 
     return sim;
 }
@@ -332,6 +383,16 @@ Topologies::customA(Hash const& networkID, Simulation::ConfigGen confGen,
         s->addNode(keys[S], q);
     }
 
+    // create connections between nodes
+    auto nodes = s->getNodeIDs();
+    for (int i = 0; i < static_cast<int>(nodes.size()); i++)
+    {
+        auto from = nodes[i];
+        for (int j = 1; j <= connections; j++)
+        {
+            s->addPendingConnection(from, nodes[(i + j) % nodes.size()]);
+        }
+    }
     return s;
 }
 
@@ -375,6 +436,16 @@ Topologies::asymmetric(Hash const& networkID, Simulation::ConfigGen confGen,
         s->addNode(keys[D], q);
     }
 
+    // create connections between nodes
+    for (int i = 0; i < static_cast<int>(keys.size()); i++)
+    {
+        auto from = keys[i].getPublicKey();
+        for (int j = 1; j <= connections; j++)
+        {
+            s->addPendingConnection(from,
+                                    keys[(i + j) % keys.size()].getPublicKey());
+        }
+    }
     return s;
 }
 }

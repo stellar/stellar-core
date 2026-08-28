@@ -769,7 +769,8 @@ ApplicationImpl::startServices()
 
     // restores Herder's state before starting overlay
     mHerder->start();
-    if (mConfig.MODE_AUTO_STARTS_OVERLAY)
+    // The Rust overlay has no standalone mode
+    if (mConfig.MODE_AUTO_STARTS_OVERLAY && !mConfig.RUN_STANDALONE)
     {
         mOverlayManager->start();
     }
