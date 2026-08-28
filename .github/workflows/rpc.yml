@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   rpc:
+    if: github.event.repository.visibility != 'private'
     uses: stellar/stellar-rpc/.github/workflows/integration-tests.yml@efd9eb95f1ed8a7d69d28f12e89762c3ecb64bcc
     with:
       rpc_git_ref: protocol-next

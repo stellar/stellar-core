@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   horizon:
+    if: github.event.repository.visibility != 'private'
     uses: stellar/stellar-horizon/.github/workflows/integration-tests.yml@c9e78ebefea9721fcb0b386fc898e4c0e76cee33
     with:
       horizon_git_ref: protocol-next
