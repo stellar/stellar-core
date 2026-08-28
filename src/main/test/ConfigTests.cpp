@@ -577,71 +577,23 @@ TEST_CASE("operation filter configuration", "[config]")
 
 TEST_CASE("FILTERED_G_ADDRESSES configuration", "[config]")
 {
-    auto makeQuorumConfig = []() {
-        auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
-        auto secretKey = SecretKey::fromSeed(hash);
-        std::stringstream ss;
-        ss << "UNSAFE_QUORUM=true\n";
-        ss << "[QUORUM_SET]\n";
-        ss << "THRESHOLD_PERCENT=100\n";
-        ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
-        return ss;
-    };
+    // The account banning feature has been removed; the deprecated config
+    // entry must still be accepted (as a no-op) so existing configs don't
+    // break.
+    auto key1 = SecretKey::pseudoRandomForTesting();
+    auto addr1 = KeyUtils::toStrKey(key1.getPublicKey());
 
-    SECTION("user config overrides defaults")
-    {
-        auto key1 = SecretKey::pseudoRandomForTesting();
-        auto key2 = SecretKey::pseudoRandomForTesting();
-        auto addr1 = KeyUtils::toStrKey(key1.getPublicKey());
-        auto addr2 = KeyUtils::toStrKey(key2.getPublicKey());
+    std::stringstream ss;
+    ss << "UNSAFE_QUORUM=true\n";
+    ss << "FILTERED_G_ADDRESSES=[\"" << addr1 << "\"]\n";
+    ss << "[QUORUM_SET]\n";
+    ss << "THRESHOLD_PERCENT=100\n";
+    auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
+    auto secretKey = SecretKey::fromSeed(hash);
+    ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
 
-        std::stringstream ss;
-        ss << "UNSAFE_QUORUM=true\n";
-        ss << "FILTERED_G_ADDRESSES=[\"" << addr1 << "\", \"" << addr2
-           << "\"]\n";
-        ss << "[QUORUM_SET]\n";
-        ss << "THRESHOLD_PERCENT=100\n";
-        auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
-        auto secretKey = SecretKey::fromSeed(hash);
-        ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
-
-        Config c;
-        c.load(ss);
-        REQUIRE(c.FILTERED_G_ADDRESSES.size() == 2);
-        REQUIRE(c.FILTERED_G_ADDRESSES[0] == addr1);
-        REQUIRE(c.FILTERED_G_ADDRESSES[1] == addr2);
-    }
-
-    SECTION("empty list overrides defaults")
-    {
-        std::stringstream ss;
-        ss << "UNSAFE_QUORUM=true\n";
-        ss << "FILTERED_G_ADDRESSES=[]\n";
-        ss << "[QUORUM_SET]\n";
-        ss << "THRESHOLD_PERCENT=100\n";
-        auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
-        auto secretKey = SecretKey::fromSeed(hash);
-        ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
-
-        Config c;
-        c.load(ss);
-        REQUIRE(c.FILTERED_G_ADDRESSES.empty());
-    }
-
-    SECTION("invalid G address is rejected")
-    {
-        std::stringstream ss;
-        ss << "UNSAFE_QUORUM=true\n";
-        ss << "FILTERED_G_ADDRESSES=[\"NOT_A_VALID_ADDRESS\"]\n";
-        ss << "[QUORUM_SET]\n";
-        ss << "THRESHOLD_PERCENT=100\n";
-        auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
-        auto secretKey = SecretKey::fromSeed(hash);
-        ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
-
-        Config c;
-        REQUIRE_THROWS(c.load(ss));
-    }
+    Config c;
+    REQUIRE_NOTHROW(c.load(ss));
 }
 
 // Test that the config loader rejects validator configs with all validators

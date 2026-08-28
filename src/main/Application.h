@@ -35,7 +35,6 @@ class PersistentState;
 class CommandHandler;
 class WorkScheduler;
 class BanManager;
-class BannedAccountsPersistor;
 class StatusManager;
 class BatchExecutor;
 class AbstractLedgerTxnParent;
@@ -234,7 +233,6 @@ class Application
     virtual CommandHandler& getCommandHandler() = 0;
     virtual WorkScheduler& getWorkScheduler() = 0;
     virtual BanManager& getBanManager() = 0;
-    virtual BannedAccountsPersistor& getBannedAccountsPersistor() = 0;
     virtual StatusManager& getStatusManager() = 0;
 
     // Protocol 23 data corruption bug data verifier. This typically is null,
