@@ -57,6 +57,22 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
     , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mSendHaveTxSetMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "have-tx-set"}, "message"))
+    , mRecvHaveTxSetMeter(app.getMetrics().NewMeter(
+          {"overlay", "recv", "have-tx-set"}, "message"))
+    , mItemFetcherClaimAsk(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "claim-ask"}, "item-fetcher"))
+    , mItemFetcherClaimDropped(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "claim-dropped"}, "item-fetcher"))
+    , mItemFetcherClaimGraceWait(app.getMetrics().NewTimer(
+          {"overlay", "item-fetcher", "claim-grace-wait"}))
+    , mItemFetcherClaimGraceSatisfied(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "claim-grace-satisfied"}, "item-fetcher"))
+    , mItemFetcherClaimGraceExpired(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "claim-grace-expired"}, "item-fetcher"))
+    , mAbandonedTxSetFetches(app.getMetrics().NewMeter(
+          {"overlay", "fetch", "txset-abandoned"}, "message"))
 {
 }
 }

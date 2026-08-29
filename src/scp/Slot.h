@@ -117,6 +117,10 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     bool abandonBallot();
 
+    // Notify this slot that the tx set referenced by @p value has arrived so
+    // that it may resume balloting if stalled waiting for this tx set.
+    void receivedTxSet(Value const& value);
+
     // bumps the ballot based on the local state and the value passed in:
     // in prepare phase, attempts to take value
     // otherwise, no-ops

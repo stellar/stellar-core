@@ -131,7 +131,7 @@ Slot::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
     }
     else
     {
-        if (BallotProtocol::isNewerStatement(oldSt, newSt))
+        if (mBallotProtocol.isNewerStatement(oldSt, newSt))
         {
             replace = true;
         }
@@ -215,6 +215,12 @@ bool
 Slot::abandonBallot()
 {
     return mBallotProtocol.abandonBallot(0);
+}
+
+void
+Slot::receivedTxSet(Value const& value)
+{
+    mBallotProtocol.receivedTxSet(value);
 }
 
 bool
