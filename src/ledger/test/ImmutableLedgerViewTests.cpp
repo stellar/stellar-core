@@ -359,6 +359,9 @@ class SnapshotStressTest
     std::atomic<bool> mDone{false};
     std::atomic<bool> mError{false};
     std::atomic<int> mHistoricalVerifications{0};
+    // Set once the main thread has published the first ledger to the
+    // QueryServer.  Before that the QS legitimately holds no states at all.
+    std::atomic<bool> mFirstSnapshotPublished{false};
     std::vector<std::unique_ptr<SnapshotThread>> mThreads;
 
     bool
@@ -716,9 +719,20 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
     // latest seq to determine the expected window: there is a brief window
     // where the LedgerManager has advanced to seq N but addSnapshot(N) hasn't
     // been called yet, so the worker's currentSeq may be ahead of the QS.
+    bool const publishedBeforeQuery =
+        mFirstSnapshotPublished.load(std::memory_order_acquire);
+
     auto* latestSnapshot =
         mQueryServer.getSnapshotForLedgerForTesting(std::nullopt);
-    releaseAssert(latestSnapshot);
+
+    if (!latestSnapshot)
+    {
+        // On startup, make sure that we've actually published a snapshot to
+        // the query server before checking its correctness.
+        releaseAssert(!publishedBeforeQuery);
+        return;
+    }
+
     auto qsCurrentSeq = latestSnapshot->getLedgerSeq();
 
     bool retained = shouldHistoricalExist(qsCurrentSeq, histSeq);
@@ -873,6 +887,10 @@ SnapshotStressTest::closeLedgers()
                 mPregen.archiveEntriesToWrite[i], {});
         }
         lm.updateCanonicalStateForTesting(header);
+
+        // updateCanonicalStateForTesting has now called addSnapshot, so the
+        // QueryServer is guaranteed to hold at least one state from here on.
+        mFirstSnapshotPublished.store(true, std::memory_order_release);
     }
 }
 
