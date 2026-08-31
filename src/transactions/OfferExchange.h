@@ -266,22 +266,26 @@ ExchangeResult exchangeV2(int64_t wheatReceived, Price price,
                           int64_t maxWheatReceive, int64_t maxSheepSend);
 ExchangeResult exchangeV3(int64_t wheatReceived, Price price,
                           int64_t maxWheatReceive, int64_t maxSheepSend);
-ExchangeResultV10 exchangeV10(Price price, int64_t maxWheatSend,
-                              int64_t maxWheatReceive, int64_t maxSheepSend,
-                              int64_t maxSheepReceive, RoundingType round);
+ExchangeResultV10 exchangeV10(uint32_t protocolVersion, Price price,
+                              int64_t maxWheatSend, int64_t maxWheatReceive,
+                              int64_t maxSheepSend, int64_t maxSheepReceive,
+                              RoundingType round);
 
 ExchangeResultV10 exchangeV10WithoutPriceErrorThresholds(
-    Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
-    int64_t maxSheepSend, int64_t maxSheepReceive, RoundingType round);
+    uint32_t protocolVersion, Price price, int64_t maxWheatSend,
+    int64_t maxWheatReceive, int64_t maxSheepSend, int64_t maxSheepReceive,
+    RoundingType round);
 ExchangeResultV10 applyPriceErrorThresholds(Price price, int64_t wheatReceive,
                                             int64_t sheepSend, bool wheatStays,
                                             RoundingType round);
 
-int64_t adjustOffer(Price const& price, int64_t maxWheatSend,
-                    int64_t maxSheepReceive);
+int64_t adjustOffer(uint32_t protocolVersion, Price const& price,
+                    int64_t maxWheatSend, int64_t maxSheepReceive);
 
 bool checkPriceErrorBound(Price price, int64_t wheatReceive, int64_t sheepSend,
                           bool canFavorWheat);
+
+bool offerCanClearForZero(Price const& price, int64_t amount);
 
 bool exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool,
                       int64_t& toPool, int64_t reservesFromPool,

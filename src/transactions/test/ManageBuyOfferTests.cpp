@@ -379,8 +379,11 @@ TEST_CASE_VERSIONS("manage buy offer liabilities", "[tx][offers]")
 
             auto buyOp = std::static_pointer_cast<ManageBuyOfferOpFrame const>(
                 tx->getRawTransactionFrame().getOperations().front());
-            REQUIRE(expectedBuying == buyOp->getOfferBuyingLiabilities());
-            REQUIRE(expectedSelling == buyOp->getOfferSellingLiabilities());
+            auto ledgerVersion = getLclProtocolVersion(*app);
+            REQUIRE(expectedBuying ==
+                    buyOp->getOfferBuyingLiabilities(ledgerVersion));
+            REQUIRE(expectedSelling ==
+                    buyOp->getOfferSellingLiabilities(ledgerVersion));
         }
     };
 

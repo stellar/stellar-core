@@ -5068,7 +5068,9 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             REQUIRE(lcl == currentCLedger());
 
             waitForAB(fewLedgers, false);
-            REQUIRE(currentALedger() == nextLedger);
+            // waitForAB stops once A reaches nextLedger, but A may close one
+            // more ledger before crankUntil's periodic check observes it
+            REQUIRE(currentALedger() >= nextLedger);
             // C is at most a ledger behind
             REQUIRE(currentCLedger() >= nextLedger - 1);
         }
