@@ -328,6 +328,17 @@ TEST_CASE("XDR field resolver", "[xdrquery]")
                 getXDRFieldValidated(accountEntry, {"data", "account"}),
                 XDRQueryError);
         }
+        SECTION("path continuing into a sibling union arm")
+        {
+            REQUIRE_THROWS_AS(
+                getXDRFieldValidated(accountEntry,
+                                     {"data", "trustLine", "offer", "offerID"}),
+                XDRQueryError);
+            REQUIRE_THROWS_AS(
+                getXDRFieldValidated(accountEntry,
+                                     {"data", "offer", "trustLine", "balance"}),
+                XDRQueryError);
+        }
     }
 }
 
