@@ -11,3 +11,7 @@ the network any transactions injected from public API servers.
 
 Good reading entry points are [`OverlayManager.h`](./OverlayManager.h), as well as the implementation of
 `OverlayManagerImpl::tick`, and `OverlayManagerImpl::broadcastMessage`.
+
+Flooding is hash-keyed (`FloodGate`). Transaction and quorum-set **payloads**
+are pulled by hash (`ItemFetcher`, `FLOOD_ADVERT` / `FLOOD_DEMAND`,
+`GET_TX_SET`). See [`docs/overlay.md`](../../docs/overlay.md).

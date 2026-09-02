@@ -19,3 +19,36 @@ title: Overlay
         - peers request new data when they're ready to process it. This is done to prevent network congestion. Applying back-pressure on the receiver side also allows the sender to prioritize accumulated messages in the queue, and shed load that becomes obsolete.
 
     * Versioning: The overlay subsystem has a version number, which is the latest version of the protocol that the node supports. It also maintains a minimum supported overlay version. Any connection that doesn't support the minimum version is rejected.
+
+## Hashes versus payloads
+
+The overlay does not flood full objects by default. Peers first exchange
+**identifiers** (32-byte hashes). A node only **pulls** the matching payload if
+it does not already have it. Flooding is keyed by `Hash` in `FloodGate`
+(`src/overlay/Floodgate.h`).
+
+`StellarMessage` (see `Stellar-overlay.x`) splits into three kinds, documented
+in `src/overlay/OverlayManager.h`:
+
+- **Peer-directed:** `HELLO`, `PEERS`, `DONT_HAVE`, `ERROR_MSG`.
+- **Broadcast:** `TRANSACTION`, `SCP_MESSAGE`. Consensus votes are **pushed**
+  because they are small and latency-sensitive.
+- **Anycast by hash:** `GET_TX_SET` / `TX_SET`, `GET_SCP_QUORUMSET` /
+  `SCP_QUORUMSET`, `GET_SCP_STATE`. `ItemFetcher` asks connected peers, in
+  sequence, for the body of a hash. These messages are not flooded.
+
+Transaction dissemination in pull mode uses the same split:
+
+- `FLOOD_ADVERT` carries a `FloodAdvert` of `txHashes` (up to
+  `TX_ADVERT_VECTOR_MAX_SIZE`).
+- `FLOOD_DEMAND` carries a `FloodDemand` of hashes this node is missing.
+- The transaction body is sent only in response to a demand.
+
+So a peer that already holds a given hash never downloads the envelope again.
+That is the same rule as `broadcastMessage(..., std::optional<Hash>)`: when a
+transaction is flooded, its envelope hash is what overlay uses to decide
+whether the message is new.
+
+History catchup and long-term ledger archives stay **off** the overlay (see
+`docs/architecture.md` and `docs/history.md`). Overlay is for live consensus
+and mempool, not for shipping the full payload of the network's past.
