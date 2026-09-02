@@ -336,26 +336,24 @@ struct XDRFieldResolver
 
     template <typename T>
     typename std::enable_if_t<xdr_traits<T>::is_union>
-    validateUnion(T const& t, char const* fieldName)
+    validateUnion(T const&, char const*)
     {
         // The field could have been already matched if it was XDR discriminant.
         if (mPathIter == mFieldPath.end())
         {
             return;
         }
-        for (auto const c : t._xdr_case_values())
-        {
-            auto unionFieldName = xdr_traits<T>::union_field_name(c);
-            if (unionFieldName == nullptr || unionFieldName != *mPathIter)
+        xdr::unionfn::with_each_arm<T>([&](auto arm) {
+            if constexpr (decltype(arm)::has_field)
             {
-                continue;
+                if (mPathIter != mFieldPath.end() &&
+                    std::string_view(arm.name()) == *mPathIter)
+                {
+                    typename decltype(arm)::field_type field{};
+                    (*this)(field, arm.name());
+                }
             }
-            auto tCopy = t;
-            tCopy._xdr_discriminant(c, false);
-            tCopy._xdr_with_mem_ptr(field_archiver, c, *this, tCopy,
-                                    unionFieldName);
-            break;
-        }
+        });
     }
 
     template <typename T>

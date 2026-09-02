@@ -536,6 +536,17 @@ AS_IF([test "x$enable_thread_jitter" = "xyes"], [
 ])
 AM_CONDITIONAL(BUILD_THREAD_JITTER, [test x$enable_thread_jitter = xyes])
 
+AC_ARG_ENABLE(xdrpp-uptr,
+    AS_HELP_STRING([--enable-xdrpp-uptr],
+        [Generate xdrpp unions using the cxx20 -uptr pointer-backed layout]))
+AS_IF([test "x$enable_xdrpp_uptr" = "xyes"], [
+  XDR_FEATURE_FLAGS='-uptr'
+  AC_MSG_NOTICE([enabling xdrpp -uptr mode for generated XDR code])
+], [
+  XDR_FEATURE_FLAGS=
+])
+AC_SUBST([XDR_FEATURE_FLAGS])
+
 AC_ARG_ENABLE(tracy,
     AS_HELP_STRING([--enable-tracy],
         [Enable 'tracy' profiler/tracer client stub]))
