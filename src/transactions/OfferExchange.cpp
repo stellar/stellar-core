@@ -1479,7 +1479,9 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
         // Only exchange with pools for path payments
         return false;
     }
-    if (maxOffersToCross == 0)
+    if (maxOffersToCross == 0 &&
+        protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_29))
     {
         // offerTrail is going to be too long after exchanging with the
         // liquidity pool
@@ -1800,6 +1802,10 @@ convertWithOffersAndPools(
     // will not be imposed correctly.
     releaseAssertOrThrow(offerTrail.empty());
 
+    auto ledgerVersion = ltxOuter.loadHeader().current().ledgerVersion;
+    bool countPoolHop =
+        protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_29);
+
     sheepSend = 0;
     wheatReceived = 0;
 
@@ -1814,13 +1820,11 @@ convertWithOffersAndPools(
             maxOffersToCross -= static_cast<int64_t>(offerTrail.size());
             return convertRes;
         }
-        if (protocolVersionStartsFrom(
-                ltxOuter.loadHeader().current().ledgerVersion,
-                ProtocolVersion::V_27))
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_27))
         {
             // `>=` leaves room for the pool atom appended below (one unit).
-            if (nonCommittedOffersCrossed >=
-                static_cast<size_t>(maxOffersToCross))
+            if (countPoolHop && nonCommittedOffersCrossed >=
+                                    static_cast<size_t>(maxOffersToCross))
             {
                 return ConvertResult::eCrossedTooMany;
             }
@@ -1843,7 +1847,10 @@ convertWithOffersAndPools(
         ClaimLiquidityAtom(getPoolID(sheep, wheat, LIQUIDITY_POOL_FEE_V18),
                            wheat, wheatReceived, sheep, sheepSend);
     offerTrail.emplace_back(atom);
-    maxOffersToCross -= 1;
+    if (countPoolHop)
+    {
+        maxOffersToCross -= 1;
+    }
     return ConvertResult::eOK;
 }
 }
