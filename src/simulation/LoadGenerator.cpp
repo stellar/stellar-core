@@ -121,7 +121,6 @@ LoadGenerator::LoadGenerator(Application& app)
           mApp.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mApplyOpTimer(
           mApp.getMetrics().NewTimer({"ledger", "operation", "apply"}))
-    , mRoot(app.getRoot())
     , mLoadgenComplete(
           mApp.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run"))
     , mLoadgenFail(
@@ -465,11 +464,10 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         {
             auto actualId = i + cfg.offset;
             mTxGenerator.addAccount(
-                actualId, std::make_shared<TestAccount>(
-                              mApp,
-                              txtest::getAccount("TestAccount-" +
-                                                 std::to_string(actualId)),
-                              0));
+                actualId,
+                std::make_shared<CachedTestAccount>(
+                    mApp, txtest::getAccount("TestAccount-" +
+                                             std::to_string(actualId))));
         }
     }
     mApp.getLedgerManager().beginTxLatencyMeasurement(cfg.nTxs);
@@ -760,8 +758,8 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             sourceAccountId = getNextAvailableAccount(ledgerNum);
         }
 
-        std::function<std::pair<TxGenerator::TestAccountPtr,
-                                TransactionFrameBaseConstPtr>()>
+        std::function<
+            std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>()>
             generateTx;
 
         // Set by the MIXED_PREGEN_* lambda so the outer loop can bump the
@@ -925,7 +923,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 
 bool
 LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
-                        std::function<std::pair<TxGenerator::TestAccountPtr,
+                        std::function<std::pair<CachedTestAccountPtr,
                                                 TransactionFrameBaseConstPtr>()>
                             generateTx)
 {
@@ -1070,7 +1068,7 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
     mTxMetrics.report();
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createMixedClassicSorobanTransaction(
     uint32_t ledgerNum, uint64_t sourceAccountId,
     std::optional<uint32_t> classicByteCount, GeneratedLoadConfig const& cfg)
@@ -1113,7 +1111,7 @@ LoadGenerator::createMixedClassicSorobanTransaction(
     }
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createSyntheticSorobanTransaction(uint32_t ledgerNum,
                                                  uint64_t sourceAccountId,
                                                  GeneratedLoadConfig const& cfg)
@@ -1179,7 +1177,7 @@ LoadGenerator::createSyntheticSorobanTransaction(uint32_t ledgerNum,
     }
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
                                            uint32_t ledgerNum,
                                            uint64_t sourceAccountId)
@@ -1205,7 +1203,7 @@ LoadGenerator::createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
                                                     cfg.maxGeneratedFeeRate);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createInstanceTransaction(GeneratedLoadConfig const& cfg,
                                          uint32_t ledgerNum,
                                          uint64_t sourceAccountId)
@@ -1227,7 +1225,7 @@ LoadGenerator::createInstanceTransaction(GeneratedLoadConfig const& cfg,
 
 void
 LoadGenerator::maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
-                                   TxGenerator::TestAccountPtr sourceAccount,
+                                   CachedTestAccountPtr sourceAccount,
                                    TransactionQueue::AddResultCode status,
                                    TransactionResultCode code)
 {
@@ -1285,13 +1283,13 @@ LoadGenerator::checkSorobanStateSynced(Application& app,
     return result;
 }
 
-std::vector<TxGenerator::TestAccountPtr>
+std::vector<CachedTestAccountPtr>
 LoadGenerator::checkAccountSynced(Application& app)
 {
-    std::vector<TxGenerator::TestAccountPtr> result;
+    std::vector<CachedTestAccountPtr> result;
     for (auto const& acc : mTxGenerator.getAccounts())
     {
-        TxGenerator::TestAccountPtr account = acc.second;
+        CachedTestAccountPtr account = acc.second;
         auto accountFromDB = *account;
 
         auto reloadRes = mTxGenerator.loadAccount(accountFromDB);
@@ -1955,7 +1953,7 @@ GeneratedLoadConfig::modeUploads() const
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::readTransactionFromFile(GeneratedLoadConfig const& cfg)
 {
     ZoneScoped;
