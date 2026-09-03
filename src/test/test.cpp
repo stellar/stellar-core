@@ -640,6 +640,15 @@ static void reportLcmCheck();
 Config const&
 getTestConfig(int instanceNumber, Config::TestDbMode mode)
 {
+    // The --base-instance offset exists to keep OS-level resources (ports,
+    // databases, directories) distinct across concurrently running test
+    // processes. In LCM capture/check mode, NODE_SEED — whose identity ends
+    // up in signed StellarValues inside captured LedgerCloseMeta headers —
+    // must instead use the logical (un-offset) instance number, or golden
+    // data captured at one base instance fails to reproduce under another
+    // (e.g. partitioned CI runs). Other runs keep the offset-derived seed.
+    int seedInstance =
+        lcmTrackingEnabled() ? instanceNumber : instanceNumber + gBaseInstance;
     instanceNumber += gBaseInstance;
     if (mode == Config::TESTDB_DEFAULT)
     {
@@ -729,7 +738,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // seeds the global PRNG might have been seeded with by default (which
         // could thereby collide).
         thisConfig.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(
-            0xFFFF0000 + (instanceNumber ^ getLastGlobalStateSeed().value()));
+            0xFFFF0000 + (seedInstance ^ getLastGlobalStateSeed().value()));
         thisConfig.NODE_IS_VALIDATOR = true;
 
         // single node setup
