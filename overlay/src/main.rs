@@ -968,6 +968,15 @@ impl App {
 
     /// Handle a message from Core. Returns false to signal shutdown.
     async fn handle_core_message(&mut self, msg: Message) -> bool {
+        if msg.truncated {
+            // The IPC reader drained an oversized frame to stay in sync; its
+            // content is gone. Core never sends oversized frames on purpose.
+            error!(
+                "Ignoring oversized {:?} frame from Core (payload exceeded the IPC frame limit and was discarded)",
+                msg.msg_type
+            );
+            return true;
+        }
         match msg.msg_type {
             MessageType::Shutdown => {
                 info!("Shutdown requested by Core");
@@ -2266,6 +2275,26 @@ mod tests {
         assert_eq!(
             parse_top_txs_response(&resp.payload),
             vec![c_high.clone(), s_tx.clone()]
+        );
+    }
+
+    /// An oversized frame that the IPC reader drained must be ignored without
+    /// killing the loop or producing a reply.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_truncated_core_message_is_ignored() {
+        let (mut app, mut core) = test_app();
+        assert!(
+            app.handle_core_message(Message::truncated(MessageType::GetTopTxs))
+                .await
+        );
+        assert!(
+            read_core_message(&mut core, Duration::from_millis(300)).is_none(),
+            "no reply expected for a truncated GetTopTxs"
+        );
+        // A Shutdown must still be honoured afterwards.
+        assert!(
+            !app.handle_core_message(Message::new(MessageType::Shutdown, vec![]))
+                .await
         );
     }
 }

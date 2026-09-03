@@ -121,16 +121,43 @@ impl std::error::Error for InvalidMessageType {}
 pub struct Message {
     pub msg_type: MessageType,
     pub payload: Vec<u8>,
+    /// Set by the reader when the sender's frame exceeded
+    /// [`MAX_PAYLOAD_SIZE`]: the payload was drained off the socket and
+    /// discarded so the stream stays in sync, and `payload` is empty. Handlers
+    /// must ignore such messages.
+    pub truncated: bool,
 }
 
 impl Message {
     pub fn new(msg_type: MessageType, payload: Vec<u8>) -> Self {
-        Self { msg_type, payload }
+        Self {
+            msg_type,
+            payload,
+            truncated: false,
+        }
+    }
+
+    /// A placeholder for an oversized frame whose payload was discarded.
+    pub fn truncated(msg_type: MessageType) -> Self {
+        Self {
+            msg_type,
+            payload: Vec::new(),
+            truncated: true,
+        }
     }
 }
 
-/// Maximum payload size (16 MB) - sanity check to prevent OOM
-const MAX_PAYLOAD_SIZE: usize = 16 * 1024 * 1024;
+/// Maximum payload size (256 MiB). This is a corruption guard for a trusted
+/// local channel, not a resource budget: if the stream ever desynchronised,
+/// the next "length" would be garbage and an unbounded reader would allocate
+/// gigabytes and then wait forever for bytes that never come. It is set far
+/// above anything a well-formed message reaches, so the size of the top-txs
+/// reply is governed by Core's per-phase pull budgets, never by this limit.
+/// Frames announcing a larger payload are drained and reported as
+/// [`Message::truncated`] rather than killing the connection; senders must
+/// never produce one (see `CoreSender::send_top_txs_response`, the only
+/// variable-size reply, which clamps to this limit as a backstop).
+pub const MAX_PAYLOAD_SIZE: usize = 256 * 1024 * 1024;
 
 /// Header size: 4 bytes type + 4 bytes length
 const HEADER_SIZE: usize = 8;
@@ -144,6 +171,13 @@ pub struct MessageCodec;
 impl MessageCodec {
     /// Read a message from a stream (blocking).
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Message> {
+        Self::read_with_limit(reader, MAX_PAYLOAD_SIZE)
+    }
+
+    /// Like [`Self::read`], but frames larger than `max_payload` are the
+    /// ones drained and reported as truncated. Lets tests exercise the
+    /// oversized-frame path without producing hundreds of megabytes.
+    pub fn read_with_limit<R: Read>(reader: &mut R, max_payload: usize) -> io::Result<Message> {
         // Read header
         let mut header = [0u8; HEADER_SIZE];
         reader.read_exact(&mut header)?;
@@ -151,17 +185,27 @@ impl MessageCodec {
         let msg_type_raw = u32::from_ne_bytes(header[0..4].try_into().unwrap());
         let payload_len = u32::from_ne_bytes(header[4..8].try_into().unwrap()) as usize;
 
-        // Sanity check
-        if payload_len > MAX_PAYLOAD_SIZE {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("payload too large: {} bytes", payload_len),
-            ));
-        }
-
         // Parse message type
         let msg_type = MessageType::try_from(msg_type_raw)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+        // An oversized frame is a sender bug, not a stream corruption: the
+        // type decoded and the sender really did write `payload_len` bytes.
+        // Consume and discard them so the next frame is read in sync, and
+        // hand back a placeholder instead of tearing the connection down.
+        if payload_len > max_payload {
+            let drained = io::copy(&mut reader.take(payload_len as u64), &mut io::sink())?;
+            if drained != payload_len as u64 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    format!(
+                        "connection closed while draining oversized {:?} frame ({} of {} bytes)",
+                        msg_type, drained, payload_len
+                    ),
+                ));
+            }
+            return Ok(Message::truncated(msg_type));
+        }
 
         // Read payload
         let mut payload = vec![0u8; payload_len];
@@ -169,7 +213,7 @@ impl MessageCodec {
             reader.read_exact(&mut payload)?;
         }
 
-        Ok(Message { msg_type, payload })
+        Ok(Message::new(msg_type, payload))
     }
 
     /// Write a message to a stream (blocking).
@@ -226,18 +270,83 @@ mod tests {
     }
 
     #[test]
-    fn test_payload_too_large() {
-        // Create a message with payload size > MAX_PAYLOAD_SIZE
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&1u32.to_ne_bytes()); // BroadcastScp
-        buf.extend_from_slice(&(20 * 1024 * 1024u32).to_ne_bytes()); // 20MB > 16MB limit
+    fn test_oversized_frame_is_drained_and_stream_stays_in_sync() {
+        // An oversized TopTxsResponse followed by a normal message. The reader
+        // must skip the oversized payload, report it as truncated, and then
+        // read the next message intact.
+        let limit = 64;
+        let oversized_len = limit + 5;
+        let mut buf = Vec::with_capacity(oversized_len + 32);
+        buf.extend_from_slice(&(MessageType::TopTxsResponse as u32).to_ne_bytes());
+        buf.extend_from_slice(&(oversized_len as u32).to_ne_bytes());
+        buf.resize(buf.len() + oversized_len, 0xAB);
+        MessageCodec::write(
+            &mut buf,
+            &Message::new(MessageType::BroadcastScp, vec![1, 2, 3]),
+        )
+        .unwrap();
 
         let mut cursor = Cursor::new(buf);
-        let result = MessageCodec::read(&mut cursor);
+        let first = MessageCodec::read_with_limit(&mut cursor, limit).unwrap();
+        assert!(first.truncated);
+        assert_eq!(first.msg_type, MessageType::TopTxsResponse);
+        assert!(first.payload.is_empty());
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        let second = MessageCodec::read_with_limit(&mut cursor, limit).unwrap();
+        assert!(!second.truncated);
+        assert_eq!(second.msg_type, MessageType::BroadcastScp);
+        assert_eq!(second.payload, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_oversized_frame_cut_short_is_an_eof_error() {
+        // Header announces more than the limit but the sender vanished
+        // mid-payload: that is a real connection failure.
+        let limit = 64;
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(MessageType::TopTxsResponse as u32).to_ne_bytes());
+        buf.extend_from_slice(&((limit + 1) as u32).to_ne_bytes());
+        buf.extend_from_slice(&[0u8; 16]);
+
+        let mut cursor = Cursor::new(buf);
+        let err = MessageCodec::read_with_limit(&mut cursor, limit).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn test_frame_exactly_at_limit_is_accepted() {
+        let limit = 64;
+        let payload = vec![7u8; limit];
+        let mut buf = Vec::new();
+        MessageCodec::write(
+            &mut buf,
+            &Message::new(MessageType::TxSetAvailable, payload.clone()),
+        )
+        .unwrap();
+        let mut cursor = Cursor::new(buf);
+        let decoded = MessageCodec::read_with_limit(&mut cursor, limit).unwrap();
+        assert!(!decoded.truncated);
+        assert_eq!(decoded.payload.len(), limit);
+    }
+
+    #[test]
+    fn test_default_limit_is_a_corruption_guard_not_a_budget() {
+        // The default limit must sit far above any well-formed message; in
+        // particular a top-txs reply carrying two full ledgers of
+        // transactions (well over the former 16 MiB cap) has to go through
+        // intact.
+        assert!(MAX_PAYLOAD_SIZE >= 256 * 1024 * 1024);
+        let payload = vec![7u8; 40 * 1024 * 1024];
+        let mut buf = Vec::new();
+        MessageCodec::write(
+            &mut buf,
+            &Message::new(MessageType::TopTxsResponse, payload.clone()),
+        )
+        .unwrap();
+        let mut cursor = Cursor::new(buf);
+        let decoded = MessageCodec::read(&mut cursor).unwrap();
+        assert!(!decoded.truncated);
+        assert_eq!(decoded.payload.len(), payload.len());
     }
 
     #[test]

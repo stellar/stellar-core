@@ -132,7 +132,8 @@ class OverlayIPC
      * per-phase budgets in `request`.
      *
      * Synchronous: blocks until the overlay responds. Shutdown or loss of
-     * the IPC connection unblocks the wait and returns an empty vector.
+     * the IPC connection unblocks the wait and returns an empty vector, as
+     * does a reply that exceeded the IPC frame limit.
      *
      * @return Classic transactions first, then Soroban, each highest fee
      * first; possibly fewer than requested.

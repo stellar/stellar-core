@@ -105,6 +105,19 @@ enum class IPCMessageType : uint32_t
     OVERLAY_METRICS_RESPONSE = 105,
 };
 
+/// Largest payload either side accepts in one frame (256 MiB). Mirrors
+/// `MAX_PAYLOAD_SIZE` in overlay/src/ipc/messages.rs.
+///
+/// This is a corruption guard for a trusted local channel, not a resource
+/// budget: if the stream ever desynchronised, the next "length" would be
+/// garbage and an unbounded reader would allocate gigabytes and then wait
+/// forever for bytes that never come. It sits far above anything a
+/// well-formed message reaches; in particular the size of the top-txs reply
+/// is governed by the per-phase pull budgets in HerderImpl, never by this
+/// limit. A frame announcing a larger payload is drained and reported as
+/// truncated (see IPCMessage) rather than treated as a broken connection.
+constexpr uint32_t IPC_MAX_PAYLOAD_SIZE = 256 * 1024 * 1024;
+
 /**
  * Represents a single IPC message.
  */
@@ -112,6 +125,10 @@ struct IPCMessage
 {
     IPCMessageType type;
     std::vector<uint8_t> payload;
+    // Set by the receiver when the sender's frame exceeded
+    // IPC_MAX_PAYLOAD_SIZE: the payload was read off the socket and
+    // discarded so the stream stays in sync, and `payload` is empty.
+    bool truncated{false};
 };
 
 namespace ipc
@@ -129,10 +146,17 @@ bool sendMessage(int socket, IPCMessage const& msg);
 /**
  * Receive an IPC message from a socket.
  *
+ * An oversized frame (payload larger than `maxPayloadSize`, by default
+ * IPC_MAX_PAYLOAD_SIZE) does not break the connection: its payload is
+ * consumed and discarded and the returned message has `truncated` set with
+ * an empty payload. The explicit limit exists so tests can exercise that
+ * path without producing hundreds of megabytes.
+ *
  * @param socket File descriptor for Unix domain socket
  * @return Message if received successfully, nullopt on error or EOF
  */
-std::optional<IPCMessage> receiveMessage(int socket);
+std::optional<IPCMessage>
+receiveMessage(int socket, uint32_t maxPayloadSize = IPC_MAX_PAYLOAD_SIZE);
 
 } // namespace ipc
 

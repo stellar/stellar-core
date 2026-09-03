@@ -5,6 +5,7 @@
 #include "lib/catch.hpp"
 #include "overlay/IPC.h"
 #include "util/TmpDir.h"
+#include <algorithm>
 #include <cstring>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -191,6 +192,134 @@ TEST_CASE("IPC large message", "[overlay][ipc]")
         close(sockets[0]);
         close(sockets[1]);
     }
+}
+
+TEST_CASE("IPC frame limit is a corruption guard not a budget",
+          "[overlay][ipc]")
+{
+    // The limit must sit far above any well-formed message: a top-txs reply
+    // carrying two ledgers' worth of transactions (well over the former
+    // 16 MiB cap) has to go through intact.
+    REQUIRE(IPC_MAX_PAYLOAD_SIZE >= 256u * 1024 * 1024);
+
+    int sockets[2];
+    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+
+    IPCMessage msg;
+    msg.type = IPCMessageType::TOP_TXS_RESPONSE;
+    msg.payload.resize(40 * 1024 * 1024, 0x42);
+
+    std::optional<IPCMessage> recvMsg;
+    std::thread receiver([&]() { recvMsg = ipc::receiveMessage(sockets[1]); });
+    bool sent = ipc::sendMessage(sockets[0], msg);
+    receiver.join();
+
+    REQUIRE(sent);
+    REQUIRE(recvMsg.has_value());
+    REQUIRE_FALSE(recvMsg->truncated);
+    REQUIRE(recvMsg->payload.size() == msg.payload.size());
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+TEST_CASE("IPC oversized frame is drained not fatal", "[overlay][ipc]")
+{
+    // A frame announcing more than IPC_MAX_PAYLOAD_SIZE bytes must not break
+    // the connection: its payload is consumed and discarded, the message is
+    // reported as truncated, and the next frame is read intact.
+    int sockets[2];
+    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+
+    uint32_t const oversizedLen = IPC_MAX_PAYLOAD_SIZE + 1;
+    IPCMessage follow;
+    follow.type = IPCMessageType::SCP_RECEIVED;
+    follow.payload = {7, 8, 9};
+
+    // Socket buffers are far smaller than the frame: send in a thread.
+    // (Catch assertions are not thread-safe, so the thread only records.)
+    bool senderOk = false;
+    std::thread sender([&]() {
+        uint32_t type = static_cast<uint32_t>(IPCMessageType::TOP_TXS_RESPONSE);
+        uint8_t header[8];
+        std::memcpy(&header[0], &type, 4);
+        std::memcpy(&header[4], &oversizedLen, 4);
+        if (send(sockets[0], header, 8, 0) != 8)
+        {
+            return;
+        }
+        std::vector<uint8_t> chunk(64 * 1024, 0xEE);
+        size_t remaining = oversizedLen;
+        while (remaining > 0)
+        {
+            size_t n = std::min(remaining, chunk.size());
+            ssize_t w = send(sockets[0], chunk.data(), n, 0);
+            if (w <= 0)
+            {
+                return;
+            }
+            remaining -= static_cast<size_t>(w);
+        }
+        senderOk = ipc::sendMessage(sockets[0], follow);
+    });
+
+    SECTION("raw receiveMessage")
+    {
+        auto oversized = ipc::receiveMessage(sockets[1]);
+        REQUIRE(oversized.has_value());
+        REQUIRE(oversized->truncated);
+        REQUIRE(oversized->type == IPCMessageType::TOP_TXS_RESPONSE);
+        REQUIRE(oversized->payload.empty());
+
+        auto next = ipc::receiveMessage(sockets[1]);
+        REQUIRE(next.has_value());
+        REQUIRE_FALSE(next->truncated);
+        REQUIRE(next->type == follow.type);
+        REQUIRE(next->payload == follow.payload);
+        sender.join();
+        REQUIRE(senderOk);
+        close(sockets[0]);
+        close(sockets[1]);
+    }
+
+    SECTION("IPCChannel stays connected")
+    {
+        auto channel = IPCChannel::fromSocket(sockets[1]);
+        auto oversized = channel->receive();
+        REQUIRE(oversized.has_value());
+        REQUIRE(oversized->truncated);
+        REQUIRE(channel->isConnected());
+
+        auto next = channel->receive();
+        REQUIRE(next.has_value());
+        REQUIRE(next->payload == follow.payload);
+        REQUIRE(channel->isConnected());
+        sender.join();
+        REQUIRE(senderOk);
+        close(sockets[0]);
+    }
+}
+
+TEST_CASE("IPC oversized frame cut short is a disconnect", "[overlay][ipc]")
+{
+    int sockets[2];
+    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+
+    // Exercised with a small explicit limit; the drain path is the same.
+    uint32_t const limit = 64;
+    uint32_t type = static_cast<uint32_t>(IPCMessageType::TOP_TXS_RESPONSE);
+    uint32_t const oversizedLen = limit + 1;
+    uint8_t header[8];
+    std::memcpy(&header[0], &type, 4);
+    std::memcpy(&header[4], &oversizedLen, 4);
+    REQUIRE(send(sockets[0], header, 8, 0) == 8);
+    uint8_t partial[16] = {0};
+    REQUIRE(send(sockets[0], partial, sizeof(partial), 0) == sizeof(partial));
+    close(sockets[0]);
+
+    // The sender vanished mid-payload: that is a genuine connection loss.
+    auto msg = ipc::receiveMessage(sockets[1], limit);
+    REQUIRE(!msg.has_value());
+    close(sockets[1]);
 }
 
 TEST_CASE("IPCChannel", "[overlay][ipc]")

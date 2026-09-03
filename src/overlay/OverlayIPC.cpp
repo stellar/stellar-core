@@ -350,6 +350,24 @@ OverlayIPC::handleMessage(IPCMessage const& msg)
 {
     CLOG_DEBUG(Overlay, "IPC handleMessage: type={}, payload_size={}",
                static_cast<uint32_t>(msg.type), msg.payload.size());
+    if (msg.truncated)
+    {
+        // The frame exceeded IPC_MAX_PAYLOAD_SIZE; its payload was drained
+        // and discarded so the connection survives. Nothing can be done
+        // with the message itself, except waking a getTopTransactions
+        // caller that would otherwise wait for a reply that is gone.
+        CLOG_ERROR(Overlay,
+                   "Dropped oversized IPC message from overlay (type={}): "
+                   "payload exceeded {} bytes",
+                   static_cast<uint32_t>(msg.type), IPC_MAX_PAYLOAD_SIZE);
+        if (msg.type == IPCMessageType::TOP_TXS_RESPONSE)
+        {
+            std::lock_guard<std::mutex> lock(mRequestMutex);
+            mPendingResponse = msg;
+            mRequestCv.notify_one();
+        }
+        return;
+    }
     switch (msg.type)
     {
     case IPCMessageType::SCP_RECEIVED:
@@ -605,6 +623,13 @@ OverlayIPC::getTopTransactions(TopTxsRequest const& request)
     {
         CLOG_WARNING(Overlay,
                      "Unexpected response type for getTopTransactions");
+        return result;
+    }
+    if (response.truncated)
+    {
+        CLOG_WARNING(Overlay,
+                     "Top transactions reply exceeded the IPC frame limit "
+                     "and was discarded; nominating without it");
         return result;
     }
 

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
-use super::messages::{Message, MessageCodec, MessageType};
+use super::messages::{Message, MessageCodec, MessageType, MAX_PAYLOAD_SIZE};
 
 /// Error type for IPC operations
 #[derive(Debug)]
@@ -66,19 +66,33 @@ impl CoreSender {
 
     /// Convenience: send top transactions response
     /// Payload: [count:4][len1:4][tx1:len1][len2:4][tx2:len2]...
+    ///
+    /// The reply is the only variable-size message the overlay sends Core, so
+    /// it is the one place an oversized frame could be produced. It is bounded
+    /// to [`MAX_PAYLOAD_SIZE`]: transactions are taken in the order given
+    /// (highest priority first) until the next one would not fit, and the rest
+    /// are dropped from this reply (they stay in the mempool for the next
+    /// pull).
     pub fn send_top_txs_response(&self, txs: &[&[u8]]) -> Result<(), IpcError> {
-        let total_size: usize = 4 + txs.iter().map(|tx| 4 + tx.len()).sum::<usize>();
-        let mut payload = Vec::with_capacity(total_size);
+        self.send_top_txs_response_with_limit(txs, MAX_PAYLOAD_SIZE)
+    }
 
-        // Count
-        payload.extend_from_slice(&(txs.len() as u32).to_le_bytes());
-
-        // Each TX: [len:4][data:len]
-        for tx in txs {
-            payload.extend_from_slice(&(tx.len() as u32).to_le_bytes());
-            payload.extend_from_slice(tx);
+    /// [`Self::send_top_txs_response`] with an explicit frame limit, so the
+    /// clamp can be tested without a multi-hundred-megabyte payload.
+    pub fn send_top_txs_response_with_limit(
+        &self,
+        txs: &[&[u8]],
+        max_payload: usize,
+    ) -> Result<(), IpcError> {
+        let (payload, included) = encode_top_txs_response(txs, max_payload);
+        if included < txs.len() {
+            tracing::warn!(
+                "TopTxsResponse truncated to {} of {} transactions to fit the {} byte IPC frame limit",
+                included,
+                txs.len(),
+                max_payload
+            );
         }
-
         self.send(Message::new(MessageType::TopTxsResponse, payload))
     }
 
@@ -90,6 +104,31 @@ impl CoreSender {
         payload.extend_from_slice(&xdr);
         self.send(Message::new(MessageType::TxSetAvailable, payload))
     }
+}
+
+/// Encode a TopTxsResponse payload from `txs` (in priority order), keeping
+/// the payload at most `max_payload` bytes. Returns the payload and how many
+/// transactions it carries.
+pub fn encode_top_txs_response(txs: &[&[u8]], max_payload: usize) -> (Vec<u8>, usize) {
+    let mut included = 0usize;
+    let mut size = 4usize; // count prefix
+    for tx in txs {
+        let framed = 4 + tx.len();
+        if size + framed > max_payload {
+            break;
+        }
+        size += framed;
+        included += 1;
+    }
+
+    let mut payload = Vec::with_capacity(size);
+    payload.extend_from_slice(&(included as u32).to_le_bytes());
+    for tx in &txs[..included] {
+        payload.extend_from_slice(&(tx.len() as u32).to_le_bytes());
+        payload.extend_from_slice(tx);
+    }
+    debug_assert_eq!(payload.len(), size);
+    (payload, included)
 }
 
 /// Handle for receiving messages from Core.
@@ -734,5 +773,95 @@ mod tests {
         assert_eq!(received.payload.len(), 17);
         let count = u32::from_le_bytes(received.payload[0..4].try_into().unwrap());
         assert_eq!(count, 2);
+    }
+
+    // ═══ TopTxsResponse byte bound ═══
+
+    fn parse_top_txs_response(payload: &[u8]) -> Vec<Vec<u8>> {
+        let count = u32::from_le_bytes(payload[0..4].try_into().unwrap()) as usize;
+        let mut out = Vec::with_capacity(count);
+        let mut offset = 4;
+        for _ in 0..count {
+            let len = u32::from_le_bytes(payload[offset..offset + 4].try_into().unwrap()) as usize;
+            offset += 4;
+            out.push(payload[offset..offset + len].to_vec());
+            offset += len;
+        }
+        assert_eq!(offset, payload.len(), "payload must be fully consumed");
+        out
+    }
+
+    #[test]
+    fn test_encode_top_txs_response_fits_everything_under_limit() {
+        let a = vec![1u8; 10];
+        let b = vec![2u8; 20];
+        let (payload, included) = encode_top_txs_response(&[&a, &b], 1024);
+        assert_eq!(included, 2);
+        assert_eq!(payload.len(), 4 + (4 + 10) + (4 + 20));
+        assert_eq!(parse_top_txs_response(&payload), vec![a, b]);
+    }
+
+    #[test]
+    fn test_encode_top_txs_response_stops_at_byte_limit_in_order() {
+        let a = vec![1u8; 10];
+        let b = vec![2u8; 20];
+        let c = vec![3u8; 5];
+        // Limit fits count + a + b exactly; c (which would fit on its own)
+        // is dropped because priority order is a prefix, not a knapsack.
+        let limit = 4 + (4 + 10) + (4 + 20);
+        let (payload, included) = encode_top_txs_response(&[&a, &b, &c], limit);
+        assert_eq!(included, 2);
+        assert_eq!(payload.len(), limit);
+        assert_eq!(parse_top_txs_response(&payload), vec![a.clone(), b.clone()]);
+
+        // One byte less and b no longer fits.
+        let (payload, included) = encode_top_txs_response(&[&a, &b, &c], limit - 1);
+        assert_eq!(included, 1);
+        assert_eq!(parse_top_txs_response(&payload), vec![a]);
+    }
+
+    #[test]
+    fn test_encode_top_txs_response_empty_and_zero_limit() {
+        let (payload, included) = encode_top_txs_response(&[], 1024);
+        assert_eq!(included, 0);
+        assert_eq!(payload, 0u32.to_le_bytes().to_vec());
+
+        let a = vec![1u8; 10];
+        let (payload, included) = encode_top_txs_response(&[&a], 0);
+        assert_eq!(included, 0);
+        assert_eq!(parse_top_txs_response(&payload), Vec::<Vec<u8>>::new());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_top_txs_response_never_exceeds_ipc_frame_limit() {
+        let (overlay_side, core_side) = StdUnixStream::pair().unwrap();
+        let ipc = CoreIpc::from_stream(overlay_side).unwrap();
+
+        // 17 one-megabyte transactions against a 16 MiB frame limit: only
+        // what fits may be sent. (The real limit is far larger; the clamp is
+        // exercised with an explicit one so the test stays cheap.)
+        let limit = 16 * 1024 * 1024;
+        let tx = vec![0x5Au8; 1024 * 1024];
+        let txs: Vec<&[u8]> = (0..17).map(|_| &tx[..]).collect();
+        let expected_included = (limit - 4) / (4 + tx.len());
+        assert!(expected_included < 17);
+
+        // The socket buffer is far smaller than the frame, so read
+        // concurrently with the (background) write.
+        let reader = tokio::task::spawn_blocking(move || {
+            let mut core = core_side;
+            MessageCodec::read(&mut core).unwrap()
+        });
+        ipc.sender
+            .send_top_txs_response_with_limit(&txs, limit)
+            .unwrap();
+        let received = reader.await.unwrap();
+
+        assert!(!received.truncated);
+        assert_eq!(received.msg_type, MessageType::TopTxsResponse);
+        assert!(received.payload.len() <= limit);
+        let parsed = parse_top_txs_response(&received.payload);
+        assert_eq!(parsed.len(), expected_included);
+        assert!(parsed.iter().all(|t| t == &tx));
     }
 }
