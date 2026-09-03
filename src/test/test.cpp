@@ -120,6 +120,11 @@ std::map<std::string, Catch::SourceLineInfo> gLcmLeafSources;
 // Mirrors saveTestTxMeta, which rebuilds each baseline JSON from what the
 // run observed rather than merging into the existing file.
 std::map<std::string, std::map<std::string, std::string>> gLcmCapturedIndex;
+// Output directories of every test case this run visited, whether or not it
+// produced eligible meta. A test file whose leaves have all become
+// ineligible contributes no captured entries, but its stale golden files
+// still need pruning.
+std::set<std::string> gLcmVisitedDirs;
 // True when --prune-stale-lcm was passed. Off by default because a run
 // filtered to a subset of tests only visits some leaves, and deleting the
 // goldens of tests that simply did not run would be silent data loss. The
@@ -298,13 +303,31 @@ lcmSemanticallyEqual(std::vector<LedgerCloseMeta> const& a,
 }
 
 // Write <dir>/index.json from the entries this run captured for that
-// directory, replacing any existing file. Stale entries therefore disappear,
-// the same way saveTestTxMeta rebuilds each baseline JSON from scratch.
+// directory. When pruning, the file is rebuilt from scratch so stale entries
+// disappear, the same way saveTestTxMeta rebuilds each baseline JSON. When
+// not pruning, existing entries are preserved and merged into: a run that
+// visited only some leaves must not drop the mappings of leaves whose .xdr
+// files are still on disk.
 void
 writeLcmIndex(std::string const& dir,
-              std::map<std::string, std::string> const& entries)
+              std::map<std::string, std::string> const& entries, bool replace)
 {
+    std::string indexPath = dir + "/index.json";
     Json::Value root(Json::objectValue);
+    if (!replace && std::filesystem::exists(indexPath))
+    {
+        std::ifstream in(indexPath);
+        Json::Value existing;
+        in >> existing;
+        for (auto it = existing.begin(); it != existing.end(); ++it)
+        {
+            auto key = it.key().asString();
+            if (key.empty() || key.at(0) != '!')
+            {
+                root[key] = *it;
+            }
+        }
+    }
     for (auto const& [hashHex, humanName] : entries)
     {
         root[hashHex] = humanName;
@@ -325,10 +348,19 @@ writeLcmIndex(std::string const& dir,
         root[TESTKEY_VERSIONS_TO_TEST] = versions;
     }
 
-    // Json::Value keeps keys sorted, so output is deterministic.
+    // Json::Value keeps keys sorted, so output is deterministic. Validate
+    // the stream as saveTestTxMeta does, so a failure to write cannot leave
+    // a truncated index behind while capture reports success.
     Json::StyledWriter writer;
-    std::ofstream out(dir + "/index.json", std::ios_base::trunc);
+    std::ofstream out(indexPath, std::ios_base::trunc);
+    if (!out)
+    {
+        throw std::runtime_error(
+            fmt::format("LCM auto-capture: failed to open '{}'", indexPath));
+    }
+    out.exceptions(std::ios::failbit | std::ios::badbit);
     out << writer.write(root);
+    out.close();
 }
 
 void
@@ -449,6 +481,14 @@ recordOrCheckLcm(std::string const& path, std::string const& dir,
                  std::string const& hashHex, std::string const& humanName,
                  size_t startIndex, Catch::SourceLineInfo const& leafSource)
 {
+    if (gLcmCaptureEnabled)
+    {
+        // Record the directory even when this leaf is skipped below, so a
+        // test file whose leaves are all ineligible still gets its stale
+        // goldens pruned.
+        gLcmVisitedDirs.insert(dir);
+    }
+
     if (!gLcmTaintReason.empty())
     {
         // This test's meta is not suitable as golden data. Capture skips it;
@@ -1589,11 +1629,26 @@ static void
 finalizeLcmCapture()
 {
     size_t pruned = 0;
-    for (auto const& [dir, entries] : gLcmCapturedIndex)
+    size_t indexes = 0;
+    for (auto const& dir : gLcmVisitedDirs)
     {
-        writeLcmIndex(dir, entries);
+        if (!std::filesystem::is_directory(dir))
+        {
+            continue;
+        }
+        auto it = gLcmCapturedIndex.find(dir);
+        std::map<std::string, std::string> const empty;
+        auto const& entries =
+            it == gLcmCapturedIndex.end() ? empty : it->second;
         if (!gLcmMayPrune)
         {
+            // Merge this run's entries into whatever is already recorded;
+            // a run that captured nothing here leaves the file untouched.
+            if (!entries.empty())
+            {
+                writeLcmIndex(dir, entries, /*replace=*/false);
+                ++indexes;
+            }
             continue;
         }
         std::set<std::string> keep;
@@ -1621,11 +1676,36 @@ finalizeLcmCapture()
             }
             ++pruned;
         }
+        if (entries.empty())
+        {
+            // Every leaf this test file used to contribute is gone (the
+            // tests became ineligible, or stopped closing ledgers), so drop
+            // the index and the directory rather than leaving a file holding
+            // nothing but header keys.
+            std::string indexPath = dir + "/index.json";
+            if (std::filesystem::exists(indexPath) &&
+                !fs::removeWithLog(indexPath))
+            {
+                throw std::runtime_error(fmt::format(
+                    "LCM auto-capture: failed to remove '{}'", indexPath));
+            }
+            std::error_code ec;
+            std::filesystem::remove(dir, ec);
+            LOG_INFO(DEFAULT_LOG,
+                     "LCM auto-capture: removed '{}', which no longer has any "
+                     "eligible leaves",
+                     dir);
+        }
+        else
+        {
+            writeLcmIndex(dir, entries, /*replace=*/true);
+            ++indexes;
+        }
     }
     LOG_INFO(DEFAULT_LOG,
              "LCM auto-capture: wrote {} index files, pruned {} stale golden "
              "files{}",
-             gLcmCapturedIndex.size(), pruned,
+             indexes, pruned,
              gLcmMayPrune ? ""
                           : " (pruning skipped: --prune-stale-lcm not "
                             "passed)");
