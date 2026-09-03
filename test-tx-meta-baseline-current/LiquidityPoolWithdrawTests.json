@@ -38,21 +38,13 @@
 	"liquidity pool withdraw|protocol version 0" : [ "1kTXt7VFL1o=" ],
 	"liquidity pool withdraw|protocol version 1" : [ "1kTXt7VFL1o=" ],
 	"liquidity pool withdraw|protocol version 10" : [ "VIjr80VgxMU=" ],
-	"liquidity pool withdraw|protocol version 10|not supported before version 18" : [ "i+ttI/lDmnk=" ],
 	"liquidity pool withdraw|protocol version 11" : [ "VIjr80VgxMU=" ],
-	"liquidity pool withdraw|protocol version 11|not supported before version 18" : [ "i+ttI/lDmnk=" ],
 	"liquidity pool withdraw|protocol version 12" : [ "VIjr80VgxMU=" ],
-	"liquidity pool withdraw|protocol version 12|not supported before version 18" : [ "i+ttI/lDmnk=" ],
 	"liquidity pool withdraw|protocol version 13" : [ "VIjr80VgxMU=" ],
-	"liquidity pool withdraw|protocol version 13|not supported before version 18" : [ "i+ttI/lDmnk=" ],
 	"liquidity pool withdraw|protocol version 14" : [ "VIjr80VgxMU=" ],
-	"liquidity pool withdraw|protocol version 14|not supported before version 18" : [ "i+ttI/lDmnk=" ],
 	"liquidity pool withdraw|protocol version 15" : [ "VIjr80VgxMU=" ],
-	"liquidity pool withdraw|protocol version 15|not supported before version 18" : [ "i+ttI/lDmnk=" ],
 	"liquidity pool withdraw|protocol version 16" : [ "VIjr80VgxMU=" ],
-	"liquidity pool withdraw|protocol version 16|not supported before version 18" : [ "i+ttI/lDmnk=" ],
 	"liquidity pool withdraw|protocol version 17" : [ "VIjr80VgxMU=" ],
-	"liquidity pool withdraw|protocol version 17|not supported before version 18" : [ "i+ttI/lDmnk=" ],
 	"liquidity pool withdraw|protocol version 18" : 
 	[
 		"VIjr80VgxMU=",
@@ -1539,7 +1531,6 @@
 		"McA0Es/wuGU=",
 		"u/i/biipmV4="
 	],
-	"liquidity pool withdraw|protocol version 18|malformed" : [ "i+ttI/lDmnk=", "xZlUXrvGn4Q=", "q1ORF1+bgKc=" ],
 	"liquidity pool withdraw|protocol version 18|native asset withdraw is zero" : 
 	[
 		"/jYPSlsiTAQ=",
@@ -3072,7 +3063,6 @@
 		"1EmKKrnE4R4=",
 		"IycCtcGumT0="
 	],
-	"liquidity pool withdraw|protocol version 19|malformed" : [ "2RwfcOsQCns=", "I9MCvy/kGPY=", "g5qtVDf/f2U=" ],
 	"liquidity pool withdraw|protocol version 19|native asset withdraw is zero" : 
 	[
 		"S+ok5JaBinI=",
@@ -3119,7 +3109,6 @@
 		"S1z7OhOUN+o=",
 		"t1VMNmI6SKc="
 	],
-	"liquidity pool withdraw|protocol version 1|not supported before version 18" : [ "/lfj8xIFS8I=" ],
 	"liquidity pool withdraw|protocol version 2" : [ "1kTXt7VFL1o=" ],
 	"liquidity pool withdraw|protocol version 20" : 
 	[
@@ -4607,7 +4596,6 @@
 		"xvaqtKg/ihU=",
 		"YfM/hFufhxc="
 	],
-	"liquidity pool withdraw|protocol version 20|malformed" : [ "jgyudye0C7I=", "3N+MppkR0es=", "eL3ZKLLyh1U=" ],
 	"liquidity pool withdraw|protocol version 20|native asset withdraw is zero" : 
 	[
 		"6GixpPWiR1M=",
@@ -6140,7 +6128,6 @@
 		"xvaqtKg/ihU=",
 		"YfM/hFufhxc="
 	],
-	"liquidity pool withdraw|protocol version 21|malformed" : [ "jgyudye0C7I=", "3N+MppkR0es=", "eL3ZKLLyh1U=" ],
 	"liquidity pool withdraw|protocol version 21|native asset withdraw is zero" : 
 	[
 		"6GixpPWiR1M=",
@@ -7673,7 +7660,6 @@
 		"xvaqtKg/ihU=",
 		"YfM/hFufhxc="
 	],
-	"liquidity pool withdraw|protocol version 22|malformed" : [ "jgyudye0C7I=", "3N+MppkR0es=", "eL3ZKLLyh1U=" ],
 	"liquidity pool withdraw|protocol version 22|native asset withdraw is zero" : 
 	[
 		"6GixpPWiR1M=",
@@ -9206,7 +9192,6 @@
 		"8sL/A7nus4A=",
 		"natoretSKDk="
 	],
-	"liquidity pool withdraw|protocol version 23|malformed" : [ "JalXUAF9b20=", "GJ6Rc2VHP0Q=", "HeihScr6Tyg=" ],
 	"liquidity pool withdraw|protocol version 23|native asset withdraw is zero" : 
 	[
 		"I2iIYR+cu2w=",
@@ -10739,7 +10724,6 @@
 		"8sL/A7nus4A=",
 		"natoretSKDk="
 	],
-	"liquidity pool withdraw|protocol version 24|malformed" : [ "JalXUAF9b20=", "GJ6Rc2VHP0Q=", "HeihScr6Tyg=" ],
 	"liquidity pool withdraw|protocol version 24|native asset withdraw is zero" : 
 	[
 		"I2iIYR+cu2w=",
@@ -12272,7 +12256,6 @@
 		"8sL/A7nus4A=",
 		"natoretSKDk="
 	],
-	"liquidity pool withdraw|protocol version 25|malformed" : [ "JalXUAF9b20=", "GJ6Rc2VHP0Q=", "HeihScr6Tyg=" ],
 	"liquidity pool withdraw|protocol version 25|native asset withdraw is zero" : 
 	[
 		"I2iIYR+cu2w=",
@@ -13805,7 +13788,6 @@
 		"8sL/A7nus4A=",
 		"natoretSKDk="
 	],
-	"liquidity pool withdraw|protocol version 26|malformed" : [ "JalXUAF9b20=", "GJ6Rc2VHP0Q=", "HeihScr6Tyg=" ],
 	"liquidity pool withdraw|protocol version 26|native asset withdraw is zero" : 
 	[
 		"I2iIYR+cu2w=",
@@ -15338,7 +15320,6 @@
 		"8sL/A7nus4A=",
 		"natoretSKDk="
 	],
-	"liquidity pool withdraw|protocol version 27|malformed" : [ "JalXUAF9b20=", "GJ6Rc2VHP0Q=", "HeihScr6Tyg=" ],
 	"liquidity pool withdraw|protocol version 27|native asset withdraw is zero" : 
 	[
 		"I2iIYR+cu2w=",
@@ -16871,7 +16852,6 @@
 		"8sL/A7nus4A=",
 		"natoretSKDk="
 	],
-	"liquidity pool withdraw|protocol version 28|malformed" : [ "JalXUAF9b20=", "GJ6Rc2VHP0Q=", "HeihScr6Tyg=" ],
 	"liquidity pool withdraw|protocol version 28|native asset withdraw is zero" : 
 	[
 		"I2iIYR+cu2w=",
@@ -16918,19 +16898,11 @@
 		"4isDr+X5NBQ=",
 		"ZXOCz0P9J2w="
 	],
-	"liquidity pool withdraw|protocol version 2|not supported before version 18" : [ "/lfj8xIFS8I=" ],
 	"liquidity pool withdraw|protocol version 3" : [ "1kTXt7VFL1o=" ],
-	"liquidity pool withdraw|protocol version 3|not supported before version 18" : [ "/lfj8xIFS8I=" ],
 	"liquidity pool withdraw|protocol version 4" : [ "1kTXt7VFL1o=" ],
-	"liquidity pool withdraw|protocol version 4|not supported before version 18" : [ "/lfj8xIFS8I=" ],
 	"liquidity pool withdraw|protocol version 5" : [ "1kTXt7VFL1o=" ],
-	"liquidity pool withdraw|protocol version 5|not supported before version 18" : [ "/lfj8xIFS8I=" ],
 	"liquidity pool withdraw|protocol version 6" : [ "1kTXt7VFL1o=" ],
-	"liquidity pool withdraw|protocol version 6|not supported before version 18" : [ "/lfj8xIFS8I=" ],
 	"liquidity pool withdraw|protocol version 7" : [ "1kTXt7VFL1o=" ],
-	"liquidity pool withdraw|protocol version 7|not supported before version 18" : [ "/lfj8xIFS8I=" ],
 	"liquidity pool withdraw|protocol version 8" : [ "1kTXt7VFL1o=" ],
-	"liquidity pool withdraw|protocol version 8|not supported before version 18" : [ "/lfj8xIFS8I=" ],
-	"liquidity pool withdraw|protocol version 9" : [ "1kTXt7VFL1o=" ],
-	"liquidity pool withdraw|protocol version 9|not supported before version 18" : [ "/lfj8xIFS8I=" ]
+	"liquidity pool withdraw|protocol version 9" : [ "1kTXt7VFL1o=" ]
 }

@@ -116,7 +116,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 10|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 10|Signers|add signer with native buying liabilities" : [ "tKszQIledIw=", "xK8umMAyIMA=", "frYZ93ex7LU=" ],
 	"set options|protocol version 10|Signers|add signer with native selling liabilities" : 
 	[
@@ -126,12 +125,8 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 10|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 10|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 10|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 10|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 10|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 10|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 10|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 10|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -170,7 +165,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 10|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 10|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 10|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -206,7 +200,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 11|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 11|Signers|add signer with native buying liabilities" : [ "tKszQIledIw=", "xK8umMAyIMA=", "frYZ93ex7LU=" ],
 	"set options|protocol version 11|Signers|add signer with native selling liabilities" : 
 	[
@@ -216,12 +209,8 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 11|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 11|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 11|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 11|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 11|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 11|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 11|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 11|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -260,7 +249,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 11|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 11|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 11|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -296,7 +284,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 12|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 12|Signers|add signer with native buying liabilities" : [ "tKszQIledIw=", "xK8umMAyIMA=", "frYZ93ex7LU=" ],
 	"set options|protocol version 12|Signers|add signer with native selling liabilities" : 
 	[
@@ -306,12 +293,8 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 12|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 12|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 12|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 12|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 12|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 12|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 12|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 12|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -350,7 +333,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 12|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 12|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 12|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -386,7 +368,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 13|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 13|Signers|add signer with native buying liabilities" : [ "tKszQIledIw=", "xK8umMAyIMA=", "frYZ93ex7LU=" ],
 	"set options|protocol version 13|Signers|add signer with native selling liabilities" : 
 	[
@@ -396,12 +377,8 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 13|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 13|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 13|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 13|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 13|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 13|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 13|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 13|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -440,7 +417,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 13|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 13|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 13|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -476,7 +452,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 14|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 14|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"kE09P2QcqXI=",
@@ -576,13 +551,9 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 14|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 14|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 14|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 14|Signers|delete signer that does not exist with sponsorships" : [ "qbHT3/aJxjk=" ],
-	"set options|protocol version 14|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 14|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 14|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 14|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 14|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -622,7 +593,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 14|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 14|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 14|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -658,7 +628,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 15|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 15|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"kE09P2QcqXI=",
@@ -758,13 +727,9 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 15|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 15|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 15|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 15|Signers|delete signer that does not exist with sponsorships" : [ "qbHT3/aJxjk=" ],
-	"set options|protocol version 15|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 15|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 15|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 15|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 15|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -804,7 +769,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 15|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 15|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 15|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -840,7 +804,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 16|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 16|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"kE09P2QcqXI=",
@@ -940,13 +903,9 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 16|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 16|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 16|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 16|Signers|delete signer that does not exist with sponsorships" : [ "qbHT3/aJxjk=" ],
-	"set options|protocol version 16|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 16|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 16|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 16|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 16|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -986,7 +945,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 16|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 16|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 16|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -1022,7 +980,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 17|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 17|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"kE09P2QcqXI=",
@@ -1122,13 +1079,9 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 17|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 17|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 17|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 17|Signers|delete signer that does not exist with sponsorships" : [ "qbHT3/aJxjk=" ],
-	"set options|protocol version 17|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 17|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 17|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 17|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 17|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -1168,7 +1121,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 17|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 17|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 17|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -1204,7 +1156,6 @@
 		"gAvpI6oTL2M=",
 		"gAvpI6oTL2M="
 	],
-	"set options|protocol version 18|Home domain|invalid home domain" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
 	"set options|protocol version 18|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"kE09P2QcqXI=",
@@ -1304,13 +1255,9 @@
 		"r/xeVsaWwsM=",
 		"5qHvNgzroNA="
 	],
-	"set options|protocol version 18|Signers|bad thresholds" : [ "5njpN1t36rQ=", "IC4jjAKS66s=", "hrY/y/NkUQI=" ],
-	"set options|protocol version 18|Signers|bad weight for master key" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 18|Signers|can't use master key as alternate signer" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 18|Signers|delete signer that does not exist with sponsorships" : [ "qbHT3/aJxjk=" ],
-	"set options|protocol version 18|Signers|ed25519 payload signer" : [ "FnRf1fOs/bk=", "LgkQA1Gg+u4=" ],
 	"set options|protocol version 18|Signers|insufficient balance" : [ "5njpN1t36rQ=" ],
-	"set options|protocol version 18|Signers|invalid signer weight" : [ "22zhQnP1m2M=", "ZLigcg//Zgs=" ],
+	"set options|protocol version 18|Signers|invalid signer weight" : [ "22zhQnP1m2M=" ],
 	"set options|protocol version 18|Signers|non-account signers" : 
 	[
 		"22zhQnP1m2M=",
@@ -1350,7 +1297,6 @@
 		"HkKAMMk5IUM="
 	],
 	"set options|protocol version 18|Signers|too many subentries" : [ "9HALiGV03FY=", "9HALiGV03FY=" ],
-	"set options|protocol version 18|flags|Can't set and clear same flag" : [ "5njpN1t36rQ=" ],
 	"set options|protocol version 18|flags|auth flags" : 
 	[
 		"DDu2V8ndIAg=",
@@ -1386,7 +1332,6 @@
 		"FzHaVlYyMj8=",
 		"FzHaVlYyMj8="
 	],
-	"set options|protocol version 19|Home domain|invalid home domain" : [ "Shl7NaoFTc0=", "fvNf/7V36Fs=", "yFo0SoiYtpk=" ],
 	"set options|protocol version 19|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"wkZI0XRR/5U=",
@@ -1486,13 +1431,10 @@
 		"vGXpC1HU6X0=",
 		"akG6W1OyaMs="
 	],
-	"set options|protocol version 19|Signers|bad thresholds" : [ "Shl7NaoFTc0=", "fvNf/7V36Fs=", "yFo0SoiYtpk=" ],
-	"set options|protocol version 19|Signers|bad weight for master key" : [ "Shl7NaoFTc0=" ],
-	"set options|protocol version 19|Signers|can't use master key as alternate signer" : [ "Shl7NaoFTc0=" ],
 	"set options|protocol version 19|Signers|delete signer that does not exist with sponsorships" : [ "uf9PFqGibE8=" ],
-	"set options|protocol version 19|Signers|ed25519 payload signer" : [ "3hDZwRd1NHU=", "mpk3d13ino8=", "oilyg+4NDHI=" ],
+	"set options|protocol version 19|Signers|ed25519 payload signer" : [ "3hDZwRd1NHU=", "mpk3d13ino8=" ],
 	"set options|protocol version 19|Signers|insufficient balance" : [ "Shl7NaoFTc0=" ],
-	"set options|protocol version 19|Signers|invalid signer weight" : [ "olxOFaugY80=", "IblD9Ga58yY=" ],
+	"set options|protocol version 19|Signers|invalid signer weight" : [ "olxOFaugY80=" ],
 	"set options|protocol version 19|Signers|non-account signers" : 
 	[
 		"olxOFaugY80=",
@@ -1532,7 +1474,6 @@
 		"zvntPiSXDNg="
 	],
 	"set options|protocol version 19|Signers|too many subentries" : [ "je/G8OkICPM=", "je/G8OkICPM=" ],
-	"set options|protocol version 19|flags|Can't set and clear same flag" : [ "Shl7NaoFTc0=" ],
 	"set options|protocol version 19|flags|auth flags" : 
 	[
 		"RTLL7KwTN04=",
@@ -1543,13 +1484,8 @@
 		"J4YZTsBxQQc=",
 		"CmIosK+pU4U="
 	],
-	"set options|protocol version 1|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 1|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 1|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 1|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 1|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 1|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 1|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 1|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 1|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 1|Signers|non-account signers" : 
@@ -1557,12 +1493,10 @@
 		"7muv0c13jc0=",
 		"aG4beTevysQ=",
 		"yJ/dM1lNt1g=",
-		"/lfj8xIFS8I=",
-		"eoExdeGyZ5E=",
-		"RZ0XAu5aD7o=",
-		"4AhEUQo4sS8=",
-		"/lfj8xIFS8I=",
-		"8sTuiBxm9Cs="
+		"cdnVJ9MVlfo=",
+		"Esky67MnTjE=",
+		"gbZW8EVwmk0=",
+		"jUivxb360o4="
 	],
 	"set options|protocol version 1|Signers|sponsorship" : [ "kCUtXpmlo74=", "64H3V3LvBu4=", "kCUtXpmlo74=", "64H3V3LvBu4=" ],
 	"set options|protocol version 1|Signers|too many signers" : 
@@ -1590,7 +1524,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 1|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 1|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 1|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
@@ -1651,7 +1584,6 @@
 		"gQ2ltIp3Kcw=",
 		"gQ2ltIp3Kcw="
 	],
-	"set options|protocol version 20|Home domain|invalid home domain" : [ "qfychd3sH3Y=", "bjSEmZjbch4=", "BDLUaR4RlS0=" ],
 	"set options|protocol version 20|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"DFGZkSCkSoQ=",
@@ -1751,13 +1683,10 @@
 		"gv+h/mUNbsc=",
 		"QgGYJzzK950="
 	],
-	"set options|protocol version 20|Signers|bad thresholds" : [ "qfychd3sH3Y=", "bjSEmZjbch4=", "BDLUaR4RlS0=" ],
-	"set options|protocol version 20|Signers|bad weight for master key" : [ "qfychd3sH3Y=" ],
-	"set options|protocol version 20|Signers|can't use master key as alternate signer" : [ "qfychd3sH3Y=" ],
 	"set options|protocol version 20|Signers|delete signer that does not exist with sponsorships" : [ "2uBnNfq498Q=" ],
-	"set options|protocol version 20|Signers|ed25519 payload signer" : [ "SJAFgP/N7Cw=", "6HG1pPS7mN8=", "/xb9kmQfLRM=" ],
+	"set options|protocol version 20|Signers|ed25519 payload signer" : [ "SJAFgP/N7Cw=", "6HG1pPS7mN8=" ],
 	"set options|protocol version 20|Signers|insufficient balance" : [ "qfychd3sH3Y=" ],
-	"set options|protocol version 20|Signers|invalid signer weight" : [ "q8+e9afXZt8=", "Oj5/tePHbPY=" ],
+	"set options|protocol version 20|Signers|invalid signer weight" : [ "q8+e9afXZt8=" ],
 	"set options|protocol version 20|Signers|non-account signers" : 
 	[
 		"q8+e9afXZt8=",
@@ -1797,7 +1726,6 @@
 		"2hgJNKFAHvQ="
 	],
 	"set options|protocol version 20|Signers|too many subentries" : [ "vr9Ti+U2lyI=", "vr9Ti+U2lyI=" ],
-	"set options|protocol version 20|flags|Can't set and clear same flag" : [ "qfychd3sH3Y=" ],
 	"set options|protocol version 20|flags|auth flags" : 
 	[
 		"z/qiQYsIoXY=",
@@ -1833,7 +1761,6 @@
 		"gQ2ltIp3Kcw=",
 		"gQ2ltIp3Kcw="
 	],
-	"set options|protocol version 21|Home domain|invalid home domain" : [ "qfychd3sH3Y=", "bjSEmZjbch4=", "BDLUaR4RlS0=" ],
 	"set options|protocol version 21|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"DFGZkSCkSoQ=",
@@ -1933,13 +1860,10 @@
 		"gv+h/mUNbsc=",
 		"QgGYJzzK950="
 	],
-	"set options|protocol version 21|Signers|bad thresholds" : [ "qfychd3sH3Y=", "bjSEmZjbch4=", "BDLUaR4RlS0=" ],
-	"set options|protocol version 21|Signers|bad weight for master key" : [ "qfychd3sH3Y=" ],
-	"set options|protocol version 21|Signers|can't use master key as alternate signer" : [ "qfychd3sH3Y=" ],
 	"set options|protocol version 21|Signers|delete signer that does not exist with sponsorships" : [ "2uBnNfq498Q=" ],
-	"set options|protocol version 21|Signers|ed25519 payload signer" : [ "SJAFgP/N7Cw=", "6HG1pPS7mN8=", "/xb9kmQfLRM=" ],
+	"set options|protocol version 21|Signers|ed25519 payload signer" : [ "SJAFgP/N7Cw=", "6HG1pPS7mN8=" ],
 	"set options|protocol version 21|Signers|insufficient balance" : [ "qfychd3sH3Y=" ],
-	"set options|protocol version 21|Signers|invalid signer weight" : [ "q8+e9afXZt8=", "Oj5/tePHbPY=" ],
+	"set options|protocol version 21|Signers|invalid signer weight" : [ "q8+e9afXZt8=" ],
 	"set options|protocol version 21|Signers|non-account signers" : 
 	[
 		"q8+e9afXZt8=",
@@ -1979,7 +1903,6 @@
 		"2hgJNKFAHvQ="
 	],
 	"set options|protocol version 21|Signers|too many subentries" : [ "vr9Ti+U2lyI=", "vr9Ti+U2lyI=" ],
-	"set options|protocol version 21|flags|Can't set and clear same flag" : [ "qfychd3sH3Y=" ],
 	"set options|protocol version 21|flags|auth flags" : 
 	[
 		"z/qiQYsIoXY=",
@@ -2015,7 +1938,6 @@
 		"gQ2ltIp3Kcw=",
 		"gQ2ltIp3Kcw="
 	],
-	"set options|protocol version 22|Home domain|invalid home domain" : [ "qfychd3sH3Y=", "bjSEmZjbch4=", "BDLUaR4RlS0=" ],
 	"set options|protocol version 22|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"DFGZkSCkSoQ=",
@@ -2115,13 +2037,10 @@
 		"gv+h/mUNbsc=",
 		"QgGYJzzK950="
 	],
-	"set options|protocol version 22|Signers|bad thresholds" : [ "qfychd3sH3Y=", "bjSEmZjbch4=", "BDLUaR4RlS0=" ],
-	"set options|protocol version 22|Signers|bad weight for master key" : [ "qfychd3sH3Y=" ],
-	"set options|protocol version 22|Signers|can't use master key as alternate signer" : [ "qfychd3sH3Y=" ],
 	"set options|protocol version 22|Signers|delete signer that does not exist with sponsorships" : [ "2uBnNfq498Q=" ],
-	"set options|protocol version 22|Signers|ed25519 payload signer" : [ "SJAFgP/N7Cw=", "6HG1pPS7mN8=", "/xb9kmQfLRM=" ],
+	"set options|protocol version 22|Signers|ed25519 payload signer" : [ "SJAFgP/N7Cw=", "6HG1pPS7mN8=" ],
 	"set options|protocol version 22|Signers|insufficient balance" : [ "qfychd3sH3Y=" ],
-	"set options|protocol version 22|Signers|invalid signer weight" : [ "q8+e9afXZt8=", "Oj5/tePHbPY=" ],
+	"set options|protocol version 22|Signers|invalid signer weight" : [ "q8+e9afXZt8=" ],
 	"set options|protocol version 22|Signers|non-account signers" : 
 	[
 		"q8+e9afXZt8=",
@@ -2161,7 +2080,6 @@
 		"2hgJNKFAHvQ="
 	],
 	"set options|protocol version 22|Signers|too many subentries" : [ "vr9Ti+U2lyI=", "vr9Ti+U2lyI=" ],
-	"set options|protocol version 22|flags|Can't set and clear same flag" : [ "qfychd3sH3Y=" ],
 	"set options|protocol version 22|flags|auth flags" : 
 	[
 		"z/qiQYsIoXY=",
@@ -2197,7 +2115,6 @@
 		"DKQqbAOaoas=",
 		"DKQqbAOaoas="
 	],
-	"set options|protocol version 23|Home domain|invalid home domain" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
 	"set options|protocol version 23|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"6E2kzOjISPA=",
@@ -2297,13 +2214,10 @@
 		"5WROxK1ahyw=",
 		"BmZ01/HiAyc="
 	],
-	"set options|protocol version 23|Signers|bad thresholds" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
-	"set options|protocol version 23|Signers|bad weight for master key" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 23|Signers|can't use master key as alternate signer" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 23|Signers|delete signer that does not exist with sponsorships" : [ "W208TQVIdRo=" ],
-	"set options|protocol version 23|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=", "x+fNMotRL48=" ],
+	"set options|protocol version 23|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=" ],
 	"set options|protocol version 23|Signers|insufficient balance" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 23|Signers|invalid signer weight" : [ "IlJmI6NdhFY=", "g0ZY1hAp5wM=" ],
+	"set options|protocol version 23|Signers|invalid signer weight" : [ "IlJmI6NdhFY=" ],
 	"set options|protocol version 23|Signers|non-account signers" : 
 	[
 		"IlJmI6NdhFY=",
@@ -2343,7 +2257,6 @@
 		"m+HUczXhuxc="
 	],
 	"set options|protocol version 23|Signers|too many subentries" : [ "mBYpf3mLbj4=", "mBYpf3mLbj4=" ],
-	"set options|protocol version 23|flags|Can't set and clear same flag" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 23|flags|auth flags" : 
 	[
 		"tfheUCYuwek=",
@@ -2379,7 +2292,6 @@
 		"DKQqbAOaoas=",
 		"DKQqbAOaoas="
 	],
-	"set options|protocol version 24|Home domain|invalid home domain" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
 	"set options|protocol version 24|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"6E2kzOjISPA=",
@@ -2479,13 +2391,10 @@
 		"5WROxK1ahyw=",
 		"BmZ01/HiAyc="
 	],
-	"set options|protocol version 24|Signers|bad thresholds" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
-	"set options|protocol version 24|Signers|bad weight for master key" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 24|Signers|can't use master key as alternate signer" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 24|Signers|delete signer that does not exist with sponsorships" : [ "W208TQVIdRo=" ],
-	"set options|protocol version 24|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=", "x+fNMotRL48=" ],
+	"set options|protocol version 24|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=" ],
 	"set options|protocol version 24|Signers|insufficient balance" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 24|Signers|invalid signer weight" : [ "IlJmI6NdhFY=", "g0ZY1hAp5wM=" ],
+	"set options|protocol version 24|Signers|invalid signer weight" : [ "IlJmI6NdhFY=" ],
 	"set options|protocol version 24|Signers|non-account signers" : 
 	[
 		"IlJmI6NdhFY=",
@@ -2525,7 +2434,6 @@
 		"m+HUczXhuxc="
 	],
 	"set options|protocol version 24|Signers|too many subentries" : [ "mBYpf3mLbj4=", "mBYpf3mLbj4=" ],
-	"set options|protocol version 24|flags|Can't set and clear same flag" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 24|flags|auth flags" : 
 	[
 		"tfheUCYuwek=",
@@ -2561,7 +2469,6 @@
 		"DKQqbAOaoas=",
 		"DKQqbAOaoas="
 	],
-	"set options|protocol version 25|Home domain|invalid home domain" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
 	"set options|protocol version 25|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"6E2kzOjISPA=",
@@ -2661,13 +2568,10 @@
 		"5WROxK1ahyw=",
 		"BmZ01/HiAyc="
 	],
-	"set options|protocol version 25|Signers|bad thresholds" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
-	"set options|protocol version 25|Signers|bad weight for master key" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 25|Signers|can't use master key as alternate signer" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 25|Signers|delete signer that does not exist with sponsorships" : [ "W208TQVIdRo=" ],
-	"set options|protocol version 25|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=", "x+fNMotRL48=" ],
+	"set options|protocol version 25|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=" ],
 	"set options|protocol version 25|Signers|insufficient balance" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 25|Signers|invalid signer weight" : [ "IlJmI6NdhFY=", "g0ZY1hAp5wM=" ],
+	"set options|protocol version 25|Signers|invalid signer weight" : [ "IlJmI6NdhFY=" ],
 	"set options|protocol version 25|Signers|non-account signers" : 
 	[
 		"IlJmI6NdhFY=",
@@ -2707,7 +2611,6 @@
 		"m+HUczXhuxc="
 	],
 	"set options|protocol version 25|Signers|too many subentries" : [ "mBYpf3mLbj4=", "mBYpf3mLbj4=" ],
-	"set options|protocol version 25|flags|Can't set and clear same flag" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 25|flags|auth flags" : 
 	[
 		"tfheUCYuwek=",
@@ -2743,7 +2646,6 @@
 		"DKQqbAOaoas=",
 		"DKQqbAOaoas="
 	],
-	"set options|protocol version 26|Home domain|invalid home domain" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
 	"set options|protocol version 26|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"6E2kzOjISPA=",
@@ -2843,13 +2745,10 @@
 		"5WROxK1ahyw=",
 		"BmZ01/HiAyc="
 	],
-	"set options|protocol version 26|Signers|bad thresholds" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
-	"set options|protocol version 26|Signers|bad weight for master key" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 26|Signers|can't use master key as alternate signer" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 26|Signers|delete signer that does not exist with sponsorships" : [ "W208TQVIdRo=" ],
-	"set options|protocol version 26|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=", "x+fNMotRL48=" ],
+	"set options|protocol version 26|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=" ],
 	"set options|protocol version 26|Signers|insufficient balance" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 26|Signers|invalid signer weight" : [ "IlJmI6NdhFY=", "g0ZY1hAp5wM=" ],
+	"set options|protocol version 26|Signers|invalid signer weight" : [ "IlJmI6NdhFY=" ],
 	"set options|protocol version 26|Signers|non-account signers" : 
 	[
 		"IlJmI6NdhFY=",
@@ -2889,7 +2788,6 @@
 		"m+HUczXhuxc="
 	],
 	"set options|protocol version 26|Signers|too many subentries" : [ "mBYpf3mLbj4=", "mBYpf3mLbj4=" ],
-	"set options|protocol version 26|flags|Can't set and clear same flag" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 26|flags|auth flags" : 
 	[
 		"tfheUCYuwek=",
@@ -2925,7 +2823,6 @@
 		"DKQqbAOaoas=",
 		"DKQqbAOaoas="
 	],
-	"set options|protocol version 27|Home domain|invalid home domain" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
 	"set options|protocol version 27|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"6E2kzOjISPA=",
@@ -3025,13 +2922,10 @@
 		"5WROxK1ahyw=",
 		"BmZ01/HiAyc="
 	],
-	"set options|protocol version 27|Signers|bad thresholds" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
-	"set options|protocol version 27|Signers|bad weight for master key" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 27|Signers|can't use master key as alternate signer" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 27|Signers|delete signer that does not exist with sponsorships" : [ "W208TQVIdRo=" ],
-	"set options|protocol version 27|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=", "x+fNMotRL48=" ],
+	"set options|protocol version 27|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=" ],
 	"set options|protocol version 27|Signers|insufficient balance" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 27|Signers|invalid signer weight" : [ "IlJmI6NdhFY=", "g0ZY1hAp5wM=" ],
+	"set options|protocol version 27|Signers|invalid signer weight" : [ "IlJmI6NdhFY=" ],
 	"set options|protocol version 27|Signers|non-account signers" : 
 	[
 		"IlJmI6NdhFY=",
@@ -3071,7 +2965,6 @@
 		"m+HUczXhuxc="
 	],
 	"set options|protocol version 27|Signers|too many subentries" : [ "mBYpf3mLbj4=", "mBYpf3mLbj4=" ],
-	"set options|protocol version 27|flags|Can't set and clear same flag" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 27|flags|auth flags" : 
 	[
 		"tfheUCYuwek=",
@@ -3107,7 +3000,6 @@
 		"DKQqbAOaoas=",
 		"DKQqbAOaoas="
 	],
-	"set options|protocol version 28|Home domain|invalid home domain" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
 	"set options|protocol version 28|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"6E2kzOjISPA=",
@@ -3207,13 +3099,10 @@
 		"5WROxK1ahyw=",
 		"BmZ01/HiAyc="
 	],
-	"set options|protocol version 28|Signers|bad thresholds" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
-	"set options|protocol version 28|Signers|bad weight for master key" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 28|Signers|can't use master key as alternate signer" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 28|Signers|delete signer that does not exist with sponsorships" : [ "W208TQVIdRo=" ],
-	"set options|protocol version 28|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=", "x+fNMotRL48=" ],
+	"set options|protocol version 28|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=" ],
 	"set options|protocol version 28|Signers|insufficient balance" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 28|Signers|invalid signer weight" : [ "IlJmI6NdhFY=", "g0ZY1hAp5wM=" ],
+	"set options|protocol version 28|Signers|invalid signer weight" : [ "IlJmI6NdhFY=" ],
 	"set options|protocol version 28|Signers|non-account signers" : 
 	[
 		"IlJmI6NdhFY=",
@@ -3253,7 +3142,6 @@
 		"m+HUczXhuxc="
 	],
 	"set options|protocol version 28|Signers|too many subentries" : [ "mBYpf3mLbj4=", "mBYpf3mLbj4=" ],
-	"set options|protocol version 28|flags|Can't set and clear same flag" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 28|flags|auth flags" : 
 	[
 		"tfheUCYuwek=",
@@ -3289,7 +3177,6 @@
 		"DKQqbAOaoas=",
 		"DKQqbAOaoas="
 	],
-	"set options|protocol version 29|Home domain|invalid home domain" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
 	"set options|protocol version 29|Signers|add and remove many signers, some with sponsorships" : 
 	[
 		"6E2kzOjISPA=",
@@ -3389,13 +3276,10 @@
 		"5WROxK1ahyw=",
 		"BmZ01/HiAyc="
 	],
-	"set options|protocol version 29|Signers|bad thresholds" : [ "uAWOrzAaoYc=", "SYVdy4LxM4M=", "o0Xxbs6nodk=" ],
-	"set options|protocol version 29|Signers|bad weight for master key" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 29|Signers|can't use master key as alternate signer" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 29|Signers|delete signer that does not exist with sponsorships" : [ "W208TQVIdRo=" ],
-	"set options|protocol version 29|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=", "x+fNMotRL48=" ],
+	"set options|protocol version 29|Signers|ed25519 payload signer" : [ "VxTAsnbLZbs=", "T9mx9lDloRM=" ],
 	"set options|protocol version 29|Signers|insufficient balance" : [ "uAWOrzAaoYc=" ],
-	"set options|protocol version 29|Signers|invalid signer weight" : [ "IlJmI6NdhFY=", "g0ZY1hAp5wM=" ],
+	"set options|protocol version 29|Signers|invalid signer weight" : [ "IlJmI6NdhFY=" ],
 	"set options|protocol version 29|Signers|non-account signers" : 
 	[
 		"IlJmI6NdhFY=",
@@ -3435,7 +3319,6 @@
 		"m+HUczXhuxc="
 	],
 	"set options|protocol version 29|Signers|too many subentries" : [ "mBYpf3mLbj4=", "mBYpf3mLbj4=" ],
-	"set options|protocol version 29|flags|Can't set and clear same flag" : [ "uAWOrzAaoYc=" ],
 	"set options|protocol version 29|flags|auth flags" : 
 	[
 		"tfheUCYuwek=",
@@ -3446,13 +3329,8 @@
 		"sZB1gOsKLU8=",
 		"BC5Hqoi5njs="
 	],
-	"set options|protocol version 2|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 2|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 2|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 2|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 2|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 2|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 2|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 2|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 2|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 2|Signers|non-account signers" : 
@@ -3460,12 +3338,10 @@
 		"7muv0c13jc0=",
 		"aG4beTevysQ=",
 		"yJ/dM1lNt1g=",
-		"/lfj8xIFS8I=",
-		"eoExdeGyZ5E=",
-		"RZ0XAu5aD7o=",
-		"4AhEUQo4sS8=",
-		"/lfj8xIFS8I=",
-		"8sTuiBxm9Cs="
+		"cdnVJ9MVlfo=",
+		"Esky67MnTjE=",
+		"gbZW8EVwmk0=",
+		"jUivxb360o4="
 	],
 	"set options|protocol version 2|Signers|sponsorship" : [ "kCUtXpmlo74=", "64H3V3LvBu4=", "kCUtXpmlo74=", "64H3V3LvBu4=" ],
 	"set options|protocol version 2|Signers|too many signers" : 
@@ -3493,7 +3369,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 2|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 2|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 2|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
@@ -3529,13 +3404,8 @@
 		"mPG9aVxWUEo=",
 		"mPG9aVxWUEo="
 	],
-	"set options|protocol version 3|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 3|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 3|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 3|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 3|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 3|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 3|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 3|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 3|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 3|Signers|non-account signers" : 
@@ -3576,7 +3446,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 3|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 3|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 3|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
@@ -3612,13 +3481,8 @@
 		"mPG9aVxWUEo=",
 		"mPG9aVxWUEo="
 	],
-	"set options|protocol version 4|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 4|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 4|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 4|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 4|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 4|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 4|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 4|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 4|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 4|Signers|non-account signers" : 
@@ -3659,7 +3523,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 4|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 4|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 4|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
@@ -3695,13 +3558,8 @@
 		"mPG9aVxWUEo=",
 		"mPG9aVxWUEo="
 	],
-	"set options|protocol version 5|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 5|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 5|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 5|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 5|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 5|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 5|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 5|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 5|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 5|Signers|non-account signers" : 
@@ -3742,7 +3600,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 5|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 5|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 5|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
@@ -3778,13 +3635,8 @@
 		"mPG9aVxWUEo=",
 		"mPG9aVxWUEo="
 	],
-	"set options|protocol version 6|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 6|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 6|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 6|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 6|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 6|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 6|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 6|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 6|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 6|Signers|non-account signers" : 
@@ -3825,7 +3677,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 6|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 6|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 6|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
@@ -3861,13 +3712,8 @@
 		"mPG9aVxWUEo=",
 		"mPG9aVxWUEo="
 	],
-	"set options|protocol version 7|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 7|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 7|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 7|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 7|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 7|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 7|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 7|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 7|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 7|Signers|non-account signers" : 
@@ -3908,7 +3754,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 7|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 7|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 7|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
@@ -3944,13 +3789,8 @@
 		"mPG9aVxWUEo=",
 		"mPG9aVxWUEo="
 	],
-	"set options|protocol version 8|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 8|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 8|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 8|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 8|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 8|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 8|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 8|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 8|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 8|Signers|non-account signers" : 
@@ -3991,7 +3831,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 8|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 8|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 8|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
@@ -4027,13 +3866,8 @@
 		"mPG9aVxWUEo=",
 		"mPG9aVxWUEo="
 	],
-	"set options|protocol version 9|Home domain|invalid home domain" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 9|Signers|add signer with native buying liabilities" : [ "7mDTyBusMEE=", "F4XfmmSvUyo=", "LjJWBJ6wR7U=" ],
 	"set options|protocol version 9|Signers|add signer with native selling liabilities" : [ "7mDTyBusMEE=", "44U+GUCwrJk=", "LjJWBJ6wR7U=" ],
-	"set options|protocol version 9|Signers|bad thresholds" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"set options|protocol version 9|Signers|bad weight for master key" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 9|Signers|can't use master key as alternate signer" : [ "/lfj8xIFS8I=" ],
-	"set options|protocol version 9|Signers|ed25519 payload signer" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"set options|protocol version 9|Signers|insufficient balance" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 9|Signers|invalid signer weight" : [ "7muv0c13jc0=", "lax6NWWVZhs=" ],
 	"set options|protocol version 9|Signers|non-account signers" : 
@@ -4074,7 +3908,6 @@
 		"/lfj8xIFS8I="
 	],
 	"set options|protocol version 9|Signers|too many subentries" : [ "iISyfiQI/8E=", "iISyfiQI/8E=" ],
-	"set options|protocol version 9|flags|Can't set and clear same flag" : [ "/lfj8xIFS8I=" ],
 	"set options|protocol version 9|flags|auth flags" : 
 	[
 		"Ozq4k75tuRA=",
