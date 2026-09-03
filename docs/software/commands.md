@@ -247,6 +247,12 @@ Command options can only by placed after command.
       files and index entries. It is opt-in because a run filtered to a
       subset of tests visits only some leaves, so pruning would delete golden
       data that is still valid.
+      * Tests whose `LedgerCloseMeta` cannot serve as golden data are skipped
+      automatically, with the reason logged: those that inject ledger entries
+      straight into the bucket list (the meta never shows the entries being
+      created), run a multi-node `Simulation`, or use a config whose ledger
+      content depends on thread scheduling or randomized nomination.
+      `--check-lcm` fails if golden data still exists for such a test.
       * `--check-lcm <DIRNAME>` : check `LedgerCloseMeta` captured from tests
       against the golden files under `DIRNAME/test-lcm-current/` (or
       `test-lcm-next/` for vnext builds), where `DIRNAME` is the directory
