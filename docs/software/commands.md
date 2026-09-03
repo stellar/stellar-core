@@ -232,8 +232,12 @@ Command options can only by placed after command.
       directory maps hashes back to human-readable names. Each file contains
       stream-framed `LedgerCloseMeta` entries that can be decoded with
       `stellar-xdr decode --type LedgerCloseMeta --input stream-framed`.
-      Meta is normalized (sorted) before writing so that output is
-      deterministic given a fixed `--rng-seed`. Each `index.json` is stamped
+      Non-deterministic diagnostic events are zeroed before writing, but
+      entries are otherwise written in their original order, which some
+      downstream consumers depend on. Comparisons — both the skip-rewrite
+      check during capture and `--check-lcm` — are done on normalized
+      (sorted) copies, so given a fixed `--rng-seed` files are only
+      rewritten or flagged on semantic changes. Each `index.json` is stamped
       with the protocol version, rng seed and protocol-version list that
       produced the data.
       * `--check-lcm <DIRNAME>` : check `LedgerCloseMeta` captured from tests
