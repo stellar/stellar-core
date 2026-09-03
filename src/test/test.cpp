@@ -389,7 +389,16 @@ checkLcmAgainstFile(std::string const& path, std::string const& humanName,
     auto const& allMetas = txtest::getAccumulatedLcm();
     if (startIndex >= allMetas.size())
     {
-        // Capture mode would not have written a file for this leaf.
+        // Capture mode never writes a file for a leaf with no meta, so an
+        // existing golden file means this test used to produce LCM and no
+        // longer does — flag it rather than silently passing.
+        if (std::filesystem::exists(path))
+        {
+            gLcmCheckFailures.emplace_back(fmt::format(
+                "golden LCM file '{}' exists but test '{}' produced no "
+                "LedgerCloseMeta",
+                path, humanName));
+        }
         return;
     }
 
