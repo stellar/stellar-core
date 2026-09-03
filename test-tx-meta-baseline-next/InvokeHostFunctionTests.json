@@ -785,32 +785,10 @@
 		"+cR3oq2qY0I=",
 		"KZu7zfNieRw=",
 		"z4n404MMtso=",
-		"gjWPsRTDO9U=",
-		"+cR3oq2qY0I=",
-		"KZu7zfNieRw=",
-		"z4n404MMtso=",
-		"gjWPsRTDO9U=",
-		"+cR3oq2qY0I=",
-		"KZu7zfNieRw=",
-		"z4n404MMtso=",
-		"gjWPsRTDO9U=",
-		"+cR3oq2qY0I=",
-		"KZu7zfNieRw=",
-		"z4n404MMtso=",
-		"gjWPsRTDO9U=",
-		"+cR3oq2qY0I=",
-		"KZu7zfNieRw=",
-		"z4n404MMtso=",
-		"gjWPsRTDO9U=",
-		"+cR3oq2qY0I=",
-		"KZu7zfNieRw=",
-		"z4n404MMtso=",
 		"gjWPsRTDO9U="
 	],
 	"Soroban classic account authentication|account with required multisig" : 
 	[
-		"wyj8BjL/gnY=",
-		"1ivEuESIAxs=",
 		"wyj8BjL/gnY=",
 		"1ivEuESIAxs=",
 		"wyj8BjL/gnY=",
@@ -865,12 +843,10 @@
 		"xPoOk1manoQ=",
 		"xPoOk1manoQ=",
 		"xPoOk1manoQ=",
-		"xPoOk1manoQ=",
 		"xPoOk1manoQ="
 	],
 	"Soroban classic account authentication|account with weights and additional signer" : 
 	[
-		"T5+K8nbHbVI=",
 		"T5+K8nbHbVI=",
 		"T5+K8nbHbVI=",
 		"T5+K8nbHbVI=",
@@ -892,7 +868,6 @@
 	"Soroban classic account authentication|additional signer with insufficient weight not authenticated" : [ "ZeeAeM/N6kA=" ],
 	"Soroban classic account authentication|default account with additional signer" : 
 	[
-		"NhzC+G+vt7w=",
 		"NhzC+G+vt7w=",
 		"NhzC+G+vt7w=",
 		"NhzC+G+vt7w=",

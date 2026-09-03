@@ -109,6 +109,11 @@ std::string gLcmCheckDir;
 // is active, so failures are collected here and reported by reportLcmCheck,
 // mirroring reportTestTxMeta.
 std::vector<std::string> gLcmCheckFailures;
+// Source location of each LCM leaf path seen so far, used to detect two
+// distinct sections sharing the same test/section name (Catch allows this,
+// but it would make two leaves silently write and check the same golden
+// file with different content).
+std::map<std::string, Catch::SourceLineInfo> gLcmLeafSources;
 
 // Header keys stored in each baseline/index file identifying the
 // configuration that produced it; checked on load so that stale golden data
@@ -417,8 +422,26 @@ checkLcmAgainstFile(std::string const& path, std::string const& humanName,
 void
 recordOrCheckLcm(std::string const& path, std::string const& dir,
                  std::string const& hashHex, std::string const& humanName,
-                 size_t startIndex)
+                 size_t startIndex, Catch::SourceLineInfo const& leafSource)
 {
+    // Detect two distinct sections whose names hash to the same golden file.
+    // Only leaves that actually accumulated LCM matter: leaves with no meta
+    // never write or check a file, so a name collision there is harmless.
+    if (startIndex < txtest::getAccumulatedLcm().size())
+    {
+        auto [it, inserted] = gLcmLeafSources.emplace(path, leafSource);
+        if (!inserted && (it->second.line != leafSource.line ||
+                          std::string(it->second.file) != leafSource.file))
+        {
+            auto msg = fmt::format(
+                "Duplicate LCM leaf name '{}': sections at {}:{} and {}:{} "
+                "produce the same golden file '{}'; rename one of them",
+                humanName, it->second.file, it->second.line, leafSource.file,
+                leafSource.line, path);
+            LOG_FATAL(DEFAULT_LOG, "{}", msg);
+            throw std::runtime_error(msg);
+        }
+    }
     if (gLcmCaptureEnabled)
     {
         writeLcmToFile(path, dir, hashHex, humanName, startIndex);
@@ -472,8 +495,8 @@ struct TestContextListener : Catch::TestEventListenerBase
             auto hashHex = binToHex(hash).substr(0, 16);
             auto dir = buildLcmOutputDir(tc);
             auto path = dir + "/" + hashHex + ".xdr";
-            recordOrCheckLcm(path, dir, hashHex, humanName,
-                             sTestCaseStartIndex);
+            recordOrCheckLcm(path, dir, hashHex, humanName, sTestCaseStartIndex,
+                             tc.lineInfo);
         }
         if (needTestCtxTracking())
         {
@@ -524,7 +547,8 @@ struct TestContextListener : Catch::TestEventListenerBase
                 // ran before any SECTION was entered.
                 auto runStart = sLcmSectStack.front().startIndex;
                 sLcmSectStack.pop_back();
-                recordOrCheckLcm(path, dir, hashHex, humanName, runStart);
+                recordOrCheckLcm(path, dir, hashHex, humanName, runStart,
+                                 state.info.lineInfo);
             }
             else
             {
