@@ -294,6 +294,50 @@ files. You should then inspect to see that only the transactions you expected to
 see change did so. If so, commit the changes as a new set of baselines for
 future tests.
 
+## Running and updating LedgerCloseMeta checks
+
+Alongside the TxMeta hashes above, the unit tests can capture the full
+`LedgerCloseMeta` XDR of every ledger they close, and check it against golden
+data stored in the repository. Where the TxMeta baselines record a hash per
+transaction, this records the complete binary meta, so the files also serve as
+test data for downstream consumers such as Horizon and RPC. The two modes are:
+
+  * `--capture-lcm` which writes golden files, and
+  * `--check-lcm <dirname>` which checks against them, where `<dirname>` is the
+    directory holding the golden trees (the source tree root).
+
+The golden data lives in `test-lcm-current` (for the current protocol) and
+`test-lcm-next` (for the next protocol), one subdirectory per test file, one
+file per leaf section, named by a truncated hash of the test and section names.
+Each subdirectory's `index.json` maps those hashes back to readable names and
+records the protocol version and rng seed that produced the data. Continuous
+integration runs `--check-lcm`, which fails fast if those headers do not match
+the running binary — so a protocol version bump requires re-capturing the
+data, even when no transaction semantics changed.
+
+To re-capture after an intentional change, or after a protocol bump:
+
+    stellar-core test [tx] --rng-seed 12345 --capture-lcm --prune-stale-lcm
+
+for a build with only the current protocol enabled, and the same command for a
+build configured with `--enable-next-protocol-version-unsafe-for-production`,
+which writes the `next` tier instead. Note there is no `--all-versions` here:
+the golden data is captured at the default (latest) protocol version only.
+
+`--prune-stale-lcm` deletes golden files the run did not write and rebuilds
+each `index.json` from what it captured, so leaves that are no longer produced
+do not accumulate. Pass it only with the full `[tx]` run above: a narrower run
+visits only some leaves, and pruning would delete golden data that is still
+valid.
+
+Some tests are automatically skipped, with the reason logged, because their
+meta cannot serve as golden data: those that inject ledger entries straight
+into the bucket list (the meta never shows the entries being created), those
+that run a multi-node `Simulation`, and those using a config whose ledger
+content depends on thread scheduling or randomized nomination. If you add a
+test that needs a golden vector, close its ledgers through the ordinary
+single-node path.
+
 ## Fastdev and non-unified Rust builds
 
 As of protocol 20, some components of stellar-core are written in Rust (notably
