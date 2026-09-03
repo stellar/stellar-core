@@ -450,7 +450,12 @@ class Stage
 struct ParallelPhaseBuildResult
 {
     TxStageFrameList mStages;
-    std::vector<bool> mHadTxNotFittingLane;
+    // Indices (into the input transactions) of the transactions that were
+    // packed, and of those that were not, either because they exceeded the
+    // lane limits or because they didn't fit into any stage. The latter are
+    // in decreasing fee order.
+    std::vector<size_t> mIncludedTxs;
+    std::vector<size_t> mNotFittingTxs;
     int64_t mTotalInclusionFee = 0;
 };
 
@@ -475,8 +480,8 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
     // into one of the stages until the limits are reached. Transactions that
     // don't fit into any of the stages are skipped and surge pricing will be
     // triggered for the transaction set.
+    ParallelPhaseBuildResult result;
     Resource laneLeft = laneLimit;
-    bool hadTxNotFittingLane = false;
 
     for (size_t txIdx : sortedTxOrder)
     {
@@ -487,7 +492,7 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         // transactions exceeding resource limits.
         if (anyGreater(txRes, laneLeft))
         {
-            hadTxNotFittingLane = true;
+            result.mNotFittingTxs.push_back(txIdx);
             continue;
         }
 
@@ -507,17 +512,15 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
             // Transaction included in the stage, update the remaining lane
             // resources.
             laneLeft -= txRes;
+            result.mIncludedTxs.push_back(txIdx);
         }
         else
         {
-            // Transaction didn't fit into any of the stages, mark that lane
-            // limits were exceeded to trigger surge pricing.
-            hadTxNotFittingLane = true;
+            // Transaction didn't fit into any of the stages, record it so
+            // that surge pricing gets triggered.
+            result.mNotFittingTxs.push_back(txIdx);
         }
     }
-
-    ParallelPhaseBuildResult result;
-    result.mHadTxNotFittingLane = {hadTxNotFittingLane};
 
     // At this point the stages have been filled with transactions and we just
     // need to place the full transactions into the respective stages/clusters.
@@ -705,7 +708,8 @@ buildSurgePricedParallelSorobanPhase(
     TxFrameList const& txFrames, Config const& cfg,
     SorobanNetworkConfig const& sorobanCfg,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    TxValidationCallback const& isValid)
 {
     ZoneScoped;
     // We prefer the transaction sets that are well utilized, but we also want
@@ -746,27 +750,59 @@ buildSurgePricedParallelSorobanPhase(
 
     // Create a worker thread for each stage count. The sorted order and
     // precomputed resources are shared across all threads (read-only).
-    std::vector<std::thread> threads;
     uint32_t stageCountOptions = cfg.SOROBAN_PHASE_MAX_STAGE_COUNT -
                                  cfg.SOROBAN_PHASE_MIN_STAGE_COUNT + 1;
     std::vector<ParallelPhaseBuildResult> results(stageCountOptions);
+    auto packAll = [&]() {
+        std::vector<std::thread> threads;
+        for (uint32_t stageCount = cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
+             stageCount <= cfg.SOROBAN_PHASE_MAX_STAGE_COUNT; ++stageCount)
+        {
+            size_t resultIndex = stageCount - cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
+            threads.emplace_back([&sortedTxOrder, &txResources, &laneLimit,
+                                  &builderTxs, &txFrames, stageCount,
+                                  &sorobanCfg, resultIndex, &results]() {
+                results.at(resultIndex) =
+                    buildSurgePricedParallelSorobanPhaseWithStageCount(
+                        sortedTxOrder, txResources, laneLimit, builderTxs,
+                        txFrames, stageCount, sorobanCfg);
+            });
+        }
+        for (auto& thread : threads)
+        {
+            thread.join();
+        }
+    };
 
-    for (uint32_t stageCount = cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
-         stageCount <= cfg.SOROBAN_PHASE_MAX_STAGE_COUNT; ++stageCount)
+    // With lazy validation a candidate is only validated (on this thread)
+    // once a packing pass has actually placed it: pack, validate what got
+    // packed, drop the invalid candidates and pack again, until every packed
+    // candidate is valid. Candidates that never get packed are never
+    // validated, except for the excess-demand probe below.
+    std::vector<bool> invalid(txFrames.size(), false);
+    while (true)
     {
-        size_t resultIndex = stageCount - cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
-        threads.emplace_back([&sortedTxOrder, &txResources, &laneLimit,
-                              &builderTxs, &txFrames, stageCount, &sorobanCfg,
-                              resultIndex, &results]() {
-            results.at(resultIndex) =
-                buildSurgePricedParallelSorobanPhaseWithStageCount(
-                    sortedTxOrder, txResources, laneLimit, builderTxs, txFrames,
-                    stageCount, sorobanCfg);
-        });
-    }
-    for (auto& thread : threads)
-    {
-        thread.join();
+        packAll();
+        bool foundInvalid = false;
+        for (auto const& result : results)
+        {
+            for (size_t txIdx : result.mIncludedTxs)
+            {
+                if (!isValid(txFrames[txIdx]))
+                {
+                    invalid[txIdx] = true;
+                    foundInvalid = true;
+                }
+            }
+        }
+        if (!foundInvalid)
+        {
+            break;
+        }
+        sortedTxOrder.erase(
+            std::remove_if(sortedTxOrder.begin(), sortedTxOrder.end(),
+                           [&invalid](size_t txIdx) { return invalid[txIdx]; }),
+            sortedTxOrder.end());
     }
 
     int64_t maxTotalInclusionFee = 0;
@@ -796,7 +832,20 @@ buildSurgePricedParallelSorobanPhase(
     }
     releaseAssert(bestResultIndex.has_value());
     auto& bestResult = results[bestResultIndex.value()];
-    hadTxNotFittingLane = std::move(bestResult.mHadTxNotFittingLane);
+    // Excess demand, which triggers surge pricing, is only established by a
+    // transaction that could have been included: with lazy validation, probe
+    // the transactions that didn't fit, in fee order, until a valid one is
+    // found.
+    bool hadTxNotFitting = false;
+    for (size_t txIdx : bestResult.mNotFittingTxs)
+    {
+        if (isValid(txFrames[txIdx]))
+        {
+            hadTxNotFitting = true;
+            break;
+        }
+    }
+    hadTxNotFittingLane = {hadTxNotFitting};
     return std::move(bestResult.mStages);
 }
 

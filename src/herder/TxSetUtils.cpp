@@ -32,33 +32,6 @@
 
 namespace stellar
 {
-namespace
-{
-// Target use case is to remove a subset of invalid transactions from a TxSet.
-// I.e. txSet.size() >= txsToRemove.size()
-TxFrameList
-removeTxs(TxFrameList const& txs, TxFrameList const& txsToRemove)
-{
-    UnorderedSet<Hash> txsToRemoveSet;
-    txsToRemoveSet.reserve(txsToRemove.size());
-    std::transform(
-        txsToRemove.cbegin(), txsToRemove.cend(),
-        std::inserter(txsToRemoveSet, txsToRemoveSet.end()),
-        [](TransactionFrameBasePtr const& tx) { return tx->getFullHash(); });
-
-    TxFrameList newTxs;
-    newTxs.reserve(txs.size() - txsToRemove.size());
-    for (auto const& tx : txs)
-    {
-        if (txsToRemoveSet.find(tx->getFullHash()) == txsToRemoveSet.end())
-        {
-            newTxs.emplace_back(tx);
-        }
-    }
-
-    return newTxs;
-}
-} // namespace
 
 AccountTransactionQueue::AccountTransactionQueue(
     std::vector<TransactionFrameBasePtr> const& accountTxs)
@@ -270,19 +243,5 @@ TxSetUtils::getInvalidTxListWithErrors<TxSetPhaseFrame>(
     TxSetPhaseFrame const& txs, Application& app,
     UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
-
-TxFrameList
-TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
-                        UnorderedMap<AccountID, int64_t>& accountFeeMap,
-                        uint64_t lowerBoundCloseTimeOffset,
-                        uint64_t upperBoundCloseTimeOffset,
-                        TxFrameList& invalidTxs)
-{
-    invalidTxs = getInvalidTxListWithErrors(txs, app, accountFeeMap,
-                                            lowerBoundCloseTimeOffset,
-                                            upperBoundCloseTimeOffset)
-                     .first;
-    return removeTxs(txs, invalidTxs);
-}
 
 } // namespace stellar

@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/IPC.h"
+#include <algorithm>
 #include <cstring>
 #include <signal.h>
 #include <sys/socket.h>
@@ -54,6 +55,25 @@ writeExact(int socket, uint8_t const* buffer, size_t n)
             return false;
         }
         totalWritten += w;
+    }
+    return true;
+}
+
+// Helper to read and discard exactly n bytes from socket
+bool
+drainExact(int socket, size_t n)
+{
+    uint8_t scratch[64 * 1024];
+    size_t totalRead = 0;
+    while (totalRead < n)
+    {
+        size_t chunk = std::min(n - totalRead, sizeof(scratch));
+        ssize_t r = recv(socket, scratch, chunk, 0);
+        if (r <= 0)
+        {
+            return false;
+        }
+        totalRead += r;
     }
     return true;
 }
@@ -110,7 +130,7 @@ sendMessage(int socket, IPCMessage const& msg)
 }
 
 std::optional<IPCMessage>
-receiveMessage(int socket)
+receiveMessage(int socket, uint32_t maxPayloadSize)
 {
     // Read header
     uint8_t header[8];
@@ -124,15 +144,25 @@ receiveMessage(int socket)
     std::memcpy(&type, &header[0], 4);
     std::memcpy(&payloadLen, &header[4], 4);
 
-    // Sanity check payload length (16MB max)
-    if (payloadLen > 16 * 1024 * 1024)
+    IPCMessage msg;
+    msg.type = static_cast<IPCMessageType>(type);
+
+    // An oversized frame is a sender bug, not a corrupt stream: the sender
+    // really did write `payloadLen` bytes. Consume and discard them so the
+    // next frame is read in sync, and report the message as truncated
+    // instead of tearing the connection down (which would silently take the
+    // node off the network).
+    if (payloadLen > maxPayloadSize)
     {
-        return std::nullopt;
+        if (!drainExact(socket, payloadLen))
+        {
+            return std::nullopt;
+        }
+        msg.truncated = true;
+        return msg;
     }
 
     // Read payload
-    IPCMessage msg;
-    msg.type = static_cast<IPCMessageType>(type);
     if (payloadLen > 0)
     {
         msg.payload.resize(payloadLen);

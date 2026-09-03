@@ -94,6 +94,16 @@ pub(crate) fn frame_get_scp_state(ledger_seq: u32) -> Vec<u8> {
     frame(MessageType::GetScpState, &ledger_seq.to_be_bytes())
 }
 
+/// `StellarMessage::DontHave(DontHave { type_, req_hash })` framing: the arm
+/// body is the requested message type (4-byte big-endian enum) followed by
+/// the 32-byte hash.
+pub(crate) fn frame_dont_have(requested: MessageType, hash: [u8; 32]) -> Vec<u8> {
+    let mut body = Vec::with_capacity(4 + 32);
+    body.extend_from_slice(&(requested as i32).to_be_bytes());
+    body.extend_from_slice(&hash);
+    frame(MessageType::DontHave, &body)
+}
+
 /// Cheap content-hash check with no decode — used for tx sets built by our
 /// trusted local core, where we skip decoding but still guard against a
 /// hash/bytes mismatch that would make the set unfetchable network-wide.
@@ -152,9 +162,9 @@ fn collect_stellar_value_hash(hashes: &mut Vec<[u8; 32]>, value: &[u8]) {
 pub(crate) mod tests {
     use super::*;
     use xdr::{
-        DecoratedSignature, GeneralizedTransactionSet, Hash, Limits, Operation, ScpNomination,
-        ScpStatementPledges, SequenceNumber, StellarValueExt, TimePoint, Transaction,
-        TransactionEnvelope, TransactionV1Envelope, Uint256, Value, VecM, WriteXdr,
+        DecoratedSignature, DontHave, GeneralizedTransactionSet, Hash, Limits, Operation,
+        ScpNomination, ScpStatementPledges, SequenceNumber, StellarValueExt, TimePoint,
+        Transaction, TransactionEnvelope, TransactionV1Envelope, Uint256, Value, VecM, WriteXdr,
     };
 
     pub(crate) fn valid_transaction_xdr(fee: u32, sequence: i64, num_ops: usize) -> Vec<u8> {
@@ -232,6 +242,21 @@ pub(crate) mod tests {
             .to_xdr(Limits::none())
             .unwrap();
         assert_eq!(frame_get_scp_state(12345), expected);
+    }
+
+    #[test]
+    fn frames_match_typed_dont_have() {
+        let hash = [0x77; 32];
+        let expected = StellarMessage::DontHave(DontHave {
+            type_: MessageType::GeneralizedTxSet,
+            req_hash: Uint256(hash),
+        })
+        .to_xdr(Limits::none())
+        .unwrap();
+        assert_eq!(
+            frame_dont_have(MessageType::GeneralizedTxSet, hash),
+            expected
+        );
     }
 
     // --- content-hash guard -------------------------------------------------

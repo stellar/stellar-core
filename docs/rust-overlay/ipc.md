@@ -35,8 +35,17 @@ Source:
 | `length` | 4     | Payload length in bytes. Native-endian.              |
 | `payload`| `length` | Type-specific bytes. May be empty.                |
 
-Maximum payload: **16 MB** (`messages.rs:154`). Frames larger than that
-are rejected with `InvalidData`.
+Maximum payload: **256 MiB** (`MAX_PAYLOAD_SIZE` in `messages.rs`,
+`IPC_MAX_PAYLOAD_SIZE` in `src/overlay/IPC.h`). This is a corruption guard
+for a trusted local channel, not a resource budget: if the stream ever
+desynchronised, the next "length" would be garbage, and an unbounded
+reader would allocate gigabytes and then wait forever for bytes that
+never come. The limit sits far above anything a well-formed message
+reaches; the size of the top-txs reply is governed by Core's per-phase
+pull budgets (see [mempool.md](mempool.md)), never by this limit. A frame
+announcing a larger payload is drained and reported as truncated on both
+sides (the connection survives; the message is dropped), and the overlay
+clamps `TOP_TXS_RESPONSE` to the limit as a backstop.
 
 > Native-endian is unusual for a wire protocol but safe here because
 > Core and Overlay always run on the same host. The libp2p network
@@ -55,14 +64,14 @@ are rejected with `InvalidData`.
 | ID | Name                  | Payload                                      | Purpose                                          |
 |---:|-----------------------|----------------------------------------------|--------------------------------------------------|
 |  1 | `BroadcastScp`        | `[scp_envelope]`                             | Flood SCP envelope to peers                       |
-|  2 | `GetTopTxs`           | `[count:u32]`                                | Get top-N TXs by fee for nomination               |
+|  2 | `GetTopTxs`           | `[classicCount:u32][classicBytes:u32][sorobanCount:u32][sorobanBytes:u32]` | Get the top TXs by fee for nomination, one (count, bytes) budget per tx set phase |
 |  3 | `RequestScpState`     | `[ledger_seq:u32]`                           | Ask peers for SCP state at a ledger seq           |
 |  4 | `LedgerClosed`        | `[ledger_seq:u32][ledger_hash:32]`           | Notify ledger advancement; triggers cache eviction |
 |  5 | `TxSetExternalized`   | `[txset_hash:32][num:u32][tx_hash:32]…`      | TX set was applied; remove TXs from mempool       |
 |  6 | `ScpStateResponse`    | `[count:u32][env_len:u32][env]…`             | SCP state for a peer that asked us                |
 |  7 | `Shutdown`            | (empty)                                      | Graceful shutdown                                 |
 |  8 | `SetPeerConfig`       | UTF-8 JSON (see below)                       | Configure peer addresses                          |
-| 10 | `SubmitTx`            | `[fee:i64 LE][num_ops:u32 LE][tx_xdr]`       | Submit TX for flood + mempool                     |
+| 10 | `SubmitTx`            | `[fee:i64 LE][num_ops:u32 LE][flags:u32 LE][tx_xdr]` | Submit TX for flood + mempool (flags bit 0 = Soroban) |
 | 11 | `RequestTxSet`        | `[hash:32]`                                  | Fetch TX set body by hash                         |
 | 12 | `CacheTxSet`          | `[hash:32][txset_xdr]`                       | Tell overlay to cache a locally-built TX set      |
 | 13 | `RequestOverlayMetrics` | (empty)                                    | Request metrics snapshot                          |
@@ -82,8 +91,8 @@ are rejected with `InvalidData`.
 
 - **Endianness inside the payload**: the *frame* header is native-endian,
   but several payloads use explicit little- or big-endian fields:
-  - `SubmitTx`: `fee` and `num_ops` are little-endian
-    (`main.rs:1102-1103`).
+  - `SubmitTx`: `fee`, `num_ops` and `flags` are little-endian.
+  - `GetTopTxs`: all four budget fields are little-endian.
   - `LedgerClosed`, `RequestScpState`, `TxSetExternalized` ledger seq
     fields: little-endian (`main.rs:1121, 1143, 1172`).
   - `RequestScpState` peer-side wire frame on `/stellar/scp/1.0.0`:
@@ -130,9 +139,12 @@ Two consequences:
 
 - **Socket closed** (Core process exits): the receiver returns `None`,
   the overlay's main loop exits. The overlay process terminates.
-- **Frame parse error** (e.g. bad magic, oversized length): connection
-  is treated as broken; depending on which side detected it, either
-  process logs the error and shuts down. There is no resync.
+- **Oversized frame**: drained and ignored, see above; the connection
+  survives.
+- **Frame parse error** (e.g. unknown message type, connection lost
+  mid-frame): connection is treated as broken; depending on which side
+  detected it, either process logs the error and shuts down. There is
+  no resync.
 - **Unknown message type**: returns `InvalidData`. Adding a new message
   type requires updating `MessageType::try_from` (in `messages.rs`).
 

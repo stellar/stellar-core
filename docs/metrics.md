@@ -63,6 +63,7 @@ crypto.verify.total                       | meter     | sum of both hits and mis
 crypto.verify.tx-valid-hit                | meter     | signature cache hits that occurred while validating transactions (outside of background signature validation)
 crypto.verify.tx-valid-total              | meter     | sum of both hits and misses during transaction validation (outside of background signature validation)
 herder.txset.validate                     | timer     | time spent turning a received tx set into an applicable tx set and validating it on a validity-cache miss
+herder.txset.candidates-validated         | counter   | candidate transactions validated while building a tx set for nomination (with lazy validation: the included ones plus the excess-demand probes)
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions
@@ -130,6 +131,9 @@ overlay.delay.write-queue                 | timer     | time between each messag
 overlay.error.read                        | meter     | error while receiving a message
 overlay.error.write                       | meter     | error while sending a message
 overlay.fetch.txset                       | timer     | time to complete fetching of a txset
+overlay.fetch.txset-request               | meter     | tx set fetch requests core issued to the overlay (first request or safety-net re-request)
+overlay.fetch.txset-retry                 | meter     | tx set fetches the overlay re-dispatched to another peer (timeout, DontHave, or disconnect)
+overlay.fetch.txset-dont-have             | meter     | DontHave answers received for a tx set we were waiting on from that peer
 overlay.fetch.qset                        | timer     | time to complete fetching of a qset
 overlay.fetch.unique-recv                 | meter     | number of bytes of fetched messages that have not yet been received
 overlay.fetch.duplicate-recv              | meter     | number of bytes of fetched messages that have already been received

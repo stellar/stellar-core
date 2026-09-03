@@ -20,14 +20,14 @@ use tracing::{debug, error, info, warn};
 use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::{Multiaddr, PeerId};
 use stellar_overlay::config::Config;
-use stellar_overlay::flood::{CachedTxSet, Hash256, TxSetCache};
-use stellar_overlay::integrated::{Overlay, OverlayHandle};
+use stellar_overlay::flood::{CachedTxSet, Hash256, TxBudget, TxSetCache};
+use stellar_overlay::integrated::{Overlay, OverlayHandle, TopTxsRequest};
 use stellar_overlay::ipc::{CoreIpc, Message, MessageType};
 use stellar_overlay::libp2p_overlay::{
     create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
 };
 use stellar_overlay::metrics::OverlayMetrics;
-use stellar_overlay::wire::ValidatedTx;
+use stellar_overlay::wire::{TxKind, ValidatedTx};
 use stellar_overlay::xdr;
 
 /// Command-line arguments
@@ -386,6 +386,32 @@ fn cache_tx_set_xdr(
         xdr,
         ledger_seq: current_ledger_seq,
     });
+}
+
+/// SubmitTx payload header: [fee:i64][numOps:u32][flags:u32]
+const SUBMIT_TX_HEADER_LEN: usize = 8 + 4 + 4;
+/// SubmitTx flags bit: the transaction is a Soroban transaction.
+const SUBMIT_TX_FLAG_SOROBAN: u32 = 1;
+
+/// Parse a GetTopTxs payload:
+/// [classicCount:u32][classicMaxBytes:u32][sorobanCount:u32][sorobanMaxBytes:u32]
+/// (all little-endian). `None` if too short.
+fn parse_top_txs_request(payload: &[u8]) -> Option<TopTxsRequest> {
+    if payload.len() < 16 {
+        return None;
+    }
+    let field =
+        |i: usize| u32::from_le_bytes(payload[i * 4..i * 4 + 4].try_into().unwrap()) as usize;
+    Some(TopTxsRequest {
+        classic: TxBudget {
+            max_count: field(0),
+            max_bytes: field(1),
+        },
+        soroban: TxBudget {
+            max_count: field(2),
+            max_bytes: field(3),
+        },
+    })
 }
 
 /// Application state
@@ -786,11 +812,17 @@ impl App {
                     });
                 } else {
                     warn!(
-                        "TxSet {:02x?}... NOT IN CACHE - cannot serve to {} (cache has {} entries)",
+                        "TxSet {:02x?}... NOT IN CACHE - telling {} we don't have it (cache has {} entries)",
                         &hash[..4],
                         from,
                         self.tx_set_cache.len()
                     );
+                    // A negative answer lets the requester move on to another
+                    // peer immediately instead of waiting out its timeout.
+                    let handle = self.libp2p_handle.clone();
+                    tokio::spawn(async move {
+                        handle.send_txset_dont_have(hash, from).await;
+                    });
                 }
             }
 
@@ -942,6 +974,15 @@ impl App {
 
     /// Handle a message from Core. Returns false to signal shutdown.
     async fn handle_core_message(&mut self, msg: Message) -> bool {
+        if msg.truncated {
+            // The IPC reader drained an oversized frame to stay in sync; its
+            // content is gone. Core never sends oversized frames on purpose.
+            error!(
+                "Ignoring oversized {:?} frame from Core (payload exceeded the IPC frame limit and was discarded)",
+                msg.msg_type
+            );
+            return true;
+        }
         match msg.msg_type {
             MessageType::Shutdown => {
                 info!("Shutdown requested by Core");
@@ -969,24 +1010,26 @@ impl App {
             }
 
             MessageType::GetTopTxs => {
-                // Parse payload: [count:4]
-                if msg.payload.len() < 4 {
+                // Parse payload, one (count, bytes) budget per tx set phase:
+                // [classicCount:4][classicMaxBytes:4][sorobanCount:4][sorobanMaxBytes:4]
+                let Some(request) = parse_top_txs_request(&msg.payload) else {
                     warn!("GetTopTxs payload too short: {} bytes", msg.payload.len());
                     // Send empty response
                     if let Err(e) = self.core_ipc.sender.send_top_txs_response(&[]) {
                         error!("Failed to send empty top txs response: {}", e);
                     }
                     return true;
-                }
-
-                let count = u32::from_le_bytes(msg.payload[0..4].try_into().unwrap()) as usize;
-                debug!("Core requesting top {} transactions", count);
+                };
+                debug!(
+                    "Core requesting top transactions: classic {:?}, soroban {:?}",
+                    request.classic, request.soroban
+                );
 
                 let core_sender = self.core_ipc.sender.clone();
                 let overlay_handle = self.overlay_handle.clone();
 
                 tokio::spawn(async move {
-                    let Some(txs) = overlay_handle.get_top_txs(count).await else {
+                    let Some(txs) = overlay_handle.get_top_txs(request).await else {
                         warn!("GetTopTxs: mempool manager gone (shutting down); not responding");
                         return;
                     };
@@ -1075,20 +1118,27 @@ impl App {
             }
 
             MessageType::SubmitTx => {
-                // Parse payload: [fee:i64][numOps:u32][txEnvelope...]
-                if msg.payload.len() < 12 {
+                // Parse payload: [fee:i64][numOps:u32][flags:u32][txEnvelope...]
+                // flags bit 0: Soroban transaction.
+                if msg.payload.len() < SUBMIT_TX_HEADER_LEN {
                     warn!("SubmitTx payload too short");
                     return true;
                 }
 
                 let fee = i64::from_le_bytes(msg.payload[0..8].try_into().unwrap());
                 let num_ops = u32::from_le_bytes(msg.payload[8..12].try_into().unwrap());
-                let tx_data = msg.payload[12..].to_vec();
+                let flags = u32::from_le_bytes(msg.payload[12..16].try_into().unwrap());
+                let kind = if flags & SUBMIT_TX_FLAG_SOROBAN != 0 {
+                    TxKind::Soroban
+                } else {
+                    TxKind::Classic
+                };
+                let tx_data = msg.payload[SUBMIT_TX_HEADER_LEN..].to_vec();
 
-                // Core is trusted for encoding and supplies fee/ops; we only
-                // reject fee-bumps (still unsupported) via a cheap discriminant
-                // check. No decode.
-                let tx = match ValidatedTx::from_core_trusted(tx_data, fee, num_ops) {
+                // Core is trusted for encoding and supplies fee/ops/kind; we
+                // only reject fee-bumps (still unsupported) via a cheap
+                // discriminant check. No decode.
+                let tx = match ValidatedTx::from_core_trusted(tx_data, fee, num_ops, kind) {
                     Ok(tx) => tx,
                     Err(e) => {
                         warn!("SUBMIT_TX_DROP: Dropping unsupported TX from Core: {}", e);
@@ -1141,6 +1191,13 @@ impl App {
                     // Evict old TX sets from cache
                     self.tx_set_cache
                         .evict_before(ledger_seq.saturating_sub(12));
+
+                    // Let the network layer abandon TX set fetches for slots
+                    // that have aged out of every peer's cache.
+                    let handle = self.libp2p_handle.clone();
+                    tokio::spawn(async move {
+                        handle.ledger_closed(ledger_seq).await;
+                    });
                 }
             }
 
@@ -2084,5 +2141,173 @@ mod tests {
         assert_eq!(resp.msg_type, MessageType::TxSetAvailable);
         assert_eq!(&resp.payload[0..32], &hash[..]);
         assert_eq!(&resp.payload[32..], &xdr_bytes[..]);
+    }
+
+    /// A distinct, well-formed classic `TransactionEnvelope` per (fee, seq).
+    /// (The lib's test helper is crate-private to it, so the binary has its
+    /// own.)
+    fn valid_transaction_xdr(fee: u32, sequence: i64, num_ops: usize) -> Vec<u8> {
+        use stellar_xdr::curr::{
+            DecoratedSignature, Operation, SequenceNumber, Transaction, TransactionEnvelope,
+            TransactionV1Envelope, VecM,
+        };
+        let mut tx = Transaction {
+            fee,
+            seq_num: SequenceNumber(sequence),
+            ..Transaction::default()
+        };
+        tx.operations = VecM::try_from(vec![Operation::default(); num_ops]).unwrap();
+        TransactionEnvelope::Tx(TransactionV1Envelope {
+            tx,
+            signatures: VecM::<DecoratedSignature, 20>::default(),
+        })
+        .to_xdr(Limits::none())
+        .unwrap()
+    }
+
+    fn read_core_message(core: &mut StdUnixStream, timeout: Duration) -> Option<Message> {
+        core.set_read_timeout(Some(timeout)).unwrap();
+        MessageCodec::read(core).ok()
+    }
+
+    fn submit_tx_payload(tx: &[u8], fee: i64, num_ops: u32, soroban: bool) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(SUBMIT_TX_HEADER_LEN + tx.len());
+        payload.extend_from_slice(&fee.to_le_bytes());
+        payload.extend_from_slice(&num_ops.to_le_bytes());
+        payload
+            .extend_from_slice(&(if soroban { SUBMIT_TX_FLAG_SOROBAN } else { 0 }).to_le_bytes());
+        payload.extend_from_slice(tx);
+        payload
+    }
+
+    fn get_top_txs_payload(
+        classic_count: u32,
+        classic_bytes: u32,
+        soroban_count: u32,
+        soroban_bytes: u32,
+    ) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(16);
+        for v in [classic_count, classic_bytes, soroban_count, soroban_bytes] {
+            payload.extend_from_slice(&v.to_le_bytes());
+        }
+        payload
+    }
+
+    fn parse_top_txs_response(payload: &[u8]) -> Vec<Vec<u8>> {
+        let count = u32::from_le_bytes(payload[0..4].try_into().unwrap()) as usize;
+        let mut out = Vec::with_capacity(count);
+        let mut offset = 4;
+        for _ in 0..count {
+            let len = u32::from_le_bytes(payload[offset..offset + 4].try_into().unwrap()) as usize;
+            offset += 4;
+            out.push(payload[offset..offset + len].to_vec());
+            offset += len;
+        }
+        out
+    }
+
+    #[test]
+    fn test_parse_top_txs_request() {
+        let req = parse_top_txs_request(&get_top_txs_payload(5, 600, 7, 800)).unwrap();
+        assert_eq!(req.classic.max_count, 5);
+        assert_eq!(req.classic.max_bytes, 600);
+        assert_eq!(req.soroban.max_count, 7);
+        assert_eq!(req.soroban.max_bytes, 800);
+        // Legacy 4-byte [count] payload is rejected.
+        assert!(parse_top_txs_request(&5u32.to_le_bytes()).is_none());
+        assert!(parse_top_txs_request(&[]).is_none());
+    }
+
+    /// SubmitTx inserts into the mempool; GetTopTxs honours per-kind count
+    /// and byte budgets and lists classic before Soroban.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_submit_tx_and_get_top_txs_budgets() {
+        let (mut app, mut core) = test_app();
+
+        let c_low = valid_transaction_xdr(100, 1, 1);
+        let c_high = valid_transaction_xdr(900, 2, 1);
+        let s_tx = valid_transaction_xdr(50, 3, 1);
+        for (tx, fee, soroban) in [
+            (&c_low, 100, false),
+            (&c_high, 900, false),
+            (&s_tx, 50, true),
+        ] {
+            assert!(
+                app.handle_core_message(Message::new(
+                    MessageType::SubmitTx,
+                    submit_tx_payload(tx, fee, 1, soroban),
+                ))
+                .await
+            );
+        }
+        // Duplicate submission is accepted and harmless.
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::SubmitTx,
+                submit_tx_payload(&c_low, 100, 1, false),
+            ))
+            .await
+        );
+
+        // Everything fits: classic (high fee first), then soroban.
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::GetTopTxs,
+                get_top_txs_payload(10, u32::MAX, 10, u32::MAX),
+            ))
+            .await
+        );
+        let resp = read_core_message(&mut core, Duration::from_secs(2)).unwrap();
+        assert_eq!(resp.msg_type, MessageType::TopTxsResponse);
+        assert_eq!(
+            parse_top_txs_response(&resp.payload),
+            vec![c_high.clone(), c_low.clone(), s_tx.clone()]
+        );
+
+        // One classic, no soroban.
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::GetTopTxs,
+                get_top_txs_payload(1, u32::MAX, 0, u32::MAX),
+            ))
+            .await
+        );
+        let resp = read_core_message(&mut core, Duration::from_secs(2)).unwrap();
+        assert_eq!(parse_top_txs_response(&resp.payload), vec![c_high.clone()]);
+
+        // Classic byte budget for exactly one tx, soroban unlimited.
+        let one_tx_bytes = c_high.len() as u32;
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::GetTopTxs,
+                get_top_txs_payload(10, one_tx_bytes, 10, u32::MAX),
+            ))
+            .await
+        );
+        let resp = read_core_message(&mut core, Duration::from_secs(2)).unwrap();
+        assert_eq!(
+            parse_top_txs_response(&resp.payload),
+            vec![c_high.clone(), s_tx.clone()]
+        );
+    }
+
+    /// An oversized frame that the IPC reader drained must be ignored without
+    /// killing the loop or producing a reply.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_truncated_core_message_is_ignored() {
+        let (mut app, mut core) = test_app();
+        assert!(
+            app.handle_core_message(Message::truncated(MessageType::GetTopTxs))
+                .await
+        );
+        assert!(
+            read_core_message(&mut core, Duration::from_millis(300)).is_none(),
+            "no reply expected for a truncated GetTopTxs"
+        );
+        // A Shutdown must still be honoured afterwards.
+        assert!(
+            !app.handle_core_message(Message::new(MessageType::Shutdown, vec![]))
+                .await
+        );
     }
 }

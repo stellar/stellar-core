@@ -51,8 +51,11 @@ class RustOverlayManager
     // Network operations
     bool broadcastMessage(std::shared_ptr<StellarMessage const> msg,
                           std::optional<Hash> const hash = std::nullopt);
+    // Submit a locally received transaction to the overlay mempool and flood
+    // it to peers. `isSoroban` selects the mempool index (tx set phase) it is
+    // pulled from at nomination.
     void broadcastTransaction(TransactionEnvelope const& tx, int64_t fee,
-                              uint32_t numOps);
+                              uint32_t numOps, bool isSoroban);
 
     void clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq);
 
@@ -74,9 +77,11 @@ class RustOverlayManager
     void cacheTxSet(Hash const& txSetHash, std::vector<uint8_t> const& xdr,
                     uint32_t slotIndex);
 
-    // Get top transactions from Rust overlay's mempool for TX set building.
-    // Blocks until the overlay responds, shuts down, or disconnects.
-    std::vector<TransactionEnvelope> getTopTransactions(size_t count);
+    // Get top transactions from Rust overlay's mempool for TX set building,
+    // within per-phase count/byte budgets. Blocks until the overlay
+    // responds, shuts down, or disconnects.
+    std::vector<TransactionEnvelope>
+    getTopTransactions(TopTxsRequest const& request);
 
     // Metrics and managers
     OverlayMetrics& getOverlayMetrics();

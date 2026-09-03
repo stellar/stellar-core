@@ -105,11 +105,18 @@ using PerPhaseTransactionList = std::vector<TxFrameList>;
 // Creates a valid ApplicableTxSetFrame and corresponding TxSetXDRFrame
 // from the provided transactions.
 //
-// Not all the transactions will be included in the result: invalid
-// transactions are trimmed and optionally returned via `invalidTxs` and if
-// there are too many remaining transactions surge pricing is applied.
-// The result is guaranteed to pass `checkValid` check with the same
-// arguments as in this method, so additional validation is not needed.
+// Not all the transactions will be included in the result: surge pricing
+// selects the highest-priority candidates that fit the ledger limits, and
+// candidates are validated lazily, only when surge pricing is about to
+// include them (plus at most one non-fitting candidate per fee lane, so
+// surge pricing still sees excess demand). Rejected candidates are
+// optionally returned via `invalidTxsPerPhase`; candidates surge pricing
+// never reached are neither validated nor reported, so the cost of building
+// the set is bounded by what fits in the ledger rather than by how many
+// candidates were supplied (nomination pulls more than fits from the
+// mempool, see HerderImpl::mempoolPullBudget). The result is guaranteed to
+// pass `checkValid` check with the same arguments as in this method, so
+// additional validation is not needed.
 //
 // **Note**: the output `ApplicableTxSetFrame` will *not* contain the input
 // transaction pointers.

@@ -350,6 +350,24 @@ OverlayIPC::handleMessage(IPCMessage const& msg)
 {
     CLOG_DEBUG(Overlay, "IPC handleMessage: type={}, payload_size={}",
                static_cast<uint32_t>(msg.type), msg.payload.size());
+    if (msg.truncated)
+    {
+        // The frame exceeded IPC_MAX_PAYLOAD_SIZE; its payload was drained
+        // and discarded so the connection survives. Nothing can be done
+        // with the message itself, except waking a getTopTransactions
+        // caller that would otherwise wait for a reply that is gone.
+        CLOG_ERROR(Overlay,
+                   "Dropped oversized IPC message from overlay (type={}): "
+                   "payload exceeded {} bytes",
+                   static_cast<uint32_t>(msg.type), IPC_MAX_PAYLOAD_SIZE);
+        if (msg.type == IPCMessageType::TOP_TXS_RESPONSE)
+        {
+            std::lock_guard<std::mutex> lock(mRequestMutex);
+            mPendingResponse = msg;
+            mRequestCv.notify_one();
+        }
+        return;
+    }
     switch (msg.type)
     {
     case IPCMessageType::SCP_RECEIVED:
@@ -549,7 +567,7 @@ OverlayIPC::removeTransactions(std::vector<Hash> const& txHashes)
 }
 
 std::vector<TransactionEnvelope>
-OverlayIPC::getTopTransactions(size_t count)
+OverlayIPC::getTopTransactions(TopTxsRequest const& request)
 {
     std::vector<TransactionEnvelope> result;
 
@@ -559,11 +577,15 @@ OverlayIPC::getTopTransactions(size_t count)
     }
 
     // Send request
+    // Payload: [classicMaxCount:4][classicMaxBytes:4]
+    //          [sorobanMaxCount:4][sorobanMaxBytes:4]
     IPCMessage req;
     req.type = IPCMessageType::GET_TOP_TXS;
-    uint32_t countU32 = static_cast<uint32_t>(count);
-    req.payload.resize(4);
-    std::memcpy(req.payload.data(), &countU32, 4);
+    req.payload.resize(16);
+    std::memcpy(req.payload.data(), &request.classicMaxCount, 4);
+    std::memcpy(req.payload.data() + 4, &request.classicMaxBytes, 4);
+    std::memcpy(req.payload.data() + 8, &request.sorobanMaxCount, 4);
+    std::memcpy(req.payload.data() + 12, &request.sorobanMaxBytes, 4);
 
     {
         std::lock_guard<std::mutex> lock(mRequestMutex);
@@ -601,6 +623,13 @@ OverlayIPC::getTopTransactions(size_t count)
     {
         CLOG_WARNING(Overlay,
                      "Unexpected response type for getTopTransactions");
+        return result;
+    }
+    if (response.truncated)
+    {
+        CLOG_WARNING(Overlay,
+                     "Top transactions reply exceeded the IPC frame limit "
+                     "and was discarded; nominating without it");
         return result;
     }
 
@@ -649,7 +678,7 @@ OverlayIPC::getTopTransactions(size_t count)
 
 void
 OverlayIPC::submitTransaction(TransactionEnvelope const& tx, int64_t fee,
-                              uint32_t numOps)
+                              uint32_t numOps, bool isSoroban)
 {
     if (!mChannel || !mChannel->isConnected())
     {
@@ -661,14 +690,18 @@ OverlayIPC::submitTransaction(TransactionEnvelope const& tx, int64_t fee,
 
     auto txData = xdr::xdr_to_opaque(tx);
 
-    // Payload: [fee:8][numOps:4][txData...]
-    msg.payload.resize(8 + 4 + txData.size());
+    // Payload: [fee:8][numOps:4][flags:4][txData...]; flags bit 0 = Soroban
+    uint32_t flags = isSoroban ? 1u : 0u;
+    msg.payload.resize(8 + 4 + 4 + txData.size());
     size_t offset = 0;
 
     std::memcpy(msg.payload.data() + offset, &fee, 8);
     offset += 8;
 
     std::memcpy(msg.payload.data() + offset, &numOps, 4);
+    offset += 4;
+
+    std::memcpy(msg.payload.data() + offset, &flags, 4);
     offset += 4;
 
     std::memcpy(msg.payload.data() + offset, txData.data(), txData.size());

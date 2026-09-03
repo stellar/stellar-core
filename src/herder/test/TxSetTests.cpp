@@ -3403,7 +3403,8 @@ TEST_CASE("parallel tx set building benchmark",
             auto start = std::chrono::steady_clock::now();
             auto stages = buildSurgePricedParallelSorobanPhase(
                 allTxs[iter], cfg, sorobanCfg, surgePricingLaneConfig,
-                hadTxNotFittingLane, ledgerVersion);
+                hadTxNotFittingLane, ledgerVersion,
+                [](TransactionFrameBasePtr const&) { return true; });
             auto end = std::chrono::steady_clock::now();
             totalDuration +=
                 std::chrono::duration_cast<std::chrono::nanoseconds>(end -

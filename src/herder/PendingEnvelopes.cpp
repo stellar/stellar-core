@@ -295,6 +295,7 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
     }
     mPendingTxSetFetches.erase(hash);
     mTxSetFetchStartTimes.erase(hash);
+    mTxSetLastRequestTimes.erase(hash);
     return true;
 }
 
@@ -688,22 +689,41 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
             // doesn't need fetching): nothing to do
             continue;
         }
+        auto const now = mApp.getClock().now();
+        auto const slot = static_cast<uint32_t>(envelope.statement.slotIndex);
         auto it = mPendingTxSetFetches.find(h2);
         if (it != mPendingTxSetFetches.end())
         {
-            // Already fetching - just add envelope to waiting list
+            // Already fetching - add envelope to waiting list. The overlay
+            // owns retrying the fetch across peers; re-issue the request only
+            // if it has been outstanding for a long time, as a safety net for
+            // the cases where the overlay could not record it (see
+            // TX_SET_REFETCH_INTERVAL).
             it->second.push_back(envelope);
+            auto lastRequest = mTxSetLastRequestTimes.find(h2);
+            if (lastRequest != mTxSetLastRequestTimes.end() &&
+                now - lastRequest->second >= TX_SET_REFETCH_INTERVAL)
+            {
+                CLOG_DEBUG(
+                    Herder,
+                    "Re-requesting tx set {} for slot {} still "
+                    "pending after {} ms",
+                    hexAbbrev(h2), slot,
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        now - lastRequest->second)
+                        .count());
+                lastRequest->second = now;
+                mApp.getOverlayManager().requestTxSet(h2, slot);
+            }
         }
         else
         {
             // Not fetching yet - start fetch
             auto& vec = mPendingTxSetFetches[h2];
             vec.push_back(envelope);
-            mTxSetFetchStartTimes.emplace(h2, mApp.getClock().now());
-            mApp.getOverlayManager().requestTxSet(
-                h2,
-                static_cast<uint32_t>(
-                    envelope.statement.slotIndex)); // Only once!
+            mTxSetFetchStartTimes.emplace(h2, now);
+            mTxSetLastRequestTimes[h2] = now;
+            mApp.getOverlayManager().requestTxSet(h2, slot);
         }
     }
 
@@ -733,6 +753,7 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
             {
                 mPendingTxSetFetches.erase(it);
                 mTxSetFetchStartTimes.erase(h2);
+                mTxSetLastRequestTimes.erase(h2);
             }
         }
     }
@@ -877,8 +898,9 @@ PendingEnvelopes::stopAllOutsideRange(std::optional<uint64> minSlot,
             maybeRecordCost(it);
         }
     }
-    // Clear pending fetches for old slots - no need to track individual slots
-    // since Rust overlay handles timeout/retry logic
+    // Pending fetches are not cleared per slot here: the overlay retries them
+    // across peers and drops the ones whose slot ages out, and startFetch
+    // re-issues a long-pending request when an envelope for it arrives.
 }
 
 void

@@ -130,6 +130,16 @@ class SorobanGenericLaneConfig : public SurgePricingLaneConfig
     std::vector<Resource> mLaneLimits;
 };
 
+// Decides whether a candidate transaction may be included in a tx set. Surge
+// pricing validates candidates lazily through it while selecting them: only
+// transactions that are about to be included (plus at most one non-fitting
+// transaction per lane, to detect excess demand) are checked, in priority
+// order. Implementations must be idempotent (the same transaction may be
+// queried more than once) and may have order-dependent side effects, which
+// is why callers always query in priority order.
+using TxValidationCallback =
+    std::function<bool(TransactionFrameBasePtr const&)>;
+
 // Priority queue-like data structure that allows to store transactions ordered
 // by fee rate and perform operations that respect the lane limits specified by
 // `SurgePricingLaneConfig`.
@@ -150,7 +160,8 @@ class SurgePricingPriorityQueue
     static std::vector<TransactionFrameBasePtr> getMostTopTxsWithinLimits(
         std::vector<TransactionFrameBasePtr> const& txs,
         std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
+        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+        TxValidationCallback const& isValid);
 
     // Returns total amount of resources in all the transactions in this queue.
     Resource totalResources() const;
@@ -244,6 +255,10 @@ class SurgePricingPriorityQueue
     // queue until the lane limits are reached.
     // This is a destructive method that removes all or most of the queue
     // elements and thus should be used with care.
+    // A transaction that does not fit only counts as excess demand (marks
+    // `hadTxNotFittingLane`) if `notFittingIsValid` accepts it, and it is
+    // only consulted while its lane is not marked yet, so at most one
+    // non-fitting transaction per lane is validated.
     // If `customLimits` is provided, use those instead of mLaneLimits.
     void popTopTxs(
         bool allowGaps,
@@ -251,6 +266,7 @@ class SurgePricingPriorityQueue
             visitor,
         std::vector<Resource>& laneResourcesLeftUntilLimit,
         std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+        TxValidationCallback const& notFittingIsValid,
         std::optional<std::vector<Resource>> const& customLimits =
             std::nullopt);
 

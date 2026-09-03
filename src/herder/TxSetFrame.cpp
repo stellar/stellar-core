@@ -12,13 +12,17 @@
 #include "herder/HerderImpl.h"
 #include "herder/ParallelTxSetBuilder.h"
 #include "herder/SurgePricingUtils.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "medida/counter.h"
+#include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
@@ -538,16 +542,123 @@ TxFrameList
 buildSurgePricedSequentialPhase(
     TxFrameList const& txs,
     std::shared_ptr<SurgePricingLaneConfig> surgePricingLaneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    TxValidationCallback const& isValid)
 {
     ZoneScoped;
     return SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
-        txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+        txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion,
+        isValid);
 }
+
+// Validates candidates on demand while surge pricing selects them: the same
+// per-transaction checks as `TxSetUtils::getInvalidTxListWithErrors`
+// (validity against the LCL, and the fee source being able to pay for every
+// validated transaction of its own), memoized, with every rejected candidate
+// appended to `invalidTxs`. Candidates surge pricing never asks about are
+// never validated (and never reported).
+class LazyTxValidator
+{
+  public:
+    LazyTxValidator(Application& app,
+                    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                    uint64_t lowerBoundCloseTimeOffset,
+                    uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs)
+        : mApp(app)
+        , mLedgerView(app)
+        , mAccountFeeMap(accountFeeMap)
+        , mLowerBoundCloseTimeOffset(lowerBoundCloseTimeOffset)
+        , mUpperBoundCloseTimeOffset(upperBoundCloseTimeOffset)
+        , mInvalidTxs(invalidTxs)
+        , mDiagnostics(DiagnosticEventManager::createDisabled())
+        , mValidations(app.getMetrics().NewCounter(
+              {"herder", "txset", "candidates-validated"}))
+    {
+        releaseAssert(threadIsMain());
+#ifdef BUILD_TESTS
+        // See TransactionQueue::canAdd for the overlay-only-mode rationale.
+        mLedgerView.mSkipSeqNumCheck = app.getRunInOverlayOnlyMode();
+#endif
+        // Validate minSeqLedgerGap and LedgerBounds against the next
+        // ledgerSeq, which is what will be used at apply time.
+        if (protocolVersionStartsFrom(
+                mLedgerView.getLedgerHeader().current().ledgerVersion,
+                ProtocolVersion::V_19))
+        {
+            mValidationLedgerSeq =
+                app.getLedgerManager().getLastClosedLedgerNum() + 1;
+        }
+    }
+
+    // Usable as a TxValidationCallback (through a lambda capturing this
+    // object by reference).
+    bool
+    operator()(TransactionFrameBasePtr const& tx)
+    {
+        auto memo = mResults.find(tx.get());
+        if (memo != mResults.end())
+        {
+            return memo->second;
+        }
+        mValidations.inc();
+        bool ok = tx->checkValid(mApp.getAppConnector(), mLedgerView, 0,
+                                 mLowerBoundCloseTimeOffset,
+                                 mUpperBoundCloseTimeOffset, mDiagnostics,
+                                 mValidationLedgerSeq)
+                      ->isSuccess();
+        if (ok)
+        {
+            // The fee source has to be able to pay for every transaction of
+            // its own that may end up in the set.
+            auto const feeSourceID = tx->getFeeSourceID();
+            auto feeSource = mLedgerView.getAccount(feeSourceID);
+            int64_t& accFee = mAccountFeeMap[feeSourceID];
+            int64_t const fee = tx->getFullFee();
+            if (!feeSource ||
+                getAvailableBalance(mLedgerView.getLedgerHeader().current(),
+                                    feeSource.current()) -
+                        accFee <
+                    fee)
+            {
+                CLOG_DEBUG(Herder,
+                           "Skipping tx {}: fee source can't pay for all "
+                           "its candidate transactions",
+                           hexAbbrev(tx->getFullHash()));
+                ok = false;
+            }
+            else if (INT64_MAX - accFee < fee)
+            {
+                accFee = INT64_MAX;
+            }
+            else
+            {
+                accFee += fee;
+            }
+        }
+        if (!ok)
+        {
+            mInvalidTxs.push_back(tx);
+        }
+        mResults.emplace(tx.get(), ok);
+        return ok;
+    }
+
+    Application& mApp;
+    CheckValidLedgerViewWrapper mLedgerView;
+    UnorderedMap<AccountID, int64_t>& mAccountFeeMap;
+    uint64_t const mLowerBoundCloseTimeOffset;
+    uint64_t const mUpperBoundCloseTimeOffset;
+    TxFrameList& mInvalidTxs;
+    DiagnosticEventManager mDiagnostics;
+    std::optional<uint32_t> mValidationLedgerSeq;
+    medida::Counter& mValidations;
+    UnorderedMap<TransactionFrameBase const*, bool> mResults;
+};
 
 std::pair<std::variant<TxFrameList, TxStageFrameList>,
           std::shared_ptr<InclusionFeeMap>>
-applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
+applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app,
+                  TxValidationCallback const& isValid
 #ifdef BUILD_TESTS
                   ,
                   bool enforceTxsApplyOrder,
@@ -606,7 +717,8 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
             includedTxs = buildSurgePricedParallelSorobanPhase(
                 txs, app.getConfig(),
                 app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
-                surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+                surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion,
+                isValid);
 #ifdef BUILD_TESTS
         }
 #endif
@@ -614,7 +726,8 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
     else
     {
         includedTxs = buildSurgePricedSequentialPhase(
-            txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+            txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion,
+            isValid);
     }
 
     auto visitIncludedTxs =
@@ -847,24 +960,45 @@ makeTxSetFromTransactions(
         }
 
         auto& invalid = invalidTxs[i];
-        TxFrameList validatedTxs;
+        // The candidates go to surge pricing as they are and get validated
+        // on demand, through `isValid`, as surge pricing selects them.
+        TxFrameList candidates;
+        std::optional<LazyTxValidator> lazyValidator;
+        TxValidationCallback isValid;
 #ifdef BUILD_TESTS
         if (skipValidation)
         {
-            validatedTxs = phaseTxs;
+            candidates = phaseTxs;
+            isValid = [](TransactionFrameBasePtr const&) { return true; };
         }
         else
+#endif
         {
-#endif
-            validatedTxs = TxSetUtils::trimInvalid(
-                phaseTxs, app, accountFeeMap, lowerBoundCloseTimeOffset,
-                upperBoundCloseTimeOffset, invalid);
-#ifdef BUILD_TESTS
+            // Surge pricing reads fees and resources straight off the
+            // envelopes, before anything has been validated, so first weed
+            // out (cheaply, without touching the ledger) the candidates whose
+            // envelope can't even be read that way.
+            for (auto const& tx : phaseTxs)
+            {
+                if (tx->XDRProvidesValidFee() && tx->getInclusionFee() >= 0)
+                {
+                    candidates.push_back(tx);
+                }
+                else
+                {
+                    invalid.push_back(tx);
+                }
+            }
+            lazyValidator.emplace(app, accountFeeMap, lowerBoundCloseTimeOffset,
+                                  upperBoundCloseTimeOffset, invalid);
+            isValid = [&validator =
+                           *lazyValidator](TransactionFrameBasePtr const& tx) {
+                return validator(tx);
+            };
         }
-#endif
         auto phaseType = static_cast<TxSetPhase>(i);
         auto [includedTxs, inclusionFeeMapBinding] =
-            applySurgePricing(phaseType, validatedTxs, app
+            applySurgePricing(phaseType, candidates, app, isValid
 #ifdef BUILD_TESTS
                               ,
                               skipValidation, parallelSorobanOrder
@@ -946,8 +1080,8 @@ makeTxSetFromTransactions(
         throw std::runtime_error("Created invalid tx set frame - shape is "
                                  "mismatched after roundtrip.");
     }
-    // We already trimmed invalid transactions in an earlier call to
-    // `trimInvalid`, so skip transaction validation here
+    // Every included transaction was validated by surge pricing while
+    // building, so skip transaction validation here
     auto validationResult = outputApplicableTxSet->checkValidInternalWithResult(
         app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, true);
     if (validationResult != TxSetValidationResult::VALID)

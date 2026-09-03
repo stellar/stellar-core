@@ -21,6 +21,22 @@ namespace stellar
 class Application;
 
 /**
+ * What Core wants from one nomination pull of the overlay mempool: a
+ * (count, bytes) budget per tx set phase, each sized to what fits in that
+ * phase of the next ledger. The overlay answers with at most that many
+ * transactions / bytes of each kind, highest fee first, so the reply is
+ * never larger than the tx set it feeds and never exceeds the IPC frame
+ * limit.
+ */
+struct TopTxsRequest
+{
+    uint32_t classicMaxCount{0};
+    uint32_t classicMaxBytes{0};
+    uint32_t sorobanMaxCount{0};
+    uint32_t sorobanMaxBytes{0};
+};
+
+/**
  * OverlayIPC manages communication with the external Rust overlay process.
  *
  * This class:
@@ -112,26 +128,29 @@ class OverlayIPC
     void removeTransactions(std::vector<Hash> const& txHashes);
 
     /**
-     * Request top N transactions by fee for nomination.
+     * Request the top transactions by fee for nomination, within the
+     * per-phase budgets in `request`.
      *
      * Synchronous: blocks until the overlay responds. Shutdown or loss of
-     * the IPC connection unblocks the wait and returns an empty vector.
+     * the IPC connection unblocks the wait and returns an empty vector, as
+     * does a reply that exceeded the IPC frame limit.
      *
-     * @param count Number of transactions to request
-     * @return Vector of transaction envelopes (may be less than count if
-     * mempool is small)
+     * @return Classic transactions first, then Soroban, each highest fee
+     * first; possibly fewer than requested.
      */
-    std::vector<TransactionEnvelope> getTopTransactions(size_t count);
+    std::vector<TransactionEnvelope>
+    getTopTransactions(TopTxsRequest const& request);
 
     /**
-     * Submit a transaction to the overlay for flooding.
+     * Submit a transaction to the overlay mempool for flooding.
      *
      * @param tx The transaction envelope
      * @param fee Transaction fee
      * @param numOps Number of operations
+     * @param isSoroban Whether the transaction belongs to the Soroban phase
      */
     void submitTransaction(TransactionEnvelope const& tx, int64_t fee,
-                           uint32_t numOps);
+                           uint32_t numOps, bool isSoroban);
 
     /**
      * Request SCP state from peers.

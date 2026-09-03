@@ -148,60 +148,35 @@ std::vector<TransactionFrameBasePtr>
 SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     std::vector<TransactionFrameBasePtr> const& txs,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    TxValidationCallback const& isValid)
 {
     ZoneScoped;
-
     SurgePricingPriorityQueue queue(
         /* isHighestPriority */ true, laneConfig,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
-
-    bool allFit = true;
-    auto res = queue.countTxsResources(txs, ledgerVersion);
-    releaseAssert(!res.empty());
-    auto totalResources = Resource::makeEmpty(res[0].size());
-
-    for (int i = 0; i < static_cast<int>(queue.getNumLanes()); ++i)
-    {
-        // First check if each individual lane fits within its own limit
-        auto const& limit = queue.laneLimits(i);
-        if (anyGreater(res.at(i), limit))
-        {
-            allFit = false;
-            break;
-        }
-
-        // Check against GENERIC_LANE limit
-        totalResources += res.at(i);
-        if (anyGreater(
-                totalResources,
-                queue.laneLimits(SurgePricingPriorityQueue::GENERIC_LANE)))
-        {
-            allFit = false;
-            break;
-        }
-    }
-
-    if (allFit)
-    {
-        // If all lanes are within limits, we can include everything
-        hadTxNotFittingLane.assign(queue.getNumLanes(), false);
-        return txs;
-    }
-
-    // Otherwise, do normal surge pricing processing
     for (auto const& tx : txs)
     {
         queue.add(tx, ledgerVersion);
     }
+    // Candidates are validated right before they would be included, in
+    // priority order (validation may have order-dependent side effects, e.g.
+    // a fee source that can't pay for all of its transactions keeps the ones
+    // validated first); an invalid one is skipped without counting towards
+    // the limits or towards excess demand. Candidates the walk never reaches
+    // are never validated.
     std::vector<TransactionFrameBasePtr> outTxs;
-    auto visitor = [&outTxs](TransactionFrameBasePtr const& tx) {
+    auto visitor = [&outTxs, &isValid](TransactionFrameBasePtr const& tx) {
+        if (!isValid(tx))
+        {
+            return VisitTxResult::SKIPPED;
+        }
         outTxs.push_back(tx);
         return VisitTxResult::PROCESSED;
     };
     std::vector<Resource> laneLeftUntilLimit;
     queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimit,
-                    hadTxNotFittingLane, ledgerVersion);
+                    hadTxNotFittingLane, ledgerVersion, isValid);
     return outTxs;
 }
 
@@ -213,8 +188,13 @@ SurgePricingPriorityQueue::visitTopTxs(
 {
     ZoneScoped;
     std::vector<bool> hadTxNotFittingLane;
-    popTopTxs(/* allowGaps */ false, visitor, laneLeftUntilLimit,
-              hadTxNotFittingLane, ledgerVersion, customLimits);
+    // Without gaps the walk stops at the first non-fitting transaction, and
+    // every visited transaction is handed to `visitor`; there is nothing to
+    // validate here.
+    popTopTxs(
+        /* allowGaps */
+        false, visitor, laneLeftUntilLimit, hadTxNotFittingLane, ledgerVersion,
+        [](TransactionFrameBasePtr const&) { return true; }, customLimits);
 }
 
 void
@@ -287,6 +267,7 @@ SurgePricingPriorityQueue::popTopTxs(
     std::function<VisitTxResult(TransactionFrameBasePtr const&)> const& visitor,
     std::vector<Resource>& laneLeftUntilLimit,
     std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    TxValidationCallback const& notFittingIsValid,
     std::optional<std::vector<Resource>> const& customLimits)
 {
     ZoneScoped;
@@ -315,15 +296,19 @@ SurgePricingPriorityQueue::popTopTxs(
                     // If gaps are allowed we just erase the iterator and
                     // continue in the main loop.
                     gapSkipped = true;
+                    size_t markLane = anyGreater(curr, laneLeftUntilLimit[lane])
+                                          ? lane
+                                          : GENERIC_LANE;
+                    // Excess demand is only established by a transaction
+                    // that could have been included. Once a lane is marked
+                    // there is nothing more to learn, so further non-fitting
+                    // transactions are not validated.
+                    if (!hadTxNotFittingLane[markLane] &&
+                        notFittingIsValid(*currIt))
+                    {
+                        hadTxNotFittingLane[markLane] = true;
+                    }
                     erase(currIt, ledgerVersion);
-                    if (anyGreater(curr, laneLeftUntilLimit[lane]))
-                    {
-                        hadTxNotFittingLane[lane] = true;
-                    }
-                    else
-                    {
-                        hadTxNotFittingLane[GENERIC_LANE] = true;
-                    }
                     break;
                 }
                 else

@@ -165,6 +165,22 @@ class HerderImpl : public Herder
     uint32_t getMaxClassicTxSize() const override;
     uint32_t getFlowControlExtraBuffer() const override;
 
+    // Nomination pulls (what fits in the ledger + one transaction) *
+    // MEMPOOL_PULL_MULTIPLIER candidates from the mempool, per phase, by count
+    // and by bytes alike. The mempool does no stateful validation, so the top
+    // of the fee ordering may hold candidates that can't be included: the
+    // surplus keeps the ledger full in that case, while lazy validation keeps
+    // the cost proportional to what fits. The +1 lets surge pricing see excess
+    // demand at all (it only kicks in on a transaction that does *not* fit),
+    // and both dimensions get the same slack so that whichever one binds,
+    // Core still receives MEMPOOL_PULL_MULTIPLIER ledgers' worth.
+    static constexpr uint32_t MEMPOOL_PULL_MULTIPLIER = 2;
+
+    // Budget for one dimension (count or bytes) of one phase of the mempool
+    // pull, saturating at the u32 range of the IPC request.
+    static uint32_t mempoolPullBudget(int64_t fitsInLedger,
+                                      int64_t oneTransaction);
+
     uint32_t
     getMaxTxSize() const override
     {

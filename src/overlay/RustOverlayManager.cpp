@@ -164,7 +164,9 @@ RustOverlayManager::broadcastMessage(std::shared_ptr<StellarMessage const> msg,
             env.type() == ENVELOPE_TYPE_TX_V0
                 ? static_cast<uint32_t>(env.v0().tx.operations.size())
                 : static_cast<uint32_t>(env.v1().tx.operations.size());
-        mOverlayIPC->submitTransaction(env, fee, numOps);
+        bool isSoroban =
+            env.type() == ENVELOPE_TYPE_TX && env.v1().tx.ext.v() == 1;
+        mOverlayIPC->submitTransaction(env, fee, numOps, isSoroban);
         return true;
     }
 
@@ -173,11 +175,12 @@ RustOverlayManager::broadcastMessage(std::shared_ptr<StellarMessage const> msg,
 
 void
 RustOverlayManager::broadcastTransaction(TransactionEnvelope const& tx,
-                                         int64_t fee, uint32_t numOps)
+                                         int64_t fee, uint32_t numOps,
+                                         bool isSoroban)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
-        mOverlayIPC->submitTransaction(tx, fee, numOps);
+        mOverlayIPC->submitTransaction(tx, fee, numOps, isSoroban);
     }
 }
 
@@ -215,6 +218,7 @@ RustOverlayManager::requestTxSet(Hash const& txSetHash, uint32_t slotIndex)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
+        mOverlayMetrics.mTxSetRequestMeter.Mark();
         mOverlayIPC->requestTxSet(txSetHash, slotIndex);
     }
 }
@@ -231,11 +235,11 @@ RustOverlayManager::cacheTxSet(Hash const& txSetHash,
 }
 
 std::vector<TransactionEnvelope>
-RustOverlayManager::getTopTransactions(size_t count)
+RustOverlayManager::getTopTransactions(TopTxsRequest const& request)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
-        return mOverlayIPC->getTopTransactions(count);
+        return mOverlayIPC->getTopTransactions(request);
     }
     return {};
 }
@@ -364,6 +368,8 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mDuplicateFloodBytesRecv, "flood_duplicate_recv");
     markDelta(m.mAbandonedDemandMeter, "flood_abandoned_demands");
     markDelta(m.mDemandTimeouts, "demand_timeout");
+    markDelta(m.mFetchTxSetRetryMeter, "fetch_txset_retry");
+    markDelta(m.mFetchTxSetDontHaveMeter, "fetch_txset_dont_have");
 
     // Send meters per message type
     markDelta(m.mSendSCPMessageSetMeter, "send_scp_message");
