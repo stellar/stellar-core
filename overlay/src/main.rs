@@ -812,11 +812,17 @@ impl App {
                     });
                 } else {
                     warn!(
-                        "TxSet {:02x?}... NOT IN CACHE - cannot serve to {} (cache has {} entries)",
+                        "TxSet {:02x?}... NOT IN CACHE - telling {} we don't have it (cache has {} entries)",
                         &hash[..4],
                         from,
                         self.tx_set_cache.len()
                     );
+                    // A negative answer lets the requester move on to another
+                    // peer immediately instead of waiting out its timeout.
+                    let handle = self.libp2p_handle.clone();
+                    tokio::spawn(async move {
+                        handle.send_txset_dont_have(hash, from).await;
+                    });
                 }
             }
 
@@ -1185,6 +1191,13 @@ impl App {
                     // Evict old TX sets from cache
                     self.tx_set_cache
                         .evict_before(ledger_seq.saturating_sub(12));
+
+                    // Let the network layer abandon TX set fetches for slots
+                    // that have aged out of every peer's cache.
+                    let handle = self.libp2p_handle.clone();
+                    tokio::spawn(async move {
+                        handle.ledger_closed(ledger_seq).await;
+                    });
                 }
             }
 

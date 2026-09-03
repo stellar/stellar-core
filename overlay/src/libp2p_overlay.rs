@@ -12,7 +12,8 @@
 //! QUIC provides independent loss recovery per stream.
 
 use crate::flood::{
-    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxStreamMessage,
+    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, PendingTxSetFetches,
+    TxBuffer, TxStreamMessage, TXSET_FETCH_MAX_SLOT_LAG,
 };
 use crate::metrics::OverlayMetrics;
 use crate::wire::ValidatedTx;
@@ -31,7 +32,8 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use stellar_xdr::curr::MessageType as XdrMessageType;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, trace, warn};
 
@@ -97,6 +99,12 @@ pub enum OverlayCommand {
         data: Vec<u8>,
         to: PeerId,
     },
+    /// Tell a peer we do not have the TX set it asked for, so it can retry
+    /// another peer immediately instead of waiting for its timeout
+    SendTxSetDontHave { hash: [u8; 32], to: PeerId },
+    /// The network closed a ledger: abandon TX set fetches for slots that
+    /// nobody serves any more
+    LedgerClosed { ledger_seq: u32 },
     /// Record that a peer has a specific TX set (learned from SCP message)
     RecordTxSetSource { hash: [u8; 32], peer: PeerId },
     /// Connect to a peer by address (bootstrap — PeerId unknown)
@@ -214,6 +222,34 @@ impl OverlayHandle {
         }
     }
 
+    /// Answer a peer's TX set request negatively (cache miss on our side).
+    pub async fn send_txset_dont_have(&self, hash: [u8; 32], to: PeerId) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::SendTxSetDontHave { hash, to })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send SendTxSetDontHave: {}",
+                e
+            );
+        }
+    }
+
+    /// Inform the overlay that the network closed `ledger_seq`.
+    pub async fn ledger_closed(&self, ledger_seq: u32) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::LedgerClosed { ledger_seq })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send LedgerClosed: {}",
+                e
+            );
+        }
+    }
+
     /// Record that a peer has a specific TX set (call when receiving SCP with txSetHash)
     pub async fn record_txset_source(&self, hash: [u8; 32], peer: PeerId) {
         if let Err(e) = self
@@ -312,9 +348,10 @@ struct SharedState {
     scp_sent_to: RwLock<lru::LruCache<[u8; 32], HashSet<PeerId>>>,
     /// TX set sources: which peer has which TX set (learned from SCP messages)
     txset_sources: RwLock<lru::LruCache<[u8; 32], PeerId>>,
-    /// Pending TX set requests: hash -> (peer, request_time) to avoid duplicate fetches and track latency
-    /// hash -> (peer asked, request time, slot the set is for)
-    pending_txset_requests: RwLock<HashMap<[u8; 32], (PeerId, Instant, u32)>>,
+    /// In-flight TX set fetches: which peer each is outstanding to, since
+    /// when, and for which slot. Drives dedup, timeout-based retry to other
+    /// peers, and re-dispatch on `DontHave` / disconnect.
+    pending_txset_requests: RwLock<PendingTxSetFetches>,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
     /// Bounded TX event sender (backpressure - drops allowed)
@@ -358,7 +395,7 @@ impl SharedState {
             txset_sources: RwLock::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(1000).unwrap(),
             )),
-            pending_txset_requests: RwLock::new(HashMap::new()),
+            pending_txset_requests: RwLock::new(PendingTxSetFetches::new()),
             event_tx,
             tx_event_tx,
             tx_dropped_count: AtomicU64::new(0),
@@ -379,6 +416,19 @@ pub struct StellarOverlay {
     control: Control,
     state: Arc<SharedState>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
+}
+
+#[cfg(test)]
+impl StellarOverlay {
+    /// Shorten the TX set fetch retry timeout so tests need not wait for the
+    /// production value. Call before `run()`.
+    pub fn set_txset_fetch_timeout_for_testing(&self, timeout: Duration) {
+        self.state
+            .pending_txset_requests
+            .try_write()
+            .expect("no contention before run()")
+            .set_timeout(timeout);
+    }
 }
 
 /// Create the overlay and return handle + event receivers
@@ -529,10 +579,30 @@ impl StellarOverlay {
                             self.broadcast_tx(tx).await;
                         }
                         OverlayCommand::FetchTxSet { hash, slot } => {
-                            self.fetch_txset(hash, slot).await;
+                            start_txset_fetch(&self.state, hash, slot).await;
                         }
                         OverlayCommand::SendTxSet { hash, data, to } => {
                             self.send_txset_response(to, hash, data).await;
+                        }
+                        OverlayCommand::SendTxSetDontHave { hash, to } => {
+                            let state = Arc::clone(&self.state);
+                            tokio::spawn(async move {
+                                send_txset_dont_have(&state, to, hash).await;
+                            });
+                        }
+                        OverlayCommand::LedgerClosed { ledger_seq } => {
+                            let dropped = self
+                                .state
+                                .pending_txset_requests
+                                .write()
+                                .await
+                                .prune_stale(ledger_seq, TXSET_FETCH_MAX_SLOT_LAG);
+                            for hash in &dropped {
+                                warn!(
+                                    "TXSET_FETCH_ABANDONED: giving up on TX set {:02x?}... (needed for a slot more than {} ledgers behind {})",
+                                    &hash[..4], TXSET_FETCH_MAX_SLOT_LAG, ledger_seq
+                                );
+                            }
                         }
                         OverlayCommand::RecordTxSetSource { hash, peer } => {
                             let mut sources = self.state.txset_sources.write().await;
@@ -687,17 +757,24 @@ impl StellarOverlay {
                         let mut streams = self.state.peer_streams.write().await;
                         streams.remove(&peer_id);
                     }
-                    // Clean up pending txset requests for this peer
-                    {
-                        let mut pending = self.state.pending_txset_requests.write().await;
-                        let before_len = pending.len();
-                        pending.retain(|_hash, (p, _, _)| p != &peer_id);
-                        let removed = before_len - pending.len();
-                        if removed > 0 {
-                            info!(
-                                "Removed {} pending txset requests for disconnected peer {}",
-                                removed, peer_id
-                            );
+                    // TX set fetches outstanding to this peer will never be
+                    // answered; re-dispatch them to another peer right away.
+                    let orphaned = {
+                        let pending = self.state.pending_txset_requests.read().await;
+                        pending.assigned_to(&peer_id)
+                    };
+                    if !orphaned.is_empty() {
+                        info!(
+                            "Re-dispatching {} pending txset requests from disconnected peer {}",
+                            orphaned.len(),
+                            peer_id
+                        );
+                        for hash in orphaned {
+                            let state = Arc::clone(&self.state);
+                            tokio::spawn(async move {
+                                retry_txset_fetch(&state, hash, "peer disconnected", Some(peer_id))
+                                    .await;
+                            });
                         }
                     }
                     // Notify main loop to clean up any pending requests for this peer
@@ -838,6 +915,11 @@ impl StellarOverlay {
 
     /// Broadcast TX to all connected peers
     /// Broadcast TX using INV/GETDATA protocol (bandwidth efficient)
+    /// Announce a transaction to all connected peers via INV.
+    ///
+    /// Used for transactions submitted by Core (`SubmitTx`); transactions
+    /// received from peers are relayed by `handle_tx_response`. A hash already
+    /// in `tx_seen` (received from a peer, or announced before) is skipped.
     async fn broadcast_tx(&mut self, tx: Arc<ValidatedTx>) {
         let hash = *tx.hash();
         let fee_per_op = tx.fee_per_op();
@@ -892,111 +974,6 @@ impl StellarOverlay {
             };
             if let Some(batch) = batch_to_send {
                 send_inv_batch(&self.state, *peer, batch).await;
-            }
-        }
-    }
-
-    /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it
-    async fn fetch_txset(&mut self, hash: [u8; 32], slot: u32) {
-        // Check if we're already fetching this TxSet from a connected peer (dedup)
-        {
-            let pending = self.state.pending_txset_requests.read().await;
-            if let Some((pending_peer, _, _)) = pending.get(&hash) {
-                // Check if that peer is still connected
-                let streams = self.state.peer_streams.read().await;
-                if streams.contains_key(pending_peer) {
-                    debug!(
-                        "TXSET_FETCH_SKIP: TxSet {:02x?}... already being fetched from {}, skipping duplicate",
-                        &hash[..4], pending_peer
-                    );
-                    return;
-                }
-                // Otherwise, peer disconnected - we'll re-request below
-            }
-        }
-
-        // First check if we know which peer has this TX set (from SCP message)
-        let known_source = {
-            let sources = self.state.txset_sources.read().await;
-            sources.peek(&hash).cloned()
-        };
-
-        let peer = if let Some(source_peer) = known_source {
-            // Verify this peer is still connected
-            let streams = self.state.peer_streams.read().await;
-            if streams.contains_key(&source_peer) {
-                info!(
-                    "TXSET_FETCH: Fetching TX set {:02x?}... from known source {}",
-                    &hash[..4],
-                    source_peer
-                );
-                source_peer
-            } else {
-                // Source peer disconnected, fall back to any peer
-                match streams.keys().next().cloned() {
-                    Some(p) => {
-                        info!("TXSET_FETCH: Fetching TX set {:02x?}... from fallback peer {} (source {} disconnected)",
-                              &hash[..4], p, source_peer);
-                        p
-                    }
-                    None => {
-                        warn!(
-                            "TXSET_FETCH_FAIL: No peers to fetch TX set {:02x?}... from",
-                            &hash[..4]
-                        );
-                        return;
-                    }
-                }
-            }
-        } else {
-            // No known source, pick any connected peer
-            let streams = self.state.peer_streams.read().await;
-            match streams.keys().next().cloned() {
-                Some(p) => {
-                    info!(
-                        "TXSET_FETCH: Fetching TX set {:02x?}... from random peer {} (no known source)",
-                        &hash[..4],
-                        p
-                    );
-                    p
-                }
-                None => {
-                    warn!(
-                        "TXSET_FETCH_FAIL: No peers to fetch TX set {:02x?}... from",
-                        &hash[..4]
-                    );
-                    return;
-                }
-            }
-        };
-
-        // Record this pending request with timestamp for latency tracking
-        self.state
-            .pending_txset_requests
-            .write()
-            .await
-            .insert(hash, (peer.clone(), Instant::now(), slot));
-
-        let request = crate::xdr::frame_get_tx_set(hash);
-
-        match send_to_peer_stream(&self.state, peer.clone(), StreamType::TxSet, &request).await {
-            Ok(_) => info!(
-                "TXSET_FETCH_SENT: Sent request for TxSet {:02x?}... to {}",
-                &hash[..4],
-                peer
-            ),
-            Err(e) => {
-                warn!(
-                    "TXSET_FETCH_FAIL: Failed to send TxSet request {:02x?}... to {}: {}",
-                    &hash[..4],
-                    peer,
-                    e
-                );
-                self.state
-                    .pending_txset_requests
-                    .write()
-                    .await
-                    .remove(&hash);
             }
         }
     }
@@ -1350,6 +1327,176 @@ async fn flush_inv_batch_to_peer(state: &Arc<SharedState>, peer: PeerId) {
 
     if let Some(batch) = batch {
         send_inv_batch(state, peer, batch).await;
+    }
+}
+
+/// Pick the peer to ask for a TX set: the peer that announced it in SCP if
+/// connected (and, on a retry, not yet asked), otherwise any connected peer
+/// we have not asked yet, wrapping around once everyone has been tried.
+async fn select_txset_fetch_peer(state: &SharedState, hash: &[u8; 32]) -> Option<PeerId> {
+    let preferred = {
+        let sources = state.txset_sources.read().await;
+        sources.peek(hash).cloned()
+    };
+    let connected: Vec<PeerId> = {
+        let streams = state.peer_streams.read().await;
+        streams.keys().cloned().collect()
+    };
+    let pending = state.pending_txset_requests.read().await;
+    match pending.get(hash) {
+        Some(req) => req.choose_next_peer(preferred, &connected),
+        None => preferred
+            .filter(|p| connected.contains(p))
+            .or_else(|| connected.first().cloned()),
+    }
+}
+
+/// Write a `GetTxSet` request for `hash` to `peer`'s TxSet stream. On a send
+/// failure the pending entry is flagged so the next housekeeping tick
+/// re-dispatches it to another peer without waiting for the timeout.
+async fn send_get_tx_set(state: &Arc<SharedState>, peer: PeerId, hash: [u8; 32]) {
+    let request = crate::xdr::frame_get_tx_set(hash);
+    match send_to_peer_stream(state, peer, StreamType::TxSet, &request).await {
+        Ok(_) => info!(
+            "TXSET_FETCH_SENT: Sent request for TxSet {:02x?}... to {}",
+            &hash[..4],
+            peer
+        ),
+        Err(e) => {
+            warn!(
+                "TXSET_FETCH_FAIL: Failed to send TxSet request {:02x?}... to {}: {}",
+                &hash[..4],
+                peer,
+                e
+            );
+            if let Some(req) = state.pending_txset_requests.write().await.get_mut(&hash) {
+                if req.peer == peer {
+                    req.mark_send_failed();
+                }
+            }
+        }
+    }
+}
+
+/// Start fetching a TX set (Core's `RequestTxSet`, or the auto-fetch on an
+/// SCP message referencing it). Deduplicates against an in-flight fetch:
+/// while one is pending, the housekeeping task owns retrying it, so a second
+/// request for the same hash is a no-op.
+async fn start_txset_fetch(state: &Arc<SharedState>, hash: [u8; 32], slot: u32) {
+    {
+        let pending = state.pending_txset_requests.read().await;
+        if let Some(req) = pending.get(&hash) {
+            debug!(
+                "TXSET_FETCH_SKIP: TxSet {:02x?}... already being fetched from {} (attempt {}), skipping duplicate",
+                &hash[..4], req.peer, req.attempts
+            );
+            return;
+        }
+    }
+
+    let Some(peer) = select_txset_fetch_peer(state, &hash).await else {
+        // Nothing is recorded: Core re-requests the set when the next SCP
+        // message referencing it arrives, by which time a peer is connected.
+        warn!(
+            "TXSET_FETCH_FAIL: No peers to fetch TX set {:02x?}... from",
+            &hash[..4]
+        );
+        return;
+    };
+
+    {
+        let mut pending = state.pending_txset_requests.write().await;
+        if !pending.insert(hash, peer, slot) {
+            // Lost a race with a concurrent start; that fetch owns it now.
+            return;
+        }
+    }
+    info!(
+        "TXSET_FETCH: Fetching TX set {:02x?}... for slot {} from {}",
+        &hash[..4],
+        slot,
+        peer
+    );
+    send_get_tx_set(state, peer, hash).await;
+}
+
+/// Re-dispatch an in-flight TX set fetch to the next candidate peer. Called
+/// when the current peer answered `DontHave`, disconnected, or stayed silent
+/// past the retry timeout. A fetch that is no longer pending (answered in
+/// the meantime) is left alone.
+///
+/// `avoid` is the peer that just declined: if it is the only candidate (or
+/// nobody is connected) the fetch is deferred until the next timeout rather
+/// than re-asked immediately, so a lone peer without the set cannot make us
+/// spin.
+async fn retry_txset_fetch(
+    state: &Arc<SharedState>,
+    hash: [u8; 32],
+    reason: &str,
+    avoid: Option<PeerId>,
+) {
+    let selected = select_txset_fetch_peer(state, &hash).await;
+    let peer = match selected {
+        Some(peer) if Some(peer) != avoid => peer,
+        _ => {
+            debug!(
+                "TXSET_FETCH_RETRY: No other peer to retry TX set {:02x?}... ({}); deferring to next timeout",
+                &hash[..4],
+                reason
+            );
+            if let Some(req) = state.pending_txset_requests.write().await.get_mut(&hash) {
+                req.defer();
+            }
+            return;
+        }
+    };
+    let attempts = {
+        let mut pending = state.pending_txset_requests.write().await;
+        let Some(req) = pending.get_mut(&hash) else {
+            return;
+        };
+        req.retry(peer);
+        req.attempts
+    };
+    state
+        .metrics
+        .fetch_txset_retry
+        .fetch_add(1, Ordering::Relaxed);
+    info!(
+        "TXSET_FETCH_RETRY: Retrying TX set {:02x?}... from {} (attempt {}, {})",
+        &hash[..4],
+        peer,
+        attempts,
+        reason
+    );
+    send_get_tx_set(state, peer, hash).await;
+}
+
+/// Tell `peer` we do not have the TX set it requested.
+async fn send_txset_dont_have(state: &Arc<SharedState>, peer: PeerId, hash: [u8; 32]) {
+    let message = crate::xdr::frame_dont_have(XdrMessageType::GeneralizedTxSet, hash);
+    match send_to_peer_stream(state, peer, StreamType::TxSet, &message).await {
+        Ok(_) => {
+            state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+            state
+                .metrics
+                .byte_write
+                .fetch_add(message.len() as u64, Ordering::Relaxed);
+            debug!(
+                "TXSET_DONT_HAVE_SENT: Told {} we lack TX set {:02x?}...",
+                peer,
+                &hash[..4]
+            );
+        }
+        Err(e) => {
+            state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+            warn!(
+                "Failed to send DontHave for TX set {:02x?}... to {}: {}",
+                &hash[..4],
+                peer,
+                e
+            );
+        }
     }
 }
 
@@ -1940,11 +2087,13 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                 let txset_data = data[4..].to_vec();
                                 let hash = crate::xdr::sha256_hash(&txset_data);
 
-                                // Clear pending request flag and measure fetch latency
+                                // Clear pending request and measure fetch latency
+                                // from the very first request (across retries).
                                 let slot = {
                                     let mut pending = state.pending_txset_requests.write().await;
-                                    if let Some((_, request_time, slot)) = pending.remove(&hash) {
-                                        let fetch_us = request_time.elapsed().as_micros() as u64;
+                                    if let Some(req) = pending.remove(&hash) {
+                                        let fetch_us =
+                                            req.first_requested_at.elapsed().as_micros() as u64;
                                         state
                                             .metrics
                                             .fetch_txset_sum_us
@@ -1953,7 +2102,7 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                             .metrics
                                             .fetch_txset_count
                                             .fetch_add(1, Ordering::Relaxed);
-                                        Some(slot)
+                                        Some(req.slot)
                                     } else {
                                         None
                                     }
@@ -1978,6 +2127,46 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                     );
                                 }
                             }
+                            stellar_xdr::curr::StellarMessage::DontHave(dont_have)
+                                if matches!(
+                                    dont_have.type_,
+                                    XdrMessageType::TxSet | XdrMessageType::GeneralizedTxSet
+                                ) =>
+                            {
+                                // The peer we asked lacks the set: retry another
+                                // peer now rather than after the timeout. Ignore
+                                // DontHave from a peer we are not waiting on.
+                                let hash = dont_have.req_hash.0;
+                                let waiting_on_peer = {
+                                    let pending = state.pending_txset_requests.read().await;
+                                    pending
+                                        .get(&hash)
+                                        .map(|req| req.peer == peer_id)
+                                        .unwrap_or(false)
+                                };
+                                info!(
+                                    "TXSET_DONT_HAVE: Peer {} lacks TX set {:02x?}... (pending to it: {})",
+                                    peer_id,
+                                    &hash[..4],
+                                    waiting_on_peer
+                                );
+                                if waiting_on_peer {
+                                    state
+                                        .metrics
+                                        .fetch_txset_dont_have
+                                        .fetch_add(1, Ordering::Relaxed);
+                                    let state = Arc::clone(&state);
+                                    tokio::spawn(async move {
+                                        retry_txset_fetch(
+                                            &state,
+                                            hash,
+                                            "peer answered DontHave",
+                                            Some(peer_id),
+                                        )
+                                        .await;
+                                    });
+                                }
+                            }
                             other => {
                                 warn!(
                                     "TXSET_PARSE_ERR: Dropping unexpected {} on TxSet stream from {}",
@@ -1999,11 +2188,12 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
     }
 }
 
-/// INV/GETDATA housekeeping task.
+/// INV/GETDATA and TX set fetch housekeeping task.
 ///
 /// Periodically:
 /// 1. Flushes INV batches that have timed out (100ms)
 /// 2. Checks GETDATA timeouts and retries to other peers
+/// 3. Checks TX set fetch timeouts and retries to other peers
 async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
     // Run every 50ms (half the batch timeout for responsiveness)
     let mut interval = tokio::time::interval(Duration::from_millis(50));
@@ -2114,6 +2304,21 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                     }
                 });
             }
+        }
+
+        // 3. Handle TX set fetch timeouts: a peer that has neither answered nor
+        //    said DontHave within the retry timeout is presumed stuck; ask the
+        //    next candidate. Entries stay until the set arrives or the slot is
+        //    pruned on LedgerClosed, so a fetch is never silently abandoned.
+        let stale_fetches = {
+            let pending = state.pending_txset_requests.read().await;
+            pending.timed_out()
+        };
+        for hash in stale_fetches {
+            let state = Arc::clone(&state);
+            tokio::spawn(async move {
+                retry_txset_fetch(&state, hash, "timed out", None).await;
+            });
         }
     }
 }
@@ -4192,7 +4397,8 @@ async fn test_getdata_retry_chunked_across_multiple_messages() {
             hash[..8].copy_from_slice(&(i as u64).to_be_bytes());
             tracker.record_source(hash, peer1_id);
             pending.insert(hash, peer1_id);
-            pending.get_mut(&hash).unwrap().sent_at = Instant::now() - Duration::from_secs(2);
+            pending.get_mut(&hash).unwrap().sent_at =
+                std::time::Instant::now() - Duration::from_secs(2);
         }
     }
 
@@ -5095,4 +5301,306 @@ async fn test_20_node_mesh_with_dedup() {
     for task in tasks {
         let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
     }
+}
+
+/// Helpers for the TX set fetch retry tests: a requester (node1) connected to
+/// two responders (node2, node3), with node2 recorded as the SCP source of
+/// the set so it is asked first.
+#[cfg(test)]
+struct TxSetRetryFixture {
+    handle1: OverlayHandle,
+    handle2: OverlayHandle,
+    handle3: OverlayHandle,
+    events1: mpsc::UnboundedReceiver<OverlayEvent>,
+    events2: mpsc::UnboundedReceiver<OverlayEvent>,
+    events3: mpsc::UnboundedReceiver<OverlayEvent>,
+    metrics1: Arc<OverlayMetrics>,
+    peer1_id: PeerId,
+    peer2_id: PeerId,
+}
+
+#[cfg(test)]
+async fn txset_retry_fixture(base_port: u16, fetch_timeout: Option<Duration>) -> TxSetRetryFixture {
+    let keypair1 = Keypair::generate_ed25519();
+    let keypair2 = Keypair::generate_ed25519();
+    let keypair3 = Keypair::generate_ed25519();
+    let peer1_id = PeerId::from_public_key(&keypair1.public());
+    let peer2_id = PeerId::from_public_key(&keypair2.public());
+    let peer3_id = PeerId::from_public_key(&keypair3.public());
+
+    let metrics1 = Arc::new(OverlayMetrics::new());
+    let (handle1, events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::clone(&metrics1)).unwrap();
+    let (handle2, events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle3, events3, _tx_events3, overlay3) =
+        create_overlay(keypair3, Arc::new(OverlayMetrics::new())).unwrap();
+    if let Some(timeout) = fetch_timeout {
+        overlay1.set_txset_fetch_timeout_for_testing(timeout);
+    }
+
+    tokio::spawn(async move { overlay1.run("127.0.0.1", base_port).await });
+    tokio::spawn(async move { overlay2.run("127.0.0.1", base_port + 1).await });
+    tokio::spawn(async move { overlay3.run("127.0.0.1", base_port + 2).await });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    for (port, peer) in [(base_port + 1, peer2_id), (base_port + 2, peer3_id)] {
+        let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1/p2p/{}", port, peer)
+            .parse()
+            .unwrap();
+        handle1.dial(addr).await;
+    }
+    // Wait until node1 has both peers (and their streams) up.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while handle1.connected_peer_count().await < 2 {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "node1 never connected to both peers"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    TxSetRetryFixture {
+        handle1,
+        handle2,
+        handle3,
+        events1,
+        events2,
+        events3,
+        metrics1,
+        peer1_id,
+        peer2_id,
+    }
+}
+
+/// Wait for a TxSetRequested event for `hash` on `events`.
+#[cfg(test)]
+async fn await_txset_request(
+    events: &mut mpsc::UnboundedReceiver<OverlayEvent>,
+    hash: [u8; 32],
+    timeout: Duration,
+) -> Option<PeerId> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    while tokio::time::Instant::now() < deadline {
+        tokio::select! {
+            Some(event) = events.recv() => {
+                if let OverlayEvent::TxSetRequested { hash: h, from } = event {
+                    if h == hash {
+                        return Some(from);
+                    }
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+    None
+}
+
+/// Wait for a TxSetReceived event for `hash` on `events`, returning its slot.
+#[cfg(test)]
+async fn await_txset_received(
+    events: &mut mpsc::UnboundedReceiver<OverlayEvent>,
+    hash: [u8; 32],
+    expected_data: &[u8],
+    timeout: Duration,
+) -> Option<Option<u32>> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    while tokio::time::Instant::now() < deadline {
+        tokio::select! {
+            Some(event) = events.recv() => {
+                if let OverlayEvent::TxSetReceived { hash: h, data, slot, .. } = event {
+                    if h == hash {
+                        assert_eq!(data, expected_data);
+                        return Some(slot);
+                    }
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+    None
+}
+
+/// A peer that lacks the requested TX set answers `DontHave`, and the
+/// requester immediately retries another peer instead of waiting for its
+/// timeout. The eventual response is attributed to the original request
+/// (slot preserved, latency measured from the first request).
+#[tokio::test]
+async fn test_txset_dont_have_triggers_immediate_retry_to_other_peer() {
+    // Production timeout: a retry within the test window proves it was the
+    // DontHave, not the timeout, that triggered it.
+    let mut f = txset_retry_fixture(25101, None).await;
+    let (hash, data) = test_txset_xdr(0x61);
+
+    // Node2 announced the set in SCP, so it is asked first.
+    f.handle1.record_txset_source(hash, f.peer2_id).await;
+    f.handle1.fetch_txset(hash, 42).await;
+
+    let from = await_txset_request(&mut f.events2, hash, Duration::from_secs(2))
+        .await
+        .expect("node2 (the SCP source) should be asked first");
+    assert_eq!(from, f.peer1_id);
+    // Node3 has not been asked yet.
+    assert!(
+        await_txset_request(&mut f.events3, hash, Duration::from_millis(200))
+            .await
+            .is_none()
+    );
+
+    // Node2 does not have it.
+    let started = tokio::time::Instant::now();
+    f.handle2.send_txset_dont_have(hash, f.peer1_id).await;
+
+    // Node1 must fall back to node3 well before the retry timeout elapses.
+    let from = await_txset_request(&mut f.events3, hash, Duration::from_secs(1))
+        .await
+        .expect("node1 should retry node3 after node2's DontHave");
+    assert_eq!(from, f.peer1_id);
+    assert!(
+        started.elapsed() < crate::flood::TXSET_FETCH_RETRY_TIMEOUT,
+        "retry must be driven by DontHave, not the timeout"
+    );
+    assert_eq!(f.metrics1.fetch_txset_dont_have.load(Ordering::Relaxed), 1);
+    assert_eq!(f.metrics1.fetch_txset_retry.load(Ordering::Relaxed), 1);
+
+    // Node3 serves it; node1 receives it under the slot of the original
+    // request.
+    f.handle3.send_txset(hash, data.clone(), f.peer1_id).await;
+    let slot = await_txset_received(&mut f.events1, hash, &data, Duration::from_secs(2))
+        .await
+        .expect("node1 should receive the set from node3");
+    assert_eq!(slot, Some(42));
+    assert_eq!(f.metrics1.fetch_txset_count.load(Ordering::Relaxed), 1);
+
+    // The fetch is complete: a DontHave arriving late from node2 is ignored.
+    f.handle2.send_txset_dont_have(hash, f.peer1_id).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(f.metrics1.fetch_txset_retry.load(Ordering::Relaxed), 1);
+
+    f.handle1.shutdown().await;
+    f.handle2.shutdown().await;
+    f.handle3.shutdown().await;
+}
+
+/// A peer that neither answers nor says `DontHave` is abandoned after the
+/// retry timeout and the request goes to another peer.
+#[tokio::test]
+async fn test_txset_fetch_timeout_retries_other_peer() {
+    let timeout = Duration::from_millis(300);
+    let mut f = txset_retry_fixture(25201, Some(timeout)).await;
+    let (hash, data) = test_txset_xdr(0x62);
+
+    f.handle1.record_txset_source(hash, f.peer2_id).await;
+    let started = tokio::time::Instant::now();
+    f.handle1.fetch_txset(hash, 7).await;
+
+    // Node2 is asked first and stays silent.
+    await_txset_request(&mut f.events2, hash, Duration::from_secs(2))
+        .await
+        .expect("node2 should be asked first");
+
+    // Node3 gets the retried request after roughly the timeout.
+    await_txset_request(&mut f.events3, hash, Duration::from_secs(3))
+        .await
+        .expect("node1 should retry node3 after node2 timed out");
+    assert!(
+        started.elapsed() >= timeout,
+        "retry must not fire before the timeout"
+    );
+    assert!(f.metrics1.fetch_txset_retry.load(Ordering::Relaxed) >= 1);
+    assert_eq!(f.metrics1.fetch_txset_dont_have.load(Ordering::Relaxed), 0);
+
+    f.handle3.send_txset(hash, data.clone(), f.peer1_id).await;
+    let slot = await_txset_received(&mut f.events1, hash, &data, Duration::from_secs(2))
+        .await
+        .expect("node1 should receive the set from node3");
+    assert_eq!(slot, Some(7));
+
+    // Once answered, nothing is pending: no further retries fire.
+    let retries = f.metrics1.fetch_txset_retry.load(Ordering::Relaxed);
+    tokio::time::sleep(timeout * 3).await;
+    assert_eq!(
+        f.metrics1.fetch_txset_retry.load(Ordering::Relaxed),
+        retries
+    );
+
+    f.handle1.shutdown().await;
+    f.handle2.shutdown().await;
+    f.handle3.shutdown().await;
+}
+
+/// A pending fetch whose peer disconnects is re-dispatched to another peer
+/// rather than dropped (Core only asks once).
+#[tokio::test]
+async fn test_txset_fetch_reassigned_when_peer_disconnects() {
+    let mut f = txset_retry_fixture(25301, None).await;
+    let (hash, data) = test_txset_xdr(0x63);
+
+    f.handle1.record_txset_source(hash, f.peer2_id).await;
+    f.handle1.fetch_txset(hash, 9).await;
+    await_txset_request(&mut f.events2, hash, Duration::from_secs(2))
+        .await
+        .expect("node2 should be asked first");
+
+    // Node2 goes away without answering.
+    f.handle2.shutdown().await;
+
+    await_txset_request(&mut f.events3, hash, Duration::from_secs(3))
+        .await
+        .expect("node1 should re-dispatch to node3 when node2 disconnects");
+    assert!(f.metrics1.fetch_txset_retry.load(Ordering::Relaxed) >= 1);
+
+    f.handle3.send_txset(hash, data.clone(), f.peer1_id).await;
+    let slot = await_txset_received(&mut f.events1, hash, &data, Duration::from_secs(2))
+        .await
+        .expect("node1 should receive the set from node3");
+    assert_eq!(slot, Some(9));
+
+    f.handle1.shutdown().await;
+    f.handle3.shutdown().await;
+}
+
+/// Fetches for slots that have aged out of every peer's cache are dropped on
+/// LedgerClosed, so a hopeless request does not retry forever.
+#[tokio::test]
+async fn test_txset_fetch_pruned_when_slot_ages_out() {
+    let mut f = txset_retry_fixture(25401, Some(Duration::from_millis(200))).await;
+    let (hash, _data) = test_txset_xdr(0x64);
+
+    f.handle1.fetch_txset(hash, 100).await;
+    // Somebody was asked (either peer: no source recorded).
+    let asked = tokio::select! {
+        r = await_txset_request(&mut f.events2, hash, Duration::from_secs(2)) => r.is_some(),
+        r = await_txset_request(&mut f.events3, hash, Duration::from_secs(2)) => r.is_some(),
+    };
+    assert!(asked, "some peer should have been asked");
+
+    // The network moves past slot 100 + lag: the fetch is abandoned.
+    f.handle1
+        .ledger_closed(100 + crate::flood::TXSET_FETCH_MAX_SLOT_LAG)
+        .await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let retries_after_prune = f.metrics1.fetch_txset_retry.load(Ordering::Relaxed);
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    assert_eq!(
+        f.metrics1.fetch_txset_retry.load(Ordering::Relaxed),
+        retries_after_prune,
+        "no retries may fire after the fetch was pruned"
+    );
+
+    // A fresh request for the same hash starts a new fetch (nothing pending).
+    f.handle1.fetch_txset(hash, 200).await;
+    let asked_again = tokio::select! {
+        r = await_txset_request(&mut f.events2, hash, Duration::from_secs(2)) => r.is_some(),
+        r = await_txset_request(&mut f.events3, hash, Duration::from_secs(2)) => r.is_some(),
+    };
+    assert!(
+        asked_again,
+        "a new fetch should start after the old one was pruned"
+    );
+
+    f.handle1.shutdown().await;
+    f.handle2.shutdown().await;
+    f.handle3.shutdown().await;
 }

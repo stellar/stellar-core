@@ -64,7 +64,15 @@ struct OverlayMetrics
     medida::Counter& mPendingPeersSize;
     medida::Counter& mAuthenticatedPeersSize;
 
-    // ── TxSet fetch latency ──
+    // ── TxSet fetch ──
     medida::Timer& mFetchTxSetTimer;
+    // Requests Core issued to the overlay (each starts or re-kicks a fetch)
+    medida::Meter& mTxSetRequestMeter;
+    // Fetches the overlay re-dispatched to another peer (timeout, DontHave,
+    // disconnect), synced from the Rust overlay
+    medida::Meter& mFetchTxSetRetryMeter;
+    // DontHave answers for a TX set we were waiting on, synced from the Rust
+    // overlay
+    medida::Meter& mFetchTxSetDontHaveMeter;
 };
 }

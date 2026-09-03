@@ -653,6 +653,92 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
     }
 }
 
+TEST_CASE("PendingEnvelopes re-requests a long-pending tx set", "[herder]")
+{
+    // Core asks the overlay for a tx set once and relies on the overlay to
+    // retry across peers. As a safety net for fetches the overlay could not
+    // record (nobody connected yet) or abandoned (slot aged out), a further
+    // envelope referencing a set that has been pending for at least
+    // TX_SET_REFETCH_INTERVAL re-issues the request.
+    Config cfg(getTestConfig());
+    cfg.MANUAL_CLOSE = false;
+    // Without parallel tx set download an envelope whose tx set is missing
+    // stays FETCHING, which keeps the status assertions below deterministic
+    // (with it, a PREPARE envelope is handed to SCP while the set downloads).
+    // The fetch/re-request path under test is the same either way.
+    cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
+
+    VirtualClock clock;
+
+    auto s = SecretKey::pseudoRandomForTesting();
+    cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& pendingEnvelopes = herder.getPendingEnvelopes();
+    auto& requests = app->getMetrics().NewMeter(
+        {"overlay", "fetch", "txset-request"}, "request");
+
+    // Quorum set known up front, so only the tx set is missing.
+    auto qSet = SCPQuorumSet{};
+    qSet.threshold = 1;
+    qSet.validators.push_back(s.getPublicKey());
+    auto qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+    pendingEnvelopes.addSCPQuorumSet(qSetHash, qSet);
+
+    // A tx set hash nobody has.
+    Hash missingTxSetHash;
+    missingTxSetHash.fill(0xAB);
+    StellarValue sv =
+        herder.makeStellarValue(missingTxSetHash, 10, emptyUpgradeSteps, s);
+    TxPair p{xdr::xdr_to_opaque(sv), nullptr};
+    auto slot = lcl.header.ledgerSeq + 1;
+
+    // Distinct envelopes for the same value: different ballot counters.
+    auto envelopeWithCounter = [&](uint32_t counter) {
+        auto env = makePrepareEnvelope(herder, s, p, qSetHash, slot);
+        env.statement.pledges.prepare().ballot.counter = counter;
+        herder.signEnvelope(s, env);
+        return env;
+    };
+
+    auto const before = requests.count();
+    REQUIRE(pendingEnvelopes.recvSCPEnvelope(envelopeWithCounter(1)) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(requests.count() == before + 1);
+
+    // Another envelope for the same set right away: still pending, no new
+    // request (the overlay is retrying).
+    REQUIRE(pendingEnvelopes.recvSCPEnvelope(envelopeWithCounter(2)) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(requests.count() == before + 1);
+
+    // Not quite long enough: still no new request.
+    clock.sleep_for(std::chrono::duration_cast<std::chrono::microseconds>(
+        PendingEnvelopes::TX_SET_REFETCH_INTERVAL - std::chrono::seconds(1)));
+    REQUIRE(pendingEnvelopes.recvSCPEnvelope(envelopeWithCounter(3)) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(requests.count() == before + 1);
+
+    // Past the interval: the request is re-issued, exactly once.
+    clock.sleep_for(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::seconds(2)));
+    REQUIRE(pendingEnvelopes.recvSCPEnvelope(envelopeWithCounter(4)) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(requests.count() == before + 2);
+    REQUIRE(pendingEnvelopes.recvSCPEnvelope(envelopeWithCounter(5)) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(requests.count() == before + 2);
+
+    // The pacing clock restarted at the re-request.
+    clock.sleep_for(std::chrono::duration_cast<std::chrono::microseconds>(
+        PendingEnvelopes::TX_SET_REFETCH_INTERVAL));
+    REQUIRE(pendingEnvelopes.recvSCPEnvelope(envelopeWithCounter(6)) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(requests.count() == before + 3);
+}
+
 TEST_CASE("PendingEnvelopes recvSCPEnvelope without parallel tx set download",
           "[herder]")
 {

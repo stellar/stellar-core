@@ -218,6 +218,7 @@ RustOverlayManager::requestTxSet(Hash const& txSetHash, uint32_t slotIndex)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
+        mOverlayMetrics.mTxSetRequestMeter.Mark();
         mOverlayIPC->requestTxSet(txSetHash, slotIndex);
     }
 }
@@ -367,6 +368,8 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mDuplicateFloodBytesRecv, "flood_duplicate_recv");
     markDelta(m.mAbandonedDemandMeter, "flood_abandoned_demands");
     markDelta(m.mDemandTimeouts, "demand_timeout");
+    markDelta(m.mFetchTxSetRetryMeter, "fetch_txset_retry");
+    markDelta(m.mFetchTxSetDontHaveMeter, "fetch_txset_dont_have");
 
     // Send meters per message type
     markDelta(m.mSendSCPMessageSetMeter, "send_scp_message");

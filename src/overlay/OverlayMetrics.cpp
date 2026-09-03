@@ -57,6 +57,12 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
     , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mTxSetRequestMeter(app.getMetrics().NewMeter(
+          {"overlay", "fetch", "txset-request"}, "request"))
+    , mFetchTxSetRetryMeter(app.getMetrics().NewMeter(
+          {"overlay", "fetch", "txset-retry"}, "request"))
+    , mFetchTxSetDontHaveMeter(app.getMetrics().NewMeter(
+          {"overlay", "fetch", "txset-dont-have"}, "message"))
 {
 }
 }

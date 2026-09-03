@@ -67,6 +67,9 @@ class PendingEnvelopes
     // when each pending tx set fetch was started, used to report how long
     // we've been waiting for a tx set (see getTxSetWaitingTime)
     std::map<Hash, VirtualClock::time_point> mTxSetFetchStartTimes;
+    // when we last asked the overlay for each pending tx set (see
+    // TX_SET_REFETCH_INTERVAL)
+    std::map<Hash, VirtualClock::time_point> mTxSetLastRequestTimes;
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetXDRFrameConstPtr>;
     // recent txsets
@@ -131,6 +134,14 @@ class PendingEnvelopes
                              std::optional<uint64> maxSlot, uint64 slotToKeep);
 
   public:
+    // The overlay retries a pending tx set fetch across peers on its own, but
+    // it may have had no peer to ask when we first requested the set, or
+    // have abandoned a fetch whose slot aged out of every peer's cache. When
+    // an envelope referencing a set we have been waiting on for at least
+    // this long arrives, the request is re-issued so a fetch is never lost
+    // between the two sides.
+    static constexpr std::chrono::seconds TX_SET_REFETCH_INTERVAL{5};
+
     PendingEnvelopes(Application& app, HerderImpl& herder);
     ~PendingEnvelopes();
 

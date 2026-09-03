@@ -106,6 +106,12 @@ pub struct OverlayMetrics {
     /// overlay.fetch.txset — time to fetch a TX set from peers
     pub fetch_txset_sum_us: AtomicU64,
     pub fetch_txset_count: AtomicU64,
+    /// overlay.fetch.txset-retry — TX set requests re-dispatched to another
+    /// peer (timeout, DontHave, or disconnect)
+    pub fetch_txset_retry: AtomicU64,
+    /// overlay.fetch.txset-dont-have — DontHave replies for a TX set we were
+    /// waiting on from that peer
+    pub fetch_txset_dont_have: AtomicU64,
     /// overlay.flood.tx-pull-latency — time from first demand to receiving TX
     pub flood_tx_pull_latency_sum_us: AtomicU64,
     pub flood_tx_pull_latency_count: AtomicU64,
@@ -156,6 +162,8 @@ impl Default for OverlayMetrics {
             recv_scp_count: AtomicU64::new(0),
             fetch_txset_sum_us: AtomicU64::new(0),
             fetch_txset_count: AtomicU64::new(0),
+            fetch_txset_retry: AtomicU64::new(0),
+            fetch_txset_dont_have: AtomicU64::new(0),
             flood_tx_pull_latency_sum_us: AtomicU64::new(0),
             flood_tx_pull_latency_count: AtomicU64::new(0),
             flood_tx_batch_size_sum: AtomicU64::new(0),
@@ -217,6 +225,8 @@ impl OverlayMetrics {
             recv_scp_count: self.recv_scp_count.load(ORD),
             fetch_txset_sum_us: self.fetch_txset_sum_us.load(ORD),
             fetch_txset_count: self.fetch_txset_count.load(ORD),
+            fetch_txset_retry: self.fetch_txset_retry.load(ORD),
+            fetch_txset_dont_have: self.fetch_txset_dont_have.load(ORD),
             flood_tx_pull_latency_sum_us: self.flood_tx_pull_latency_sum_us.load(ORD),
             flood_tx_pull_latency_count: self.flood_tx_pull_latency_count.load(ORD),
             flood_tx_batch_size_sum: self.flood_tx_batch_size_sum.load(ORD),
@@ -286,6 +296,8 @@ pub struct MetricsSnapshot {
     pub recv_scp_count: u64,
     pub fetch_txset_sum_us: u64,
     pub fetch_txset_count: u64,
+    pub fetch_txset_retry: u64,
+    pub fetch_txset_dont_have: u64,
     pub flood_tx_pull_latency_sum_us: u64,
     pub flood_tx_pull_latency_count: u64,
     pub flood_tx_batch_size_sum: u64,
