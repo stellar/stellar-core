@@ -20,6 +20,7 @@ see [transport.md](transport.md#frame-formats)). The payload is a
 |----------------------|----------|-----------------------------------|
 | `GetTxSet`           | Request  | The 32-byte TX set hash           |
 | `GeneralizedTxSet`   | Response | The full `GeneralizedTransactionSet` XDR |
+| `DontHave`           | Negative response | `type = GENERALIZED_TX_SET`, the requested hash |
 
 Responses carry no explicit hash: because the decode is strict, the
 bytes after the 4-byte union discriminant are the canonical encoding,
@@ -54,25 +55,60 @@ cached canonical bytes as a `GeneralizedTxSet` message (discriminant
 prefix, no re-encode) and sends it on the TxSet stream
 (`libp2p_overlay.rs:994-1010`).
 
-On miss there is no reply — the requester is responsible for retrying
-to a different peer (which currently is not implemented; see
-[Known gaps](#known-gaps)).
+On miss the overlay answers `DontHave` (`send_txset_dont_have`), so the
+requester retries another peer immediately instead of waiting for its
+timeout.
 
-## fetch_txset peer selection
+## Fetch lifecycle, peer selection and retry
 
-`libp2p_overlay.rs:810-911`.
+`start_txset_fetch` / `retry_txset_fetch` in `libp2p_overlay.rs`, with
+the bookkeeping in `flood/txset_fetch.rs` (`PendingTxSetFetches`).
 
-1. **Dedup**: if a request for this hash is already pending to a still-
-   connected peer, do nothing (`pending_txset_requests`).
-2. **Prefer the SCP source**: `txset_sources` is an LRU populated when
-   we receive an SCP message that references a TX set hash, mapping
-   `hash → PeerId`. If that peer is still connected, fetch from them.
-3. **Fallback**: pick any connected peer (`peer_streams.keys().next()`).
-4. **No peers connected**: log and return — the request is *not*
-   queued. Core will retry on its own schedule.
+Core issues each `RequestTxSet` once (a long-pending set is re-requested
+only as a safety net, see below), so the overlay owns seeing a fetch
+through. A fetch is *pending* from the first `GetTxSet` until a matching
+set arrives or its slot ages out; while pending it is re-dispatched to
+another peer whenever the current peer
 
-The pending-request entry records `(peer, Instant)` so we can log
-fetch latency when the response arrives.
+- answers **`DontHave`** (immediately),
+- **disconnects** (immediately), or
+- **stays silent** for `TXSET_FETCH_RETRY_TIMEOUT` (2 s), checked by the
+  50 ms housekeeping task.
+
+Peer selection (`PendingTxSetFetch::choose_next_peer`):
+
+1. The **SCP source** — `txset_sources` maps `hash → PeerId` for the peer
+   whose SCP message referenced the hash — if connected and not yet
+   asked.
+2. Any connected peer not yet asked.
+3. Once everyone has been asked, wrap around to any connected peer other
+   than the one currently being waited on (or that peer again if it is
+   the only one).
+
+A request to the same hash while a fetch is pending is a no-op (dedup);
+with nobody connected nothing is recorded and Core's safety net
+re-requests later.
+
+Each pending entry records the peer, slot, first-request time (fetch
+latency is measured across retries), last-send time, attempts and the
+peers tried. `fetch_txset_retry` and `fetch_txset_dont_have` count
+re-dispatches and negative answers.
+
+### Abandonment
+
+On `LedgerClosed { seq }` the overlay drops pending fetches for slots at
+least `TXSET_FETCH_MAX_SLOT_LAG` (12) ledgers behind `seq` — the same
+window after which every peer has evicted the set from its cache, so
+retrying is pointless.
+
+### Core-side safety net
+
+`PendingEnvelopes::startFetch` re-issues `RequestTxSet` when an envelope
+arrives for a set that has been pending for at least
+`TX_SET_REFETCH_INTERVAL` (5 s). This covers the two cases the overlay
+cannot: it had no peer to ask when Core first requested (nothing was
+recorded), or it abandoned the fetch because the slot aged out. While the
+overlay does have the fetch pending, the re-request is deduplicated.
 
 ## TX set cache
 
@@ -128,14 +164,9 @@ externalized TXs from the mempool — see [mempool.md](mempool.md)).
 
 ## Known gaps
 
-- **No per-fetch timeout / retry.** A retry task was scaffolded in
-  `libp2p_overlay.rs:1829-1916` and is **commented out**. If a peer goes
-  silent after receiving our 32-byte request, the pending entry
-  effectively leaks until the peer disconnects. Core's own retry policy
-  is the only safety net.
-- **No alternate-peer fallback** within a single fetch. We pick one peer
-  and stop.
-- **Eviction is non-deterministic** under capacity pressure. Acceptable
-  given the `evict_before(seq-12)` cleanup, but worth flagging.
+- **A timed-out transfer is not cancelled.** If a slow peer is still
+  streaming a large set when the retry timeout fires, the set may arrive
+  twice (the second copy is pushed to Core, which ignores a set it is not
+  waiting for).
 - **No request prioritization**. All TxSet fetches are FIFO on the
   shared TxSet stream.

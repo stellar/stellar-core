@@ -5,6 +5,11 @@ transactions. Core queries it for nomination (`GetTopTxs`), and the
 overlay services TX-flood requests from it (`tx_buffer` is *not* the
 mempool — see [tx-propagation.md](tx-propagation.md)).
 
+The mempool does no transaction validation: Core validates the
+transactions it pulls at nomination, and pulls only as many as fit in the
+next ledger (see [Querying](#querying)) so that work is not spent on
+transactions that cannot make it into the block.
+
 Source: `flood/mempool.rs`. Owned by `Overlay` in `integrated.rs`,
 guarded by `RwLock`.
 
@@ -28,14 +33,19 @@ Mempool::new(100000, Duration::from_secs(300))
 | Index         | Type                                  | Purpose                                  |
 |---------------|---------------------------------------|------------------------------------------|
 | `by_hash`     | `HashMap<TxHash, MempoolEntry>`       | O(1) lookup, dedup                       |
-| `by_fee`      | `BTreeSet<FeePriority>`               | Ordered access (for `top_by_fee`)        |
+| `by_fee`      | `[BTreeSet<FeePriority>; 2]`, one per `TxKind` | Ordered access per tx set phase (for `top_by_fee`) |
 
-`MempoolEntry` (`flood/mempool.rs:20-24`) is an
-`Arc<ValidatedTx>` plus `received_at` (for age-based eviction). The
-`ValidatedTx` (`wire.rs`) carries the canonical envelope bytes, sha256
-hash, fee, and op count — computed once at the trust boundary where the
-transaction entered the process, and shared by reference through the
-rest of the pipeline.
+`MempoolEntry` (`flood/mempool.rs`) is an `Arc<ValidatedTx>` plus
+`received_at` (for age-based eviction). The `ValidatedTx` (`wire.rs`)
+carries the canonical envelope bytes, sha256 hash, fee, op count and
+kind (classic or Soroban) — computed once at the trust boundary where
+the transaction entered the process (or supplied by Core for `SubmitTx`),
+and shared by reference through the rest of the pipeline.
+
+Classic and Soroban transactions are indexed separately because Core
+fills the two tx set phases independently, with independent limits: a
+Soroban transaction's (much larger) fee must not crowd classic
+transactions out of a pull, and vice versa.
 
 ## Fee ordering
 
@@ -56,19 +66,20 @@ comparison (deterministic).
 
 ## Insertion
 
-`Mempool::insert` (`flood/mempool.rs:106-127`):
+`Mempool::insert` (`flood/mempool.rs`):
 
 1. **Dedup**: if `by_hash` already contains this hash, return `false`.
 2. **Capacity check**: while at `max_size`, call `evict_lowest_fee`.
-3. Add to both indexes.
+3. Add to `by_hash` and to the `by_fee` index for the tx's kind.
 4. Return `true`.
+
 
 ## Eviction
 
-- **Capacity-based** (`evict_lowest_fee`, `flood/mempool.rs:179-184`):
-  takes the last entry of `by_fee` (lowest priority) and removes it via
-  `remove`. Called from `insert` on capacity overflow — happens
-  *synchronously per insert*.
+- **Capacity-based** (`evict_lowest_fee`, `flood/mempool.rs`): compares
+  the lowest-priority entry of each kind's `by_fee` index and removes the
+  lower of the two via `remove`. Called from `insert` on capacity
+  overflow — happens *synchronously per insert*.
 - **Age-based** (`evict_expired`, `flood/mempool.rs:152-166`): scans for
   entries with `now - received_at > max_age` and removes them. Called
   only from the `RemoveTxsFromMempool` handler (i.e. piggybacked on
@@ -87,33 +98,75 @@ hash from both indexes, then runs `evict_expired`.
 ## Insertion sources
 
 Two paths into the mempool, one per trust boundary. Both produce the
-same `Arc<ValidatedTx>` currency, so every entry carries its real fee
-and op count and fee ordering is correct regardless of origin.
+same `Arc<ValidatedTx>` currency, so every entry carries its real fee,
+op count and kind, and fee ordering is correct regardless of origin.
 
-### `SubmitTx` from Core (`main.rs:1095`)
+### `SubmitTx` from Core (`main.rs`)
 
-Core submits `(data, fee, num_ops)` over IPC; the handler mints the
-entry with `ValidatedTx::from_core_trusted`, which trusts Core's
-metadata and does not re-decode (it only rejects fee-bumps via the
-envelope discriminant and hashes the bytes).
+Core submits `(data, fee, num_ops, flags)` over IPC; the handler mints the
+entry with `ValidatedTx::from_core_trusted`, which trusts Core's metadata
+(including the classic/Soroban kind in `flags`) and does not re-decode
+(it only rejects fee-bumps via the envelope discriminant and hashes the
+bytes).
 
-### TX received over the network (`main.rs:727-734`)
+### TX received over the network (`main.rs`)
 
 `LibP2pOverlayEvent::TxReceived` already carries an `Arc<ValidatedTx>`:
 the per-peer TX stream reader minted it with `ValidatedTx::from_network`
 during its single strict decode of the inbound message
-(`flood/inv_messages.rs`), reading fee/op metadata off the decoded
-envelope. The handler just forwards it to `submit_tx`.
+(`flood/inv_messages.rs`), reading fee/op metadata and the kind (from the
+envelope's Soroban `ext`) off the decoded envelope. The handler just
+forwards it to `submit_tx`.
 
 ## Querying
 
-- `Mempool::top_by_fee(count)`: returns up to `count` hashes from
-  `by_fee` in priority order. Used by `GetTopTxs` for nomination.
+- `Mempool::top_by_fee(kind, budget)`: walks that kind's `by_fee` index
+  in priority order and returns up to `budget.max_count` transactions
+  whose envelope bytes total at most `budget.max_bytes`. A transaction
+  that would overflow the byte budget is skipped and the walk continues
+  with smaller ones (mirroring Core's surge pricing). Used by
+  `GetTopTxs` for nomination.
 - `Mempool::contains(hash)`: O(1) dedup check.
 - `Mempool::get(hash)`: returns `Option<&Arc<ValidatedTx>>`.
 
-`GetTopTxs` (`integrated.rs:79-87`) returns `(hash, data)` pairs to
-Core for inclusion in a TX set.
+`GetTopTxs` (`integrated.rs`) carries a `TopTxsRequest` — one
+`(max_count, max_bytes)` budget for the classic phase and one for the
+Soroban phase. Core deliberately asks for **more than fits**, by count
+and by bytes alike (`HerderImpl::mempoolPullBudget`): each budget is
+`(what fits + one transaction) × MEMPOOL_PULL_MULTIPLIER` (currently 2;
+`HerderImpl.h`). For counts, "what fits" is `maxTxSetSizeOps` (classic)
+or `ledgerMaxTxCount` (Soroban) and one transaction is 1. For bytes,
+"what fits" is the classic byte allowance or the Soroban ledger tx byte
+limit, and one transaction is the maximum transaction size of that
+phase. The two dimensions get the same slack on purpose: whichever one
+binds first decides how much surplus Core actually receives, and a byte
+budget of just "one ledger plus one transaction" would let a few large
+invalid transactions at the top of the fee order leave a byte-bound
+ledger short. The reply lists classic transactions first, then Soroban,
+each highest fee first; it is sized by these budgets, and the IPC frame
+limit (256 MiB) sits far above them as a corruption guard.
+
+Why over-pull: the mempool does no stateful validation, so its top
+entries can be unusable (stale sequence number, drained account, bad
+signature). An exact-fit pull would then produce a partially empty
+ledger even with plenty of valid demand behind it. Over-pulling is cheap
+because Core builds the nominated set with **lazy validation**
+(`LazyTxValidator`, `TxSetFrame.cpp`; this is the only way tx sets are built): surge pricing walks the
+candidates in fee order and validates one only when it is about to be
+included, plus at most one non-fitting candidate per fee lane (that
+probe is what tells surge pricing there was excess demand, and it has to
+be a valid transaction, otherwise an invalid one could raise everyone's
+base fee). Candidates that surge pricing never reaches are neither
+validated nor reported, so Core leaves them in the mempool for the next
+ledger. Only candidates that were validated and failed are removed from
+the mempool (except those with a future sequence number, which are
+chained behind a pending transaction). The metric
+`herder.txset.candidates-validated` counts lazy validations; per ledger
+it should stay close to the number of included transactions.
+
+The "+1" matters on its own: surge pricing raises the base fee only when
+it sees a valid transaction that does not fit, so a pull with no slack
+would hide excess demand and keep fees at the minimum under overload.
 
 ## Known gaps
 

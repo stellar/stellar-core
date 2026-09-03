@@ -97,9 +97,16 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
   announcements and per-peer/total timeouts. See
   [scp-flooding.md](rust-overlay/scp-flooding.md) and
   [tx-propagation.md](rust-overlay/tx-propagation.md).
-- **Mempool lives in the overlay**. Fee-ordered, capacity 100,000,
-  300-second max age. Core queries it for nomination via `GetTopTxs`.
-  See [mempool.md](rust-overlay/mempool.md).
+- **Mempool lives in the overlay**. Fee-ordered per tx set phase
+  (classic / Soroban), capacity 100,000, 300-second max age. Core pulls
+  twice what fits in the next ledger (plus one), per phase, via
+  `GetTopTxs`, and builds the nominated set with lazy validation: only
+  candidates about to be included are validated, unreached candidates
+  stay in the mempool. See [mempool.md](rust-overlay/mempool.md).
+- **TX set fetches are retried**. A fetch moves to another peer on
+  `DontHave`, disconnect, or a 2 s silence, and is abandoned only once
+  its slot has aged out of every peer's cache. See
+  [txset-fetching.md](rust-overlay/txset-fetching.md).
 - **Backpressure asymmetry**. SCP and TxSet events to Core are on an
   unbounded channel and never drop. TX events are on a bounded channel
   (10,000) and may drop under load — TXs are re-fetchable via the same
@@ -169,6 +176,7 @@ overlay/
 │   │   ├── inv_batcher.rs   # Per-peer INV batching
 │   │   ├── inv_tracker.rs   # Peer→TX advertisement tracking
 │   │   ├── pending_requests.rs  # GETDATA timeout/retry
+│   │   ├── txset_fetch.rs   # TX set fetch retry bookkeeping
 │   │   └── tx_buffer.rs     # TX storage for GETDATA responses
 │   └── http/
 │       └── mod.rs           # HTTP server (TX submission, status)
@@ -186,9 +194,6 @@ relevant subsystem doc.
   (`wire.rs`), so fee ordering and outbound INV `fee_per_op` are
   correct, but source account and sequence number are not tracked and
   per-account queries are not possible.
-- **TX-set fetch retry is commented out** (`libp2p_overlay.rs:1829-1916`).
-  A pending fetch to a silent peer leaks until the peer disconnects;
-  Core's own retry policy is the only safety net.
 - **The mempool size (100,000 entries) and the peer/connection fanout
   are hardcoded** — there are no config knobs for them, and the overlay
   does not enforce inbound or outbound connection limits.
