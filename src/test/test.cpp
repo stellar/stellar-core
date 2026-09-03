@@ -126,6 +126,10 @@ std::map<std::string, std::map<std::string, std::string>> gLcmCapturedIndex;
 // canonical full-corpus regeneration passes it explicitly.
 bool gLcmMayPrune{false};
 
+// Set when the running test does something that makes its LedgerCloseMeta
+// unsuitable as golden data — see taintLcmCapture. Reset per test case.
+std::string gLcmTaintReason;
+
 // Header keys stored in each baseline/index file identifying the
 // configuration that produced it; checked on load so that stale golden data
 // (e.g. after a protocol version bump) fails fast.
@@ -445,6 +449,26 @@ recordOrCheckLcm(std::string const& path, std::string const& dir,
                  std::string const& hashHex, std::string const& humanName,
                  size_t startIndex, Catch::SourceLineInfo const& leafSource)
 {
+    if (!gLcmTaintReason.empty())
+    {
+        // This test's meta is not suitable as golden data. Capture skips it;
+        // check flags any golden data that still exists for it, so a stale
+        // vector from before the test became ineligible cannot linger.
+        if (gLcmCaptureEnabled)
+        {
+            LOG_WARNING(DEFAULT_LOG, "LCM auto-capture: skipping '{}': {}",
+                        humanName, gLcmTaintReason);
+        }
+        else if (std::filesystem::exists(path))
+        {
+            gLcmCheckFailures.emplace_back(fmt::format(
+                "golden LCM file '{}' exists but test '{}' is not eligible "
+                "for capture: {}",
+                path, humanName, gLcmTaintReason));
+        }
+        return;
+    }
+
     // Detect two distinct sections whose names hash to the same golden file.
     // Only leaves that actually accumulated LCM matter: leaves with no meta
     // never write or check a file, so a name collision there is harmless.
@@ -498,6 +522,7 @@ struct TestContextListener : Catch::TestEventListenerBase
         }
         if (lcmTrackingEnabled())
         {
+            gLcmTaintReason.clear();
             txtest::clearAccumulatedLcm();
             sLcmSectStack.clear();
             sTestCaseStartIndex = 0;
@@ -637,6 +662,16 @@ bool
 isLcmCaptureEnabled()
 {
     return lcmTrackingEnabled();
+}
+
+void
+taintLcmCapture(std::string const& reason)
+{
+    if (!lcmTrackingEnabled() || !gLcmTaintReason.empty())
+    {
+        return;
+    }
+    gLcmTaintReason = reason;
 }
 
 static void saveTestTxMeta(stdfs::path const& dir);
@@ -1549,7 +1584,7 @@ loadLcmHeaders(stdfs::path const& dir)
 // saveTestTxMeta, which rewrites only the baseline files whose test files
 // recorded something. Within a touched directory, a filtered run would look
 // indistinguishable from deleted leaves, so pruning is skipped entirely
-// unless --prune-stale-lcm was passed.
+// unless the run was unfiltered.
 static void
 finalizeLcmCapture()
 {

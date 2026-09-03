@@ -41,6 +41,10 @@ Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
     , mConfigGen(confGen)
     , mQuorumSetAdjuster(qSetAdjust)
 {
+    // A multi-node simulation's ledger progression depends on thread
+    // scheduling and on how many SCP rounds happen to run, so meta captured
+    // from one is not reproducible across platforms or runs.
+    taintLcmCapture("runs a multi-node Simulation");
     auto cfg = newConfig();
     auto& parallel = cfg.BACKGROUND_OVERLAY_PROCESSING;
     parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
