@@ -1,4 +1,8 @@
 {
+   "!cfg protocol version" : 28,
+   "!rng seed" : 12345,
+   "!test all versions" : false,
+   "!versions to test" : [ 28 ],
    "0130d32614dbc252" : "source_trustline_frozen-ManageSellOffer_selling_trustline_frozen",
    "0269778d4c3c115b" : "source_trustline_frozen-ChangeTrustOp_trustline_frozen",
    "03768f1cbe0eed0d" : "frozen_ledger_keys_DEX_offer_operations-second_offer_frozen_[create-passive-sell][credit-native][selling-frozen]",
