@@ -60,6 +60,7 @@
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <set>
 
 using namespace stellar;
 using namespace stellar::txbridge;
@@ -585,10 +586,15 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
             SECTION("build block")
             {
+                // The builder validates candidates in fee order as it
+                // selects them: fb3 (highest fee) is included, fb2 is
+                // malformed, and fb1 is rejected because account2 can't pay
+                // for it on top of fb3.
                 TxFrameList invalidTxs;
                 auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0,
                                                        0, invalidTxs);
-                compareTxs(invalidTxs, {fb1, fb2, fb3});
+                compareTxs(invalidTxs, {fb1, fb2});
+                REQUIRE(txSet.second->sizeTxTotal() == 1);
             }
             SECTION("validate block")
             {
@@ -631,9 +637,11 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             {
                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
                                                        invalidTxs);
-                // Both are marked invalid because their combined fees exceed
-                // account2's balance
-                compareTxs(invalidTxs, {fb1, fb2});
+                // The builder selects in fee order and validates as it goes:
+                // fb2 (higher fee) is included, and fb1 is rejected because
+                // account2 can't pay for both.
+                compareTxs(invalidTxs, {fb1});
+                REQUIRE(txSet.second->sizeTxTotal() == 1);
             }
             SECTION("validate block")
             {
@@ -707,9 +715,11 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             {
                 auto txSet = makeTxSetFromTransactions({{}, {fb1, fb2}}, *app,
                                                        0, 0, invalidPerPhase);
-                // Both are marked invalid because their combined fees exceed
-                // feeSourceAccount's balance
-                compareTxs(invalidPerPhase[1], {fb1, fb2});
+                // The builder selects in fee order and validates as it goes:
+                // fb2 (higher fee) is included, and fb1 is rejected because
+                // feeSourceAccount can't pay for both.
+                compareTxs(invalidPerPhase[1], {fb1});
+                REQUIRE(txSet.second->sizeTxTotal() == 1);
             }
             SECTION("validate block")
             {
@@ -2926,16 +2936,18 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             REQUIRE(scp.validateValue(seq, val.first, true) ==
                     expectedValidationLevel);
 
-            // Confirm that getTxTrimList() as used by
-            // makeTxSetFromTransactions() trims the transaction if
-            // and only if we expect it to be invalid.
+            // Confirm that per-transaction validation (the same checks
+            // makeTxSetFromTransactions() applies to the candidates it
+            // selects) rejects the transaction if and only if we expect it
+            // to be invalid.
             auto closeTimeOffset = nextCloseTime - lclCloseTime;
-            TxFrameList removed;
             UnorderedMap<AccountID, int64_t> accountFeeMap;
-            TxSetUtils::trimInvalid(
-                applicableTxSet->getPhase(TxSetPhase::CLASSIC)
-                    .getSequentialTxs(),
-                *app, accountFeeMap, closeTimeOffset, closeTimeOffset, removed);
+            auto removed =
+                TxSetUtils::getInvalidTxListWithErrors(
+                    applicableTxSet->getPhase(TxSetPhase::CLASSIC)
+                        .getSequentialTxs(),
+                    *app, accountFeeMap, closeTimeOffset, closeTimeOffset)
+                    .first;
             REQUIRE(removed.size() == (expectValid ? 0 : 1));
         };
 
@@ -3410,6 +3422,393 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
             2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
         REQUIRE(hasBufferedCheckpointToLcl(cm1));
         REQUIRE(hasBufferedCheckpointToLcl(cm2));
+    }
+}
+
+TEST_CASE("mempool pull budget", "[herder]")
+{
+    auto const mult = HerderImpl::MEMPOOL_PULL_MULTIPLIER;
+    auto const u32Max = std::numeric_limits<uint32_t>::max();
+
+    // What fits plus one transaction, times the multiplier, for counts...
+    REQUIRE(HerderImpl::mempoolPullBudget(5, 1) == (5 + 1) * mult);
+    REQUIRE(HerderImpl::mempoolPullBudget(1000, 1) == (1000 + 1) * mult);
+    // ...and for bytes, where "one transaction" is the largest allowed one.
+    REQUIRE(HerderImpl::mempoolPullBudget(5 * 1024 * 1024, 100 * 1024) ==
+            (5 * 1024 * 1024 + 100 * 1024) * mult);
+    // Byte and count budgets carry the same relative slack.
+    REQUIRE(HerderImpl::mempoolPullBudget(1000, 1) / (1000 + 1) ==
+            HerderImpl::mempoolPullBudget(1'000'000, 1000) / 1'001'000);
+    // Empty ledger still asks for a probe's worth.
+    REQUIRE(HerderImpl::mempoolPullBudget(0, 1) == mult);
+    REQUIRE(HerderImpl::mempoolPullBudget(0, 0) == 0);
+
+    // Saturation: the IPC request carries u32 budgets, and "unlimited" test
+    // allowances arrive as huge size_t values.
+    REQUIRE(HerderImpl::mempoolPullBudget(u32Max, 1) == u32Max);
+    REQUIRE(HerderImpl::mempoolPullBudget(
+                static_cast<int64_t>(std::numeric_limits<size_t>::max() / 2),
+                100 * 1024) == u32Max);
+    REQUIRE(HerderImpl::mempoolPullBudget(
+                1, std::numeric_limits<int64_t>::max()) == u32Max);
+    REQUIRE(HerderImpl::mempoolPullBudget((u32Max / mult) - 1, 0) ==
+            ((u32Max / mult) - 1) * mult);
+    // Garbage in (negative) is treated as zero rather than wrapping.
+    REQUIRE(HerderImpl::mempoolPullBudget(-5, 1) == mult);
+}
+
+// Nomination pulls more candidates from the mempool than fit in a ledger (the
+// mempool does no stateful validation, so the top of the fee ordering may be
+// unusable). Building the set with lazy validation has to (a) still fill the
+// ledger from the valid candidates, (b) validate only candidates that were
+// actually considered for inclusion, and (c) report only those as invalid, so
+// that candidates that were never reached stay in the mempool untouched.
+TEST_CASE("tx set lazy validation", "[herder][txset]")
+{
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
+    uint32_t const lim = 5;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = lim;
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+    int64 startingBalance =
+        app->getLedgerManager().getLastMinBalance(0) + 10'000'000'000;
+    bool const hasSoroban =
+        protocolVersionStartsFrom(app->getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION);
+    auto& validated = app->getMetrics().NewCounter(
+        {"herder", "txset", "candidates-validated"});
+
+    auto hashesOf = [](TxFrameList const& txs) {
+        std::set<Hash> hashes;
+        for (auto const& tx : txs)
+        {
+            hashes.insert(tx->getFullHash());
+        }
+        return hashes;
+    };
+    auto includedHashes = [](ApplicableTxSetFrameConstPtr const& txSet,
+                             TxSetPhase phase) {
+        std::set<Hash> hashes;
+        for (auto const& tx : txSet->getPhase(phase))
+        {
+            hashes.insert(tx->getFullHash());
+        }
+        return hashes;
+    };
+    auto isSubset = [](std::set<Hash> const& sub, std::set<Hash> const& all) {
+        return std::all_of(sub.begin(), sub.end(),
+                           [&](Hash const& h) { return all.count(h) == 1; });
+    };
+    auto baseFees = [](ApplicableTxSetFrameConstPtr const& txSet,
+                       TxSetPhase phase) {
+        std::set<std::optional<int64_t>> fees;
+        for (auto const& tx : txSet->getPhase(phase))
+        {
+            fees.insert(txSet->getTxBaseFee(tx));
+        }
+        return fees;
+    };
+    // Builds the set the way nomination does, with lazy validation.
+    auto build = [&](TxFrameList const& classicTxs,
+                     TxFrameList const& sorobanTxs,
+                     PerPhaseTransactionList& invalid) {
+        PerPhaseTransactionList phases{classicTxs};
+        if (hasSoroban)
+        {
+            phases.push_back(sorobanTxs);
+        }
+        invalid.assign(phases.size(), {});
+        return makeTxSetFromTransactions(phases, *app, 0, 0, invalid);
+    };
+
+    // One-op self payment from a fresh account; `valid == false` bumps the
+    // fee after signing, so the signature no longer matches.
+    uint32_t accountId = 0;
+    auto makeClassicTx = [&](uint32 feeMult, bool valid) {
+        auto acc = root->create(fmt::format("Classic{}", accountId++),
+                                startingBalance);
+        auto tx = makeMultiPayment(acc, acc, 1, 1000, 0, feeMult);
+        if (!valid)
+        {
+            setFullFee(tx, static_cast<uint32_t>(tx->getFullFee()) + 1);
+        }
+        return tx;
+    };
+    auto makeClassicTxs = [&](uint32 count, uint32 feeMult, bool valid) {
+        TxFrameList txs;
+        for (uint32 i = 0; i < count; ++i)
+        {
+            txs.push_back(makeClassicTx(feeMult, valid));
+        }
+        return txs;
+    };
+    auto concat = [](std::initializer_list<TxFrameList> lists) {
+        TxFrameList all;
+        for (auto const& l : lists)
+        {
+            all.insert(all.end(), l.begin(), l.end());
+        }
+        return all;
+    };
+
+    SECTION("invalid top candidates do not shrink the set")
+    {
+        // Highest fee: invalid. Middle: more valid txs than fit. Lowest: valid
+        // txs that surge pricing never gets to.
+        uint32 const nbInvalid = 3;
+        auto invalidTxs = makeClassicTxs(nbInvalid, 100, false);
+        auto validTxs = makeClassicTxs(lim + 3, 10, true);
+        auto lowFeeTxs = makeClassicTxs(4, 1, true);
+
+        auto before = validated.count();
+        PerPhaseTransactionList invalid;
+        auto [txSet, applicable] =
+            build(concat({lowFeeTxs, invalidTxs, validTxs}), {}, invalid);
+
+        REQUIRE(applicable->sizeTxTotal() == lim);
+        REQUIRE(isSubset(includedHashes(applicable, TxSetPhase::CLASSIC),
+                         hashesOf(validTxs)));
+        // Every invalid candidate was reached and reported...
+        REQUIRE(hashesOf(invalid[0]) == hashesOf(invalidTxs));
+        // ...and nothing beyond what was needed got validated: the invalid
+        // candidates, the included ones and a single non-fitting one (the
+        // probe that tells surge pricing there was excess demand). The
+        // low-fee candidates were never touched.
+        REQUIRE(validated.count() - before == nbInvalid + lim + 1);
+        // Excess demand was detected through the lazily validated probe, so
+        // the base fee is the lowest included bid rather than the minimum.
+        REQUIRE(baseFees(applicable, TxSetPhase::CLASSIC) ==
+                std::set<std::optional<int64_t>>{1000});
+    }
+
+    SECTION("invalid candidates past the limit are never validated")
+    {
+        auto validTxs = makeClassicTxs(lim + 3, 10, true);
+        auto invalidTxs = makeClassicTxs(3, 1, false);
+
+        auto before = validated.count();
+        PerPhaseTransactionList invalid;
+        auto [txSet, applicable] =
+            build(concat({invalidTxs, validTxs}), {}, invalid);
+
+        REQUIRE(applicable->sizeTxTotal() == lim);
+        REQUIRE(includedHashes(applicable, TxSetPhase::CLASSIC).size() == lim);
+        REQUIRE(isSubset(includedHashes(applicable, TxSetPhase::CLASSIC),
+                         hashesOf(validTxs)));
+        // The invalid candidates sit below the cut-off: not validated, and
+        // hence not reported (they would be dropped from the mempool
+        // otherwise, but nothing was learned about them).
+        REQUIRE(invalid[0].empty());
+        REQUIRE(validated.count() - before == lim + 1);
+    }
+
+    SECTION("excess demand is only established by a valid candidate")
+    {
+        // Exactly `lim` valid candidates fit; the only candidates that don't
+        // fit are invalid, so there is no real excess demand and the base fee
+        // must stay at the minimum (an invalid tx must not trigger surge
+        // pricing).
+        auto validTxs = makeClassicTxs(lim, 10, true);
+        auto invalidTxs = makeClassicTxs(2, 1, false);
+
+        auto before = validated.count();
+        PerPhaseTransactionList invalid;
+        auto [txSet, applicable] =
+            build(concat({validTxs, invalidTxs}), {}, invalid);
+
+        REQUIRE(applicable->sizeTxTotal() == lim);
+        REQUIRE(includedHashes(applicable, TxSetPhase::CLASSIC) ==
+                hashesOf(validTxs));
+        REQUIRE(hashesOf(invalid[0]) == hashesOf(invalidTxs));
+        REQUIRE(validated.count() - before == lim + 2);
+        REQUIRE(baseFees(applicable, TxSetPhase::CLASSIC) ==
+                std::set<std::optional<int64_t>>{100});
+    }
+
+    SECTION("all candidates fit")
+    {
+        auto validTxs = makeClassicTxs(lim - 2, 10, true);
+        auto invalidTxs = makeClassicTxs(2, 100, false);
+
+        auto before = validated.count();
+        PerPhaseTransactionList invalid;
+        auto [txSet, applicable] =
+            build(concat({validTxs, invalidTxs}), {}, invalid);
+
+        REQUIRE(applicable->sizeTxTotal() == lim - 2);
+        REQUIRE(includedHashes(applicable, TxSetPhase::CLASSIC) ==
+                hashesOf(validTxs));
+        REQUIRE(hashesOf(invalid[0]) == hashesOf(invalidTxs));
+        REQUIRE(validated.count() - before == lim);
+        REQUIRE(baseFees(applicable, TxSetPhase::CLASSIC) ==
+                std::set<std::optional<int64_t>>{100});
+    }
+
+    SECTION("soroban phase")
+    {
+        if (!hasSoroban)
+        {
+            return;
+        }
+        overrideSorobanNetworkConfigForTest(*app);
+        modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& sorobanCfg) {
+            sorobanCfg.mLedgerMaxTxCount = lim;
+        });
+        // Wasm upload from a fresh account. `valid == false` adds a second
+        // operation, which makes a Soroban transaction malformed.
+        // Transactions sharing a `wasmSeed` upload the same Wasm and hence
+        // conflict on its contract code entry; by default each transaction
+        // is independent of the others.
+        auto makeSorobanTx = [&](uint32 inclusionFee, bool valid,
+                                 std::optional<uint64_t> wasmSeed =
+                                     std::nullopt) {
+            auto acc = root->create(fmt::format("Soroban{}", accountId++),
+                                    startingBalance);
+            SorobanResources resources;
+            resources.instructions = 1'000'000;
+            resources.diskReadBytes = 1000;
+            resources.writeBytes = 1000;
+            return createUploadWasmTx(
+                *app, acc, inclusionFee, DEFAULT_TEST_RESOURCE_FEE, resources,
+                /*memo=*/std::nullopt, /*addInvalidOps=*/valid ? 0 : 1,
+                /*wasmSize=*/std::nullopt, /*seq=*/std::nullopt,
+                wasmSeed.value_or(accountId));
+        };
+        auto makeSorobanTxs = [&](uint32 count, uint32 inclusionFee,
+                                  bool valid) {
+            TxFrameList txs;
+            for (uint32 i = 0; i < count; ++i)
+            {
+                txs.push_back(makeSorobanTx(inclusionFee, valid));
+            }
+            return txs;
+        };
+
+        SECTION("invalid top candidates do not shrink the set")
+        {
+            uint32 const nbInvalid = 3;
+            auto invalidTxs = makeSorobanTxs(nbInvalid, 100'000, false);
+            auto validTxs = makeSorobanTxs(lim + 3, 1000, true);
+            auto lowFeeTxs = makeSorobanTxs(4, 100, true);
+
+            auto before = validated.count();
+            PerPhaseTransactionList invalid;
+            auto [txSet, applicable] =
+                build({}, concat({lowFeeTxs, invalidTxs, validTxs}), invalid);
+
+            REQUIRE(applicable->sizeTxTotal() == lim);
+            REQUIRE(isSubset(includedHashes(applicable, TxSetPhase::SOROBAN),
+                             hashesOf(validTxs)));
+            REQUIRE(invalid[0].empty());
+            REQUIRE(hashesOf(invalid[1]) == hashesOf(invalidTxs));
+            REQUIRE(validated.count() - before == nbInvalid + lim + 1);
+            REQUIRE(baseFees(applicable, TxSetPhase::SOROBAN) ==
+                    std::set<std::optional<int64_t>>{1000});
+        }
+
+        SECTION("malformed candidates are dropped before surge pricing")
+        {
+            // Surge pricing reads fees and resources off the envelopes before
+            // anything is validated, so a candidate whose envelope can't be
+            // read that way has to be dropped up front rather than throw in
+            // the middle of building the set.
+            auto validTxs = makeSorobanTxs(lim, 1000, true);
+            auto templateTx = makeSorobanTx(100'000, true);
+            auto malformed =
+                [&](std::function<void(TransactionEnvelope&)> const& tweak) {
+                    auto env = templateTx->getEnvelope();
+                    tweak(env);
+                    return TransactionFrameBase::makeTransactionFromWire(
+                        app->getNetworkID(), env);
+                };
+            TxFrameList malformedTxs{
+                // Soroban operation without Soroban transaction data
+                malformed(
+                    [](TransactionEnvelope& env) { env.v1().tx.ext.v(0); }),
+                // Negative resource fee
+                malformed([](TransactionEnvelope& env) {
+                    env.v1().tx.ext.sorobanData().resourceFee = -1;
+                }),
+                // Resource fee above the total fee, i.e. a negative inclusion
+                // fee
+                malformed([](TransactionEnvelope& env) {
+                    env.v1().tx.ext.sorobanData().resourceFee =
+                        static_cast<int64_t>(env.v1().tx.fee) + 1;
+                }),
+            };
+            // A classic transaction without operations can be read and just
+            // fails validation.
+            auto emptyAcc = root->create(fmt::format("Classic{}", accountId++),
+                                         startingBalance);
+            TxFrameList classicTxs{emptyAcc.tx({})};
+
+            auto before = validated.count();
+            PerPhaseTransactionList invalid;
+            auto [txSet, applicable] =
+                build(classicTxs, concat({malformedTxs, validTxs}), invalid);
+
+            REQUIRE(applicable->sizeTxTotal() == lim);
+            REQUIRE(includedHashes(applicable, TxSetPhase::SOROBAN) ==
+                    hashesOf(validTxs));
+            REQUIRE(hashesOf(invalid[0]) == hashesOf(classicTxs));
+            REQUIRE(hashesOf(invalid[1]) == hashesOf(malformedTxs));
+            // The malformed candidates were dropped without being validated.
+            REQUIRE(validated.count() - before == lim + 1);
+        }
+
+        SECTION("candidates that can't be packed do not shrink the set")
+        {
+            // Every candidate fits the ledger-wide limits, but the highest-fee
+            // ones all write the same entry and a cluster only has room for
+            // two of them. The packer has to reach past the rest of them into
+            // the independent, lower-fee candidates to fill the ledger, and
+            // lazy validation must not stand in its way.
+            modifySorobanNetworkConfig(
+                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                    // The minimum allowed: room for two 1M-instruction
+                    // transactions per cluster, but not three.
+                    sorobanCfg.mTxMaxInstructions = 2'500'000;
+                    sorobanCfg.mLedgerMaxInstructions = 2'500'000;
+                    sorobanCfg.mLedgerMaxDependentTxClusters = 4;
+                });
+            TxFrameList conflictingTxs;
+            for (uint32 i = 0; i < lim + 1; ++i)
+            {
+                conflictingTxs.push_back(
+                    makeSorobanTx(100'000 + i, true, /*wasmSeed=*/42));
+            }
+            TxFrameList independentTxs;
+            for (uint32 i = 0; i < 4; ++i)
+            {
+                independentTxs.push_back(makeSorobanTx(1000 + i, true));
+            }
+
+            auto before = validated.count();
+            PerPhaseTransactionList invalid;
+            auto [txSet, applicable] =
+                build({}, concat({independentTxs, conflictingTxs}), invalid);
+
+            REQUIRE(applicable->sizeTxTotal() == lim);
+            auto included = includedHashes(applicable, TxSetPhase::SOROBAN);
+            auto conflicting = hashesOf(conflictingTxs);
+            REQUIRE(isSubset(
+                included, hashesOf(concat({conflictingTxs, independentTxs}))));
+            REQUIRE(std::count_if(included.begin(), included.end(),
+                                  [&](Hash const& h) {
+                                      return conflicting.count(h) == 1;
+                                  }) == 2);
+            REQUIRE(invalid[1].empty());
+            // Only the included candidates and the first one that could not
+            // be packed (the excess-demand probe) were validated.
+            REQUIRE(validated.count() - before == lim + 1);
+            // The three highest-fee independent candidates made it in, and
+            // the excess demand raised the base fee to the lowest of them.
+            REQUIRE(baseFees(applicable, TxSetPhase::SOROBAN) ==
+                    std::set<std::optional<int64_t>>{1001});
+        }
     }
 }
 

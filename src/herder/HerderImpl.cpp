@@ -44,6 +44,7 @@
 #include "util/MetricsRegistry.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
+#include "util/TxResource.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-internal.h"
 #include "xdrpp/marshal.h"
@@ -134,6 +135,18 @@ HerderImpl::getMaxClassicTxSize() const
     }
 #endif
     return MAX_CLASSIC_TX_SIZE_BYTES;
+}
+
+uint32_t
+HerderImpl::mempoolPullBudget(int64_t fitsInLedger, int64_t oneTransaction)
+{
+    int64_t const maxBudget = std::numeric_limits<uint32_t>::max();
+    fitsInLedger = std::clamp<int64_t>(fitsInLedger, 0, maxBudget);
+    oneTransaction = std::clamp<int64_t>(oneTransaction, 0, maxBudget);
+    // Both terms are at most 2^32, so the product fits comfortably in int64.
+    int64_t const budget =
+        (fitsInLedger + oneTransaction) * MEMPOOL_PULL_MULTIPLIER;
+    return static_cast<uint32_t>(std::min(budget, maxBudget));
 }
 
 uint32_t
@@ -670,8 +683,8 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
                KeyUtils::toShortString(tx->getSourceID()));
 
     auto const& env = tx->getEnvelope();
-    mApp.getOverlayManager().broadcastTransaction(env, tx->getFullFee(),
-                                                  tx->getNumOperations());
+    mApp.getOverlayManager().broadcastTransaction(
+        env, tx->getFullFee(), tx->getNumOperations(), tx->isSoroban());
     return TxSubmitStatus::TX_STATUS_PENDING;
 }
 
@@ -1630,27 +1643,47 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // The Rust overlay maintains the mempool via TX flooding
     PerPhaseTransactionList txPhases;
 
-    // Get TXs from Rust overlay
+    // Ask the mempool for more than fits in the ledger (see
+    // MEMPOOL_PULL_MULTIPLIER): some of the top candidates may turn out to be
+    // invalid, and since the set is built with lazy validation below, the
+    // surplus costs little and whatever isn't reached stays in the mempool.
     auto& overlayMgr = mApp.getOverlayManager();
     auto& lm = mApp.getLedgerManager();
-    size_t maxCandidates = lm.getLastMaxTxSetSizeOps();
-    if (lm.hasLastClosedSorobanNetworkConfig())
+    auto const& cfg = mApp.getConfig();
+    bool const supportsSoroban = protocolVersionStartsFrom(
+        lcl.header.ledgerVersion, SOROBAN_PROTOCOL_VERSION);
+    TopTxsRequest request;
+    request.classicMaxCount =
+        mempoolPullBudget(lm.getLastMaxTxSetSizeOps(), /* oneTransaction */ 1);
+    request.classicMaxBytes =
+        mempoolPullBudget(static_cast<int64_t>(cfg.getClassicByteAllowance()),
+                          getMaxClassicTxSize());
+    if (supportsSoroban && lm.hasLastClosedSorobanNetworkConfig())
     {
-        maxCandidates +=
-            lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+        auto const& sorobanCfg = lm.getLastClosedSorobanNetworkConfig();
+        request.sorobanMaxCount =
+            mempoolPullBudget(sorobanCfg.ledgerMaxTxCount(),
+                              /* oneTransaction */ 1);
+        auto sorobanLimits = lm.maxLedgerResources(/* isSoroban */ true);
+        request.sorobanMaxBytes = mempoolPullBudget(
+            std::min<int64_t>(
+                static_cast<int64_t>(cfg.getSorobanByteAllowance()),
+                sorobanLimits.getVal(Resource::Type::TX_BYTE_SIZE)),
+            sorobanCfg.txMaxSizeBytes());
     }
-    auto txEnvelopes = overlayMgr.getTopTransactions(maxCandidates * 2);
+    auto txEnvelopes = overlayMgr.getTopTransactions(request);
 
-    CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
-              txEnvelopes.size());
+    CLOG_INFO(Herder,
+              "Got {} transactions from Rust overlay mempool (asked for up to "
+              "{} classic / {} soroban)",
+              txEnvelopes.size(), request.classicMaxCount,
+              request.sorobanMaxCount);
 
     // Convert TransactionEnvelopes to TransactionFrameBasePtrs and place them
     // into the phase expected by TxSetFrame.
     TxFrameList classicTxs;
     TxFrameList sorobanTxs;
     Hash const& networkID = mApp.getNetworkID();
-    bool const supportsSoroban = protocolVersionStartsFrom(
-        lcl.header.ledgerVersion, SOROBAN_PROTOCOL_VERSION);
     for (auto const& env : txEnvelopes)
     {
         auto txFrame =
@@ -1708,6 +1741,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     PerPhaseTransactionList invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
 
+    // The builder validates lazily: only candidates that surge pricing is
+    // about to include are validated; the rest of the over-pulled candidates
+    // are neither validated nor reported as invalid, and so stay in the
+    // mempool.
     std::tie(proposedSet, applicableProposedSet) =
         makeTxSetFromTransactions(txPhases, mApp, lowerBoundCloseTimeOffset,
                                   upperBoundCloseTimeOffset, invalidTxPhases);

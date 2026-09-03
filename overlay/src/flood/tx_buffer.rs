@@ -77,7 +77,7 @@ mod tests {
     /// Build a validated tx with a distinct hash per `seq`.
     fn make_tx(fee: u32, seq: i64) -> Arc<ValidatedTx> {
         let bytes = valid_transaction_xdr(fee, seq, 1);
-        ValidatedTx::from_core_trusted(bytes, fee as i64, 1).unwrap()
+        ValidatedTx::from_core_trusted(bytes, fee as i64, 1, crate::wire::TxKind::Classic).unwrap()
     }
 
     #[test]

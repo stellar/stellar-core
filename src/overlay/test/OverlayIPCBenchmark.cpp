@@ -8,6 +8,7 @@
 #include "util/TmpDir.h"
 
 #include <chrono>
+#include <limits>
 #include <thread>
 #include <vector>
 
@@ -26,6 +27,22 @@ requireOverlayBinary()
     }
     return *overlayBinary;
 }
+
+namespace
+{
+// A nomination pull large enough to return `count` transactions of either
+// kind without a binding byte budget.
+TopTxsRequest
+topTxsRequest(uint32_t count)
+{
+    TopTxsRequest req;
+    req.classicMaxCount = count;
+    req.classicMaxBytes = std::numeric_limits<uint32_t>::max();
+    req.sorobanMaxCount = count;
+    req.sorobanMaxBytes = std::numeric_limits<uint32_t>::max();
+    return req;
+}
+} // namespace
 
 struct BenchmarkResult
 {
@@ -56,7 +73,8 @@ benchmarkPayloadSize(OverlayIPC& ipc, size_t payloadSize, int iterations)
 
         // Just call getTopTransactions to measure IPC latency
         // Payload size doesn't matter much here - mainly testing IPC overhead
-        auto txs = ipc.getTopTransactions(payloadSize / 300);
+        auto txs = ipc.getTopTransactions(
+            topTxsRequest(static_cast<uint32_t>(payloadSize / 300)));
 
         auto end = std::chrono::high_resolution_clock::now();
         double latencyMs =
@@ -269,7 +287,7 @@ TEST_CASE("IPC concurrent access benchmark", "[overlay-ipc-rust][.][benchmark]")
             for (size_t i = 0; i < callsPerThread; i++)
             {
                 std::lock_guard<std::mutex> lock(ipcMutex);
-                auto txs = ipc.getTopTransactions(10);
+                auto txs = ipc.getTopTransactions(topTxsRequest(10));
                 // Just query, don't validate results
             }
 

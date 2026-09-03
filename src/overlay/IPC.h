@@ -33,8 +33,10 @@ enum class IPCMessageType : uint32_t
     /// Broadcast this SCP envelope to all peers
     BROADCAST_SCP = 1,
 
-    /// Request top N transactions from mempool for nomination
-    /// Payload: [count:4]
+    /// Request the top transactions from the mempool for nomination, one
+    /// (count, bytes) budget per tx set phase.
+    /// Payload: [classicMaxCount:4][classicMaxBytes:4]
+    ///          [sorobanMaxCount:4][sorobanMaxBytes:4]
     GET_TOP_TXS = 2,
 
     /// Request current SCP state (peer asked via GET_SCP_STATE)
@@ -60,8 +62,9 @@ enum class IPCMessageType : uint32_t
     /// "listen_port": u16 }
     SET_PEER_CONFIG = 8,
 
-    /// Submit a transaction for flooding
-    /// Payload: [fee:i64][numOps:u32][txEnvelope XDR...]
+    /// Submit a transaction to the mempool for flooding
+    /// Payload: [fee:i64][numOps:u32][flags:u32][txEnvelope XDR...]
+    /// flags bit 0: Soroban transaction
     SUBMIT_TX = 10,
 
     /// Request a TX set by hash (async - response via TX_SET_AVAILABLE)

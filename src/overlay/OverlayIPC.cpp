@@ -549,7 +549,7 @@ OverlayIPC::removeTransactions(std::vector<Hash> const& txHashes)
 }
 
 std::vector<TransactionEnvelope>
-OverlayIPC::getTopTransactions(size_t count)
+OverlayIPC::getTopTransactions(TopTxsRequest const& request)
 {
     std::vector<TransactionEnvelope> result;
 
@@ -559,11 +559,15 @@ OverlayIPC::getTopTransactions(size_t count)
     }
 
     // Send request
+    // Payload: [classicMaxCount:4][classicMaxBytes:4]
+    //          [sorobanMaxCount:4][sorobanMaxBytes:4]
     IPCMessage req;
     req.type = IPCMessageType::GET_TOP_TXS;
-    uint32_t countU32 = static_cast<uint32_t>(count);
-    req.payload.resize(4);
-    std::memcpy(req.payload.data(), &countU32, 4);
+    req.payload.resize(16);
+    std::memcpy(req.payload.data(), &request.classicMaxCount, 4);
+    std::memcpy(req.payload.data() + 4, &request.classicMaxBytes, 4);
+    std::memcpy(req.payload.data() + 8, &request.sorobanMaxCount, 4);
+    std::memcpy(req.payload.data() + 12, &request.sorobanMaxBytes, 4);
 
     {
         std::lock_guard<std::mutex> lock(mRequestMutex);
@@ -649,7 +653,7 @@ OverlayIPC::getTopTransactions(size_t count)
 
 void
 OverlayIPC::submitTransaction(TransactionEnvelope const& tx, int64_t fee,
-                              uint32_t numOps)
+                              uint32_t numOps, bool isSoroban)
 {
     if (!mChannel || !mChannel->isConnected())
     {
@@ -661,14 +665,18 @@ OverlayIPC::submitTransaction(TransactionEnvelope const& tx, int64_t fee,
 
     auto txData = xdr::xdr_to_opaque(tx);
 
-    // Payload: [fee:8][numOps:4][txData...]
-    msg.payload.resize(8 + 4 + txData.size());
+    // Payload: [fee:8][numOps:4][flags:4][txData...]; flags bit 0 = Soroban
+    uint32_t flags = isSoroban ? 1u : 0u;
+    msg.payload.resize(8 + 4 + 4 + txData.size());
     size_t offset = 0;
 
     std::memcpy(msg.payload.data() + offset, &fee, 8);
     offset += 8;
 
     std::memcpy(msg.payload.data() + offset, &numOps, 4);
+    offset += 4;
+
+    std::memcpy(msg.payload.data() + offset, &flags, 4);
     offset += 4;
 
     std::memcpy(msg.payload.data() + offset, txData.data(), txData.size());

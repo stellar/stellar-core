@@ -20,9 +20,31 @@
 use std::fmt;
 use std::sync::Arc;
 
-use stellar_xdr::curr::{EnvelopeType, TransactionEnvelope};
+use stellar_xdr::curr::{EnvelopeType, TransactionEnvelope, TransactionExt};
 
 use crate::xdr::{self, XdrError};
+
+/// Which tx set phase a transaction belongs to. Core builds the classic and
+/// Soroban phases of a tx set separately with separate limits, so the mempool
+/// keeps a fee-ordered index per kind and Core pulls a budget of each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TxKind {
+    Classic,
+    Soroban,
+}
+
+impl TxKind {
+    /// All kinds, in the order Core lays out tx set phases.
+    pub const ALL: [TxKind; 2] = [TxKind::Classic, TxKind::Soroban];
+
+    /// Dense index for per-kind tables.
+    pub fn index(self) -> usize {
+        match self {
+            TxKind::Classic => 0,
+            TxKind::Soroban => 1,
+        }
+    }
+}
 
 /// A transaction whose bytes are known-valid, canonical, non-fee-bump
 /// `TransactionEnvelope` XDR, with its hash and fee metadata computed once.
@@ -34,6 +56,7 @@ pub struct ValidatedTx {
     hash: [u8; 32],
     fee: i64,
     num_ops: u32,
+    kind: TxKind,
 }
 
 impl ValidatedTx {
@@ -51,26 +74,27 @@ impl ValidatedTx {
         envelope: &TransactionEnvelope,
         envelope_bytes: &[u8],
     ) -> Result<Arc<Self>, XdrError> {
-        let (fee, num_ops) = fee_and_ops(envelope)?;
+        let (fee, num_ops, kind) = fee_ops_and_kind(envelope)?;
         Ok(Arc::new(Self {
             hash: xdr::sha256_hash(envelope_bytes),
             bytes: envelope_bytes.to_vec(),
             fee,
             num_ops,
+            kind,
         }))
     }
 
     /// Mint from bytes submitted by the trusted local core.
     ///
-    /// Core supplies `fee`/`num_ops` alongside the bytes, so we take them as
-    /// given rather than decoding. We still reject fee-bumps (core forwards
-    /// every tx, including fee-bumps, and the overlay does not yet support
-    /// them) via the envelope's `EnvelopeType` discriminant, which is the first
-    /// 4 bytes of the XDR encoding.
+    /// Core supplies `fee`/`num_ops`/`kind` alongside the bytes, so we take
+    /// them as given rather than decoding. We still reject fee-bumps (the
+    /// overlay does not yet support them) via the envelope's `EnvelopeType`
+    /// discriminant, which is the first 4 bytes of the XDR encoding.
     pub fn from_core_trusted(
         bytes: Vec<u8>,
         fee: i64,
         num_ops: u32,
+        kind: TxKind,
     ) -> Result<Arc<Self>, XdrError> {
         if bytes.len() < 4 {
             return Err(XdrError::Malformed("transaction envelope too short".into()));
@@ -84,6 +108,7 @@ impl ValidatedTx {
             bytes,
             fee,
             num_ops,
+            kind,
         }))
     }
 
@@ -101,6 +126,12 @@ impl ValidatedTx {
 
     pub fn num_ops(&self) -> u32 {
         self.num_ops
+    }
+
+    /// Classic or Soroban; decides which tx set phase (and mempool index)
+    /// the transaction belongs to.
+    pub fn kind(&self) -> TxKind {
+        self.kind
     }
 
     /// Fee per operation, used for flood prioritization. Guards against a zero
@@ -121,16 +152,29 @@ impl fmt::Debug for ValidatedTx {
             .field("hash", &format_args!("{:02x?}", &self.hash[..4]))
             .field("fee", &self.fee)
             .field("num_ops", &self.num_ops)
+            .field("kind", &self.kind)
             .field("len", &self.bytes.len())
             .finish()
     }
 }
 
-/// Read fee and operation count off a decoded envelope, rejecting fee-bumps.
-fn fee_and_ops(envelope: &TransactionEnvelope) -> Result<(i64, u32), XdrError> {
+/// Read fee, operation count and kind off a decoded envelope, rejecting
+/// fee-bumps. A transaction is Soroban iff it carries `SorobanTransactionData`
+/// in its `ext`, which only a V1 envelope can.
+fn fee_ops_and_kind(envelope: &TransactionEnvelope) -> Result<(i64, u32, TxKind), XdrError> {
     match envelope {
-        TransactionEnvelope::TxV0(v0) => Ok((i64::from(v0.tx.fee), v0.tx.operations.len() as u32)),
-        TransactionEnvelope::Tx(v1) => Ok((i64::from(v1.tx.fee), v1.tx.operations.len() as u32)),
+        TransactionEnvelope::TxV0(v0) => Ok((
+            i64::from(v0.tx.fee),
+            v0.tx.operations.len() as u32,
+            TxKind::Classic,
+        )),
+        TransactionEnvelope::Tx(v1) => {
+            let kind = match v1.tx.ext {
+                TransactionExt::V1(_) => TxKind::Soroban,
+                TransactionExt::V0 => TxKind::Classic,
+            };
+            Ok((i64::from(v1.tx.fee), v1.tx.operations.len() as u32, kind))
+        }
         TransactionEnvelope::TxFeeBump(_) => Err(XdrError::UnsupportedFeeBump),
     }
 }
@@ -153,8 +197,34 @@ mod tests {
 
         assert_eq!(tx.fee(), 1000);
         assert_eq!(tx.num_ops(), 3);
+        assert_eq!(tx.kind(), TxKind::Classic);
         assert_eq!(tx.bytes(), &bytes[..]);
         assert_eq!(tx.hash(), &xdr::sha256_hash(&bytes));
+    }
+
+    #[test]
+    fn from_network_detects_soroban_from_tx_ext() {
+        use stellar_xdr::curr::{
+            SorobanResources, SorobanTransactionData, SorobanTransactionDataExt, Transaction,
+            TransactionEnvelope, TransactionV1Envelope, VecM,
+        };
+        let mut tx = Transaction {
+            fee: 100,
+            ..Transaction::default()
+        };
+        tx.ext = TransactionExt::V1(SorobanTransactionData {
+            ext: SorobanTransactionDataExt::V0,
+            resources: SorobanResources::default(),
+            resource_fee: 0,
+        });
+        tx.operations = VecM::try_from(vec![stellar_xdr::curr::Operation::default()]).unwrap();
+        let envelope = TransactionEnvelope::Tx(TransactionV1Envelope {
+            tx,
+            signatures: VecM::default(),
+        });
+        let bytes = envelope.to_xdr(Limits::none()).unwrap();
+        let tx = ValidatedTx::from_network(&decode(&bytes), &bytes).unwrap();
+        assert_eq!(tx.kind(), TxKind::Soroban);
     }
 
     #[test]
@@ -162,24 +232,26 @@ mod tests {
         let bytes = valid_transaction_xdr(555, 7, 1);
         // Core's fee/ops are trusted verbatim, even if they differed from the
         // envelope contents (they should not, but we do not verify).
-        let tx = ValidatedTx::from_core_trusted(bytes.clone(), 555, 2).unwrap();
+        let tx = ValidatedTx::from_core_trusted(bytes.clone(), 555, 2, TxKind::Soroban).unwrap();
 
         assert_eq!(tx.fee(), 555);
         assert_eq!(tx.num_ops(), 2);
+        // Kind is likewise taken from Core verbatim.
+        assert_eq!(tx.kind(), TxKind::Soroban);
         assert_eq!(tx.hash(), &xdr::sha256_hash(&bytes));
     }
 
     #[test]
     fn fee_per_op_guards_zero_ops() {
         let bytes = valid_transaction_xdr(300, 1, 1);
-        let tx = ValidatedTx::from_core_trusted(bytes, 300, 0).unwrap();
+        let tx = ValidatedTx::from_core_trusted(bytes, 300, 0, TxKind::Classic).unwrap();
         assert_eq!(tx.fee_per_op(), 300); // max(1) guard, no divide-by-zero
     }
 
     #[test]
     fn from_core_trusted_rejects_short_input() {
         assert!(matches!(
-            ValidatedTx::from_core_trusted(vec![0, 0], 0, 0),
+            ValidatedTx::from_core_trusted(vec![0, 0], 0, 0, TxKind::Classic),
             Err(XdrError::Malformed(_))
         ));
     }

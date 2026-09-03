@@ -2,14 +2,16 @@
 //!
 //! Stores transactions waiting to be included in the ledger, indexed for:
 //! - Deduplication by hash
-//! - Fee-based ordering for nomination
+//! - Fee-based ordering for nomination, kept separately per transaction kind
+//!   (classic / Soroban) because Core fills the two tx set phases
+//!   independently, with independent count and byte limits.
 
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::trace;
 
-use crate::wire::ValidatedTx;
+use crate::wire::{TxKind, ValidatedTx};
 
 /// 32-byte transaction hash
 pub type TxHash = [u8; 32];
@@ -74,13 +76,23 @@ impl FeePriority {
     }
 }
 
+/// How much of one transaction kind Core wants from the mempool: at most
+/// `max_count` transactions totalling at most `max_bytes` of envelope XDR.
+/// Both are upper bounds on what fits in the corresponding tx set phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TxBudget {
+    pub max_count: usize,
+    pub max_bytes: usize,
+}
+
 /// Transaction mempool.
 pub struct Mempool {
     /// Transactions by hash (for dedup and lookup)
     by_hash: HashMap<TxHash, MempoolEntry>,
 
-    /// Fee-sorted index (for nomination)
-    by_fee: BTreeSet<FeePriority>,
+    /// Fee-sorted index per transaction kind (indexed by `TxKind::index`),
+    /// used to answer nomination pulls for each tx set phase.
+    by_fee: [BTreeSet<FeePriority>; 2],
 
     /// Maximum number of transactions to hold
     max_size: usize,
@@ -94,7 +106,7 @@ impl Mempool {
     pub fn new(max_size: usize, max_age: Duration) -> Self {
         Self {
             by_hash: HashMap::with_capacity(max_size),
-            by_fee: BTreeSet::new(),
+            by_fee: [BTreeSet::new(), BTreeSet::new()],
             max_size,
             max_age,
         }
@@ -121,7 +133,7 @@ impl Mempool {
             meta,
             received_at: Instant::now(),
         };
-        self.by_fee.insert(FeePriority::of(&entry));
+        self.by_fee[entry.meta.kind().index()].insert(FeePriority::of(&entry));
         self.by_hash.insert(hash, entry);
         true
     }
@@ -139,13 +151,38 @@ impl Mempool {
     /// Remove a transaction by hash, returning the removed tx if present.
     pub fn remove(&mut self, hash: &TxHash) -> Option<Arc<ValidatedTx>> {
         let entry = self.by_hash.remove(hash)?;
-        self.by_fee.remove(&FeePriority::of(&entry));
+        self.by_fee[entry.meta.kind().index()].remove(&FeePriority::of(&entry));
         Some(entry.meta)
     }
 
-    /// Get the top N transactions by fee (for nomination).
-    pub fn top_by_fee(&self, n: usize) -> Vec<TxHash> {
-        self.by_fee.iter().take(n).map(|p| p.hash).collect()
+    /// Get the highest-priority transactions of one kind that fit in
+    /// `budget` (for nomination).
+    ///
+    /// Walks the fee-sorted index in priority order, stopping at
+    /// `budget.max_count` transactions. A transaction whose bytes would push
+    /// the total over `budget.max_bytes` is skipped and the walk continues
+    /// with smaller ones, mirroring how Core's surge pricing fills a phase.
+    pub fn top_by_fee(&self, kind: TxKind, budget: TxBudget) -> Vec<Arc<ValidatedTx>> {
+        let mut out = Vec::with_capacity(budget.max_count.min(self.by_hash.len()));
+        let mut remaining_bytes = budget.max_bytes;
+        if budget.max_count == 0 || remaining_bytes == 0 {
+            return out;
+        }
+        for priority in &self.by_fee[kind.index()] {
+            let Some(entry) = self.by_hash.get(&priority.hash) else {
+                continue;
+            };
+            let size = entry.meta.bytes().len();
+            if size > remaining_bytes {
+                continue;
+            }
+            out.push(Arc::clone(&entry.meta));
+            remaining_bytes -= size;
+            if out.len() >= budget.max_count || remaining_bytes == 0 {
+                break;
+            }
+        }
+        out
     }
 
     /// Remove transactions that are too old.
@@ -170,14 +207,26 @@ impl Mempool {
         self.by_hash.len()
     }
 
+    /// Number of transactions of one kind.
+    pub fn len_of_kind(&self, kind: TxKind) -> usize {
+        self.by_fee[kind.index()].len()
+    }
+
     /// Is the mempool empty?
     pub fn is_empty(&self) -> bool {
         self.by_hash.is_empty()
     }
 
-    /// Evict the lowest-fee transaction.
+    /// Evict the lowest-priority transaction across both kinds.
     fn evict_lowest_fee(&mut self) {
-        if let Some(priority) = self.by_fee.iter().last().cloned() {
+        // Each index is ordered highest-priority-first, so its last element is
+        // its lowest-priority tx; the overall victim is the lower of the two
+        // tails (which compares *greater* under `FeePriority`'s ordering).
+        let victim = TxKind::ALL
+            .iter()
+            .filter_map(|kind| self.by_fee[kind.index()].iter().next_back().copied())
+            .max();
+        if let Some(priority) = victim {
             trace!("Evicting lowest-fee tx: {:?}", &priority.hash[..4]);
             self.remove(&priority.hash);
         }
@@ -189,10 +238,30 @@ mod tests {
     use super::*;
     use crate::xdr::tests::valid_transaction_xdr;
 
-    /// Build a validated tx with a distinct hash per `seq`.
+    /// Build a validated classic tx with a distinct hash per `seq`.
     fn make_tx(fee: i64, num_ops: u32, seq: i64) -> Arc<ValidatedTx> {
+        make_tx_of_kind(fee, num_ops, seq, TxKind::Classic)
+    }
+
+    fn make_tx_of_kind(fee: i64, num_ops: u32, seq: i64, kind: TxKind) -> Arc<ValidatedTx> {
         let bytes = valid_transaction_xdr(fee as u32, seq, num_ops as usize);
-        ValidatedTx::from_core_trusted(bytes, fee, num_ops).unwrap()
+        ValidatedTx::from_core_trusted(bytes, fee, num_ops, kind).unwrap()
+    }
+
+    /// Budget that never binds, for tests about ordering only.
+    fn unbounded(max_count: usize) -> TxBudget {
+        TxBudget {
+            max_count,
+            max_bytes: usize::MAX,
+        }
+    }
+
+    fn top_hashes(mempool: &Mempool, kind: TxKind, n: usize) -> Vec<TxHash> {
+        mempool
+            .top_by_fee(kind, unbounded(n))
+            .iter()
+            .map(|tx| *tx.hash())
+            .collect()
     }
 
     #[test]
@@ -229,8 +298,10 @@ mod tests {
         mempool.insert(high);
         mempool.insert(mid);
 
-        let top = mempool.top_by_fee(3);
-        assert_eq!(top, vec![high_h, mid_h, low_h]);
+        assert_eq!(
+            top_hashes(&mempool, TxKind::Classic, 3),
+            vec![high_h, mid_h, low_h]
+        );
     }
 
     #[test]
@@ -243,8 +314,7 @@ mod tests {
         mempool.insert(tx1);
         mempool.insert(tx2);
 
-        let top = mempool.top_by_fee(2);
-        assert_eq!(top, vec![h2, h1]);
+        assert_eq!(top_hashes(&mempool, TxKind::Classic, 2), vec![h2, h1]);
     }
 
     #[test]
@@ -267,6 +337,25 @@ mod tests {
     }
 
     #[test]
+    fn test_evict_at_capacity_picks_lowest_across_kinds() {
+        let mut mempool = Mempool::new(3, Duration::from_secs(300));
+        let cheap_soroban = make_tx_of_kind(50, 1, 1, TxKind::Soroban);
+        let cheap_hash = *cheap_soroban.hash();
+        mempool.insert(cheap_soroban);
+        mempool.insert(make_tx(200, 1, 2));
+        mempool.insert(make_tx(300, 1, 3));
+
+        // Capacity reached: the Soroban tx is the lowest-priority entry
+        // overall, so it must be the victim even though the newcomer is
+        // classic.
+        mempool.insert(make_tx(400, 1, 4));
+        assert_eq!(mempool.len(), 3);
+        assert!(!mempool.contains(&cheap_hash));
+        assert_eq!(mempool.len_of_kind(TxKind::Soroban), 0);
+        assert_eq!(mempool.len_of_kind(TxKind::Classic), 3);
+    }
+
+    #[test]
     fn test_remove() {
         let mut mempool = Mempool::new(100, Duration::from_secs(300));
         let tx = make_tx(1000, 1, 1);
@@ -276,6 +365,7 @@ mod tests {
         assert!(mempool.remove(&hash).is_some());
         assert!(!mempool.contains(&hash));
         assert_eq!(mempool.len(), 0);
+        assert_eq!(mempool.len_of_kind(TxKind::Classic), 0);
     }
 
     #[test]
@@ -291,13 +381,14 @@ mod tests {
             assert!(mempool.insert(make_tx((i + 1) * 10, 1, i)));
         }
         assert_eq!(mempool.len(), 200);
-        assert_eq!(mempool.top_by_fee(10).len(), 10);
+        assert_eq!(top_hashes(&mempool, TxKind::Classic, 10).len(), 10);
     }
 
     #[test]
     fn test_top_by_fee_empty() {
         let mempool = Mempool::new(100, Duration::from_secs(300));
-        assert!(mempool.top_by_fee(10).is_empty());
+        assert!(top_hashes(&mempool, TxKind::Classic, 10).is_empty());
+        assert!(top_hashes(&mempool, TxKind::Soroban, 10).is_empty());
     }
 
     #[test]
@@ -305,7 +396,91 @@ mod tests {
         let mut mempool = Mempool::new(100, Duration::from_secs(300));
         mempool.insert(make_tx(100, 1, 1));
         mempool.insert(make_tx(200, 1, 2));
-        assert_eq!(mempool.top_by_fee(10).len(), 2);
+        assert_eq!(top_hashes(&mempool, TxKind::Classic, 10).len(), 2);
+    }
+
+    #[test]
+    fn test_top_by_fee_is_per_kind() {
+        let mut mempool = Mempool::new(100, Duration::from_secs(300));
+        // A Soroban tx with a much higher fee must not crowd classic txs out
+        // of the classic pull, and vice versa.
+        let soroban = make_tx_of_kind(1_000_000, 1, 1, TxKind::Soroban);
+        let classic_a = make_tx(100, 1, 2);
+        let classic_b = make_tx(200, 1, 3);
+        let (s_h, a_h, b_h) = (*soroban.hash(), *classic_a.hash(), *classic_b.hash());
+        mempool.insert(soroban);
+        mempool.insert(classic_a);
+        mempool.insert(classic_b);
+
+        assert_eq!(top_hashes(&mempool, TxKind::Classic, 10), vec![b_h, a_h]);
+        assert_eq!(top_hashes(&mempool, TxKind::Soroban, 10), vec![s_h]);
+        assert_eq!(mempool.len_of_kind(TxKind::Classic), 2);
+        assert_eq!(mempool.len_of_kind(TxKind::Soroban), 1);
+    }
+
+    #[test]
+    fn test_top_by_fee_respects_count_budget() {
+        let mut mempool = Mempool::new(100, Duration::from_secs(300));
+        for i in 0..10i64 {
+            mempool.insert(make_tx(100 + i, 1, i));
+        }
+        assert_eq!(top_hashes(&mempool, TxKind::Classic, 3).len(), 3);
+        assert!(top_hashes(&mempool, TxKind::Classic, 0).is_empty());
+    }
+
+    #[test]
+    fn test_top_by_fee_respects_byte_budget() {
+        let mut mempool = Mempool::new(100, Duration::from_secs(300));
+        // Three one-op txs of identical size but different fees, plus one
+        // big (many-op) tx with the highest fee-per-op.
+        let small_size = make_tx(100, 1, 1).bytes().len();
+        let big = make_tx(100_000, 20, 4);
+        let big_size = big.bytes().len();
+        assert!(big_size > small_size);
+        let big_hash = *big.hash();
+        let mid = make_tx(300, 1, 2);
+        let mid_hash = *mid.hash();
+        let top = make_tx(500, 1, 3);
+        let top_hash = *top.hash();
+        mempool.insert(make_tx(100, 1, 1));
+        mempool.insert(mid);
+        mempool.insert(top);
+        mempool.insert(big);
+
+        // Budget for exactly two small txs: the big tx sorts first but does
+        // not fit, so it is skipped and the two best-fitting txs are taken.
+        let got = mempool.top_by_fee(
+            TxKind::Classic,
+            TxBudget {
+                max_count: 10,
+                max_bytes: 2 * small_size,
+            },
+        );
+        let hashes: Vec<TxHash> = got.iter().map(|tx| *tx.hash()).collect();
+        assert_eq!(hashes, vec![top_hash, mid_hash]);
+        assert!(got.iter().map(|tx| tx.bytes().len()).sum::<usize>() <= 2 * small_size);
+
+        // A budget large enough for the big tx takes it first.
+        let got = mempool.top_by_fee(
+            TxKind::Classic,
+            TxBudget {
+                max_count: 1,
+                max_bytes: big_size,
+            },
+        );
+        assert_eq!(got.len(), 1);
+        assert_eq!(*got[0].hash(), big_hash);
+
+        // A zero byte budget yields nothing.
+        assert!(mempool
+            .top_by_fee(
+                TxKind::Classic,
+                TxBudget {
+                    max_count: 10,
+                    max_bytes: 0,
+                },
+            )
+            .is_empty());
     }
 
     #[test]
@@ -322,7 +497,7 @@ mod tests {
             mempool.remove(&hash);
         }
         assert_eq!(mempool.len(), 0);
-        assert!(mempool.top_by_fee(10).is_empty());
+        assert!(top_hashes(&mempool, TxKind::Classic, 10).is_empty());
     }
 
     #[test]
@@ -333,7 +508,7 @@ mod tests {
         let high_hash = *high.hash();
         mempool.insert(high);
 
-        let top = mempool.top_by_fee(2);
+        let top = top_hashes(&mempool, TxKind::Classic, 2);
         assert_eq!(top.len(), 2);
         assert_eq!(top[0], high_hash);
         assert_eq!(mempool.get(&top[0]).unwrap().fee(), 1000);
@@ -348,5 +523,6 @@ mod tests {
         std::thread::sleep(Duration::from_millis(1));
         assert_eq!(mempool.evict_expired(), 1);
         assert!(mempool.is_empty());
+        assert_eq!(mempool.len_of_kind(TxKind::Classic), 0);
     }
 }

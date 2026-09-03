@@ -2,18 +2,29 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
+#include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
+#include "main/Application.h"
 #include "overlay/OverlayIPC.h"
 #include "rust/RustBridge.h"
+#include "test/TestAccount.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionBridge.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "transactions/test/TransactionTestFrame.h"
 #include "util/TmpDir.h"
 #include "xdr/Stellar-SCP.h"
+#include <xdrpp/marshal.h>
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
+#include <map>
 #include <thread>
 
 using namespace stellar;
@@ -64,6 +75,18 @@ makeMockSCPEnvelope(uint64_t slotIndex, uint32_t nodeId)
     nom.votes.push_back(mockValue);
 
     return env;
+}
+
+// A pull that never binds: every transaction of either kind.
+TopTxsRequest
+allTopTxs()
+{
+    TopTxsRequest req;
+    req.classicMaxCount = 100000;
+    req.classicMaxBytes = std::numeric_limits<uint32_t>::max();
+    req.sorobanMaxCount = 100000;
+    req.sorobanMaxBytes = std::numeric_limits<uint32_t>::max();
+    return req;
 }
 
 } // anonymous namespace
@@ -266,6 +289,74 @@ makeFullMeshConfigs(Simulation& simulation, size_t numNodes)
     }
     return cfgs;
 }
+
+// Records the tx set of every ledger that closes on `app` after
+// construction. Ledgers may close between two observations, so it walks back
+// through the header chain to the last ledger seen. An empty tx set is
+// recorded as a null frame.
+class ClosedTxSetRecorder
+{
+  public:
+    explicit ClosedTxSetRecorder(Application& app)
+        : mApp(app)
+        , mLastSeenSeq(app.getLedgerManager()
+                           .getLastClosedLedgerHeader()
+                           .header.ledgerSeq)
+    {
+    }
+
+    void
+    observe()
+    {
+        auto const& lm = mApp.getLedgerManager();
+        auto header = lm.getLastClosedLedgerHeader().header;
+        uint32_t const newLastSeen = header.ledgerSeq;
+        while (header.ledgerSeq > mLastSeenSeq)
+        {
+            auto txSet = mApp.getHerder().getTxSet(header.scpValue.txSetHash);
+            mTxSets[header.ledgerSeq] =
+                std::holds_alternative<TxSetXDRFrameConstPtr>(txSet)
+                    ? std::get<TxSetXDRFrameConstPtr>(txSet)
+                    : nullptr;
+            if (header.ledgerSeq - 1 <= mLastSeenSeq)
+            {
+                break;
+            }
+            header = LedgerHeaderUtils::decodeFromData(
+                LedgerHeaderUtils::getHeaderDataForHash(
+                    mApp.getDatabase(), header.previousLedgerHash));
+        }
+        mLastSeenSeq = newLastSeen;
+    }
+
+    std::map<uint32_t, TxSetXDRFrameConstPtr> const&
+    txSets() const
+    {
+        return mTxSets;
+    }
+
+    static size_t
+    txCount(TxSetXDRFrameConstPtr const& txSet)
+    {
+        return txSet ? txSet->sizeTxTotal() : 0;
+    }
+
+    size_t
+    totalTxs() const
+    {
+        size_t total = 0;
+        for (auto const& [seq, txSet] : mTxSets)
+        {
+            total += txCount(txSet);
+        }
+        return total;
+    }
+
+  private:
+    Application& mApp;
+    uint32_t mLastSeenSeq;
+    std::map<uint32_t, TxSetXDRFrameConstPtr> mTxSets;
+};
 } // namespace
 
 /**
@@ -356,7 +447,7 @@ TEST_CASE("Rust overlay get top transactions", "[overlay-ipc][.]")
     REQUIRE(ipc->start());
 
     // Get top transactions from empty mempool
-    auto txs = ipc->getTopTransactions(100);
+    auto txs = ipc->getTopTransactions(allTopTxs());
 
     // With empty mempool, should get empty vector
     REQUIRE(txs.empty());
@@ -403,13 +494,13 @@ TEST_CASE("Rust overlay TX submission", "[overlay-ipc][.]")
     uint32_t numOps = 1;
 
     // Submit the transaction
-    ipc->submitTransaction(txEnv, fee, numOps);
+    ipc->submitTransaction(txEnv, fee, numOps, /* isSoroban */ false);
 
     // Give Rust overlay time to process
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should contain our submitted TX
-    auto txs = ipc->getTopTransactions(100);
+    auto txs = ipc->getTopTransactions(allTopTxs());
     REQUIRE(txs.size() == 1);
 
     // Verify it's the same TX we submitted
@@ -473,13 +564,13 @@ TEST_CASE("Rust overlay TX inclusion", "[overlay-ipc][.]")
     auto tx2 = makeTxEnvelope(500, 2, 0x02);
     auto tx3 = makeTxEnvelope(300, 3, 0x03);
 
-    ipc->submitTransaction(tx1, 100, 1);
-    ipc->submitTransaction(tx2, 500, 1);
-    ipc->submitTransaction(tx3, 300, 1);
+    ipc->submitTransaction(tx1, 100, 1, /* isSoroban */ false);
+    ipc->submitTransaction(tx2, 500, 1, /* isSoroban */ false);
+    ipc->submitTransaction(tx3, 300, 1, /* isSoroban */ false);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    auto txs = ipc->getTopTransactions(100);
+    auto txs = ipc->getTopTransactions(allTopTxs());
     REQUIRE(txs.size() == 3);
 
     // Verify all 3 TXs are included
@@ -519,12 +610,12 @@ TEST_CASE("Rust overlay TX fee per op inclusion", "[overlay-ipc][.]")
     auto tx1 = makeTxEnvelope(200, 1, 0x01, 2); // 100 per op
     auto tx2 = makeTxEnvelope(150, 2, 0x02, 1); // 150 per op
 
-    ipc->submitTransaction(tx1, 200, 2);
-    ipc->submitTransaction(tx2, 150, 1);
+    ipc->submitTransaction(tx1, 200, 2, /* isSoroban */ false);
+    ipc->submitTransaction(tx2, 150, 1, /* isSoroban */ false);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    auto txs = ipc->getTopTransactions(100);
+    auto txs = ipc->getTopTransactions(allTopTxs());
     REQUIRE(txs.size() == 2);
 
     // Both TXs should be included
@@ -561,7 +652,7 @@ TEST_CASE("Rust overlay mempool eviction", "[overlay-ipc][.]")
     for (int i = 0; i < 50; ++i)
     {
         auto tx = makeTxEnvelope(100 + i, i + 1, static_cast<uint8_t>(i));
-        ipc->submitTransaction(tx, 100 + i, 1);
+        ipc->submitTransaction(tx, 100 + i, 1, /* isSoroban */ false);
     }
 
     // Submit a few high-fee TXs
@@ -569,13 +660,13 @@ TEST_CASE("Rust overlay mempool eviction", "[overlay-ipc][.]")
     auto highTx2 = makeTxEnvelope(9000, 101, 0xF2);
     auto highTx3 = makeTxEnvelope(8000, 102, 0xF3);
 
-    ipc->submitTransaction(highTx1, 10000, 1);
-    ipc->submitTransaction(highTx2, 9000, 1);
-    ipc->submitTransaction(highTx3, 8000, 1);
+    ipc->submitTransaction(highTx1, 10000, 1, /* isSoroban */ false);
+    ipc->submitTransaction(highTx2, 9000, 1, /* isSoroban */ false);
+    ipc->submitTransaction(highTx3, 8000, 1, /* isSoroban */ false);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    auto txs = ipc->getTopTransactions(100);
+    auto txs = ipc->getTopTransactions(allTopTxs());
 
     // All 53 TXs should be included (mempool not at capacity)
     REQUIRE(txs.size() == 53);
@@ -614,13 +705,13 @@ TEST_CASE("Rust overlay TX deduplication", "[overlay-ipc][.]")
     // Submit the same TX twice
     auto tx = makeTxEnvelope(1000, 12345, 0xAB);
 
-    ipc->submitTransaction(tx, 1000, 1);
-    ipc->submitTransaction(tx, 1000, 1); // duplicate
+    ipc->submitTransaction(tx, 1000, 1, /* isSoroban */ false);
+    ipc->submitTransaction(tx, 1000, 1, /* isSoroban */ false); // duplicate
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should only have 1 TX (deduped)
-    auto txs = ipc->getTopTransactions(100);
+    auto txs = ipc->getTopTransactions(allTopTxs());
     REQUIRE(txs.size() == 1);
     REQUIRE(txs[0].v1().tx.fee == 1000);
 
@@ -647,12 +738,12 @@ TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
 
     // Submit a TX
     auto tx = makeTxEnvelope(1000, 12345, 0xAB);
-    ipc->submitTransaction(tx, 1000, 1);
+    ipc->submitTransaction(tx, 1000, 1, /* isSoroban */ false);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should have 1 TX
-    auto txs = ipc->getTopTransactions(100);
+    auto txs = ipc->getTopTransactions(allTopTxs());
     REQUIRE(txs.size() == 1);
 
     // Compute TX hash from the submitted TX
@@ -669,7 +760,7 @@ TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // TX should now be cleared from mempool
-    auto txs2 = ipc->getTopTransactions(100);
+    auto txs2 = ipc->getTopTransactions(allTopTxs());
     REQUIRE(txs2.empty());
 
     LOG_INFO(DEFAULT_LOG, "Mempool clear on externalize test passed");
@@ -718,7 +809,7 @@ TEST_CASE("Rust overlay TX flooding between peers", "[overlay-ipc][.]")
 
     // Submit a TX to overlay A
     auto tx = makeTxEnvelope(1000, 12345, 0xAA);
-    ipcA->submitTransaction(tx, 1000, 1);
+    ipcA->submitTransaction(tx, 1000, 1, /* isSoroban */ false);
 
     LOG_INFO(DEFAULT_LOG,
              "Submitted TX to overlay A, waiting for flood to B...");
@@ -727,7 +818,7 @@ TEST_CASE("Rust overlay TX flooding between peers", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // Get top transactions from overlay B - should have the flooded TX
-    auto txsB = ipcB->getTopTransactions(100);
+    auto txsB = ipcB->getTopTransactions(allTopTxs());
 
     // Should have 1 TX (the flooded TX)
     REQUIRE(txsB.size() == 1);
@@ -743,6 +834,78 @@ TEST_CASE("Rust overlay TX flooding between peers", "[overlay-ipc][.]")
 
     ipcA->shutdown();
     ipcB->shutdown();
+}
+
+/**
+ * GetTopTxs honours the per-phase count and byte budgets and orders the
+ * reply classic-first, highest fee first.
+ */
+TEST_CASE("Rust overlay get top transactions per-phase budgets",
+          "[overlay-ipc]")
+{
+    std::string overlayBinary = requireOverlayBinary();
+    TmpDir tmpDir("overlay_ipc_budget_test");
+    std::string socketPath = tmpDir.getName() + "/overlay.sock";
+    uint16_t peerPort = getTestConfig(19).PEER_PORT;
+
+    auto ipc =
+        std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
+    REQUIRE(ipc->start());
+
+    auto c1 = makeTxEnvelope(100, 1, 0x01);
+    auto c2 = makeTxEnvelope(300, 2, 0x02);
+    auto c3 = makeTxEnvelope(200, 3, 0x03);
+    // A "Soroban" tx as far as the mempool is concerned: Core supplies the
+    // kind, the overlay does not decode.
+    auto s1 = makeTxEnvelope(50, 4, 0x04);
+    ipc->submitTransaction(c1, 100, 1, /* isSoroban */ false);
+    ipc->submitTransaction(c2, 300, 1, /* isSoroban */ false);
+    ipc->submitTransaction(c3, 200, 1, /* isSoroban */ false);
+    ipc->submitTransaction(s1, 50, 1, /* isSoroban */ true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    auto fees = [](std::vector<TransactionEnvelope> const& txs) {
+        std::vector<uint32_t> out;
+        for (auto const& tx : txs)
+        {
+            out.push_back(tx.v1().tx.fee);
+        }
+        return out;
+    };
+
+    SECTION("everything, classic first then soroban")
+    {
+        auto txs = ipc->getTopTransactions(allTopTxs());
+        REQUIRE(fees(txs) == std::vector<uint32_t>{300, 200, 100, 50});
+    }
+
+    SECTION("classic count budget")
+    {
+        auto req = allTopTxs();
+        req.classicMaxCount = 2;
+        req.sorobanMaxCount = 0;
+        auto txs = ipc->getTopTransactions(req);
+        REQUIRE(fees(txs) == std::vector<uint32_t>{300, 200});
+    }
+
+    SECTION("classic byte budget")
+    {
+        auto req = allTopTxs();
+        // Room for exactly one classic envelope
+        req.classicMaxBytes = static_cast<uint32_t>(xdr::xdr_argpack_size(c2));
+        auto txs = ipc->getTopTransactions(req);
+        REQUIRE(fees(txs) == std::vector<uint32_t>{300, 50});
+    }
+
+    SECTION("soroban only")
+    {
+        auto req = allTopTxs();
+        req.classicMaxCount = 0;
+        auto txs = ipc->getTopTransactions(req);
+        REQUIRE(fees(txs) == std::vector<uint32_t>{50});
+    }
+
+    ipc->shutdown();
 }
 
 /**
@@ -1661,4 +1824,239 @@ TEST_CASE("Rust overlay applies Soroban TX count upgrade", "[overlay-ipc]")
     }
 
     LOG_INFO(DEFAULT_LOG, "✓ Soroban TX count upgrade works with Rust overlay");
+}
+
+// The mempool does no stateful validation, so its highest-fee entries can be
+// unusable. Nomination has to keep the ledgers full from the valid entries
+// behind them, and the valid entries it pulls but doesn't include must stay in
+// the mempool for the next ledger.
+TEST_CASE("Rust overlay fills ledgers despite invalid mempool transactions",
+          "[overlay-ipc]")
+{
+    std::string overlayBinary = requireOverlayBinary();
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(networkID);
+
+    auto key0 = SecretKey::fromSeed(sha256("RUST_OVERLAY_LAZY_VALIDATION_0"));
+    auto key1 = SecretKey::fromSeed(sha256("RUST_OVERLAY_LAZY_VALIDATION_1"));
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(key0.getPublicKey());
+    qSet.validators.push_back(key1.getPublicKey());
+
+    uint32_t const maxOpsPerLedger = 5;
+    uint32_t const nbValid = 3 * maxOpsPerLedger;
+    uint32_t const nbInvalid = maxOpsPerLedger;
+
+    auto cfgs = makeFullMeshConfigs(*simulation, 2);
+    for (auto& cfg : cfgs)
+    {
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxOpsPerLedger;
+        // One genesis account per transaction, so every tx is independent.
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = nbValid + nbInvalid;
+    }
+    auto node0 = simulation->addNode(key0, qSet, &cfgs[0]);
+    auto node1 = simulation->addNode(key1, qSet, &cfgs[1]);
+    simulation->startAllNodes();
+
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(2, 1); },
+        60 * simulation->getExpectedLedgerCloseTime(), false);
+    REQUIRE(simulation->haveAllExternalized(2, 1));
+
+    // Invalid transactions bid the highest fee, so the mempool hands them out
+    // first: the fee is bumped after signing, which breaks the signature.
+    uint32_t accountIndex = 0;
+    auto makeTx = [&](bool valid) {
+        TestAccount acc(*node0, txtest::getAccount(fmt::format(
+                                    "TestAccount-{}", accountIndex++)));
+        auto tx = acc.tx({txtest::payment(acc, 1)});
+        if (!valid)
+        {
+            txbridge::setFullFee(tx,
+                                 static_cast<uint32_t>(tx->getFullFee()) * 10);
+        }
+        return tx;
+    };
+    std::vector<TransactionFrameBasePtr> txs;
+    for (uint32_t i = 0; i < nbInvalid; ++i)
+    {
+        txs.push_back(makeTx(false));
+    }
+    for (uint32_t i = 0; i < nbValid; ++i)
+    {
+        txs.push_back(makeTx(true));
+    }
+    for (auto const& tx : txs)
+    {
+        REQUIRE(node0->getHerder().recvTransaction(tx, false) ==
+                TxSubmitStatus::TX_STATUS_PENDING);
+    }
+
+    ClosedTxSetRecorder recorder(*node0);
+    simulation->crankUntil(
+        [&]() {
+            recorder.observe();
+            return recorder.totalTxs() >= nbValid;
+        },
+        40 * simulation->getExpectedLedgerCloseTime(), false);
+    recorder.observe();
+
+    for (auto const& [seq, txSet] : recorder.txSets())
+    {
+        LOG_INFO(DEFAULT_LOG, "Ledger {} closed with {} transactions", seq,
+                 ClosedTxSetRecorder::txCount(txSet));
+    }
+    // Every valid transaction made it in, none of the invalid ones did...
+    REQUIRE(recorder.totalTxs() == nbValid);
+    // ...and the ledgers that had work were full: the invalid transactions at
+    // the top of the mempool did not displace valid ones, and valid ones that
+    // were pulled without fitting were served in a later ledger.
+    size_t fullLedgers = 0;
+    for (auto const& [seq, txSet] : recorder.txSets())
+    {
+        auto size = ClosedTxSetRecorder::txCount(txSet);
+        REQUIRE(size <= maxOpsPerLedger);
+        REQUIRE((size == 0 || size == maxOpsPerLedger));
+        fullLedgers += size == maxOpsPerLedger ? 1 : 0;
+    }
+    REQUIRE(fullLedgers == nbValid / maxOpsPerLedger);
+    LOG_INFO(DEFAULT_LOG, "✓ Ledgers stay full despite invalid mempool txs");
+}
+
+// Same as above, but for a ledger that is bound by bytes rather than by
+// operations. The byte budget of the mempool pull has to carry the same slack
+// as the count budget: with only "one ledger plus one transaction" of bytes,
+// a handful of large invalid transactions at the top of the fee order would
+// eat the slack and the ledger would close short.
+TEST_CASE("Rust overlay fills byte-bound ledgers despite large invalid "
+          "transactions",
+          "[overlay-ipc]")
+{
+    std::string overlayBinary = requireOverlayBinary();
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(networkID);
+
+    auto key0 = SecretKey::fromSeed(sha256("RUST_OVERLAY_BYTE_BOUND_0"));
+    auto key1 = SecretKey::fromSeed(sha256("RUST_OVERLAY_BYTE_BOUND_1"));
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(key0.getPublicKey());
+    qSet.validators.push_back(key1.getPublicKey());
+
+    // Every transaction carries 100 payment operations (a few KB). With a
+    // 512 KiB classic byte allowance and an operation limit that never
+    // binds, the ledger is byte-bound. The invalid transactions together are
+    // far larger than one maximum-size classic transaction, i.e. larger than
+    // the byte slack a "one ledger plus one transaction" pull would have.
+    uint32_t const opsPerTx = 100;
+    size_t const byteAllowance = 512 * 1024;
+    uint32_t const nbValid = 200;
+    uint32_t const nbInvalid = 40;
+
+    auto cfgs = makeFullMeshConfigs(*simulation, 2);
+    for (auto& cfg : cfgs)
+    {
+        cfg.TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = byteAllowance;
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100'000;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = nbValid + nbInvalid;
+    }
+    auto node0 = simulation->addNode(key0, qSet, &cfgs[0]);
+    auto node1 = simulation->addNode(key1, qSet, &cfgs[1]);
+    simulation->startAllNodes();
+
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(2, 1); },
+        60 * simulation->getExpectedLedgerCloseTime(), false);
+    REQUIRE(simulation->haveAllExternalized(2, 1));
+
+    uint32_t accountIndex = 0;
+    std::vector<SecretKey> invalidSigners;
+    auto makeTx = [&](bool valid) {
+        auto signer =
+            txtest::getAccount(fmt::format("TestAccount-{}", accountIndex++));
+        TestAccount acc(*node0, signer);
+        std::vector<Operation> ops(opsPerTx, txtest::payment(acc, 1));
+        auto tx = acc.tx(ops);
+        if (!valid)
+        {
+            // Bumping the fee after signing breaks the signature and puts
+            // the transaction at the top of the fee ordering.
+            txbridge::setFullFee(tx,
+                                 static_cast<uint32_t>(tx->getFullFee()) * 10);
+            invalidSigners.push_back(signer);
+        }
+        return tx;
+    };
+    std::vector<TransactionFrameBasePtr> txs;
+    size_t maxValidTxSize = 0;
+    for (uint32_t i = 0; i < nbInvalid; ++i)
+    {
+        txs.push_back(makeTx(false));
+    }
+    for (uint32_t i = 0; i < nbValid; ++i)
+    {
+        auto tx = makeTx(true);
+        maxValidTxSize =
+            std::max(maxValidTxSize, xdr::xdr_size(tx->getEnvelope()));
+        txs.push_back(tx);
+    }
+    size_t const invalidBytes = nbInvalid * maxValidTxSize;
+    REQUIRE(invalidBytes > node0->getHerder().getMaxClassicTxSize());
+    REQUIRE(nbValid * maxValidTxSize > 2 * byteAllowance);
+
+    // Submit right after a ledger closes so the whole batch is in the
+    // mempool before the next nomination.
+    auto lclSeq = [&]() {
+        return node0->getLedgerManager()
+            .getLastClosedLedgerHeader()
+            .header.ledgerSeq;
+    };
+    auto const seqBefore = lclSeq();
+    simulation->crankUntil([&]() { return lclSeq() > seqBefore; },
+                           10 * simulation->getExpectedLedgerCloseTime(),
+                           false);
+    ClosedTxSetRecorder recorder(*node0);
+    for (auto const& tx : txs)
+    {
+        REQUIRE(node0->getHerder().recvTransaction(tx, false) ==
+                TxSubmitStatus::TX_STATUS_PENDING);
+    }
+
+    simulation->crankUntil(
+        [&]() {
+            recorder.observe();
+            return recorder.totalTxs() >= nbValid;
+        },
+        60 * simulation->getExpectedLedgerCloseTime(), false);
+    recorder.observe();
+
+    std::vector<TxSetXDRFrameConstPtr> nonEmpty;
+    for (auto const& [seq, txSet] : recorder.txSets())
+    {
+        LOG_INFO(DEFAULT_LOG, "Ledger {} closed with {} transactions, {} bytes",
+                 seq, ClosedTxSetRecorder::txCount(txSet),
+                 txSet ? txSet->encodedSize() : 0);
+        if (ClosedTxSetRecorder::txCount(txSet) > 0)
+        {
+            nonEmpty.push_back(txSet);
+        }
+    }
+    // Every valid transaction made it in...
+    REQUIRE(recorder.totalTxs() == nbValid);
+    // ...none of the invalid ones did (their accounts never moved)...
+    for (auto const& signer : invalidSigners)
+    {
+        TestAccount acc(*node0, signer);
+        REQUIRE(acc.loadSequenceNumber() == 0);
+    }
+    // ...and every ledger but the last one that carried transactions was
+    // byte-full: no further valid transaction could have fit.
+    REQUIRE(nonEmpty.size() >= 2);
+    for (size_t i = 0; i + 1 < nonEmpty.size(); ++i)
+    {
+        REQUIRE(nonEmpty[i]->encodedSize() > byteAllowance - maxValidTxSize);
+    }
+    LOG_INFO(DEFAULT_LOG,
+             "✓ Byte-bound ledgers stay full despite large invalid txs");
 }

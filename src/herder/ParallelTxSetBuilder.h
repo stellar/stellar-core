@@ -20,10 +20,16 @@ namespace stellar
 // `laneConfig`.
 // This doesn't support multi-lane surge pricing and thus it's expected
 // `laneConfig` to only have a configuration for a single surge pricing lane.
+// Candidates are validated lazily through `isValid`, on the calling thread:
+// only the transactions that a packing pass actually placed (invalid ones are
+// dropped and the pass repeated), plus the non-fitting transactions, probed
+// in fee order until a valid one establishes excess demand. Transactions
+// never reached are neither validated nor included.
 TxStageFrameList buildSurgePricedParallelSorobanPhase(
     TxFrameList const& txFrames, Config const& cfg,
     SorobanNetworkConfig const& sorobanCfg,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    TxValidationCallback const& isValid);
 
 } // namespace stellar

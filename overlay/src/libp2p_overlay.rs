@@ -2139,7 +2139,7 @@ fn test_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
 #[cfg(test)]
 fn test_tx(sequence: i64) -> Arc<ValidatedTx> {
     let bytes = crate::xdr::tests::valid_transaction_xdr(1000, sequence, 1);
-    ValidatedTx::from_core_trusted(bytes, 1000, 1).unwrap()
+    ValidatedTx::from_core_trusted(bytes, 1000, 1, crate::wire::TxKind::Classic).unwrap()
 }
 
 #[cfg(test)]
