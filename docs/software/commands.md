@@ -233,7 +233,19 @@ Command options can only by placed after command.
       stream-framed `LedgerCloseMeta` entries that can be decoded with
       `stellar-xdr decode --type LedgerCloseMeta --input stream-framed`.
       Meta is normalized (sorted) before writing so that output is
-      deterministic given a fixed `--rng-seed`.
+      deterministic given a fixed `--rng-seed`. Each `index.json` is stamped
+      with the protocol version, rng seed and protocol-version list that
+      produced the data.
+      * `--check-lcm <DIRNAME>` : check `LedgerCloseMeta` captured from tests
+      against the golden files under `DIRNAME/test-lcm-current/` (or
+      `test-lcm-next/` for vnext builds), where `DIRNAME` is the directory
+      containing the two trees (typically the source tree root). Fails fast
+      if the `index.json` headers don't match the running binary — e.g. after
+      a protocol version bump without regenerating the golden data — and
+      fails at the end of the run if any captured meta differs from the
+      corresponding golden file. Continuous integration runs this mode; after
+      intentional changes, regenerate with `--capture-lcm` under each build
+      configuration and commit the result.
   * The network passphrase is set to `(V) (;,,;) (V)` for all captured meta.
   * For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md)
     on possible options for test.
