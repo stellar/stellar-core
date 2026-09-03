@@ -114,6 +114,17 @@ std::vector<std::string> gLcmCheckFailures;
 // but it would make two leaves silently write and check the same golden
 // file with different content).
 std::map<std::string, Catch::SourceLineInfo> gLcmLeafSources;
+// In capture mode, the index entries produced by this run, keyed by output
+// directory (one directory per test file). Written out at end of run, which
+// both truncates stale entries and drives pruning of stale .xdr files.
+// Mirrors saveTestTxMeta, which rebuilds each baseline JSON from what the
+// run observed rather than merging into the existing file.
+std::map<std::string, std::map<std::string, std::string>> gLcmCapturedIndex;
+// True when --prune-stale-lcm was passed. Off by default because a run
+// filtered to a subset of tests only visits some leaves, and deleting the
+// goldens of tests that simply did not run would be silent data loss. The
+// canonical full-corpus regeneration passes it explicitly.
+bool gLcmMayPrune{false};
 
 // Header keys stored in each baseline/index file identifying the
 // configuration that produced it; checked on load so that stale golden data
@@ -282,18 +293,18 @@ lcmSemanticallyEqual(std::vector<LedgerCloseMeta> const& a,
     return true;
 }
 
+// Write <dir>/index.json from the entries this run captured for that
+// directory, replacing any existing file. Stale entries therefore disappear,
+// the same way saveTestTxMeta rebuilds each baseline JSON from scratch.
 void
-updateLcmIndex(std::string const& dir, std::string const& hashHex,
-               std::string const& humanName)
+writeLcmIndex(std::string const& dir,
+              std::map<std::string, std::string> const& entries)
 {
-    std::string indexPath = dir + "/index.json";
     Json::Value root(Json::objectValue);
-    if (std::filesystem::exists(indexPath))
+    for (auto const& [hashHex, humanName] : entries)
     {
-        std::ifstream in(indexPath);
-        in >> root;
+        root[hashHex] = humanName;
     }
-    root[hashHex] = humanName;
 
     // Stamp the configuration that produced this data so that --check-lcm
     // can detect stale golden data (e.g. after a protocol version bump).
@@ -312,7 +323,7 @@ updateLcmIndex(std::string const& dir, std::string const& hashHex,
 
     // Json::Value keeps keys sorted, so output is deterministic.
     Json::StyledWriter writer;
-    std::ofstream out(indexPath);
+    std::ofstream out(dir + "/index.json", std::ios_base::trunc);
     out << writer.write(root);
 }
 
@@ -344,10 +355,11 @@ writeLcmToFile(std::string const& path, std::string const& dir,
         zeroNonDeterministicDiagnostics(newEntries.back());
     }
 
-    // Always ensure directory exists and update the index so it stays in sync
-    // even when the XDR write is skipped.
+    // Always ensure the directory exists and record the index entry so it
+    // stays in sync even when the XDR write below is skipped. The index file
+    // itself is written at end of run, from these accumulated entries.
     fs::mkpath(dir);
-    updateLcmIndex(dir, hashHex, humanName);
+    gLcmCapturedIndex[dir].emplace(hashHex, humanName);
 
     // If an existing file is present, compare normalized versions. Skip the
     // write if the entries are semantically identical — this avoids noisy
@@ -632,6 +644,7 @@ static void loadTestTxMeta(stdfs::path const& dir);
 static void reportTestTxMeta();
 static void loadLcmHeaders(stdfs::path const& dir);
 static void reportLcmCheck();
+static void finalizeLcmCapture();
 
 // if this method is used outside of the catch test cases, gTestRoots needs to
 // be manually cleared using cleanupTmpDirs. If this isn't done, gTestRoots will
@@ -855,6 +868,7 @@ runTest(CommandLineArgs const& args)
     std::string checkTestTxMeta;
     std::string debugTestTxMeta;
     std::string checkLcm;
+    bool pruneStaleLcm{false};
 
     auto parser = session.cli();
     parser |= Catch::clara::Opt(
@@ -890,6 +904,10 @@ runTest(CommandLineArgs const& args)
         "check LedgerCloseMeta captured from tests against the golden files "
         "under DIRNAME/test-lcm-current/ (or test-lcm-next/ for vnext "
         "builds)");
+    parser |= Catch::clara::Opt(pruneStaleLcm)["--prune-stale-lcm"](
+        "with --capture-lcm, delete golden LCM files and index entries that "
+        "this run did not write; only meaningful for a full-corpus "
+        "regeneration");
 
     session.cli(parser);
 
@@ -957,6 +975,13 @@ runTest(CommandLineArgs const& args)
         gLcmCheckDir = checkLcm;
         loadLcmHeaders(checkLcm);
     }
+    if (pruneStaleLcm && !gLcmCaptureEnabled)
+    {
+        LOG_ERROR(DEFAULT_LOG,
+                  "Option --prune-stale-lcm requires --capture-lcm");
+        return 1;
+    }
+    gLcmMayPrune = pruneStaleLcm;
     if (!debugTestTxMeta.empty())
     {
         gDebugTestTxMeta.emplace(debugTestTxMeta);
@@ -1004,6 +1029,13 @@ runTest(CommandLineArgs const& args)
     if (!gLcmCheckDir.empty())
     {
         reportLcmCheck();
+    }
+    else if (gLcmCaptureEnabled && r == 0)
+    {
+        // Only finalize a clean run: an aborted or failing run may not have
+        // visited every leaf, so its captured set is not a safe basis for
+        // rewriting indexes or pruning.
+        finalizeLcmCapture();
     }
     return r;
 }
@@ -1508,6 +1540,60 @@ loadLcmHeaders(stdfs::path const& dir)
     }
     LOG_INFO(DEFAULT_LOG, "Validated headers of {} LCM index files in {}", n,
              tierDir);
+}
+
+// Write the index of every directory this capture run touched, and prune
+// golden .xdr files in those directories that the run did not write. Only
+// touched directories are considered, so capturing a subset of the test
+// files leaves other directories alone — the same granularity as
+// saveTestTxMeta, which rewrites only the baseline files whose test files
+// recorded something. Within a touched directory, a filtered run would look
+// indistinguishable from deleted leaves, so pruning is skipped entirely
+// unless --prune-stale-lcm was passed.
+static void
+finalizeLcmCapture()
+{
+    size_t pruned = 0;
+    for (auto const& [dir, entries] : gLcmCapturedIndex)
+    {
+        writeLcmIndex(dir, entries);
+        if (!gLcmMayPrune)
+        {
+            continue;
+        }
+        std::set<std::string> keep;
+        for (auto const& [hashHex, humanName] : entries)
+        {
+            keep.insert(dir + "/" + hashHex + ".xdr");
+        }
+        std::vector<std::string> stale;
+        for (auto const& dirent : stdfs::directory_iterator{dir})
+        {
+            auto p = dirent.path();
+            if (p.extension() == ".xdr" && keep.find(p.string()) == keep.end())
+            {
+                stale.emplace_back(p.string());
+            }
+        }
+        for (auto const& p : stale)
+        {
+            LOG_INFO(DEFAULT_LOG, "LCM auto-capture: pruning stale golden {}",
+                     p);
+            if (!fs::removeWithLog(p))
+            {
+                throw std::runtime_error(fmt::format(
+                    "LCM auto-capture: failed to prune stale file '{}'", p));
+            }
+            ++pruned;
+        }
+    }
+    LOG_INFO(DEFAULT_LOG,
+             "LCM auto-capture: wrote {} index files, pruned {} stale golden "
+             "files{}",
+             gLcmCapturedIndex.size(), pruned,
+             gLcmMayPrune ? ""
+                          : " (pruning skipped: --prune-stale-lcm not "
+                            "passed)");
 }
 
 static void
