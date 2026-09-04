@@ -1110,7 +1110,9 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
     {
         auto diagnostics = DiagnosticEventManager::createDisabled();
         LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        result = tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0,
+        CheckValidLedgerViewWrapper ledgerView(ltx,
+                                               getApp().getLedgerManager());
+        result = tx->checkValid(getApp().getAppConnector(), ledgerView, 0, 0, 0,
                                 diagnostics);
     }
     REQUIRE(result->isSuccess());

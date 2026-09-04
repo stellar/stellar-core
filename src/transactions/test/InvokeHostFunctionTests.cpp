@@ -1178,8 +1178,10 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
             {
                 auto diagnostics = DiagnosticEventManager::createDisabled();
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0,
-                                        0, 0, diagnostics);
+                CheckValidLedgerViewWrapper ledgerView(
+                    ltx, test.getApp().getLedgerManager());
+                result = tx->checkValid(test.getApp().getAppConnector(),
+                                        ledgerView, 0, 0, 0, diagnostics);
             }
             REQUIRE(result->isSuccess() == shouldBeValid);
 
@@ -1196,8 +1198,10 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         {
             auto diagnostics = DiagnosticEventManager::createDisabled();
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                    0, diagnostics);
+            CheckValidLedgerViewWrapper ledgerView(
+                ltx, test.getApp().getLedgerManager());
+            result = tx->checkValid(test.getApp().getAppConnector(), ledgerView,
+                                    0, 0, 0, diagnostics);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
@@ -1226,8 +1230,10 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         {
             auto diagnostics = DiagnosticEventManager::createDisabled();
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                    0, diagnostics);
+            CheckValidLedgerViewWrapper ledgerView(
+                ltx, test.getApp().getLedgerManager());
+            result = tx->checkValid(test.getApp().getAppConnector(), ledgerView,
+                                    0, 0, 0, diagnostics);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
@@ -2480,8 +2486,10 @@ TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
     auto diagnosticEvents = DiagnosticEventManager::createForValidation(cfg);
     {
         LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-        auto result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                     0, diagnosticEvents);
+        CheckValidLedgerViewWrapper ledgerView(
+            ltx, test.getApp().getLedgerManager());
+        auto result = tx->checkValid(test.getApp().getAppConnector(),
+                                     ledgerView, 0, 0, 0, diagnosticEvents);
     }
     REQUIRE(!test.isTxValid(tx));
 

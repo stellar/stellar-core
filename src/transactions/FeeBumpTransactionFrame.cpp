@@ -319,8 +319,9 @@ FeeBumpTransactionFrame::checkValidImpl(
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         // CAP-77: Check if fee bump source account is frozen
-        auto const& sorobanConfig =
-            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        auto const* sorobanConfigPtr = ledgerView.getSorobanNetworkConfig();
+        releaseAssertOrThrow(sorobanConfigPtr != nullptr);
+        auto const& sorobanConfig = *sorobanConfigPtr;
         if (sorobanConfig.hasFrozenKeys())
         {
             auto feeAcctKey = accountKey(getFeeSourceID());

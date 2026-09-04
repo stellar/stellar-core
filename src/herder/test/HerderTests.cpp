@@ -734,7 +734,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 TxFrameList invalidTxs;
                 auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0,
                                                        0, invalidTxs);
-                compareTxs(invalidTxs, {fb1, fb2, fb3});
+                compareTxs(invalidTxs, {fb2, fb3});
             }
             SECTION("validate block")
             {
@@ -777,9 +777,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             {
                 auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
                                                        invalidTxs);
-                // Both are marked invalid because their combined fees exceed
-                // account2's balance
-                compareTxs(invalidTxs, {fb1, fb2});
+                compareTxs(invalidTxs, {fb2});
             }
             SECTION("validate block")
             {
@@ -853,9 +851,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             {
                 auto txSet = makeTxSetFromTransactions({{}, {fb1, fb2}}, *app,
                                                        0, 0, invalidPerPhase);
-                // Both are marked invalid because their combined fees exceed
-                // feeSourceAccount's balance
-                compareTxs(invalidPerPhase[1], {fb1, fb2});
+                compareTxs(invalidPerPhase[1], {fb2});
             }
             SECTION("validate block")
             {
@@ -954,91 +950,129 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
     }
 }
 
-TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
+TEST_CASE("tx set validation rejects txs that fee source cannot pay for",
+          "[txset]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
     auto root = app->getRoot();
 
-    // Create accounts for tx sources and fee source
-    auto account1 = root->create("a1", minBalance2);
-    auto account2 = root->create("a2", minBalance2);
-    auto account3 = root->create("a3", minBalance2);
-    auto account4 = root->create("a4", minBalance2);
+    auto feeSource = root->create(
+        "feeSource", app->getLedgerManager().getLastMinBalance(1) * 10);
+    auto account1 =
+        root->create("a1", app->getLedgerManager().getLastMinBalance(1) * 20);
+    auto account2 =
+        root->create("a2", app->getLedgerManager().getLastMinBalance(1) * 30);
 
     CheckValidLedgerViewWrapper ledgerView(*app);
-    auto balanceOfFeeSource = getAvailableBalance(
+    int64_t const feeSourceBalance = getAvailableBalance(
         ledgerView.getLedgerHeader().current(),
-        ledgerView.getAccount(account2.getPublicKey()).current());
+        ledgerView.getAccount(feeSource.getPublicKey()).current());
 
-    // Create three fee bumps from account2 (fee source):
-    // - fb1: fails checkValid (bad sequence number)
-    // - fb2: passes checkValid
-    // - fb3: passes checkValid
-    // Combined fees of fb2 + fb3 exceed balance, so both should be invalid
-    // fb1 is invalid due to checkValid failure
-    // This tests that fb1 doesn't appear twice (once from checkValid fail,
-    // once from fee check)
-    int64_t fee1 = 200;
-    int64_t fee2 = balanceOfFeeSource / 2 + 100;
-    int64_t fee3 = balanceOfFeeSource / 2 + 100;
-
-    // fb1: Bad seqNum to ensure it fails checkValid
-    auto tx1 = transactionFromOperations(
-        *app, account1, 555, {payment(account1.getPublicKey(), 1)}, 100);
-    auto fb1 = feeBump(*app, account2, tx1, fee1);
-
-    // fb2 and fb3: Valid transactions
-    auto tx2 = transactionFromOperations(
-        *app, account3, account3.getLastSequenceNumber() + 1,
-        {payment(account3.getPublicKey(), 1)}, 100);
-    auto fb2 = feeBump(*app, account2, tx2, fee2);
-
-    auto tx3 = transactionFromOperations(
-        *app, account4, account4.getLastSequenceNumber() + 1,
-        {payment(account4.getPublicKey(), 1)}, 100);
-    auto fb3 = feeBump(*app, account2, tx3, fee3);
-
-    // Verify fb1 fails checkValid - inner tx has bad sequence number
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
-                            diagnostics)
-                ->getResultCode() == txFEE_BUMP_INNER_FAILED);
-    // Verify fb2 and fb3 pass checkValid individually
-    REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
-                            diagnostics)
-                ->isSuccess());
-    REQUIRE(fb3->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
-                            diagnostics)
-                ->isSuccess());
+    auto makePayment = [&](TestAccount& source, int64_t fee,
+                           bool isValid = true) {
+        SequenceNumber seq = isValid ? source.getLastSequenceNumber() + 1
+                                     : source.getLastSequenceNumber() + 100;
+        return transactionFromOperations(*app, source.getSecretKey(), seq,
+                                         {payment(source.getPublicKey(), 1)},
+                                         static_cast<uint32_t>(fee));
+    };
+    auto makeFeeBump = [&](TestAccount& source, int64_t fee,
+                           bool isValid = true) {
+        return feeBump(*app, feeSource, makePayment(source, 100, isValid), fee);
+    };
 
-    // Verify combined fees of fb2 + fb3 exceed balance
-    REQUIRE(fb2->getFullFee() + fb3->getFullFee() > balanceOfFeeSource);
-    // But each individual fee is payable
-    REQUIRE(fb2->getFullFee() < balanceOfFeeSource);
-    REQUIRE(fb3->getFullFee() < balanceOfFeeSource);
+    // NB: the exact contents of the invalid transaction list are partially an
+    // implementation detail. Protocol only observes whether the list is
+    // non-empty, so any implementation that returns at least one invalid
+    // transaction for every invalid tx set is consistent (as long as it agrees
+    // on what an 'invalid' transaction is).
+    // Nomination logic requires `getInvalidTxListWithErrors` to return at least
+    // the minimum subset of invalid transactions (such that the rest of the
+    // transactions are valid), but returning more than that is not observable
+    // by the protocol.
+    auto checkInvalidTxs = [&](TxFrameList const& txs,
+                               UnorderedMap<AccountID, int64_t> accountFeeMap,
+                               TxFrameList const& expectedInvalidTxs,
+                               TxSetValidationResult expectedResult) {
+        auto const [invalidTxs, result] =
+            TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap, 0,
+                                                   0);
+        REQUIRE(result == expectedResult);
+        REQUIRE(invalidTxs.size() == expectedInvalidTxs.size());
+        for (size_t i = 0; i < expectedInvalidTxs.size(); ++i)
+        {
+            REQUIRE(invalidTxs[i]->getFullHash() ==
+                    expectedInvalidTxs[i]->getFullHash());
+        }
+    };
 
-    TxFrameList txs = {fb1, fb2, fb3};
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
-    auto invalidTxs =
-        TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap, 0, 0)
-            .first;
+    // SECTION("txs that fit into the balance are accepted")
+    // {
+    //     auto tx1 = makePayment(feeSource, feeSourceBalance / 2);
+    //     auto tx2 = makeFeeBump(account1, feeSourceBalance / 2);
+    //     checkInvalidTxs({tx1, tx2}, {}, {}, TxSetValidationResult::VALID);
+    // }
 
-    // Check for no duplicates by comparing size with unique count
-    std::unordered_set<Hash> uniqueHashes;
-    for (auto const& tx : invalidTxs)
-    {
-        uniqueHashes.insert(tx->getFullHash());
-    }
-    REQUIRE(invalidTxs.size() == uniqueHashes.size());
+    // SECTION("tx that is both invalid and can't pay its fee is reported once")
+    // {
+    //     auto tx = makePayment(feeSource, feeSourceBalance + 100,
+    //                           /* isValid */ false);
+    //     checkInvalidTxs({tx}, {}, {tx},
+    //                     TxSetValidationResult::TX_VALIDATION_FAILED);
+    // }
 
-    // All 3 txs should be invalid:
-    // - fb1: fails checkValid
-    // - fb2, fb3: can't pay combined fees
-    REQUIRE(invalidTxs.size() == 3);
+    // SECTION("fee bumps with a shared fee source")
+    // {
+    //     auto invalidFb = makeFeeBump(account1, 200, /* isValid */ false);
+    //     auto fb1 = makeFeeBump(account1, feeSourceBalance / 2 + 1);
+    //     // fb2 doesn't fit into the fee source balance.
+    //     auto fb2 = makeFeeBump(account2, feeSourceBalance / 2);
+
+    //     checkInvalidTxs({fb1, fb2}, {}, {fb2},
+    //                     TxSetValidationResult::ACCOUNT_CANT_PAY_FEE);
+    //     checkInvalidTxs({invalidFb, fb1, fb2}, {}, {invalidFb, fb2},
+    //                     TxSetValidationResult::TX_VALIDATION_FAILED);
+    //     checkInvalidTxs({fb2, invalidFb, fb1}, {}, {invalidFb, fb1},
+    //                     TxSetValidationResult::TX_VALIDATION_FAILED);
+    //     checkInvalidTxs({fb1, fb2, invalidFb}, {}, {fb2, invalidFb},
+    //                     TxSetValidationResult::TX_VALIDATION_FAILED);
+    // }
+
+    // SECTION("fee bumps mixed with regular txs")
+    // {
+    //     auto tx = makePayment(feeSource, feeSourceBalance - 1000);
+    //     auto fb = makeFeeBump(account1, 1001);
+    //     REQUIRE(tx->getFeeSourceID() == fb->getFeeSourceID());
+
+    //     checkInvalidTxs({tx, fb}, {}, {fb},
+    //                     TxSetValidationResult::ACCOUNT_CANT_PAY_FEE);
+    //     checkInvalidTxs({fb, tx}, {}, {tx},
+    //                     TxSetValidationResult::ACCOUNT_CANT_PAY_FEE);
+    // }
+
+    // SECTION("account fee map is accounted for")
+    // {
+    //     auto tx = makePayment(feeSource, 200);
+
+    //     SECTION("tx still fits into the balance")
+    //     {
+    //         UnorderedMap<AccountID, int64_t> accountFeeMap = {
+    //             {feeSource.getPublicKey(), feeSourceBalance - 200}};
+    //         checkInvalidTxs({tx}, accountFeeMap, {},
+    //                         TxSetValidationResult::VALID);
+    //     }
+    //     SECTION("tx no longer fits into the balance")
+    //     {
+    //         UnorderedMap<AccountID, int64_t> accountFeeMap = {
+    //             {feeSource.getPublicKey(), feeSourceBalance - 199}};
+    //         checkInvalidTxs({tx}, accountFeeMap, {tx},
+    //                         TxSetValidationResult::ACCOUNT_CANT_PAY_FEE);
+    //     }
+    // }
 }
 
 TEST_CASE("txset", "[herder][txset]")

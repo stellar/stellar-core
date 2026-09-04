@@ -5,6 +5,7 @@
 #include "crypto/SHA.h"
 #include "herder/ParallelTxSetBuilder.h"
 #include "herder/TxSetFrame.h"
+#include "herder/TxSetUtils.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -18,6 +19,7 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
@@ -3464,5 +3466,80 @@ TEST_CASE("parallel tx set building benchmark",
     runBenchmark(50, 50, 5);
     std::cout << "===" << std::endl;
 }
+
+TEST_CASE("parallel tx set validation matches sequential", "[txset]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+    auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
+    int const maxTxs = 1000;
+
+    std::vector<TestAccount> accounts;
+    for (int i = 0; i < maxTxs; ++i)
+    {
+        accounts.emplace_back(
+            root->create("account" + std::to_string(i), minBalance * 100));
+    }
+
+    auto makeTxs = [&](size_t count, TxFrameList& invalidTxs) {
+        TxFrameList txs;
+        for (size_t i = 0; i < count; ++i)
+        {
+            auto& account = accounts[i];
+            SequenceNumber seq = account.getLastSequenceNumber() + 1;
+            bool valid = true;
+            if (rand_flip())
+            {
+                seq += 1000;
+                valid = false;
+            }
+            auto tx = transactionFromOperations(
+                *app, account.getSecretKey(), seq,
+                {payment(account.getPublicKey(), static_cast<int64_t>(i) + 1)},
+                100);
+            txs.emplace_back(tx);
+            if (!valid)
+            {
+                invalidTxs.push_back(tx);
+            }
+        }
+        return txs;
+    };
+
+    for (size_t txCount : {0, 1, 2, 3, 4, 5, 6, 7, 500, 1000})
+    {
+        INFO("txCount=" << txCount);
+        TxFrameList actualInvalidTxs;
+        auto const txs = makeTxs(txCount, actualInvalidTxs);
+
+        for (size_t taskCount = 1; taskCount <= 8; ++taskCount)
+        {
+            INFO("taskCount=" << taskCount);
+            app->getBatchExecutor().setPreferredTaskCountForTesting(taskCount);
+            UnorderedMap<AccountID, int64_t> accountFeeMap;
+            auto [invalidTxs, validationResult] =
+                TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap,
+                                                       0, 0);
+            if (actualInvalidTxs.empty())
+            {
+                REQUIRE(validationResult == TxSetValidationResult::VALID);
+            }
+            else
+            {
+                REQUIRE(validationResult ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+            REQUIRE(actualInvalidTxs.size() == invalidTxs.size());
+            for (size_t i = 0; i < actualInvalidTxs.size(); ++i)
+            {
+                REQUIRE(actualInvalidTxs[i]->getFullHash() ==
+                        invalidTxs[i]->getFullHash());
+            }
+        }
+    }
+}
+
 } // namespace
 } // namespace stellar

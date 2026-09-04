@@ -97,6 +97,14 @@ LedgerTxnReadOnly::LedgerTxnReadOnly(AbstractLedgerTxn& ltx) : mLedgerTxn(ltx)
 {
 }
 
+#ifdef BUILD_TESTS
+LedgerTxnReadOnly::LedgerTxnReadOnly(AbstractLedgerTxn& ltx,
+                                     SorobanNetworkConfig const* sorobanConfig)
+    : mLedgerTxn(ltx), mSorobanConfig(sorobanConfig)
+{
+}
+#endif
+
 LedgerTxnReadOnly::~LedgerTxnReadOnly()
 {
 }
@@ -105,6 +113,20 @@ LedgerHeaderWrapper
 LedgerTxnReadOnly::getLedgerHeader() const
 {
     return LedgerHeaderWrapper(mLedgerTxn.loadHeader());
+}
+
+SorobanNetworkConfig const*
+LedgerTxnReadOnly::getSorobanNetworkConfig() const
+{
+#ifdef BUILD_TESTS
+    return mSorobanConfig;
+#else
+    // Soroban config is only expected to be used for transaction validation,
+    // and in production transactions are never validated against a
+    // LedgerTxnReadOnly.
+    throw std::runtime_error(
+        "LedgerTxnReadOnly doesn't have a Soroban network config");
+#endif
 }
 
 LedgerEntryWrapper
@@ -162,6 +184,17 @@ CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx)
 {
 }
 
+#ifdef BUILD_TESTS
+CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
+    AbstractLedgerTxn& ltx, LedgerManager const& lm)
+    : mGetter(std::make_unique<LedgerTxnReadOnly>(
+          ltx, lm.hasLastClosedSorobanNetworkConfig()
+                   ? &lm.getLastClosedSorobanNetworkConfig()
+                   : nullptr))
+{
+}
+#endif
+
 CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(Application& app)
 {
     releaseAssert(threadIsMain());
@@ -172,7 +205,11 @@ CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(Application& app)
         mLegacyLedgerTxn = std::make_unique<LedgerTxn>(
             app.getLedgerTxnRoot(), /* shouldUpdateLastModified*/ false,
             TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        mGetter = std::make_unique<LedgerTxnReadOnly>(*mLegacyLedgerTxn);
+        auto const& lm = app.getLedgerManager();
+        mGetter = std::make_unique<LedgerTxnReadOnly>(
+            *mLegacyLedgerTxn, lm.hasLastClosedSorobanNetworkConfig()
+                                   ? &lm.getLastClosedSorobanNetworkConfig()
+                                   : nullptr);
     }
     else
 #endif
@@ -198,6 +235,12 @@ LedgerHeaderWrapper
 CheckValidLedgerViewWrapper::getLedgerHeader() const
 {
     return mGetter->getLedgerHeader();
+}
+
+SorobanNetworkConfig const*
+CheckValidLedgerViewWrapper::getSorobanNetworkConfig() const
+{
+    return mGetter->getSorobanNetworkConfig();
 }
 
 LedgerEntryWrapper
@@ -320,6 +363,12 @@ ImmutableLedgerView::getLedgerHeader() const
         mState, &mState->getLastClosedLedgerHeader().header));
 }
 
+SorobanNetworkConfig const*
+ImmutableLedgerView::getSorobanNetworkConfig() const
+{
+    return mState->hasSorobanConfig() ? &mState->getSorobanConfig() : nullptr;
+}
+
 uint32_t
 ImmutableLedgerView::getLedgerSeq() const
 {
@@ -372,6 +421,12 @@ LedgerHeaderWrapper
 SorobanPreApplyLedgerView::getLedgerHeader() const
 {
     return LedgerHeaderWrapper(mHeader);
+}
+
+SorobanNetworkConfig const*
+SorobanPreApplyLedgerView::getSorobanNetworkConfig() const
+{
+    return mLclView.getSorobanNetworkConfig();
 }
 
 LedgerEntryWrapper
