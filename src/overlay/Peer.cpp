@@ -999,6 +999,21 @@ Peer::shouldAbortForTesting() const
 }
 
 void
+Peer::sendAuthenticatedMessageForTesting(
+    std::shared_ptr<StellarMessage const> msg)
+{
+    releaseAssert(mFlowControl);
+    if (OverlayManager::isFloodMessage(*msg))
+    {
+        // Flood messages are tracked by FlowControl's outbound queue, and
+        // processSentMessages expects to find them there once the write
+        // completes
+        mFlowControl->addToQueueAndMaybeTrimForTesting(msg);
+    }
+    sendAuthenticatedMessage(std::move(msg));
+}
+
+void
 Peer::populateSignatureCacheForTesting(AppConnector& app,
                                        TransactionFrameBaseConstPtr tx)
 {
