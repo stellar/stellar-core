@@ -5934,3 +5934,369 @@ TEST_CASE("trigger timer switches anchor at protocol 28 upgrade",
         REQUIRE(result.postUpgrade + cadenceMargin > result.preUpgrade);
     }
 }
+
+namespace stellar
+{
+class EarlyNominationTestAccess
+{
+  public:
+    static TxSetXDRFrameConstPtr
+    prepared(HerderImpl& herder)
+    {
+        return herder.mPreparedTxSet ? herder.mPreparedTxSet->txSet : nullptr;
+    }
+
+    static uint64_t
+    closeTime(HerderImpl& herder)
+    {
+        return herder.mPreparedTxSet->closeTime;
+    }
+
+    static bool
+    scheduled(HerderImpl& herder)
+    {
+        return herder.mPrepareTxSetTimer.seq() != 0;
+    }
+
+    static void
+    schedule(HerderImpl& herder)
+    {
+        herder.setupTriggerNextLedger();
+    }
+};
+}
+
+TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
+{
+    auto const soroban = GENERATE(false, true);
+    VirtualClock clock;
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = false;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
+    // Require another node to externalize, so this test can inspect the value
+    // we nominate without immediately closing it and scheduling another slot.
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    if (soroban)
+    {
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& config) {
+            config.mLedgerMaxTxCount = 1;
+        });
+    }
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    // The Soroban upgrade helper closes ledgers at its fixed test date.
+    clock.setCurrentVirtualTime(
+        VirtualClock::from_time_t(lcl.header.scpValue.closeTime + 1000));
+    auto const seq = lcl.header.ledgerSeq + 1;
+    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+
+    std::vector<TransactionEnvelope> mempool;
+    auto alice = txtest::getGenesisAccount(*app, 0);
+    auto bob = txtest::getGenesisAccount(*app, 1);
+    auto makeTx = [&](TestAccount& from, TestAccount& to) {
+        SorobanResources resources;
+        resources.instructions = 1'000'000;
+        resources.diskReadBytes = 1000;
+        resources.writeBytes = 1000;
+        return soroban
+                   ? createUploadWasmTx(*app, from, 100,
+                                        DEFAULT_TEST_RESOURCE_FEE, resources)
+                   : from.tx({payment(to, 100)});
+    };
+    auto tx = makeTx(alice, bob);
+    auto const expectedCloseTime = VirtualClock::to_time_t(
+        clock.system_now() +
+        app->getLedgerManager().getExpectedLedgerCloseTime());
+    setMinTime(tx, expectedCloseTime);
+    setMaxTime(tx, expectedCloseTime);
+    setFullFee(tx, tx->getFullFee() + 900);
+    getSignatures(tx).clear();
+    tx->addSignature(alice);
+    auto extra = makeTx(bob, alice);
+    mempool = {tx->getEnvelope(), extra->getEnvelope()};
+    size_t pulls = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        ++pulls;
+        return mempool;
+    };
+    // Exercise the real post-close hook, including its heartbeat reset after
+    // advancing the fixture clock past the upgrade helper's close time.
+    herder.lastClosedLedgerIncreased(true, nullptr, false);
+    auto const trigger = herder.getTriggerTimer().expiry_time();
+    REQUIRE(trigger > clock.now());
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return EarlyNominationTestAccess::prepared(herder) != nullptr;
+        },
+        std::chrono::seconds(1));
+    REQUIRE(clock.now() < trigger);
+    REQUIRE(pulls == 1);
+    auto prepared = EarlyNominationTestAccess::prepared(herder);
+    auto const preparedCloseTime = EarlyNominationTestAccess::closeTime(herder);
+    REQUIRE(prepared);
+    REQUIRE(prepared->sizeTxTotal() == 1);
+    REQUIRE(preparedCloseTime == expectedCloseTime);
+    REQUIRE(herder.getSCP().getNominationLeaders(seq).empty());
+    REQUIRE(herder.getSCP().getLatestMessagesSend(seq).empty());
+    auto known = herder.getTxSet(prepared->getContentsHash());
+    REQUIRE(std::get<TxSetXDRFrameConstPtr>(known) == nullptr);
+
+    SECTION("trigger reuses exactly the validated set and close time")
+    {
+        // Even if processing runs late, the set must retain the close time
+        // used to validate time bounds, not acquire the new wall-clock time.
+        clock.setCurrentVirtualTime(trigger + std::chrono::seconds(1));
+        testutil::crankUntil(
+            app,
+            [&]() {
+                return !herder.getSCP().getNominationLeaders(seq).empty();
+            },
+            std::chrono::seconds(1));
+        REQUIRE(pulls == 1);
+        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        REQUIRE(std::get<TxSetXDRFrameConstPtr>(
+                    herder.getTxSet(prepared->getContentsHash())) == prepared);
+        // The value can be checked independently of the production cache.
+        auto applicable = prepared->prepareForApply(*app, lcl.header);
+        REQUIRE(applicable);
+        auto offset = preparedCloseTime - lcl.header.scpValue.closeTime;
+        REQUIRE(applicable->checkValid(*app, offset, offset));
+        REQUIRE(!applicable->checkValid(*app, offset + 1, offset + 1));
+        testutil::crankUntil(
+            app,
+            [&]() {
+                return !herder.getSCP().getLatestMessagesSend(seq).empty();
+            },
+            std::chrono::seconds(1));
+        auto messages = herder.getSCP().getLatestMessagesSend(seq);
+        REQUIRE(!messages.empty());
+        auto const& votes = messages.front().statement.pledges.nominate().votes;
+        REQUIRE(votes.size() == 1);
+        StellarValue value;
+        xdr::xdr_from_opaque(votes.front(), value);
+        REQUIRE(value.txSetHash == prepared->getContentsHash());
+        REQUIRE(value.closeTime == preparedCloseTime);
+        REQUIRE(pulls == 1);
+    }
+    SECTION("clock regression rejects the prepared future close time")
+    {
+        clock.setSystemTimeOffset(-std::chrono::minutes(2));
+        // The fallback builds with today's valid close time, and must not
+        // claim that our time-bound transaction is valid for that time.
+        herder.triggerNextLedger(seq, true);
+        REQUIRE(pulls == 2);
+        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        REQUIRE(std::get<TxSetXDRFrameConstPtr>(
+                    herder.getTxSet(prepared->getContentsHash())) == nullptr);
+    }
+    SECTION("externalizing another value discards the unused proposal")
+    {
+        herder.externalizeValue(TxSetXDRFrame::makeEmpty(lcl), seq,
+                                preparedCloseTime, {}, cfg.NODE_SEED);
+        REQUIRE(EarlyNominationTestAccess::prepared(herder) != prepared);
+        auto const pullsAfterClose = pulls;
+        // A stale timer/caller cannot nominate the old slot or pull again.
+        herder.triggerNextLedger(seq, true);
+        REQUIRE(pulls == pullsAfterClose);
+    }
+    SECTION("loss of sync discards preparation")
+    {
+        herder.lostSync();
+        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        herder.triggerNextLedger(seq, true);
+        REQUIRE(pulls == 1);
+    }
+    SECTION("shutdown cancels preparation")
+    {
+        herder.shutdown();
+        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+    }
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
+TEST_CASE("only the first two nomination leaders prepare early",
+          "[herder][early-nomination]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = false;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& scp = herder.getSCP();
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const seq = lcl.header.ledgerSeq + 1;
+    auto const previous = xdr::xdr_to_opaque(lcl.header.scpValue);
+    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+    size_t pulls = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        ++pulls;
+        return std::vector<TransactionEnvelope>{};
+    };
+    std::set<int> checkedRoles;
+    // Vary the peer IDs to exercise the real Herder weights and hashes for
+    // each local role, without a fake leader-selection implementation.
+    for (int attempt = 0; attempt < 100 && checkedRoles.size() < 3; ++attempt)
+    {
+        auto qset = cfg.QUORUM_SET;
+        qset.threshold = 3;
+        qset.validators = {cfg.NODE_SEED.getPublicKey(),
+                           SecretKey::pseudoRandomForTesting().getPublicKey(),
+                           SecretKey::pseudoRandomForTesting().getPublicKey()};
+        scp.updateLocalQuorumSet(qset);
+        auto first = scp.predictNominationLeaders(seq, previous, 1);
+        auto firstTwo = scp.predictNominationLeaders(seq, previous, 2);
+        int role = first.count(scp.getLocalNodeID())      ? 0
+                   : firstTwo.count(scp.getLocalNodeID()) ? 1
+                                                          : 2;
+        if (!checkedRoles.insert(role).second)
+        {
+            continue;
+        }
+        CAPTURE(role);
+        auto const before = pulls;
+        EarlyNominationTestAccess::schedule(herder);
+        REQUIRE(EarlyNominationTestAccess::scheduled(herder) == (role < 2));
+        bool done = false;
+        VirtualTimer stop(clock);
+        stop.expires_from_now(std::chrono::milliseconds(1));
+        stop.async_wait([&]() { done = true; }, &VirtualTimer::onFailureNoop);
+        testutil::crankUntil(
+            app, [&]() { return done; }, std::chrono::seconds(1));
+        REQUIRE(done);
+        REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
+        REQUIRE(pulls == before + (role < 2 ? 1 : 0));
+        REQUIRE(bool(EarlyNominationTestAccess::prepared(herder)) ==
+                (role < 2));
+        REQUIRE(scp.getNominationLeaders(seq).empty());
+        REQUIRE(scp.getLatestMessagesSend(seq).empty());
+    }
+    REQUIRE(checkedRoles == std::set<int>{0, 1, 2});
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
+TEST_CASE("early underfilled proposals refresh at the trigger",
+          "[herder][early-nomination]")
+{
+    auto const invalidFirst = GENERATE(false, true);
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = false;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 2;
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const seq = lcl.header.ledgerSeq + 1;
+    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+    auto alice = txtest::getGenesisAccount(*app, 0);
+    auto bob = txtest::getGenesisAccount(*app, 1);
+    auto tx = alice.tx({payment(bob, 100)});
+    auto extra = bob.tx({payment(alice, 100)});
+    auto bad = txtest::getGenesisAccount(*app, 2).tx({payment(alice, 100)});
+    getSignatures(bad).clear();
+    std::vector<TransactionEnvelope> mempool;
+    if (invalidFirst)
+    {
+        // More candidates than capacity, but they cannot fill the ledger.
+        mempool = {bad->getEnvelope(), bad->getEnvelope(), bad->getEnvelope()};
+    }
+    size_t pulls = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        ++pulls;
+        return mempool;
+    };
+    EarlyNominationTestAccess::schedule(herder);
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return EarlyNominationTestAccess::prepared(herder) != nullptr;
+        },
+        std::chrono::seconds(1));
+    REQUIRE(pulls == 1);
+    REQUIRE(EarlyNominationTestAccess::prepared(herder)->sizeTxTotal() == 0);
+    // Transactions arrive while we are waiting for the normal trigger.
+    mempool = {tx->getEnvelope(), extra->getEnvelope()};
+    clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
+    testutil::crankUntil(
+        app,
+        [&]() { return !herder.getSCP().getNominationLeaders(seq).empty(); },
+        std::chrono::seconds(1));
+    REQUIRE(pulls == 2);
+    // Check the actual set cached for nomination, independently of benchmark
+    // instrumentation. Both newly arrived transactions must be present.
+    auto expected =
+        makeTxSetFromTransactions(TxFrameList{tx, extra}, *app, 0, 0).first;
+    REQUIRE(expected->sizeTxTotal() == 2);
+    auto nominated = std::get<TxSetXDRFrameConstPtr>(
+        herder.getTxSet(expected->getContentsHash()));
+    REQUIRE(nominated);
+    REQUIRE(nominated->sizeTxTotal() == 2);
+    REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
+TEST_CASE("early preparation respects manual and immediately due triggers",
+          "[herder][early-nomination]")
+{
+    auto const manual = GENERATE(false, true);
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = manual;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto const seq = app->getLedgerManager().getLastClosedLedgerNum() + 1;
+    size_t pulls = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        ++pulls;
+        return std::vector<TransactionEnvelope>{};
+    };
+    if (manual)
+    {
+        REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
+        REQUIRE(herder.getTriggerTimer().seq() == 0);
+        herder.triggerNextLedger(seq, true);
+    }
+    else
+    {
+        // No previous prepare timestamp: the normal fallback triggers now.
+        REQUIRE(herder.getTriggerTimer().expiry_time() == clock.now());
+        testutil::crankUntil(
+            app,
+            [&]() {
+                return !herder.getSCP().getNominationLeaders(seq).empty();
+            },
+            std::chrono::seconds(1));
+    }
+    REQUIRE(pulls == 1);
+    REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+    REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
+    REQUIRE(!herder.getSCP().getNominationLeaders(seq).empty());
+    herder.mGetTopTransactionsForTesting = nullptr;
+}

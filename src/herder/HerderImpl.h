@@ -131,6 +131,12 @@ class HerderImpl : public Herder
 
     uint32_t mTriggerNextLedgerSeq{0};
 
+    // Deterministic mempool input for scheduling tests. Construction and SCP
+    // still run through their production paths.
+    std::function<std::vector<TransactionEnvelope>(size_t)>
+        mGetTopTransactionsForTesting;
+    friend class EarlyNominationTestAccess;
+
     std::optional<uint32_t> mMaxClassicTxSize;
     std::optional<uint32_t> mMaxTxSizeOverride;
     void
@@ -245,6 +251,21 @@ class HerderImpl : public Herder
 
     void setupTriggerNextLedger();
 
+    struct PreparedTxSet
+    {
+        Hash previousLedgerHash;
+        uint32_t ledgerSeq;
+        uint64_t closeTime;
+        TxSetXDRFrameConstPtr txSet;
+        ApplicableTxSetFrameConstPtr applicableTxSet;
+        std::vector<Hash> invalidTxHashes;
+        bool capacityLimited;
+    };
+    std::optional<PreparedTxSet> mPreparedTxSet;
+    PreparedTxSet buildTxSet(uint32_t ledgerSeq, uint64_t closeTime);
+    void prepareTxSet(uint32_t ledgerSeq, uint64_t closeTime);
+    void discardPreparedTxSet();
+
     // Compute the trigger-timer anchor point using the local node's
     // prepare-start timestamp for the previous slot. Returns a pessimistic
     // estimate (now - expectedClose) if no prepare-start is recorded.
@@ -310,6 +331,7 @@ class HerderImpl : public Herder
     void trackingHeartBeat();
 
     VirtualTimer mTriggerTimer;
+    VirtualTimer mPrepareTxSetTimer;
 
     VirtualTimer mOutOfSyncTimer;
 

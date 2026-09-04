@@ -87,6 +87,12 @@ class NominationProtocol
 
     NominationProtocol(Slot& slot);
 
+    // Preview the cumulative leaders for the first `rounds` nomination calls.
+    // Uses the same fast-forward/tie handling as live nomination, without
+    // starting nomination, arming timers, or emitting statements.
+    static std::set<NodeID>
+    predictLeaders(Slot& slot, Value const& previousValue, uint32_t rounds);
+
     SCP::EnvelopeState processEnvelope(SCPEnvelopeWrapperPtr envelope);
 
     static std::vector<Value> getStatementValues(SCPStatement const& st);

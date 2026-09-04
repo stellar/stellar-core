@@ -93,6 +93,11 @@ class SCP
     // returns the current nomination leaders for the given slot
     std::set<NodeID> getNominationLeaders(uint64 slotIndex);
 
+    // A read-only preview; does not create or modify a live SCP slot.
+    std::set<NodeID> predictNominationLeaders(uint64 slotIndex,
+                                              Value const& previousValue,
+                                              uint32_t rounds);
+
     // Purges all data relative to slots that fall outside the range
     // [minSlotIndex, maxSlotIndex]. Either bound may be nullopt to skip
     // that direction. The slotToKeep slot is never purged.
