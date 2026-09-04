@@ -130,11 +130,6 @@ mutableEntry(LedgerEntryChange& change)
     return nullptr;
 }
 
-// Protocol 29 started counting the Wasm's custom sections towards the module's
-// data segment cost inputs, so the same Wasm uploaded before and after that
-// change records different cost inputs in its contract code entry. Drops the
-// cost inputs in order to still compare the rest of the entry across the
-// protocol versions. No-op for any other entry type.
 void
 clearContractCodeCostInputs(LedgerEntry& entry)
 {
@@ -285,9 +280,6 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
                         REQUIRE(res1IsP22);
                         auto modifiedEntryChanges1 = entryChanges1;
                         auto modifiedEntryChanges2 = entryChanges2;
-                        // The Wasm cost inputs are expected to differ between
-                        // p22 and protocols starting from 29, which count the
-                        // custom sections towards the data segments.
                         clearContractCodeCostInputs(modifiedEntryChanges1);
                         clearContractCodeCostInputs(modifiedEntryChanges2);
                         if (modifiedEntryChanges1 != modifiedEntryChanges2)
@@ -299,9 +291,9 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
                                         .restored()
                                         .lastModifiedLedgerSeq ==
                                     hotArchiveEntryCreatedLedger);
-                            // That's the only remaining diff we expect, so
-                            // just update lastModifiedLedgerSeq and proceed to
-                            // comparing the diffs.
+                            // That's the only diff we expect, so just update
+                            // lastModifiedLedgerSeq and proceed to comparing
+                            // the diffs.
                             modifiedEntryChanges1.at(0)
                                 .restored()
                                 .lastModifiedLedgerSeq =
@@ -391,9 +383,6 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
                     REQUIRE(liveEntry2);
                     auto modifiedLiveEntry1 = *liveEntry1;
                     auto modifiedLiveEntry2 = *liveEntry2;
-                    // As with the similar meta check above, the Wasm cost
-                    // inputs are expected to differ between p22 and protocols
-                    // starting from 29.
                     clearContractCodeCostInputs(modifiedLiveEntry1);
                     clearContractCodeCostInputs(modifiedLiveEntry2);
                     if (modifiedLiveEntry1 != modifiedLiveEntry2)
@@ -403,9 +392,9 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
                         // to absence of hot archive.
                         REQUIRE(modifiedLiveEntry1.lastModifiedLedgerSeq ==
                                 hotArchiveEntryCreatedLedger);
-                        // That's the only remaining diff we expect, so just
-                        // update lastModifiedLedgerSeq and proceed to
-                        // comparing the diffs.
+                        // That's the only diff we expect, so just update
+                        // lastModifiedLedgerSeq and proceed to comparing
+                        // the diffs.
                         modifiedLiveEntry1.lastModifiedLedgerSeq =
                             modifiedLiveEntry2.lastModifiedLedgerSeq;
                     }
@@ -422,8 +411,6 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
             REQUIRE(liveEntry1);
             auto modifiedLiveEntry1 = *liveEntry1;
             auto modifiedHotArchiveEntry2 = *hotArchiveEntry2;
-            // As above, the Wasm cost inputs are expected to differ between
-            // p22 and protocols starting from 29.
             clearContractCodeCostInputs(modifiedLiveEntry1);
             clearContractCodeCostInputs(modifiedHotArchiveEntry2);
             REQUIRE(modifiedLiveEntry1 == modifiedHotArchiveEntry2);

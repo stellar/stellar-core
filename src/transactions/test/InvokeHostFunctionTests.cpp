@@ -2119,9 +2119,6 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         auto r = closeLedger(test.getApp(), {tx});
         checkTx(0, r, txSUCCESS);
 
-        // Protocol 29 accounts for the Wasm's custom sections in its data
-        // segment cost inputs, so slightly more rent is charged and thus
-        // slightly less of the fee is refunded.
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
                                       ProtocolVersion::V_29)
@@ -2188,9 +2185,6 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         bool afterV20 =
             protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_21);
 
-        // Protocol 29 accounts for the Wasm's custom sections in its data
-        // segment cost inputs, so slightly more rent is charged and thus
-        // slightly less of the fee is refunded.
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
                                       ProtocolVersion::V_29)
@@ -2278,8 +2272,6 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
             cfg.mRentFee1KBSorobanStateSizeLow;
     });
 
-    // Protocol 29 counts the Wasm's custom sections towards its data segment
-    // cost inputs, so the uploaded entry accounts for more rent.
     int64_t const expectedRentFee =
         protocolVersionStartsFrom(getLclProtocolVersion(test.getApp()),
                                   ProtocolVersion::V_29)
@@ -3251,9 +3243,6 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             // denominators instead of large write fees in order to get more
             // sensible numbers, but keeping it as is for now in order to
             // ensure that protocols before 23 are not broken.
-            // In protocol 29 the Wasm rent grows a bit further, as the host
-            // started counting the custom sections towards the Wasm's data
-            // segment cost inputs, which increases the accounted entry size.
             bool const isV23 = protocolVersionStartsFrom(
                 test.getLedgerVersion(), ProtocolVersion::V_23);
             bool const isV29 = protocolVersionStartsFrom(

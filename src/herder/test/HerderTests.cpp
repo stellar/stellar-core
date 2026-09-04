@@ -2550,9 +2550,6 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
 
-    // Protocol 29 counts the uploaded Wasm's custom sections towards its
-    // data segment cost inputs, which grows the accounted soroban state size
-    // and thus the rent fee by a stroop.
     uint32_t const rentFee =
         protocolVersionStartsFrom(getLclProtocolVersion(*app),
                                   ProtocolVersion::V_29)

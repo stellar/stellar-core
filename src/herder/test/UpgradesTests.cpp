@@ -3982,8 +3982,6 @@ TEST_CASE("upgrade state size window", "[bucketlist][upgrades][soroban]")
     // Write some data to the ledger
     test.deployWasmContract(rust_bridge::get_random_wasm(2000, 100));
 
-    // Grew in protocol 29: the host now counts custom sections towards the
-    // module's data segment cost inputs, which feed the in-memory size.
     uint64_t const expectedInMemorySize = 82698;
 
     REQUIRE(getStateSizeWindow().size() ==
