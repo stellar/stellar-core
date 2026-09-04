@@ -11,19 +11,6 @@ namespace std
 size_t
 hash<stellar::uint256>::operator()(stellar::uint256 const& x) const noexcept
 {
-    size_t res =
-        stellar::shortHash::computeHash(stellar::ByteSlice(x.data(), 8));
-
-    return res;
-}
-}
-
-namespace stellar
-{
-
-size_t
-FullHash256::operator()(uint256 const& x) const noexcept
-{
-    return shortHash::computeHash(stellar::ByteSlice(x.data(), 32));
+    return stellar::shortHash::computeHash(stellar::ByteSlice(x.data(), 32));
 }
 }
