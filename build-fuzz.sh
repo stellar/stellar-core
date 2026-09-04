@@ -43,11 +43,11 @@ ccache -z
 . "${HOME}/.cargo/env"
 (cd "${SRC_DIR}" && ./autogen.sh)
 
-# NB: the oss-fuzz driver injects sanitizer flags to CFLAGS, CXXFLAGS and
-# RUSTFLAGS. This overlaps with our own support for sanitizers, but not fatally.
-# Note that this requires --enable-fastdev-unsafe-for-production in order to
-# pass sanitizer flags through to rust and not provoke linking errors.
-"${SRC_DIR}/configure" --enable-fuzz --enable-fastdev-unsafe-for-production --disable-postgres --enable-ccache
+# NB: the oss-fuzz driver injects sanitizer flags to CFLAGS and CXXFLAGS. This
+# overlaps with our own support for sanitizers, but not fatally. Note that this
+# requires --enable-fastdev-unsafe-for-production in order to pass sanitizer
+# flags through to rust and not provoke linking errors.
+"${SRC_DIR}/configure" --enable-fuzz --enable-sdfprefs --enable-fastdev-unsafe-for-production --disable-postgres --enable-ccache
 make -j $(nproc)
 make -C src fuzz-targets
 cp src/fuzz_* "${OUT}"

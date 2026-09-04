@@ -146,10 +146,19 @@ stellar_core_SOURCES += $(GENERATED_XDRQUERY_SOURCES) util/xdrquery/XDRQueryPars
 BUILT_SOURCES += rust/RustBridge.h $(GENERATED_RUST_SOURCES)
 stellar_core_SOURCES += rust/RustBridge.h $(GENERATED_RUST_SOURCES)
 
+# Figure out if we ought to be passing -Zsanitizer=... RUSTFLAGS and friends
+SANITIZE_FLAGS := $(filter -fsanitize=%,$(CXXFLAGS))
+RUSTFLAGS_ASAN := $(if $(findstring address,$(SANITIZE_FLAGS)),-Zsanitizer=address,)
+RUSTFLAGS_TSAN := $(if $(findstring thread,$(SANITIZE_FLAGS)),-Zsanitizer=thread,)
+RUSTFLAGS_SANI := $(RUSTFLAGS_ASAN) $(RUSTFLAGS_TSAN)
+CARGOFLAGS_BUILDSTD := $(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),-Zbuild-std,)
+RUSTFLAGS_CFGS := $(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),--cfg curve25519_dalek_backend=\"serial\",)
+
+
 RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_FILE_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
 if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
-RUST_TOOLCHAIN_CHANNEL=$(if $(findstring -fsanitize=,$(CXXFLAGS)),nightly,$(RUST_TOOLCHAIN_FILE_CHANNEL))
+RUST_TOOLCHAIN_CHANNEL=$(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),nightly,$(RUST_TOOLCHAIN_FILE_CHANNEL))
 else
 RUST_TOOLCHAIN_CHANNEL=$(RUST_TOOLCHAIN_FILE_CHANNEL)
 endif
@@ -347,8 +356,21 @@ if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 
 if ENABLE_FUZZ
 FASTDEV_CARGO_FEATURE_FUZZ_TARGETS=$(CARGO_FEATURE_FUZZ_TARGETS)
+# Since we're manually invoking cargo rustc here, not running `cargo-fuzz`, we
+# have to manually pass some sancov flags along to get fuzz instrumentation in
+# the rust code. We also have to inhibit the trace-pc-guard instrumentation if
+# the fuzz engine is libfuzzer, because it explicitly refuses to run with that
+# mode (it just exits with a message to turn it off). The other fuzz engines,
+# of course, require it.
+TRACE_PC_GUARD_FLAG := $(if $(findstring -fsanitize=fuzzer,$(LIB_FUZZING_ENGINE)),,-Cllvm-args=-sanitizer-coverage-trace-pc-guard)
+RUSTFLAGS_FUZZ := -C passes=sancov-module \
+				  -C llvm-args=-sanitizer-coverage-level=3 \
+				  -C llvm-args=-sanitizer-coverage-inline-8bit-counters \
+				  -C llvm-args=-sanitizer-coverage-pc-table \
+				  $(TRACE_PC_GUARD_FLAG)
 else
 FASTDEV_CARGO_FEATURE_FUZZ_TARGETS=
+RUSTFLAGS_FUZZ :=
 endif
 
 # In the fastdev build, we have to pass the --target flag. This actually breaks
@@ -357,17 +379,11 @@ endif
 RUST_TARGET=$(shell rustc -vV | sed -n 's/host: //p')
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_TARGET)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
 
-RUSTFLAGS_ASAN := $(if $(findstring -fsanitize=address,$(CXXFLAGS)),-Zsanitizer=address,)
-RUSTFLAGS_TSAN := $(if $(findstring -fsanitize=thread,$(CXXFLAGS)),-Zsanitizer=thread,)
-RUSTFLAGS_SANI := $(RUSTFLAGS_ASAN) $(RUSTFLAGS_TSAN)
-CARGOFLAGS_BUILDSTD := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),-Zbuild-std,)
-RUSTFLAGS_CFGS := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),--cfg curve25519_dalek_backend=\"serial\",)
-
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST_TOOLCHAIN_FILE)
 	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
-	RUSTFLAGS="$(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS)" \
+	RUSTFLAGS="$(RUSTFLAGS) $(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS) $(RUSTFLAGS_FUZZ)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		$(CARGOFLAGS_BUILDSTD) \
@@ -444,7 +460,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_
 		cd $(abspath $(top_srcdir))/src/rust/soroban/$$proto && \
 		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 		RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
-		RUSTFLAGS="-Cmetadata=$$proto" \
+		RUSTFLAGS="$(RUSTFLAGS) -Cmetadata=$$proto" \
 		CARGO_TARGET_DIR=$(SOROBAN_BUILD_DIR)/$$proto/target \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
