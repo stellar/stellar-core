@@ -9,7 +9,7 @@ Describe what this pull request does, which issue it's resolving (usually applic
 --->
 
 # Checklist
-- [ ] Reviewed the [contributing](https://github.com/stellar/stellar-core/blob/master/CONTRIBUTING.md#submitting-changes) document
+- [ ] Reviewed the [contributing](https://github.com/stellar/stellar-core/blob/master/CONTRIBUTING.md#opening-a-pull-request) document
 - [ ] Rebased on top of master (no merge commits)
 - [ ] Ran `clang-format` v8.0.0 (via `make format` or the Visual Studio extension)
 - [ ] Compiles
