@@ -111,46 +111,6 @@ groupLedgerEntryChanges(LedgerEntryChanges const& changes)
     return changesByKey;
 }
 
-LedgerEntry*
-mutableEntry(LedgerEntryChange& change)
-{
-    switch (change.type())
-    {
-    case LEDGER_ENTRY_CREATED:
-        return &change.created();
-    case LEDGER_ENTRY_STATE:
-        return &change.state();
-    case LEDGER_ENTRY_UPDATED:
-        return &change.updated();
-    case LEDGER_ENTRY_RESTORED:
-        return &change.restored();
-    case LEDGER_ENTRY_REMOVED:
-        return nullptr;
-    }
-    return nullptr;
-}
-
-void
-clearContractCodeCostInputs(LedgerEntry& entry)
-{
-    if (entry.data.type() == CONTRACT_CODE)
-    {
-        entry.data.contractCode().ext.v(0);
-    }
-}
-
-void
-clearContractCodeCostInputs(std::vector<LedgerEntryChange>& changes)
-{
-    for (auto& change : changes)
-    {
-        if (auto* entry = mutableEntry(change); entry != nullptr)
-        {
-            clearContractCodeCostInputs(*entry);
-        }
-    }
-}
-
 void
 expectTTLBump(std::vector<LedgerEntryChange> const& changes)
 {
@@ -278,30 +238,23 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
                     else
                     {
                         REQUIRE(res1IsP22);
-                        auto modifiedEntryChanges1 = entryChanges1;
-                        auto modifiedEntryChanges2 = entryChanges2;
-                        clearContractCodeCostInputs(modifiedEntryChanges1);
-                        clearContractCodeCostInputs(modifiedEntryChanges2);
-                        if (modifiedEntryChanges1 != modifiedEntryChanges2)
-                        {
-                            // The p22 entries are always in the live state, so
-                            // we expect the restoration lastModifiedLedgerSeq
-                            // to stay the same as it was on entry creation.
-                            REQUIRE(modifiedEntryChanges1.at(0)
-                                        .restored()
-                                        .lastModifiedLedgerSeq ==
-                                    hotArchiveEntryCreatedLedger);
-                            // That's the only diff we expect, so just update
-                            // lastModifiedLedgerSeq and proceed to comparing
-                            // the diffs.
-                            modifiedEntryChanges1.at(0)
-                                .restored()
-                                .lastModifiedLedgerSeq =
-                                modifiedEntryChanges2.at(0)
+                        // The p22 entries are always in the live state, so
+                        // we expect the restoration lastModifiedLedgerSeq
+                        // to stay the same as it was on entry creation.
+                        REQUIRE(entryChanges1.at(0)
                                     .restored()
-                                    .lastModifiedLedgerSeq;
-                        }
-                        REQUIRE(modifiedEntryChanges1 == modifiedEntryChanges2);
+                                    .lastModifiedLedgerSeq ==
+                                hotArchiveEntryCreatedLedger);
+                        // That's the only diff we expect, so just update
+                        // lastModifiedLedgerSeq and proceed to comparing
+                        // the diffs.
+                        auto modifiedEntryChanges1 = entryChanges1;
+                        modifiedEntryChanges1.at(0)
+                            .restored()
+                            .lastModifiedLedgerSeq = entryChanges2.at(0)
+                                                         .restored()
+                                                         .lastModifiedLedgerSeq;
+                        REQUIRE(modifiedEntryChanges1 == entryChanges2);
                     }
                 }
             }
@@ -381,24 +334,18 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
                 else
                 {
                     REQUIRE(liveEntry2);
+                    // As with the similar meta check above, the
+                    // lastModifiedLedgerSeq may be different in p22 due
+                    // to absence of hot archive.
+                    REQUIRE(liveEntry1->lastModifiedLedgerSeq ==
+                            hotArchiveEntryCreatedLedger);
+                    // That's the only diff we expect, so just update
+                    // lastModifiedLedgerSeq and proceed to comparing
+                    // the diffs.
                     auto modifiedLiveEntry1 = *liveEntry1;
-                    auto modifiedLiveEntry2 = *liveEntry2;
-                    clearContractCodeCostInputs(modifiedLiveEntry1);
-                    clearContractCodeCostInputs(modifiedLiveEntry2);
-                    if (modifiedLiveEntry1 != modifiedLiveEntry2)
-                    {
-                        // As with the similar meta check above, the
-                        // lastModifiedLedgerSeq may be different in p22 due
-                        // to absence of hot archive.
-                        REQUIRE(modifiedLiveEntry1.lastModifiedLedgerSeq ==
-                                hotArchiveEntryCreatedLedger);
-                        // That's the only diff we expect, so just update
-                        // lastModifiedLedgerSeq and proceed to comparing
-                        // the diffs.
-                        modifiedLiveEntry1.lastModifiedLedgerSeq =
-                            modifiedLiveEntry2.lastModifiedLedgerSeq;
-                    }
-                    REQUIRE(modifiedLiveEntry1 == modifiedLiveEntry2);
+                    modifiedLiveEntry1.lastModifiedLedgerSeq =
+                        liveEntry2->lastModifiedLedgerSeq;
+                    REQUIRE(modifiedLiveEntry1 == *liveEntry2);
                 }
             }
 
@@ -408,12 +355,7 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
         {
             // Entry is in hot archive in p23+ and is still in live state
             // in p22.
-            REQUIRE(liveEntry1);
-            auto modifiedLiveEntry1 = *liveEntry1;
-            auto modifiedHotArchiveEntry2 = *hotArchiveEntry2;
-            clearContractCodeCostInputs(modifiedLiveEntry1);
-            clearContractCodeCostInputs(modifiedHotArchiveEntry2);
-            REQUIRE(modifiedLiveEntry1 == modifiedHotArchiveEntry2);
+            REQUIRE(liveEntry1 == hotArchiveEntry2);
             REQUIRE(!liveEntry2);
         }
     }
@@ -1280,8 +1222,12 @@ runTest(int64_t seed, std::vector<std::pair<int, int>> const& scenarios,
         auto preParallelSorobanResult = applyTestTransactions(
             testConfig, preParallelSorobanProtocol, seed, autoRestore, 1, 1,
             randomWasms, hotArchiveEntryCreatedLedger);
-        compareResults(true, true, preParallelSorobanResult, baseResult,
-                       hotArchiveEntryCreatedLedger);
+        auto parallelSorobanResult = applyTestTransactions(
+            testConfig,
+            static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
+            seed, autoRestore, 1, 1, randomWasms, hotArchiveEntryCreatedLedger);
+        compareResults(true, true, preParallelSorobanResult,
+                       parallelSorobanResult, hotArchiveEntryCreatedLedger);
     }
 }
 

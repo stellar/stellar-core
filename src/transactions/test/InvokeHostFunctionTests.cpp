@@ -3243,14 +3243,29 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             // denominators instead of large write fees in order to get more
             // sensible numbers, but keeping it as is for now in order to
             // ensure that protocols before 23 are not broken.
-            bool const isV23 = protocolVersionStartsFrom(
-                test.getLedgerVersion(), ProtocolVersion::V_23);
-            bool const isV29 = protocolVersionStartsFrom(
-                test.getLedgerVersion(), ProtocolVersion::V_29);
-            int const rentBumpForWasm = isV29 ? 9'139 : (isV23 ? 8'793 : 943);
-            int const rentBumpForInstance = isV23 ? 199 : 939;
-            int const rentBumpForInstanceAndWasm =
-                isV29 ? 9'337 : (isV23 ? 8'991 : 1881);
+            int rentBumpForWasm = 0;
+            int rentBumpForInstance = 0;
+            int rentBumpForInstanceAndWasm = 0;
+            if (protocolVersionStartsFrom(test.getLedgerVersion(),
+                                          ProtocolVersion::V_29))
+            {
+                rentBumpForWasm = 9'139;
+                rentBumpForInstance = 199;
+                rentBumpForInstanceAndWasm = 9'337;
+            }
+            else if (protocolVersionStartsFrom(test.getLedgerVersion(),
+                                               ProtocolVersion::V_23))
+            {
+                rentBumpForWasm = 8'793;
+                rentBumpForInstance = 199;
+                rentBumpForInstanceAndWasm = 8'991;
+            }
+            else
+            {
+                rentBumpForWasm = 943;
+                rentBumpForInstance = 939;
+                rentBumpForInstanceAndWasm = 1881;
+            }
 
             SECTION("restore contract instance and wasm")
             {
