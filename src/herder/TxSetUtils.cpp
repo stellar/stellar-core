@@ -12,11 +12,13 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -165,91 +167,147 @@ TxSetUtils::buildAccountTxQueues(TxFrameList const& txs)
 template <typename T>
 TxFrameListWithErrors
 TxSetUtils::getInvalidTxListWithErrors(
-    T const& txs, Application& app,
+    T const& inTxs, Application& app,
     UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    CheckValidLedgerViewWrapper ledgerView(app);
+    TxFrameList txs(inTxs.begin(), inTxs.end());
+
+    auto ledgerView = std::make_unique<CheckValidLedgerViewWrapper>(app);
 #ifdef BUILD_TESTS
     // See TransactionQueue::canAdd for the overlay-only-mode rationale.
-    ledgerView.mSkipSeqNumCheck = app.getRunInOverlayOnlyMode();
+    ledgerView->mSkipSeqNumCheck = app.getRunInOverlayOnlyMode();
 #endif
     // Validate minSeqLedgerGap and LedgerBounds against the next ledgerSeq,
     // which is what will be used at apply time.
     std::optional<uint32_t> validationLedgerSeq;
     if (protocolVersionStartsFrom(
-            ledgerView.getLedgerHeader().current().ledgerVersion,
+            ledgerView->getLedgerHeader().current().ledgerVersion,
             ProtocolVersion::V_19))
     {
         validationLedgerSeq =
             app.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
 
+    // Parallelize transaction validation using the batch executor with
+    // `taskCount` batches.
+    auto taskCount = app.getBatchExecutor().preferredTaskCount();
+
+    // In some cases we might process a transaction set for ledger N while
+    // applying ledger N, in which case we won't be able to re-use the batch
+    // executor and thus need to fall back to single-threaded execution.
+    // This is really an edge case: it requires several tx sets to exist for the
+    // same ledger (which is rare), and the timing must be very specific for
+    // processing to happen after the vote and application start. Thus in
+    // practice we may consider this rare enough to not worry about the
+    // performance impact.
+    // NB: Both this method and `isApplying` must happen on the main thread,
+    // so there is no race condition risk.
+    if (app.getLedgerManager().isApplying())
+    {
+        taskCount = 1;
+    }
+#ifdef BUILD_TESTS
+    // In in-memory mode we use a raw LTX in validation, which is not safe to
+    // share across multiple threads. That's avoidable, but requires changes to
+    // LTX and validation logic, so it's not worth for fixing this just for
+    // tests.
+    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        taskCount = 1;
+    }
+#endif
+
+    std::vector<std::unique_ptr<CheckValidLedgerViewWrapper>> ledgerViews;
+    ledgerViews.emplace_back(std::move(ledgerView));
+
+    for (size_t i = 1; i < taskCount; ++i)
+    {
+        ledgerViews.emplace_back(
+            std::make_unique<CheckValidLedgerViewWrapper>(app));
+#ifdef BUILD_TESTS
+        // See TransactionQueue::canAdd for the overlay-only-mode
+        // rationale.
+        ledgerViews.back()->mSkipSeqNumCheck = app.getRunInOverlayOnlyMode();
+#endif
+    }
+
+    std::vector<std::pair<bool, std::optional<int64_t>>> txValidationResult(
+        txs.size());
+    auto& appConnector = app.getAppConnector();
+
+    app.getBatchExecutor().executeBatchOverRanges(
+        txs.size(), taskCount,
+        [&appConnector, &txs, &ledgerViews, &txValidationResult,
+         lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+         validationLedgerSeq](size_t begin, size_t end, size_t rangeIndex) {
+            auto const& view = *ledgerViews.at(rangeIndex);
+            auto const header = view.getLedgerHeader().current();
+            auto diagnostics = DiagnosticEventManager::createDisabled();
+            for (size_t i = begin; i < end; ++i)
+            {
+                auto res = txs[i]->checkValid(appConnector, view, 0,
+                                              lowerBoundCloseTimeOffset,
+                                              upperBoundCloseTimeOffset,
+                                              diagnostics, validationLedgerSeq);
+                txValidationResult[i].first = res->isSuccess();
+                if (!res->isSuccess())
+                {
+                    continue;
+                }
+                auto feeSource = view.getAccount(txs[i]->getFeeSourceID());
+                if (feeSource)
+                {
+                    txValidationResult[i].second =
+                        getAvailableBalance(header, feeSource.current());
+                }
+            }
+        });
+
     TxFrameListWithErrors invalidTxsWithError;
-    auto& invalidTxs = invalidTxsWithError.first;
-    auto& errorCode = invalidTxsWithError.second;
+    auto& [invalidTxs, errorCode] = invalidTxsWithError;
     errorCode = TxSetValidationResult::VALID;
 
-    std::unordered_set<Hash> seenInvalidTxs;
-    auto diagnostics = DiagnosticEventManager::createDisabled();
-    for (auto const& tx : txs)
+    for (size_t i = 0; i < txs.size(); ++i)
     {
-        auto txResult = tx->checkValid(
-            app.getAppConnector(), ledgerView, 0, lowerBoundCloseTimeOffset,
-            upperBoundCloseTimeOffset, diagnostics, validationLedgerSeq);
-        if (!txResult->isSuccess())
+        auto const& tx = txs[i];
+        auto const& [txIsValid, feeSourceBalance] = txValidationResult[i];
+        if (!txIsValid)
         {
             invalidTxs.emplace_back(tx);
-            seenInvalidTxs.emplace(tx->getFullHash());
             errorCode = TxSetValidationResult::TX_VALIDATION_FAILED;
+            continue;
+        }
+        int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
+        if (INT64_MAX - accFee < tx->getFullFee())
+        {
+            accFee = INT64_MAX;
         }
         else
         {
-            int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
-            if (INT64_MAX - accFee < tx->getFullFee())
-            {
-                accFee = INT64_MAX;
-            }
-            else
-            {
-                accFee += tx->getFullFee();
-            }
+            accFee += tx->getFullFee();
         }
-    }
-
-    auto header = ledgerView.getLedgerHeader().current();
-    for (auto const& tx : txs)
-    {
-        // Already added invalid tx
-        if (seenInvalidTxs.find(tx->getFullHash()) != seenInvalidTxs.end())
-        {
-            continue;
-        }
-
-        auto feeSourceID = tx->getFeeSourceID();
-        auto feeSource = ledgerView.getAccount(feeSourceID);
-        // feeSource should exist since we've already run checkValid, log
-        // internal bug
-        if (!feeSource)
+        // `feeSourceBalance` should exist as transaction must be valid, log
+        // an internal error and skip the transaction otherwise.
+        if (!feeSourceBalance)
         {
             CLOG_ERROR(Herder,
                        "Account not found when checking TxSet validity");
             CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
+            invalidTxs.emplace_back(tx);
+            errorCode = TxSetValidationResult::TX_VALIDATION_FAILED;
             continue;
         }
-        auto it = accountFeeMap.find(feeSourceID);
-        auto totFee = it->second;
-        if (getAvailableBalance(header, feeSource.current()) < totFee)
+        if (*feeSourceBalance < accFee)
         {
             invalidTxs.push_back(tx);
-            // Only override the error code if it wasn't already set
+            // Only override the error code if it wasn't already set.
             if (errorCode == TxSetValidationResult::VALID)
             {
                 errorCode = TxSetValidationResult::ACCOUNT_CANT_PAY_FEE;
             }
-            releaseAssert(seenInvalidTxs.insert(tx->getFullHash()).second);
             CLOG_DEBUG(
                 Herder, "Got bad txSet: account can't pay fee tx: {}",
                 xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"));

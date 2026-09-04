@@ -210,6 +210,31 @@ BatchExecutor::pinWorker(size_t index)
 #endif
 }
 
+void
+BatchExecutor::executeBatchOverRanges(
+    size_t count, size_t numTasks,
+    std::function<void(size_t, size_t, size_t)> const& work)
+{
+    if (numTasks <= 1 || count < numTasks)
+    {
+        work(0, count, 0);
+        return;
+    }
+    auto rangeSize = (count + numTasks - 1) / numTasks;
+    std::vector<std::function<int()>> tasks;
+    tasks.reserve(numTasks);
+    for (size_t begin = 0; begin < count; begin += rangeSize)
+    {
+        auto end = std::min(begin + rangeSize, count);
+        auto rangeIndex = tasks.size();
+        tasks.emplace_back([begin, end, rangeIndex, &work]() {
+            work(begin, end, rangeIndex);
+            return 0;
+        });
+    }
+    executeBatch(std::move(tasks));
+}
+
 size_t
 BatchExecutor::preferredTaskCount() const
 {

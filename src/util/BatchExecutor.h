@@ -8,6 +8,7 @@
 #include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -48,14 +49,31 @@ class BatchExecutor : private NonMovableOrCopyable
     // more tasks than physical cores is allowed, but will result in performance
     // degradation.
     //
-    // Only a single thread may call executeBatch at a time (enforced by an
-    // assertion), but the executor may be reused for multiple batches scheduled
-    // from arbitrary threads over its lifetime.
+    // Only a single thread may call executeBatch/executeBatchOverRanges at a
+    // time (enforced by an assertion), but the executor may be reused for
+    // multiple batches scheduled from arbitrary threads over its lifetime.
     //
     // Rethrows the first exception captured from a `runTask` invocation,
     // if any.
     template <typename T>
     std::vector<T> executeBatch(std::vector<std::function<T()>> tasks);
+
+    // Splits [0, count) into contiguous ranges and executes
+    // `work(begin, end, rangeIndex)` for every range in parallel, using
+    // `numTasks` ranges.
+    // `rangeIndex` is the index of the range within the batch. Runs the whole
+    // range on the calling thread if there are fewer elements than the
+    // `numTasks` - prefer using `executeBatch` for a small number of
+    // heavy tasks.
+    //
+    // Only a single thread may call executeBatch/executeBatchOverRanges at a
+    // time (enforced by an assertion), but the executor may be reused for
+    // multiple batches scheduled from arbitrary threads over its lifetime.
+    //
+    // Rethrows the first exception captured from a `work` invocation, if any.
+    void executeBatchOverRanges(
+        size_t count, size_t numTasks,
+        std::function<void(size_t, size_t, size_t)> const& work);
 
     // Returns the maximum number of tasks to use in `executeBatch` without
     // oversubscribing physical cores.
