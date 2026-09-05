@@ -34,6 +34,12 @@
 #include <Tracy.hpp>
 #include <crypto/SHA.h>
 
+#ifdef _WIN32
+#ifdef ERROR
+#undef ERROR
+#endif
+#endif
+
 namespace stellar
 {
 namespace
