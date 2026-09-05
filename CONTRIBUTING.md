@@ -7,13 +7,53 @@ Guide](https://github.com/stellar/.github/blob/master/CONTRIBUTING.md) for detai
 to stellar-core and Stellar's other repositories, especially with regard to our code of conduct and
 contributor license agreement.
 
-## Submitting Changes
+The repository-specific requirements below take precedence where they are more restrictive than the
+general Stellar Contribution Guide.
 
-Fork the `stellar/stellar-core` repo on github and submit a pull request from a branch in your fork. 
-Key things to keep in mind:
-* Keep your branch up-to-date by rebasing on `stellar/stellar-core` `master`
-* Ensure your branch focuses on a single issue at a time
-* Before merging, squash your commits and ensure you have a descriptive commit message
+## Before Contributing
+
+Stellar Core processes live financial transactions. Correctness is critical, and maintainer and
+reviewer time is limited. We welcome contributions that address a demonstrated, material problem or
+advance work that maintainers have agreed is a priority.
+
+### Start With an Issue
+
+Before creating an issue, search the existing issues and join a relevant discussion if an existing issue is present. 
+When creating a new issue, you should establish:
+
+* The concrete problem that needs solving.
+* For a bug, include a minimal reproducer with the expected and actual behavior whenever possible.
+* Relevant alternatives, if any, and their tradeoffs.
+* For a performance change, measurements that show the current problem and provide a baseline for evaluating a solution.
+
+Personally verify findings before reporting them. Do not submit speculative findings or generated lists of possible issues.
+
+Opening an issue does not reserve the work or mean that a code change is wanted. 
+An issue with the `help wanted` label is available for implementation, but contributors should
+still discuss their proposed approach on the issue before starting substantial work. 
+
+### Participation and Review
+
+Keep your participation to issues and do not post comments on pull requests. Issue comments should be specific and evidence-based. 
+Comments must not be about implementation strategies unless explicitly invited to do so.
+Maintainers will delete issue comments that are irrelevant to the issue. 
+Proceed with a pull request only when invited by the maintainers, including for issues with the `help wanted` label.
+
+## Opening a Pull Request
+
+We are currently only accepting pull requests for issues with the `help wanted` label.  
+Unsolicited pull requests will be closed without an explanation and reported as spam. 
+Making changes to stellar-core requires deep architectural knowledge, a good understanding of system constraints, and 
+an idea about the project roadmap. External contributors often do not have this context, and their pull requests 
+typically focus on lower-priority issues. Reviewing those changes takes the maintainers' focus away from higher-priority work. 
+
+Key things to keep in mind when creating a pull request:
+
+* Fork the `stellar/stellar-core` repository and submit the pull request from a branch in your fork.
+* Link the approved issue and keep the pull request within the agreed scope.
+* Keep your branch up-to-date by rebasing on `stellar/stellar-core` `master`.
+* Ensure your branch focuses on a single issue at a time.
+* Before merging, squash your commits and ensure you have a descriptive commit message.
 
 ## Stellar Core Contribution Specifics
 
