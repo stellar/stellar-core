@@ -1,0 +1,53 @@
+# Soft check that any `#ifdef CAP_XXXX` / `defined(CAP_XXXX)` reference added
+# in a PR points to a CAP whose status on stellar/stellar-protocol@master is
+# "Accepted". Posts an advisory PR comment when a non-Accepted CAP is guarded;
+# never fails the check (exit 0 always).
+#
+# Uses `pull_request_target` so the comment-posting token works for PRs opened
+# from forks. The job intentionally does NOT execute any code from the PR head:
+# it only runs `git diff` over PR-head blobs (data, not execution) using the
+# trusted base checkout's git binary and config. Treat any future step that
+# runs, sources, or interprets PR-head files as a security-relevant change.
+name: CAP Status Check
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, ready_for_review, reopened]
+    paths:
+      - 'src/**/*.h'
+      - 'src/**/*.hpp'
+      - 'src/**/*.cpp'
+
+permissions: {}
+
+concurrency:
+  group: cap-status-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Check out the base ref (trusted code from this repo) so that the
+      # workflow's scripts and git config come from base, not the PR.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      # Fetch the PR head as a bare ref so `git diff` can read its blobs.
+      # `pull/<num>/head` works for both same-repo and fork PRs.
+      - name: Fetch PR head
+        run: git fetch --no-tags origin "pull/${{ github.event.pull_request.number }}/head"
+
+      - name: Check CAP statuses on diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: .github/scripts/check-cap-status.sh
