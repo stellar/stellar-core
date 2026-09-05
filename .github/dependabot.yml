@@ -1,0 +1,43 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directories: 
+      - "/"
+      - "/src/rust"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "02:00"
+    open-pull-requests-limit: 2
+    groups:
+      cargo-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+        - "patch"
+        - "minor"
+      cargo-major:
+        applies-to: version-updates
+        update-types:
+        - "major"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "02:00"
+    open-pull-requests-limit: 2
+    groups:
+      all-actions:
+        applies-to: version-updates
+        patterns: [ "*" ]
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "02:00"
+    open-pull-requests-limit: 2
+    groups:
+      all-docker:
+        applies-to: version-updates
+        patterns: [ "*" ]
