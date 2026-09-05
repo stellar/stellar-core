@@ -194,6 +194,14 @@ isAsciiAlphaNumeric(char c)
 }
 
 inline bool
+isAsciiHexDigit(char c)
+{
+    unsigned char uc = static_cast<unsigned char>(c);
+    return ('0' <= uc && uc <= '9') || ('a' <= uc && uc <= 'f') ||
+           ('A' <= uc && uc <= 'F');
+}
+
+inline bool
 isAsciiNonControl(char c)
 {
     unsigned char uc = static_cast<unsigned char>(c);

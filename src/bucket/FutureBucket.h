@@ -133,6 +133,11 @@ template <class BucketT> class FutureBucket
     // Return all hashes referenced by this future.
     std::vector<std::string> getHashes() const;
 
+    // Maximum number of shadow hashes allowed during deserialization.
+    // Shadows were removed in protocol 12; this cap prevents OOM from
+    // crafted HAS JSON with enormous shadow arrays.
+    static constexpr size_t MAX_SHADOW_HASHES = 32;
+
     template <class Archive>
     void
     load(Archive& ar)
@@ -145,9 +150,26 @@ template <class BucketT> class FutureBucket
             ar(cereal::make_nvp("curr", mInputCurrBucketHash));
             ar(cereal::make_nvp("snap", mInputSnapBucketHash));
             ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
+            // Validate required fields before checkState to avoid
+            // releaseAssert abort on malformed archive data
+            if (mInputCurrBucketHash.empty() || mInputSnapBucketHash.empty())
+            {
+                throw std::runtime_error(
+                    "FutureBucket FB_HASH_INPUTS has empty curr or snap hash");
+            }
+            if (mInputShadowBucketHashes.size() > MAX_SHADOW_HASHES)
+            {
+                throw std::runtime_error(
+                    "FutureBucket has too many shadow hashes");
+            }
             break;
         case FB_HASH_OUTPUT:
             ar(cereal::make_nvp("output", mOutputBucketHash));
+            if (mOutputBucketHash.empty())
+            {
+                throw std::runtime_error(
+                    "FutureBucket FB_HASH_OUTPUT has empty output hash");
+            }
             break;
         case FB_CLEAR:
             break;
