@@ -282,7 +282,7 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
                             Config const& appCfg) const
 {
     auto result = std::vector<LedgerUpgrade>{};
-    if (!timeForUpgrade(lclHeader.scpValue.closeTime))
+    if (!timeForUpgrade(getApplyTime(lclHeader.scpValue)))
     {
         return result;
     }
@@ -470,7 +470,7 @@ Upgrades::toString() const
 Upgrades::UpgradeParameters
 Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
                          std::vector<UpgradeType>::const_iterator endUpdates,
-                         uint64_t closeTime, bool& updated)
+                         ApplyTime closeTime, bool& updated)
 {
     updated = false;
     UpgradeParameters res = mParams;
@@ -480,7 +480,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
     // upgrades don't attempt to change the network
     if (res.mUpgradeTime + res.mExpirationMinutes.value_or(
                                DEFAULT_UPGRADE_EXPIRATION_MINUTES) <=
-        VirtualClock::from_time_t(closeTime))
+        VirtualClock::from_time_t(closeTime.timePoint()))
     {
         auto resetParamIfSet = [&](auto& o) {
             if (o)
@@ -646,7 +646,7 @@ Upgrades::isValidForNomination(
     CheckValidLedgerViewWrapper const& ledgerView) const
 {
     if (!timeForUpgrade(
-            ledgerView.getLedgerHeader().current().scpValue.closeTime))
+            getApplyTime(ledgerView.getLedgerHeader().current().scpValue)))
     {
         return false;
     }
@@ -710,9 +710,9 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
 }
 
 bool
-Upgrades::timeForUpgrade(uint64_t time) const
+Upgrades::timeForUpgrade(ApplyTime time) const
 {
-    return mParams.mUpgradeTime <= VirtualClock::from_time_t(time);
+    return mParams.mUpgradeTime <= VirtualClock::from_time_t(time.timePoint());
 }
 
 void

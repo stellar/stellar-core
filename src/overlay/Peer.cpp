@@ -1424,8 +1424,10 @@ Peer::process(QueryInfo& queryInfo, std::optional<Hash> queryKey,
               std::optional<uint32_t> maxQueriesPerWindow)
 {
     auto const& cfg = mAppConnector.getConfig();
+    // Round up so sub-second close times can't produce a zero-length window
+    // (which would zero out QUERIES_PER_WINDOW and reject every query).
     std::chrono::seconds const QUERY_WINDOW =
-        std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::ceil<std::chrono::seconds>(
             mAppConnector.getLedgerManager().getExpectedLedgerCloseTime() *
             cfg.MAX_SLOTS_TO_REMEMBER);
     uint32_t const QUERIES_PER_WINDOW = maxQueriesPerWindow.value_or(

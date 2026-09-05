@@ -16,6 +16,7 @@
 namespace stellar
 {
 class AbstractLedgerTxn;
+class ApplyTime;
 class Config;
 class Database;
 struct LedgerHeader;
@@ -126,14 +127,14 @@ class Upgrades
     UpgradeParameters
     removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
                    std::vector<UpgradeType>::const_iterator endUpdates,
-                   uint64_t time, bool& updated);
+                   ApplyTime closeTime, bool& updated);
 
     static void maybeDropAndCreateNew(Database& db);
 
   private:
     UpgradeParameters mParams;
 
-    bool timeForUpgrade(uint64_t time) const;
+    bool timeForUpgrade(ApplyTime time) const;
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets lupgrade

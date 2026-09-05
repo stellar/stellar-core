@@ -10,6 +10,12 @@ namespace stellar
 // This is a set of utilities for checking the ledger protocol versions in
 // expressive and searchable fashion.
 
+constexpr uint32_t MAX_SUPPORTED_PROTOCOL_VERSION = 28
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                                                    + 1
+#endif
+    ;
+
 enum class ProtocolVersion : uint32_t
 {
     V_0 = 0,
@@ -78,5 +84,15 @@ constexpr ProtocolVersion TX_ED25519_VERIFY_BUDGET_PROTOCOL_VERSION =
 
 constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
     ProtocolVersion::V_28;
+
+// MS_CLOSE_TIME_PROTOCOL_VERSION should always be whatever the vnext protocol
+// version is.
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+constexpr ProtocolVersion MS_CLOSE_TIME_PROTOCOL_VERSION =
+    static_cast<ProtocolVersion>(MAX_SUPPORTED_PROTOCOL_VERSION);
+#else
+constexpr ProtocolVersion MS_CLOSE_TIME_PROTOCOL_VERSION =
+    static_cast<ProtocolVersion>(MAX_SUPPORTED_PROTOCOL_VERSION + 1);
+#endif
 
 } // namespace stellar

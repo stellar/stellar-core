@@ -12,6 +12,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger.h"
@@ -86,9 +87,10 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
     CLOG_INFO(Bucket, "Artificially closing ledger {} with lcl={}, buckets={}",
               ledgerNum, hexAbbrev(lcl.hash),
               hexAbbrev(app.getBucketManager().getLiveBucketList().getHash()));
-    app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lcl), ledgerNum,
-                                     lcl.header.scpValue.closeTime, upgrades,
-                                     skToSignValue);
+    app.getHerder().externalizeValue(
+        TxSetXDRFrame::makeEmpty(lcl), ledgerNum,
+        txtest::makeConsensusTime(lcl.header.scpValue.closeTime), upgrades,
+        skToSignValue);
     while (lm.getLastClosedLedgerNum() < ledgerNum)
     {
         app.getClock().crank(true);
