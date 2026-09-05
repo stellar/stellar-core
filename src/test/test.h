@@ -35,16 +35,26 @@ int runTest(CommandLineArgs const& args);
 extern int gBaseInstance;
 extern bool force_sqlite;
 
-// Returns true if --capture-lcm was passed to the test command.
-// When enabled, LedgerCloseMeta from closeLedger/closeLedgerOn is
-// automatically written to binary XDR files under a protocol-tiered
-// directory: test-lcm-next/<TestFile>/ when the binary is built with
-// --enable-next-protocol-version-unsafe-for-production, otherwise
-// test-lcm-current/<TestFile>/. Files are written at leaf section
-// boundaries (or test case end for tests without sections). File names
-// are SHA-256 hashes of the human-readable test name; each directory
-// also contains an index.json mapping hashes to test names.
+// Returns true if --capture-lcm or --check-lcm was passed to the test
+// command. When enabled, LedgerCloseMeta from closeLedger/closeLedgerOn is
+// accumulated and, at leaf section boundaries (or test case end for tests
+// without sections), either written to or checked against binary XDR files
+// under a protocol-tiered directory: test-lcm-next/<TestFile>/ when the
+// binary is built with --enable-next-protocol-version-unsafe-for-production,
+// otherwise test-lcm-current/<TestFile>/. File names are SHA-256 hashes of
+// the human-readable test name; each directory also contains an index.json
+// mapping hashes to test names, stamped with the protocol version and rng
+// seed that produced the data.
 bool isLcmCaptureEnabled();
+
+// Marks the running test as unsuitable for LedgerCloseMeta golden data,
+// naming the reason (e.g. injecting ledger entries straight into the bucket
+// list, or running a multi-node simulation whose progression depends on
+// thread scheduling). Capture skips such a test's leaves and logs the
+// reason; --check-lcm fails if golden data for them still exists, so a
+// stale or misleading vector cannot linger. Calling this when LCM tracking
+// is off is free, so hooks may call it unconditionally.
+void taintLcmCapture(std::string const& reason);
 
 void test_versions_wrapper(std::function<void(void)> f);
 

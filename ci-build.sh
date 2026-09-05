@@ -217,6 +217,15 @@ export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --all-versi
 export SKIP_SOROBAN_TESTS=true
 time make check
 
+# Reuse the same build to check the captured LedgerCloseMeta golden data
+# under test-lcm-current/ or test-lcm-next/ (the binary picks its tier).
+# No --all-versions: the golden data is captured at the default (latest)
+# protocol version only.
+echo Running fixed check-lcm tests
+export TEST_SPEC='[tx]'
+export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --rng-seed 12345 --check-lcm ${SRC_DIR}"
+time make check
+
 echo All done
 date
 
