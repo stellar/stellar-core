@@ -8,7 +8,9 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/TransactionFrameBase.h"
 #include "transactions/test/TransactionTestFrame.h"
+#include <functional>
 #include <optional>
 
 namespace stellar
@@ -22,6 +24,9 @@ class TestAccount;
 
 namespace txtest
 {
+
+using ApplyOrderTxCallback =
+    std::function<void(size_t, stellar::TransactionFrameBaseConstPtr const&)>;
 
 struct ExpectedOpResult
 {
@@ -88,11 +93,13 @@ TransactionResultSet
 closeLedger(Application& app,
             std::vector<TransactionFrameBasePtr> const& txs = {},
             bool strictOrder = false,
-            xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps);
+            xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
+            ApplyOrderTxCallback const& applyOrderTxCallback = {});
 
 TransactionResultSet
 closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
-            ParallelSorobanOrder const& parallelSorobanOrder);
+            ParallelSorobanOrder const& parallelSorobanOrder,
+            ApplyOrderTxCallback const& applyOrderTxCallback = {});
 
 TransactionResultSet
 closeLedgerOn(Application& app, int day, int month, int year,
@@ -104,7 +111,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false,
               xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
-              ParallelSorobanOrder const& parallelSorobanOrder = {});
+              ParallelSorobanOrder const& parallelSorobanOrder = {},
+              ApplyOrderTxCallback const& applyOrderTxCallback = {});
 
 TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 
