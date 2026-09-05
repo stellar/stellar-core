@@ -59,6 +59,17 @@ It then follows that:
 
 # List of releases
 
+## v28.0.0 (2026-08-13)
+* `Overlay` - security - Strengthen flow control and peer request processing limits to prevent excessive resource consumption.
+    * exploited: no
+    * mitigation: code fix
+* `Ledger` - security - Enforce transaction signature verification limits throughout transaction validation.
+    * exploited: no
+    * mitigation: code fix
+* `Ledger` - security - Ensure consistent validation of transaction XDR across protocol versions.
+    * exploited: no
+    * mitigation: code fix
+
 ## v26.1.0 (2026-05-07)
 * `Ledger` - security - Replace block on transactions using `ed25519SignedPayload` signatures with an overall cap on signature verifications stellar-core will perform per transaction.
     * exploited: no
