@@ -32,6 +32,7 @@ class SignatureChecker;
 class ParallelLedgerInfo;
 class TxEffects;
 class ThreadParallelApplyLedgerState;
+struct SorobanApplyMetrics;
 
 class MutableTransactionResultBase;
 using MutableTxResultPtr = std::unique_ptr<MutableTransactionResultBase>;
@@ -154,13 +155,15 @@ class TransactionFrameBase
     apply(AppConnector& app, AbstractLedgerTxn& ltx,
           TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
           std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-          Hash const& sorobanBasePrngSeed) const = 0;
+          Hash const& sorobanBasePrngSeed,
+          SorobanApplyMetrics& sorobanMetrics) const = 0;
 
     virtual void
     preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
                      TransactionMetaBuilder& meta,
                      MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const = 0;
+                     SorobanNetworkConfig const& sorobanConfig,
+                     SorobanApplyMetrics& sorobanMetrics) const = 0;
 
     // If the transaction fails during parallel apply, returns std::nullopt.
     // Otherwise returns a ParallelTxSuccessVal containing the modified entries
@@ -169,7 +172,7 @@ class TransactionFrameBase
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,
-        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        SorobanApplyMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
         TxEffects& effects) const = 0;
 
     // When validationLedgerSeq is set, ledger sequence precondition

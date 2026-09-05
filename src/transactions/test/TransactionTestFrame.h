@@ -55,13 +55,22 @@ class TransactionTestFrame : public TransactionFrameBase
     TransactionFrame const& getRawTransactionFrame() const;
     TransactionFrameBasePtr getTxFramePtr() const;
 
-    // Redefinitions of TransactionFrameBase functions
+    // Test-only overload that records the apply metrics into an instance that
+    // is simply dropped.
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaBuilder& meta,
                MutableTransactionResultBase& txResult,
                std::optional<SorobanNetworkConfig const> const& sorobanConfig =
                    std::nullopt,
-               Hash const& sorobanBasePrngSeed = Hash{}) const override;
+               Hash const& sorobanBasePrngSeed = Hash{}) const;
+
+    // Redefinitions of TransactionFrameBase functions
+    bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
+               TransactionMetaBuilder& meta,
+               MutableTransactionResultBase& txResult,
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+               Hash const& sorobanBasePrngSeed,
+               SorobanApplyMetrics& sorobanMetrics) const override;
 
     MutableTxResultPtr checkValid(AppConnector& app,
                                   AbstractLedgerTxn& ltxOuter,
@@ -155,17 +164,17 @@ class TransactionTestFrame : public TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& resPayload,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
+    void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaBuilder& meta,
+                          MutableTransactionResultBase& resPayload,
+                          SorobanNetworkConfig const& sorobanConfig,
+                          SorobanApplyMetrics& sorobanMetrics) const override;
 
     std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,
-        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        SorobanApplyMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
         TxEffects& effects) const override;
 
     MutableTxResultPtr

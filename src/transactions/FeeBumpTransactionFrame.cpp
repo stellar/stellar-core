@@ -86,7 +86,8 @@ void
 FeeBumpTransactionFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig) const
+    SorobanNetworkConfig const& sorobanConfig,
+    SorobanApplyMetrics& sorobanMetrics) const
 {
     try
     {
@@ -107,7 +108,8 @@ FeeBumpTransactionFrame::preParallelApply(
     try
     {
         mInnerTx->preParallelApply(/*chargeFee=*/false, app, ltx, meta,
-                                   txResult, sorobanConfig, getContentsHash());
+                                   txResult, sorobanConfig, getContentsHash(),
+                                   sorobanMetrics);
     }
     catch (std::exception& e)
     {
@@ -123,7 +125,7 @@ std::optional<ParallelTxSuccessVal>
 FeeBumpTransactionFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
+    MutableTransactionResultBase& txResult, SorobanApplyMetrics& sorobanMetrics,
     Hash const& txPrngSeed, TxEffects& effects) const
 {
     try
@@ -154,7 +156,7 @@ FeeBumpTransactionFrame::apply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    Hash const& sorobanBasePrngSeed) const
+    Hash const& sorobanBasePrngSeed, SorobanApplyMetrics& sorobanMetrics) const
 {
     try
     {
@@ -180,7 +182,8 @@ FeeBumpTransactionFrame::apply(
         // If this throws, then we may not have the correct TransactionResult so
         // we must crash.
         return mInnerTx->apply(false, app, ltx, meta, txResult, sorobanConfig,
-                               sorobanBasePrngSeed, getContentsHash());
+                               sorobanBasePrngSeed, getContentsHash(),
+                               sorobanMetrics);
     }
     catch (std::exception& e)
     {

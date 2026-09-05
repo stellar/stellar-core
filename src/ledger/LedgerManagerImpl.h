@@ -68,7 +68,7 @@ class LedgerManagerImpl : public LedgerManager
   private:
     struct LedgerApplyMetrics
     {
-        SorobanMetrics mSorobanMetrics;
+        SorobanMetricsRegistry mSorobanMetrics;
         medida::Timer& mTransactionApply;
         medida::Timer& mTotalTxApply;
         medida::Histogram& mTransactionCount;
@@ -358,14 +358,16 @@ class LedgerManagerImpl : public LedgerManager
         ApplicableTxSetFrame const& txSet,
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         AbstractLedgerTxn& ltx,
-        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     void applyParallelPhase(
         TxSetPhaseFrame const& phase, std::vector<ApplyStage>& applyStages,
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
         SorobanNetworkConfig const& sorobanConfig,
-        Hash const& sorobanBasePrngSeed);
+        Hash const& sorobanBasePrngSeed,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     void applySequentialPhase(
         TxSetPhaseFrame const& phase,
@@ -374,7 +376,7 @@ class LedgerManagerImpl : public LedgerManager
         std::optional<SorobanNetworkConfig const> const& sorobanConfig,
         Hash const& sorobanBasePrngSeed,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        TransactionResultSet& txResultSet);
+        TransactionResultSet& txResultSet, SorobanApplyMetrics& sorobanMetrics);
 
     void processPostTxSetApply(
         std::vector<TxSetPhaseFrame> const& phases,
@@ -386,29 +388,34 @@ class LedgerManagerImpl : public LedgerManager
     applyThread(AppConnector& app,
                 std::unique_ptr<ThreadParallelApplyLedgerState> threadState,
                 Cluster const& cluster, Config const& config,
-                ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
+                ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed,
+                SorobanApplyMetrics& sorobanMetrics);
 
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
     applySorobanStageClustersInParallel(
         AppConnector& app, ApplyStage const& stage,
         GlobalParallelApplyLedgerState const& globalState,
         Hash const& sorobanBasePrngSeed, Config const& config,
-        ParallelLedgerInfo const& ledgerInfo);
+        ParallelLedgerInfo const& ledgerInfo,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     void checkAllTxBundleInvariants(AppConnector& app, ApplyStage const& stage,
                                     Config const& config,
                                     ParallelLedgerInfo const& ledgerInfo,
                                     LedgerHeader const& header);
 
-    void applySorobanStage(AppConnector& app, LedgerHeader const& header,
-                           GlobalParallelApplyLedgerState& globalParState,
-                           ApplyStage const& stage,
-                           Hash const& sorobanBasePrngSeed);
+    void applySorobanStage(
+        AppConnector& app, LedgerHeader const& header,
+        GlobalParallelApplyLedgerState& globalParState, ApplyStage const& stage,
+        Hash const& sorobanBasePrngSeed,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
-    void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
-                            std::vector<ApplyStage> const& stages,
-                            SorobanNetworkConfig const& sorobanConfig,
-                            Hash const& sorobanBasePrngSeed);
+    void applySorobanStages(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        std::vector<ApplyStage> const& stages,
+        SorobanNetworkConfig const& sorobanConfig,
+        Hash const& sorobanBasePrngSeed,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
@@ -478,9 +485,11 @@ class LedgerManagerImpl : public LedgerManager
 
     void emitNextMeta();
 
-    // Publishes soroban metrics, including select network config limits as well
-    // as the actual ledger usage.
-    void publishSorobanMetrics();
+    // Publishes soroban metrics, including select network config limits as
+    // well as the actual ledger usage accumulated in `sorobanApplyMetrics`
+    // (which is consumed by this call).
+    void publishSorobanMetrics(
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     // Update cached last closed ledger state values managed by this class.
     void
@@ -600,7 +609,9 @@ class LedgerManagerImpl : public LedgerManager
     void completeLedgerClose(uint32_t ledgerSeq, bool calledViaExternalize,
                              LedgerCloseData const& ledgerData,
                              ImmutableLedgerDataPtr appliedLedgerState,
-                             bool upgradeApplied) override;
+                             bool upgradeApplied,
+                             std::vector<SorobanApplyMetrics>&&
+                                 sorobanApplyMetricsPerThread) override;
     void notifyLedgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
                                    LedgerCloseData const& ledgerData,
                                    bool upgradeApplied);
@@ -612,7 +623,7 @@ class LedgerManagerImpl : public LedgerManager
     void setupLedgerCloseMetaStream();
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
-    SorobanMetrics& getSorobanMetrics() override;
+    SorobanMetricsRegistry& getSorobanMetrics() override;
     ImmutableLedgerView copyImmutableLedgerView() const override;
     ApplyLedgerView copyApplyLedgerView() const override;
     void maybeUpdateImmutableLedgerView(

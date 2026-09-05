@@ -106,7 +106,7 @@ maybePopulateOutputDiagnosticEvents(Config const& cfg,
 // Metrics for host function execution
 struct HostFunctionMetrics
 {
-    SorobanMetrics& mMetrics;
+    SorobanApplyMetrics& mMetrics;
     bool const mDisableMetrics;
 
     uint32_t mReadEntry{0};
@@ -147,7 +147,7 @@ struct HostFunctionMetrics
 
     bool mSuccess{false};
 
-    HostFunctionMetrics(SorobanMetrics& metrics, bool disableMetrics)
+    HostFunctionMetrics(SorobanApplyMetrics& metrics, bool disableMetrics)
         : mMetrics(metrics), mDisableMetrics(disableMetrics)
     {
     }
@@ -159,65 +159,62 @@ struct HostFunctionMetrics
             return;
         }
 
-        mMetrics.accumulateModelledCpuInsns(mCpuInsn, mCpuInsnExclVm,
-                                            mInvokeTimeNsecs);
+        mMetrics.mLedgerInsnsCount += mCpuInsn;
+        mMetrics.mLedgerInsnsExclVmCount += mCpuInsnExclVm;
+        mMetrics.mLedgerHostFnExecTimeNsecs += mInvokeTimeNsecs;
 
-        // Record everything into the calling thread's batch (published once
-        // per ledger) instead of updating ~25 process-wide metrics from
-        // every (possibly concurrent) operation.
-        auto& batch = mMetrics.getApplyThreadBatch();
+        mMetrics.mHostFnOpReadEntry += mReadEntry;
+        mMetrics.mHostFnOpWriteEntry += mWriteEntry;
 
-        batch.mHostFnOpReadEntry += mReadEntry;
-        batch.mHostFnOpWriteEntry += mWriteEntry;
+        mMetrics.mHostFnOpReadKeyByte += mReadKeyByte;
+        mMetrics.mHostFnOpWriteKeyByte += mWriteKeyByte;
 
-        batch.mHostFnOpReadKeyByte += mReadKeyByte;
-        batch.mHostFnOpWriteKeyByte += mWriteKeyByte;
+        mMetrics.mHostFnOpReadLedgerByte += mLedgerReadByte;
+        mMetrics.mHostFnOpReadDataByte += mReadDataByte;
+        mMetrics.mHostFnOpReadCodeByte += mReadCodeByte;
 
-        batch.mHostFnOpReadLedgerByte += mLedgerReadByte;
-        batch.mHostFnOpReadDataByte += mReadDataByte;
-        batch.mHostFnOpReadCodeByte += mReadCodeByte;
+        mMetrics.mHostFnOpWriteLedgerByte += mLedgerWriteByte;
+        mMetrics.mHostFnOpWriteDataByte += mWriteDataByte;
+        mMetrics.mHostFnOpWriteCodeByte += mWriteCodeByte;
 
-        batch.mHostFnOpWriteLedgerByte += mLedgerWriteByte;
-        batch.mHostFnOpWriteDataByte += mWriteDataByte;
-        batch.mHostFnOpWriteCodeByte += mWriteCodeByte;
+        mMetrics.mHostFnOpEmitEvent += mEmitEvent;
+        mMetrics.mHostFnOpEmitEventByte += mEmitEventByte;
 
-        batch.mHostFnOpEmitEvent += mEmitEvent;
-        batch.mHostFnOpEmitEventByte += mEmitEventByte;
-
-        batch.mHostFnOpCpuInsn += mCpuInsn;
-        batch.mHostFnOpMemByte += mMemByte;
-        batch.mHostFnOpInvokeTimeNsecs.push_back(
+        mMetrics.mHostFnOpCpuInsn += mCpuInsn;
+        mMetrics.mHostFnOpMemByte += mMemByte;
+        mMetrics.mHostFnOpInvokeTimeNsecs.push_back(
             static_cast<int64_t>(mInvokeTimeNsecs));
-        batch.mHostFnOpCpuInsnExclVm += mCpuInsnExclVm;
-        batch.mHostFnOpInvokeTimeNsecsExclVm.push_back(
+        mMetrics.mHostFnOpCpuInsnExclVm += mCpuInsnExclVm;
+        mMetrics.mHostFnOpInvokeTimeNsecsExclVm.push_back(
             static_cast<int64_t>(mInvokeTimeNsecsExclVm));
-        batch.mHostFnOpInvokeTimeFsecsCpuInsnRatio.push_back(
+        mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatio.push_back(
             static_cast<int64_t>(mInvokeTimeNsecs * 1000000 /
                                  std::max(mCpuInsn, uint64_t(1))));
-        batch.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.push_back(
+        mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.push_back(
             static_cast<int64_t>(mInvokeTimeNsecsExclVm * 1000000 /
                                  std::max(mCpuInsnExclVm, uint64_t(1))));
-        batch.mHostFnOpDeclaredInsnsUsageRatio.push_back(static_cast<int64_t>(
-            mCpuInsn * 1000000 / std::max(mDeclaredCpuInsn, uint64_t(1))));
+        mMetrics.mHostFnOpDeclaredInsnsUsageRatio.push_back(
+            static_cast<int64_t>(mCpuInsn * 1000000 /
+                                 std::max(mDeclaredCpuInsn, uint64_t(1))));
 
-        batch.mHostFnOpMaxRwKeyByte += mMaxReadWriteKeyByte;
-        batch.mHostFnOpMaxRwDataByte += mMaxReadWriteDataByte;
-        batch.mHostFnOpMaxRwCodeByte += mMaxReadWriteCodeByte;
-        batch.mHostFnOpMaxEmitEventByte += mMaxEmitEventByte;
+        mMetrics.mHostFnOpMaxRwKeyByte += mMaxReadWriteKeyByte;
+        mMetrics.mHostFnOpMaxRwDataByte += mMaxReadWriteDataByte;
+        mMetrics.mHostFnOpMaxRwCodeByte += mMaxReadWriteCodeByte;
+        mMetrics.mHostFnOpMaxEmitEventByte += mMaxEmitEventByte;
 
         if (mExecTimed)
         {
-            batch.mHostFnOpExecNsecs.push_back(
+            mMetrics.mHostFnOpExecNsecs.push_back(
                 static_cast<int64_t>(mExecTimeNsecs));
         }
 
         if (mSuccess)
         {
-            ++batch.mHostFnOpSuccess;
+            ++mMetrics.mHostFnOpSuccess;
         }
         else
         {
-            ++batch.mHostFnOpFailure;
+            ++mMetrics.mHostFnOpFailure;
         }
     }
 
@@ -315,7 +312,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig, ApplyLedgerView applyView,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache,
-        uint32_t protocolVersion)
+        uint32_t protocolVersion, SorobanApplyMetrics& sorobanMetrics)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
@@ -325,7 +322,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mResources(mOpFrame.mParentTx.sorobanResources())
         , mSorobanConfig(sorobanConfig)
         , mAppConfig(app.getConfig())
-        , mMetrics(app.getSorobanMetrics(),
+        , mMetrics(sorobanMetrics,
                    app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
         , mApplyLedgerView(std::move(applyView))
         , mModuleCache(moduleCache)
@@ -1148,11 +1145,12 @@ class InvokeHostFunctionPreV23ApplyHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig,
-        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
+        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache,
+        SorobanApplyMetrics& sorobanMetrics)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
               opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache,
-              ltx.loadHeader().current().ledgerVersion)
+              ltx.loadHeader().current().ledgerVersion, sorobanMetrics)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1331,12 +1329,13 @@ class InvokeHostFunctionParallelApplyHelper
         ParallelLedgerInfo const& ledgerInfo, Hash const& sorobanBasePrngSeed,
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
+        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
+        SorobanApplyMetrics& sorobanMetrics)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
               opFrame, threadState.getSorobanConfig(),
               threadState.getSnapshot(), threadState.getModuleCache(),
-              ledgerInfo.getLedgerVersion())
+              ledgerInfo.getLedgerVersion(), sorobanMetrics)
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
         ZoneScoped;
@@ -1390,7 +1389,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(
     SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+    OperationMetaBuilder& opMeta, SorobanApplyMetrics& sorobanMetrics) const
 {
     ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
     releaseAssertOrThrow(refundableFeeTracker);
@@ -1402,7 +1401,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(
     auto moduleCache = app.getModuleCache();
     InvokeHostFunctionPreV23ApplyHelper helper(
         app, ltx, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta, *this,
-        sorobanConfig, moduleCache);
+        sorobanConfig, moduleCache, sorobanMetrics);
     return helper.apply();
 }
 
@@ -1419,7 +1418,7 @@ std::optional<ParallelTxSuccessVal>
 InvokeHostFunctionOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
-    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+    ParallelLedgerInfo const& ledgerInfo, SorobanApplyMetrics& sorobanMetrics,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
@@ -1432,7 +1431,7 @@ InvokeHostFunctionOpFrame::doParallelApply(
 
     InvokeHostFunctionParallelApplyHelper helper(
         app, threadState, ledgerInfo, txPrngSeed, res, refundableFeeTracker,
-        opMeta, *this);
+        opMeta, *this, sorobanMetrics);
 
     return helper.takeResult(helper.apply());
 }

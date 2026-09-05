@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/test/TransactionTestFrame.h"
+#include "ledger/SorobanMetrics.h"
 #include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureUtils.h"
@@ -36,8 +37,8 @@ TransactionTestFrame::apply(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     Hash const& sorobanBasePrngSeed)
 {
-    return mTransactionFrame->apply(app, ltx, meta, *mTransactionTxResult,
-                                    sorobanConfig, sorobanBasePrngSeed);
+    return apply(app, ltx, meta, *mTransactionTxResult, sorobanConfig,
+                 sorobanBasePrngSeed);
 }
 
 void
@@ -73,8 +74,22 @@ TransactionTestFrame::apply(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     Hash const& sorobanBasePrngSeed) const
 {
+    // Direct test applies run outside of a ledger close, so the apply metrics
+    // recorded here are simply dropped.
+    SorobanApplyMetrics sorobanMetrics;
+    return apply(app, ltx, meta, txResult, sorobanConfig, sorobanBasePrngSeed,
+                 sorobanMetrics);
+}
+
+bool
+TransactionTestFrame::apply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed, SorobanApplyMetrics& sorobanMetrics) const
+{
     auto ret = mTransactionFrame->apply(app, ltx, meta, txResult, sorobanConfig,
-                                        sorobanBasePrngSeed);
+                                        sorobanBasePrngSeed, sorobanMetrics);
     mTransactionTxResult = txResult.clone();
     return ret;
 }
@@ -367,18 +382,20 @@ void
 TransactionTestFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& resPayload,
-    SorobanNetworkConfig const& sorobanConfig) const
+    SorobanNetworkConfig const& sorobanConfig,
+    SorobanApplyMetrics& sorobanMetrics) const
 {
     mTransactionFrame->preParallelApply(app, ltx, meta, resPayload,
-                                        sorobanConfig);
+                                        sorobanConfig, sorobanMetrics);
 }
 
 std::optional<ParallelTxSuccessVal>
 TransactionTestFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    MutableTransactionResultBase& resPayload, SorobanMetrics& sorobanMetrics,
-    Hash const& txPrngSeed, TxEffects& effects) const
+    MutableTransactionResultBase& resPayload,
+    SorobanApplyMetrics& sorobanMetrics, Hash const& txPrngSeed,
+    TxEffects& effects) const
 {
     return mTransactionFrame->parallelApply(
         app, threadState, config, ledgerInfo, resPayload, sorobanMetrics,
