@@ -333,10 +333,10 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
     REQUIRE(getFeePool() == 0);
     REQUIRE(getTotalCoins() == 1000000000000000000);
 
-    auto voter1 = TestAccount{*app, getAccount("voter1"), 0};
-    auto voter2 = TestAccount{*app, getAccount("voter2"), 0};
-    auto target1 = TestAccount{*app, getAccount("target1"), 0};
-    auto target2 = TestAccount{*app, getAccount("target2"), 0};
+    auto voter1 = TestAccount{*app, getAccount("voter1")};
+    auto voter2 = TestAccount{*app, getAccount("voter2")};
+    auto target1 = TestAccount{*app, getAccount("target1")};
+    auto target2 = TestAccount{*app, getAccount("target2")};
 
     auto minBalance = app->getLedgerManager().getLastMinBalance(0);
     auto rootBalance = root->getBalance();
@@ -345,12 +345,16 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
     voter1tx->getMutableEnvelope().v0().tx.fee = 999999999;
     voter1tx->getMutableEnvelope().v0().signatures.clear();
     voter1tx->addSignature(root->getSecretKey());
-    auto voter2tx = root->tx({createAccount(voter2, rootBalance / 3)});
-    auto target1tx = root->tx({createAccount(target1, minBalance)});
-    auto target2tx = root->tx({createAccount(target2, minBalance)});
+    auto voter2tx = root->tx({createAccount(voter2, rootBalance / 3)},
+                             voter1tx->getSeqNum() + 1);
+    auto target1tx = root->tx({createAccount(target1, minBalance)},
+                              voter1tx->getSeqNum() + 2);
+    auto target2tx = root->tx({createAccount(target2, minBalance)},
+                              voter1tx->getSeqNum() + 3);
 
     closeLedgerOn(*app, 21, 7, 2014, {voter1tx, voter2tx, target1tx, target2tx},
-                  true);
+                  /* strictOrder */ true,
+                  /* disableTxValidationForLegacyScenario */ true);
 
     REQUIRE(getFeePool() == 1000000299);
     REQUIRE(getTotalCoins() == 1000000000000000000);

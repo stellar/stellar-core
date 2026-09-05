@@ -70,23 +70,27 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
     // feeCharged has been incorrectly populated in innerResultPair prior to
     // protocol 25. Starting with protocol 25 it should always be 0.
-    auto validateInnerFeeCharged = [](MutableTxResultPtr& result,
-                                      AbstractLedgerTxn& ltx,
-                                      uint32_t
-                                          expectedInnerFeeChargedPriorToP25) {
-        if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
-                                    ProtocolVersion::V_25))
-        {
-            REQUIRE(
-                result->getXDR().result.innerResultPair().result.feeCharged ==
-                expectedInnerFeeChargedPriorToP25);
-        }
-        else
-        {
-            REQUIRE(
-                result->getXDR().result.innerResultPair().result.feeCharged ==
-                0);
-        }
+    auto validateInnerFeeCharged =
+        [&](TransactionResult const& result,
+            uint32_t expectedInnerFeeChargedPriorToP25) {
+            auto ledgerVersion =
+                lm.getLastClosedLedgerHeader().header.ledgerVersion;
+            auto const& innerFeeCharged =
+                result.result.innerResultPair().result.feeCharged;
+            if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_25))
+            {
+                REQUIRE(innerFeeCharged == expectedInnerFeeChargedPriorToP25);
+            }
+            else
+            {
+                REQUIRE(innerFeeCharged == 0);
+            }
+        };
+
+    auto closeLedgerWithTx = [&](auto const& tx) {
+        auto resultSet = closeLedger(*app, {tx});
+        REQUIRE(resultSet.results.size() == 1);
+        return resultSet.results[0].result;
     };
 
     SECTION("validity")
@@ -96,9 +100,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions({12}, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee, fee, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txNOT_SUPPORTED);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -110,9 +114,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee - 1, 1, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -124,9 +128,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee + 1, 101, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(result->getFeeCharged() == 2 * 101);
@@ -139,9 +143,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txNO_ACCOUNT);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -159,9 +163,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -182,9 +186,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -197,9 +201,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_BALANCE);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -219,9 +223,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH_EXTRA);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -238,9 +242,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
                 auto const& fbRes = result->getXDR();
@@ -257,9 +261,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, -1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
                 auto const& fbRes = result->getXDR();
@@ -279,9 +283,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                    fb->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
                 REQUIRE(result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
                 auto const& fbRes = result->getXDR();
@@ -300,119 +304,102 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
     {
         auto acc = root->create("A", 2 * reserve + 2 * fee);
         for_versions_from(13, *app, [&] {
-            auto fb = static_cast<TransactionFrameBaseConstPtr>(feeBump(
-                app->getNetworkID(), acc, *root, *root, 2 * fee, fee, 1));
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto result = fb->processFeeSeqNum(ltx, fee);
-            REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
-            REQUIRE(result->getFeeCharged() == 2 * fee);
-            validateInnerFeeCharged(result, ltx, fee);
-
-            auto delta = ltx.getDelta();
-            REQUIRE(delta.entry.size() == 1);
-            auto gkey = delta.entry.begin()->first;
-            REQUIRE(gkey.type() == InternalLedgerEntryType::LEDGER_ENTRY);
-            REQUIRE(gkey.ledgerKey().account().accountID == acc.getPublicKey());
-            auto entryDelta = delta.entry.begin()->second;
-            auto prev = entryDelta.previous->ledgerEntry().data.account();
-            auto curr = entryDelta.current->ledgerEntry().data.account();
-            REQUIRE(prev.balance == curr.balance + 2 * fee);
+            auto fb = feeBump(app->getNetworkID(), acc, *root, *root, 2 * fee,
+                              fee, 1);
+            auto feeSourceBalanceBefore = acc.getBalance();
+            auto rootBalanceBefore = root->getBalance();
+            auto result = closeLedgerWithTx(fb);
+            REQUIRE(result.result.code() == txFEE_BUMP_INNER_SUCCESS);
+            REQUIRE(result.feeCharged == 2 * fee);
+            validateInnerFeeCharged(result, fee);
+            REQUIRE(acc.getBalance() == feeSourceBalanceBefore - 2 * fee);
+            REQUIRE(root->getBalance() == rootBalanceBefore);
         });
     }
 
     SECTION("apply")
     {
-        SECTION("fee source does not exist")
+        SECTION("fee bump source removed after fees were charged")
         {
             auto acc = root->create("A", 2 * reserve + 3 * fee);
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
+                    REQUIRE(fb->checkValid(app->getAppConnector(),
+                                           CheckValidLedgerViewWrapper(*app), 0,
+                                           0, 0)
                                 ->isSuccess());
                 }
 
-                MutableTxResultPtr result;
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    result = fb->processFeeSeqNum(ltx, fee);
-                    ltx.commit();
-                }
-                acc.merge(*root);
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder meta(
-                        true, *fb, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(
-                        fb->apply(app->getAppConnector(), ltx, meta, *result));
-                    REQUIRE(result->getResultCode() ==
-                            txFEE_BUMP_INNER_SUCCESS);
-                    REQUIRE(result->getFeeCharged() == 2 * fee);
-                    validateInnerFeeCharged(result, ltx, fee);
-                }
+                auto mergeTx = acc.tx({accountMerge(*root)});
+                auto resultSet =
+                    closeLedger(*app, {mergeTx, fb}, /* strictOrder */ true);
+                REQUIRE(resultSet.results.size() == 2);
+                REQUIRE(resultSet.results[0].result.result.code() == txSUCCESS);
+                auto const& result = resultSet.results[1].result;
+                REQUIRE(result.result.code() == txFEE_BUMP_INNER_SUCCESS);
+                REQUIRE(result.feeCharged == 2 * fee);
+                validateInnerFeeCharged(result, fee);
             });
         }
 
-        SECTION("bad signatures")
+        SECTION("fee bump signature invalided after fees were charged")
         {
             auto acc = root->create("A", 2 * reserve + 3 * fee);
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
+                    REQUIRE(fb->checkValid(app->getAppConnector(),
+                                           CheckValidLedgerViewWrapper(*app), 0,
+                                           0, 0)
                                 ->isSuccess());
                 }
-                acc.setOptions(setMasterWeight(0));
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder meta(
-                        true, *fb, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    auto result = fb->processFeeSeqNum(ltx, fee);
-                    REQUIRE(
-                        fb->apply(app->getAppConnector(), ltx, meta, *result));
-                    REQUIRE(result->getResultCode() ==
-                            txFEE_BUMP_INNER_SUCCESS);
-                    REQUIRE(result->getFeeCharged() == 2 * fee);
-                    validateInnerFeeCharged(result, ltx, fee);
-                }
+                // Clear the fee source's master weight in the same ledger,
+                // before the fee bump, so that the fee bump is applied with a
+                // signature that is no longer valid.
+                auto setOptionsTx = acc.tx({setOptions(setMasterWeight(0))});
+                auto resultSet = closeLedger(*app, {setOptionsTx, fb},
+                                             /* strictOrder */ true);
+                REQUIRE(resultSet.results.size() == 2);
+                REQUIRE(resultSet.results[0].result.result.code() == txSUCCESS);
+                auto const& result = resultSet.results[1].result;
+                REQUIRE(result.result.code() == txFEE_BUMP_INNER_SUCCESS);
+                REQUIRE(result.feeCharged == 2 * fee);
+                validateInnerFeeCharged(result, fee);
             });
         }
 
-        SECTION("insufficient balance")
+        SECTION("fee bump charge invalidates the inner operation")
         {
             auto acc = root->create("A", 2 * reserve + 3 * fee);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
-                                  2 * fee, fee, 1);
+                // The inner payment would succeed if the inner tx was applied
+                // on its own (charging just `fee`), but the fee bump charges
+                // 2 * fee, leaving the source underfunded for the payment.
+                auto fb = feeBump(app->getNetworkID(), acc, acc, *root, 2 * fee,
+                                  fee, 2 * fee);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
+                    REQUIRE(fb->checkValid(app->getAppConnector(),
+                                           CheckValidLedgerViewWrapper(*app), 0,
+                                           0, 0)
                                 ->isSuccess());
                 }
-                acc.pay(*root, 2 * fee);
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder meta(
-                        true, *fb, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    auto result = fb->processFeeSeqNum(ltx, fee);
-                    REQUIRE(
-                        fb->apply(app->getAppConnector(), ltx, meta, *result));
-                    REQUIRE(result->getResultCode() ==
-                            txFEE_BUMP_INNER_SUCCESS);
-                    REQUIRE(result->getFeeCharged() == 2 * fee);
-                    validateInnerFeeCharged(result, ltx, fee);
-                }
+                auto result = closeLedgerWithTx(fb);
+                REQUIRE(result.result.code() == txFEE_BUMP_INNER_FAILED);
+                REQUIRE(result.feeCharged == 2 * fee);
+                validateInnerFeeCharged(result, fee);
+                auto const& innerRes = result.result.innerResultPair().result;
+                REQUIRE(innerRes.result.code() == txFAILED);
+                REQUIRE(
+                    innerRes.result.results()[0].tr().paymentResult().code() ==
+                    PAYMENT_UNDERFUNDED);
+                REQUIRE(acc.getBalance() == 2 * reserve + fee);
             });
         }
 
-        SECTION("extra signatures")
+        SECTION("signature becomes redundant after fee bump charge")
         {
             auto acc = root->create("A", 3 * reserve + 4 * fee);
             acc.setOptions(setSigner(makeSigner(*root, 1)) |
@@ -428,28 +415,26 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     app->getNetworkID(), fbXDR);
                 auto fb = TransactionTestFrame::fromTxFrame(rawTx);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
+                    REQUIRE(fb->checkValid(app->getAppConnector(),
+                                           CheckValidLedgerViewWrapper(*app), 0,
+                                           0, 0)
                                 ->isSuccess());
                 }
 
+                // Drop the low threshold to 1 in the same ledger, so on of the
+                // fee bump signatures would technically become redundant (but
+                // that shouldn't matter as fee bump is processed before this).
                 auto setOptionsTx = acc.tx({setOptions(setLowThreshold(1))});
                 setOptionsTx->addSignature(*root);
-                applyCheck(setOptionsTx, *app);
 
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder meta(
-                        true, *fb, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    auto result = fb->processFeeSeqNum(ltx, fee);
-                    REQUIRE(
-                        fb->apply(app->getAppConnector(), ltx, meta, *result));
-                    REQUIRE(result->getResultCode() ==
-                            txFEE_BUMP_INNER_SUCCESS);
-                    REQUIRE(result->getFeeCharged() == 2 * fee);
-                    validateInnerFeeCharged(result, ltx, fee);
-                }
+                auto resultSet = closeLedger(*app, {setOptionsTx, fb},
+                                             /* strictOrder */ true);
+                REQUIRE(resultSet.results.size() == 2);
+                REQUIRE(resultSet.results[0].result.result.code() == txSUCCESS);
+                auto const& result = resultSet.results[1].result;
+                REQUIRE(result.result.code() == txFEE_BUMP_INNER_SUCCESS);
+                REQUIRE(result.feeCharged == 2 * fee);
+                validateInnerFeeCharged(result, fee);
             });
         }
 
@@ -460,32 +445,28 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, acc, 2 * fee,
                                   fee, 1);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
+                    REQUIRE(fb->checkValid(app->getAppConnector(),
+                                           CheckValidLedgerViewWrapper(*app), 0,
+                                           0, 0)
                                 ->isSuccess());
                 }
-
+                // Invalidate the inner transaction signature before it is
+                // applied.
                 auto setOptionsOp = setOptions(setMasterWeight(0));
                 setOptionsOp.sourceAccount.activate() = toMuxedAccount(*root);
                 auto setOptionsTx = acc.tx({setOptionsOp});
                 setOptionsTx->addSignature(*root);
-                applyCheck(setOptionsTx, *app);
 
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder meta(
-                        true, *fb, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    auto result = fb->processFeeSeqNum(ltx, fee);
-                    REQUIRE(
-                        !fb->apply(app->getAppConnector(), ltx, meta, *result));
-                    REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
-                    REQUIRE(result->getFeeCharged() == 2 * fee);
-                    auto const& innerRes =
-                        result->getXDR().result.innerResultPair().result;
-                    REQUIRE(innerRes.result.code() == txBAD_AUTH);
-                    validateInnerFeeCharged(result, ltx, fee);
-                }
+                auto resultSet = closeLedger(*app, {setOptionsTx, fb},
+                                             /* strictOrder */ true);
+                REQUIRE(resultSet.results.size() == 2);
+                REQUIRE(resultSet.results[0].result.result.code() == txSUCCESS);
+                auto const& result = resultSet.results[1].result;
+                REQUIRE(result.result.code() == txFEE_BUMP_INNER_FAILED);
+                REQUIRE(result.feeCharged == 2 * fee);
+                REQUIRE(result.result.innerResultPair().result.result.code() ==
+                        txBAD_AUTH);
+                validateInnerFeeCharged(result, fee);
             });
         }
 
@@ -496,29 +477,21 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, acc, 2 * fee,
                                   fee, INT64_MAX);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
+                    REQUIRE(fb->checkValid(app->getAppConnector(),
+                                           CheckValidLedgerViewWrapper(*app), 0,
+                                           0, 0)
                                 ->isSuccess());
                 }
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder meta(
-                        true, *fb, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    auto result = fb->processFeeSeqNum(ltx, fee);
-                    REQUIRE(
-                        !fb->apply(app->getAppConnector(), ltx, meta, *result));
-                    REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
-                    REQUIRE(result->getFeeCharged() == 2 * fee);
-                    auto const& innerRes =
-                        result->getXDR().result.innerResultPair().result;
-                    REQUIRE(innerRes.result.code() == txFAILED);
-                    REQUIRE(innerRes.result.results()[0].code() == opINNER);
-                    validateInnerFeeCharged(result, ltx, fee);
-                    auto const& payRes =
-                        innerRes.result.results()[0].tr().paymentResult();
-                    REQUIRE(payRes.code() == PAYMENT_LINE_FULL);
-                }
+                auto result = closeLedgerWithTx(fb);
+                REQUIRE(result.result.code() == txFEE_BUMP_INNER_FAILED);
+                REQUIRE(result.feeCharged == 2 * fee);
+                validateInnerFeeCharged(result, fee);
+                auto const& innerRes = result.result.innerResultPair().result;
+                REQUIRE(innerRes.result.code() == txFAILED);
+                REQUIRE(innerRes.result.results()[0].code() == opINNER);
+                REQUIRE(
+                    innerRes.result.results()[0].tr().paymentResult().code() ==
+                    PAYMENT_LINE_FULL);
             });
         }
 
@@ -540,7 +513,6 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 txSigner.preAuthTx() = sha256(
                     xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
                                        fbXDR.feeBump().tx.innerTx.v1().tx));
-                root->loadSequenceNumber();
                 root->setOptions(setSigner(Signer{txSigner, 1}));
 
                 SignerKey fbSigner(SIGNER_KEY_TYPE_PRE_AUTH_TX);
@@ -557,44 +529,38 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                          acc.op(endSponsoringFutureReserves())},
                         {sponsoring});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
+                    REQUIRE(tx->checkValid(app->getAppConnector(),
+                                           CheckValidLedgerViewWrapper(*app), 0,
+                                           0, 0)
                                 ->isSuccess());
-                    auto result = tx->processFeeSeqNum(ltx, fee);
-                    REQUIRE(
-                        tx->apply(app->getAppConnector(), ltx, txm, *result));
-                    REQUIRE(result->getResultCode() == txSUCCESS);
 
-                    checkSponsorship(ltx, acc, fbSigner, 2,
-                                     &sponsoring.getPublicKey());
-                    ltx.commit();
+                    auto result = closeLedgerWithTx(tx);
+                    REQUIRE(result.result.code() == txSUCCESS);
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        checkSponsorship(ltx, acc, fbSigner, 2,
+                                         &sponsoring.getPublicKey());
+                    }
                 }
                 else
                 {
                     acc.setOptions(setSigner(Signer{fbSigner, 1}));
                 }
 
+                REQUIRE(fb->checkValid(app->getAppConnector(),
+                                       CheckValidLedgerViewWrapper(*app), 0, 0,
+                                       0)
+                            ->isSuccess());
+
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
-                }
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder metaBuilder(
-                        true, *fb, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    auto result = fb->processFeeSeqNum(ltx, fee);
-                    REQUIRE(
-                        fb->apply(app->getAppConnector(), ltx, metaBuilder));
-                    TransactionMetaFrame meta(metaBuilder.finalize(true));
-                    REQUIRE(result->getResultCode() ==
-                            txFEE_BUMP_INNER_SUCCESS);
-                    REQUIRE(result->getFeeCharged() == 2 * fee);
-                    validateInnerFeeCharged(result, ltx, fee);
+                    auto result = closeLedgerWithTx(fb);
+                    REQUIRE(result.result.code() == txFEE_BUMP_INNER_SUCCESS);
+                    REQUIRE(result.feeCharged == 2 * fee);
+                    validateInnerFeeCharged(result, fee);
+
+                    auto txMeta = lm.getLastClosedLedgerTxMeta();
+                    REQUIRE(txMeta.size() == 1);
+                    auto const& meta = txMeta.back();
                     REQUIRE(meta.getNumChangesBefore() ==
                             (isFbSignerSponsored ? 6 : 4));
                     for (auto const& change : meta.getChangesBefore())
@@ -615,7 +581,6 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                             REQUIRE(ae.signers.empty());
                         }
                     }
-                    ltx.commit();
                 }
 
                 REQUIRE(getAccountSigners(*root, *app).size() == 0);

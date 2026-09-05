@@ -32,11 +32,12 @@ enum class TrustFlagOp
 class TestAccount
 {
   public:
-    explicit TestAccount(Application& app, SecretKey sk, SequenceNumber sn = 0)
-        : mApp(app), mSk{std::move(sk)}, mSn{sn}
+    explicit TestAccount(Application& app, SecretKey sk)
+        : mApp(app), mSk{std::move(sk)}
     {
         mAccountID = KeyUtils::toStrKey(mSk.getPublicKey());
     }
+    virtual ~TestAccount() = default;
 
     TransactionTestFramePtr tx(std::vector<Operation> const& ops,
                                SequenceNumber sn = 0);
@@ -144,31 +145,8 @@ class TestAccount
         return mSk.getPublicKey();
     }
 
-    void
-    setSequenceNumber(SequenceNumber sn)
-    {
-        mSn = sn;
-    }
-
-    SequenceNumber
-    getLastSequenceNumber()
-    {
-        updateSequenceNumber();
-        return mSn;
-    }
-
-    SequenceNumber
-    nextSequenceNumber()
-    {
-        updateSequenceNumber();
-        if (mSn == std::numeric_limits<SequenceNumber>::max())
-        {
-            throw std::runtime_error(
-                "Sequence number overflow in test account");
-        }
-        return ++mSn;
-    }
-    SequenceNumber loadSequenceNumber();
+    virtual SequenceNumber getLastSequenceNumber();
+    virtual SequenceNumber nextSequenceNumber();
 
     std::string
     getAccountId()
@@ -191,8 +169,5 @@ class TestAccount
     Application& mApp;
     SecretKey mSk;
     std::string mAccountID;
-    SequenceNumber mSn;
-
-    void updateSequenceNumber();
 };
 }

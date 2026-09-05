@@ -39,13 +39,9 @@
 	"claimableBalance|protocol version 0" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
 	"claimableBalance|protocol version 1" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
 	"claimableBalance|protocol version 10" : [ "67LttOSfPNA=", "4/aTXFOjWgo=", "dnpEcYDnl/U=", "nOI64lRETG4=" ],
-	"claimableBalance|protocol version 10|not supported before version 14" : [ "4/ln8JDgW6o=", "fH+PEcgALyA=" ],
 	"claimableBalance|protocol version 11" : [ "67LttOSfPNA=", "4/aTXFOjWgo=", "dnpEcYDnl/U=", "nOI64lRETG4=" ],
-	"claimableBalance|protocol version 11|not supported before version 14" : [ "4/ln8JDgW6o=", "fH+PEcgALyA=" ],
 	"claimableBalance|protocol version 12" : [ "67LttOSfPNA=", "4/aTXFOjWgo=", "dnpEcYDnl/U=", "nOI64lRETG4=" ],
-	"claimableBalance|protocol version 12|not supported before version 14" : [ "4/ln8JDgW6o=", "fH+PEcgALyA=" ],
 	"claimableBalance|protocol version 13" : [ "67LttOSfPNA=", "4/aTXFOjWgo=", "dnpEcYDnl/U=", "nOI64lRETG4=" ],
-	"claimableBalance|protocol version 13|not supported before version 14" : [ "4/ln8JDgW6o=", "fH+PEcgALyA=" ],
 	"claimableBalance|protocol version 14" : 
 	[
 		"67LttOSfPNA=",
@@ -581,6 +577,7 @@
 		"dnpEcYDnl/U=",
 		"nOI64lRETG4="
 	],
+	"claimableBalance|protocol version 14|claim and create are sponsored" : [ "Z131y6roVe4=", "Ji8XH+ySb1I=" ],
 	"claimableBalance|protocol version 14|claim claimable trustline issues" : 
 	[
 		"bn2DE3yi1Sg=",
@@ -596,10 +593,10 @@
 		"H3qzkE1E4Bw=",
 		"dLkrn3GeqU0="
 	],
-	"claimableBalance|protocol version 14|claim is sponsored" : [ "7Vg7Y8ArUdE=" ],
-	"claimableBalance|protocol version 14|create is sponsored" : [ "f0IGPqrgk/4=" ],
-	"claimableBalance|protocol version 14|invalid asset" : [ "4/ln8JDgW6o=" ],
-	"claimableBalance|protocol version 14|merge create account before claim" : [ "7Vg7Y8ArUdE=", "wZgaUUw3xDU=", "eDruUHCZPLU=" ],
+	"claimableBalance|protocol version 14|claim is sponsored" : [ "7Vg7Y8ArUdE=", "Cq59cQT/lyc=" ],
+	"claimableBalance|protocol version 14|claimable balance sponsorship can only be transferred" : [ "c9lSXvKHyi0=", "uj/WvVRYTh4=" ],
+	"claimableBalance|protocol version 14|create is sponsored" : [ "Z131y6roVe4=", "cq+TyqbV0q4=" ],
+	"claimableBalance|protocol version 14|merge create account before claim" : [ "7Vg7Y8ArUdE=", "CkX39zICeJQ=", "LVDbYksA9t4=", "4z41Q2ShAIY=" ],
 	"claimableBalance|protocol version 14|merge sponsoring account" : [ "8aZYxODQ9wo=", "J3tHX9xSouU=" ],
 	"claimableBalance|protocol version 14|multiple claimants try to claim balance in same tx" : [ "b4PnSGUiegM=", "SpEdN2RYT0Y=", "kpg26Ep7tls=" ],
 	"claimableBalance|protocol version 14|multiple creates in tx to test index in hash" : [ "LfuB+Db/XOA=", "+zyrO2ajPV8=" ],
@@ -988,16 +985,6 @@
 	"claimableBalance|protocol version 14|native|valid predicate and claimant combinations|predicate at level 1" : [ "hRzE0w+Lg0A=", "U/4k+nnan2I=" ],
 	"claimableBalance|protocol version 14|native|valid predicate and claimant combinations|predicate at level 2" : [ "a5eY5UIakUM=", "3dLAYmd3zJY=" ],
 	"claimableBalance|protocol version 14|native|valid predicate and claimant combinations|predicate at level 3" : [ "LBVxD3oeLDU=", "G5MS2JlNmUY=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid amount" : [ "YysTPNIQ/4g=", "XXKepAWDYYE=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|duplicate claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|empty claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 14|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "YysTPNIQ/4g=" ],
 	"claimableBalance|protocol version 14|non-native" : 
 	[
 		"rMu/P7JysOs=",
@@ -1490,17 +1477,7 @@
 	"claimableBalance|protocol version 14|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "wGZcpHJWM/4=", "IgGXCP6T6QI=" ],
 	"claimableBalance|protocol version 14|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "e0RNQ8u7vjo=", "T7rhBUji1Ik=" ],
 	"claimableBalance|protocol version 14|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "afo59VRXjGE=", "mf4a5zYhQCk=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid amount" : [ "L2LwFxrgUo4=", "zbtVVBQqMZk=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|duplicate claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|empty claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 14|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=" ],
+	"claimableBalance|protocol version 14|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=", "6COeeLNnTUQ=", "sCtLezTZCIA=" ],
 	"claimableBalance|protocol version 14|source account is issuer" : [ "R67xhllLiL8=", "6pIfy1eeJZg=" ],
 	"claimableBalance|protocol version 14|tx account is different than op account on successful create" : [ "7F98oCLo7sY=", "r4r9G+A/dCs=", "V2fFllwQAmc=", "kdbkpVUUd+A=" ],
 	"claimableBalance|protocol version 14|validate tx account is used in hash" : 
@@ -2049,6 +2026,7 @@
 		"dnpEcYDnl/U=",
 		"nOI64lRETG4="
 	],
+	"claimableBalance|protocol version 15|claim and create are sponsored" : [ "Z131y6roVe4=", "Ji8XH+ySb1I=" ],
 	"claimableBalance|protocol version 15|claim claimable trustline issues" : 
 	[
 		"bn2DE3yi1Sg=",
@@ -2064,10 +2042,10 @@
 		"H3qzkE1E4Bw=",
 		"dLkrn3GeqU0="
 	],
-	"claimableBalance|protocol version 15|claim is sponsored" : [ "7Vg7Y8ArUdE=" ],
-	"claimableBalance|protocol version 15|create is sponsored" : [ "f0IGPqrgk/4=" ],
-	"claimableBalance|protocol version 15|invalid asset" : [ "4/ln8JDgW6o=" ],
-	"claimableBalance|protocol version 15|merge create account before claim" : [ "7Vg7Y8ArUdE=", "wZgaUUw3xDU=", "eDruUHCZPLU=" ],
+	"claimableBalance|protocol version 15|claim is sponsored" : [ "7Vg7Y8ArUdE=", "Cq59cQT/lyc=" ],
+	"claimableBalance|protocol version 15|claimable balance sponsorship can only be transferred" : [ "c9lSXvKHyi0=", "uj/WvVRYTh4=" ],
+	"claimableBalance|protocol version 15|create is sponsored" : [ "Z131y6roVe4=", "cq+TyqbV0q4=" ],
+	"claimableBalance|protocol version 15|merge create account before claim" : [ "7Vg7Y8ArUdE=", "CkX39zICeJQ=", "LVDbYksA9t4=", "4z41Q2ShAIY=" ],
 	"claimableBalance|protocol version 15|merge sponsoring account" : [ "8aZYxODQ9wo=", "J3tHX9xSouU=" ],
 	"claimableBalance|protocol version 15|multiple claimants try to claim balance in same tx" : [ "b4PnSGUiegM=", "SpEdN2RYT0Y=", "kpg26Ep7tls=" ],
 	"claimableBalance|protocol version 15|multiple creates in tx to test index in hash" : [ "LfuB+Db/XOA=", "+zyrO2ajPV8=" ],
@@ -2456,16 +2434,6 @@
 	"claimableBalance|protocol version 15|native|valid predicate and claimant combinations|predicate at level 1" : [ "hRzE0w+Lg0A=", "U/4k+nnan2I=" ],
 	"claimableBalance|protocol version 15|native|valid predicate and claimant combinations|predicate at level 2" : [ "a5eY5UIakUM=", "3dLAYmd3zJY=" ],
 	"claimableBalance|protocol version 15|native|valid predicate and claimant combinations|predicate at level 3" : [ "LBVxD3oeLDU=", "G5MS2JlNmUY=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid amount" : [ "YysTPNIQ/4g=", "XXKepAWDYYE=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|duplicate claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|empty claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 15|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "YysTPNIQ/4g=" ],
 	"claimableBalance|protocol version 15|non-native" : 
 	[
 		"rMu/P7JysOs=",
@@ -2958,17 +2926,7 @@
 	"claimableBalance|protocol version 15|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "wGZcpHJWM/4=", "IgGXCP6T6QI=" ],
 	"claimableBalance|protocol version 15|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "e0RNQ8u7vjo=", "T7rhBUji1Ik=" ],
 	"claimableBalance|protocol version 15|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "afo59VRXjGE=", "mf4a5zYhQCk=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid amount" : [ "L2LwFxrgUo4=", "zbtVVBQqMZk=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|duplicate claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|empty claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 15|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=" ],
+	"claimableBalance|protocol version 15|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=", "6COeeLNnTUQ=", "sCtLezTZCIA=" ],
 	"claimableBalance|protocol version 15|source account is issuer" : [ "R67xhllLiL8=", "6pIfy1eeJZg=" ],
 	"claimableBalance|protocol version 15|tx account is different than op account on successful create" : [ "7F98oCLo7sY=", "r4r9G+A/dCs=", "V2fFllwQAmc=", "kdbkpVUUd+A=" ],
 	"claimableBalance|protocol version 15|validate tx account is used in hash" : 
@@ -3517,6 +3475,7 @@
 		"dnpEcYDnl/U=",
 		"nOI64lRETG4="
 	],
+	"claimableBalance|protocol version 16|claim and create are sponsored" : [ "Z131y6roVe4=", "Ji8XH+ySb1I=" ],
 	"claimableBalance|protocol version 16|claim claimable trustline issues" : 
 	[
 		"bn2DE3yi1Sg=",
@@ -3532,10 +3491,10 @@
 		"H3qzkE1E4Bw=",
 		"dLkrn3GeqU0="
 	],
-	"claimableBalance|protocol version 16|claim is sponsored" : [ "7Vg7Y8ArUdE=" ],
-	"claimableBalance|protocol version 16|create is sponsored" : [ "f0IGPqrgk/4=" ],
-	"claimableBalance|protocol version 16|invalid asset" : [ "4/ln8JDgW6o=" ],
-	"claimableBalance|protocol version 16|merge create account before claim" : [ "7Vg7Y8ArUdE=", "wZgaUUw3xDU=", "eDruUHCZPLU=" ],
+	"claimableBalance|protocol version 16|claim is sponsored" : [ "7Vg7Y8ArUdE=", "Cq59cQT/lyc=" ],
+	"claimableBalance|protocol version 16|claimable balance sponsorship can only be transferred" : [ "c9lSXvKHyi0=", "uj/WvVRYTh4=" ],
+	"claimableBalance|protocol version 16|create is sponsored" : [ "Z131y6roVe4=", "cq+TyqbV0q4=" ],
+	"claimableBalance|protocol version 16|merge create account before claim" : [ "7Vg7Y8ArUdE=", "CkX39zICeJQ=", "LVDbYksA9t4=", "4z41Q2ShAIY=" ],
 	"claimableBalance|protocol version 16|merge sponsoring account" : [ "8aZYxODQ9wo=", "J3tHX9xSouU=" ],
 	"claimableBalance|protocol version 16|multiple claimants try to claim balance in same tx" : [ "b4PnSGUiegM=", "SpEdN2RYT0Y=", "kpg26Ep7tls=" ],
 	"claimableBalance|protocol version 16|multiple creates in tx to test index in hash" : [ "LfuB+Db/XOA=", "+zyrO2ajPV8=" ],
@@ -3924,16 +3883,6 @@
 	"claimableBalance|protocol version 16|native|valid predicate and claimant combinations|predicate at level 1" : [ "hRzE0w+Lg0A=", "U/4k+nnan2I=" ],
 	"claimableBalance|protocol version 16|native|valid predicate and claimant combinations|predicate at level 2" : [ "a5eY5UIakUM=", "3dLAYmd3zJY=" ],
 	"claimableBalance|protocol version 16|native|valid predicate and claimant combinations|predicate at level 3" : [ "LBVxD3oeLDU=", "G5MS2JlNmUY=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid amount" : [ "YysTPNIQ/4g=", "XXKepAWDYYE=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|duplicate claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|empty claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 16|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "YysTPNIQ/4g=" ],
 	"claimableBalance|protocol version 16|non-native" : 
 	[
 		"rMu/P7JysOs=",
@@ -4426,17 +4375,7 @@
 	"claimableBalance|protocol version 16|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "wGZcpHJWM/4=", "IgGXCP6T6QI=" ],
 	"claimableBalance|protocol version 16|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "e0RNQ8u7vjo=", "T7rhBUji1Ik=" ],
 	"claimableBalance|protocol version 16|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "afo59VRXjGE=", "mf4a5zYhQCk=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid amount" : [ "L2LwFxrgUo4=", "zbtVVBQqMZk=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|duplicate claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|empty claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 16|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=" ],
+	"claimableBalance|protocol version 16|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=", "6COeeLNnTUQ=", "sCtLezTZCIA=" ],
 	"claimableBalance|protocol version 16|source account is issuer" : [ "R67xhllLiL8=", "6pIfy1eeJZg=" ],
 	"claimableBalance|protocol version 16|tx account is different than op account on successful create" : [ "7F98oCLo7sY=", "r4r9G+A/dCs=", "V2fFllwQAmc=", "kdbkpVUUd+A=" ],
 	"claimableBalance|protocol version 16|validate tx account is used in hash" : 
@@ -4989,6 +4928,7 @@
 		"dnpEcYDnl/U=",
 		"nOI64lRETG4="
 	],
+	"claimableBalance|protocol version 17|claim and create are sponsored" : [ "Z131y6roVe4=", "Ji8XH+ySb1I=" ],
 	"claimableBalance|protocol version 17|claim claimable trustline issues" : 
 	[
 		"bn2DE3yi1Sg=",
@@ -5004,10 +4944,10 @@
 		"H3qzkE1E4Bw=",
 		"dLkrn3GeqU0="
 	],
-	"claimableBalance|protocol version 17|claim is sponsored" : [ "7Vg7Y8ArUdE=" ],
-	"claimableBalance|protocol version 17|create is sponsored" : [ "f0IGPqrgk/4=" ],
-	"claimableBalance|protocol version 17|invalid asset" : [ "4/ln8JDgW6o=" ],
-	"claimableBalance|protocol version 17|merge create account before claim" : [ "7Vg7Y8ArUdE=", "wZgaUUw3xDU=", "eDruUHCZPLU=" ],
+	"claimableBalance|protocol version 17|claim is sponsored" : [ "7Vg7Y8ArUdE=", "Cq59cQT/lyc=" ],
+	"claimableBalance|protocol version 17|claimable balance sponsorship can only be transferred" : [ "c9lSXvKHyi0=", "uj/WvVRYTh4=" ],
+	"claimableBalance|protocol version 17|create is sponsored" : [ "Z131y6roVe4=", "cq+TyqbV0q4=" ],
+	"claimableBalance|protocol version 17|merge create account before claim" : [ "7Vg7Y8ArUdE=", "CkX39zICeJQ=", "LVDbYksA9t4=", "4z41Q2ShAIY=" ],
 	"claimableBalance|protocol version 17|merge sponsoring account" : [ "8aZYxODQ9wo=", "J3tHX9xSouU=" ],
 	"claimableBalance|protocol version 17|multiple claimants try to claim balance in same tx" : [ "b4PnSGUiegM=", "SpEdN2RYT0Y=", "kpg26Ep7tls=" ],
 	"claimableBalance|protocol version 17|multiple creates in tx to test index in hash" : [ "LfuB+Db/XOA=", "+zyrO2ajPV8=" ],
@@ -5396,16 +5336,6 @@
 	"claimableBalance|protocol version 17|native|valid predicate and claimant combinations|predicate at level 1" : [ "hRzE0w+Lg0A=", "U/4k+nnan2I=" ],
 	"claimableBalance|protocol version 17|native|valid predicate and claimant combinations|predicate at level 2" : [ "a5eY5UIakUM=", "3dLAYmd3zJY=" ],
 	"claimableBalance|protocol version 17|native|valid predicate and claimant combinations|predicate at level 3" : [ "LBVxD3oeLDU=", "G5MS2JlNmUY=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid amount" : [ "YysTPNIQ/4g=", "XXKepAWDYYE=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|duplicate claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|empty claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 17|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "YysTPNIQ/4g=" ],
 	"claimableBalance|protocol version 17|non-native" : 
 	[
 		"rMu/P7JysOs=",
@@ -5898,18 +5828,15 @@
 	"claimableBalance|protocol version 17|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "wGZcpHJWM/4=", "IgGXCP6T6QI=" ],
 	"claimableBalance|protocol version 17|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "e0RNQ8u7vjo=", "T7rhBUji1Ik=" ],
 	"claimableBalance|protocol version 17|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "afo59VRXjGE=", "mf4a5zYhQCk=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid amount" : [ "L2LwFxrgUo4=", "zbtVVBQqMZk=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|duplicate claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|empty claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 17|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=" ],
-	"claimableBalance|protocol version 17|op source account last modified is updated on claim of sponsored balance|clawback" : [ "9Okc0+oma3I=", "lXMEdQr1Q0w=", "VXHT5a/Ri0I=" ],
+	"claimableBalance|protocol version 17|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=", "6COeeLNnTUQ=", "sCtLezTZCIA=" ],
+	"claimableBalance|protocol version 17|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"9Okc0+oma3I=",
+		"lXMEdQr1Q0w=",
+		"VXHT5a/Ri0I=",
+		"bzp0zos9E9o=",
+		"YTozswkoAOw="
+	],
 	"claimableBalance|protocol version 17|source account is issuer" : [ "R67xhllLiL8=", "6pIfy1eeJZg=" ],
 	"claimableBalance|protocol version 17|tx account is different than op account on successful create" : [ "7F98oCLo7sY=", "r4r9G+A/dCs=", "V2fFllwQAmc=", "kdbkpVUUd+A=" ],
 	"claimableBalance|protocol version 17|validate tx account is used in hash" : 
@@ -6462,6 +6389,7 @@
 		"dnpEcYDnl/U=",
 		"nOI64lRETG4="
 	],
+	"claimableBalance|protocol version 18|claim and create are sponsored" : [ "Z131y6roVe4=", "Ji8XH+ySb1I=" ],
 	"claimableBalance|protocol version 18|claim claimable trustline issues" : 
 	[
 		"bn2DE3yi1Sg=",
@@ -6477,10 +6405,10 @@
 		"H3qzkE1E4Bw=",
 		"dLkrn3GeqU0="
 	],
-	"claimableBalance|protocol version 18|claim is sponsored" : [ "7Vg7Y8ArUdE=" ],
-	"claimableBalance|protocol version 18|create is sponsored" : [ "f0IGPqrgk/4=" ],
-	"claimableBalance|protocol version 18|invalid asset" : [ "4/ln8JDgW6o=" ],
-	"claimableBalance|protocol version 18|merge create account before claim" : [ "7Vg7Y8ArUdE=", "wZgaUUw3xDU=", "eDruUHCZPLU=" ],
+	"claimableBalance|protocol version 18|claim is sponsored" : [ "7Vg7Y8ArUdE=", "Cq59cQT/lyc=" ],
+	"claimableBalance|protocol version 18|claimable balance sponsorship can only be transferred" : [ "c9lSXvKHyi0=", "uj/WvVRYTh4=" ],
+	"claimableBalance|protocol version 18|create is sponsored" : [ "Z131y6roVe4=", "cq+TyqbV0q4=" ],
+	"claimableBalance|protocol version 18|merge create account before claim" : [ "7Vg7Y8ArUdE=", "CkX39zICeJQ=", "LVDbYksA9t4=", "4z41Q2ShAIY=" ],
 	"claimableBalance|protocol version 18|merge sponsoring account" : [ "8aZYxODQ9wo=", "J3tHX9xSouU=" ],
 	"claimableBalance|protocol version 18|multiple claimants try to claim balance in same tx" : [ "b4PnSGUiegM=", "SpEdN2RYT0Y=", "kpg26Ep7tls=" ],
 	"claimableBalance|protocol version 18|multiple creates in tx to test index in hash" : [ "LfuB+Db/XOA=", "+zyrO2ajPV8=" ],
@@ -6869,16 +6797,6 @@
 	"claimableBalance|protocol version 18|native|valid predicate and claimant combinations|predicate at level 1" : [ "hRzE0w+Lg0A=", "U/4k+nnan2I=" ],
 	"claimableBalance|protocol version 18|native|valid predicate and claimant combinations|predicate at level 2" : [ "a5eY5UIakUM=", "3dLAYmd3zJY=" ],
 	"claimableBalance|protocol version 18|native|valid predicate and claimant combinations|predicate at level 3" : [ "LBVxD3oeLDU=", "G5MS2JlNmUY=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid amount" : [ "YysTPNIQ/4g=", "XXKepAWDYYE=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|duplicate claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|empty claimants" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "YysTPNIQ/4g=" ],
-	"claimableBalance|protocol version 18|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "YysTPNIQ/4g=" ],
 	"claimableBalance|protocol version 18|non-native" : 
 	[
 		"rMu/P7JysOs=",
@@ -7371,18 +7289,15 @@
 	"claimableBalance|protocol version 18|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "wGZcpHJWM/4=", "IgGXCP6T6QI=" ],
 	"claimableBalance|protocol version 18|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "e0RNQ8u7vjo=", "T7rhBUji1Ik=" ],
 	"claimableBalance|protocol version 18|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "afo59VRXjGE=", "mf4a5zYhQCk=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid amount" : [ "L2LwFxrgUo4=", "zbtVVBQqMZk=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|duplicate claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|empty claimants" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "L2LwFxrgUo4=" ],
-	"claimableBalance|protocol version 18|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=" ],
-	"claimableBalance|protocol version 18|op source account last modified is updated on claim of sponsored balance|clawback" : [ "9Okc0+oma3I=", "lXMEdQr1Q0w=", "VXHT5a/Ri0I=" ],
+	"claimableBalance|protocol version 18|op source account last modified is updated on claim of sponsored balance|claim" : [ "Zc0q+nvLFO4=", "Vb2gf5h1sp4=", "6COeeLNnTUQ=", "sCtLezTZCIA=" ],
+	"claimableBalance|protocol version 18|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"9Okc0+oma3I=",
+		"lXMEdQr1Q0w=",
+		"VXHT5a/Ri0I=",
+		"bzp0zos9E9o=",
+		"YTozswkoAOw="
+	],
 	"claimableBalance|protocol version 18|source account is issuer" : [ "R67xhllLiL8=", "6pIfy1eeJZg=" ],
 	"claimableBalance|protocol version 18|tx account is different than op account on successful create" : [ "7F98oCLo7sY=", "r4r9G+A/dCs=", "V2fFllwQAmc=", "kdbkpVUUd+A=" ],
 	"claimableBalance|protocol version 18|validate tx account is used in hash" : 
@@ -7935,6 +7850,7 @@
 		"MKn+vz4ceJ4=",
 		"+COtuiqufLI="
 	],
+	"claimableBalance|protocol version 19|claim and create are sponsored" : [ "xsBhwrgccOQ=", "QTnbfkycDtY=" ],
 	"claimableBalance|protocol version 19|claim claimable trustline issues" : 
 	[
 		"fTS1MyFUD+0=",
@@ -7950,10 +7866,10 @@
 		"cBqMU+clhL0=",
 		"RGPo3rBnRJc="
 	],
-	"claimableBalance|protocol version 19|claim is sponsored" : [ "f6yfpeU/ALA=" ],
-	"claimableBalance|protocol version 19|create is sponsored" : [ "EuWuTqZRZpo=" ],
-	"claimableBalance|protocol version 19|invalid asset" : [ "JDISMoSSfcg=" ],
-	"claimableBalance|protocol version 19|merge create account before claim" : [ "f6yfpeU/ALA=", "SG/WLvhJILA=", "DJ7OBSANsLU=" ],
+	"claimableBalance|protocol version 19|claim is sponsored" : [ "f6yfpeU/ALA=", "2FOMrqTyRrs=" ],
+	"claimableBalance|protocol version 19|claimable balance sponsorship can only be transferred" : [ "DiEOwzAbU+c=", "5eSb8MUoD5g=" ],
+	"claimableBalance|protocol version 19|create is sponsored" : [ "xsBhwrgccOQ=", "t2y2l4I5w1A=" ],
+	"claimableBalance|protocol version 19|merge create account before claim" : [ "f6yfpeU/ALA=", "GTbZvkGn/Uc=", "ZHZXhEdYw8E=", "CggQXuXo6ww=" ],
 	"claimableBalance|protocol version 19|merge sponsoring account" : [ "9x1JBAwuI1c=", "haneNGC6vPM=" ],
 	"claimableBalance|protocol version 19|multiple claimants try to claim balance in same tx" : [ "83FYBdKi7Vc=", "JiqNTxGpaK4=", "oiFFbl5aLFo=" ],
 	"claimableBalance|protocol version 19|multiple creates in tx to test index in hash" : [ "8PqFzLddyYI=", "7ehdenEi2M0=" ],
@@ -8342,16 +8258,6 @@
 	"claimableBalance|protocol version 19|native|valid predicate and claimant combinations|predicate at level 1" : [ "bcCN15+xVd0=", "swzkWGREVJo=" ],
 	"claimableBalance|protocol version 19|native|valid predicate and claimant combinations|predicate at level 2" : [ "iWWDaF3gldI=", "6+NF35HoyWo=" ],
 	"claimableBalance|protocol version 19|native|valid predicate and claimant combinations|predicate at level 3" : [ "8sdninOyWOY=", "+2gTcQJZdNY=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid amount" : [ "1XRTbtpU/+I=", "Jdt7nW4he0A=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|duplicate claimants" : [ "1XRTbtpU/+I=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|empty claimants" : [ "1XRTbtpU/+I=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "1XRTbtpU/+I=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "1XRTbtpU/+I=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "1XRTbtpU/+I=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "1XRTbtpU/+I=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "1XRTbtpU/+I=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "1XRTbtpU/+I=" ],
-	"claimableBalance|protocol version 19|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "1XRTbtpU/+I=" ],
 	"claimableBalance|protocol version 19|non-native" : 
 	[
 		"qvbJGYzsnNA=",
@@ -8844,18 +8750,15 @@
 	"claimableBalance|protocol version 19|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "Ke4VzIULeEo=", "eSshJT6PGi4=" ],
 	"claimableBalance|protocol version 19|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "WbUFxjcSqMg=", "VDpTKNp2/Dk=" ],
 	"claimableBalance|protocol version 19|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "ug/JEt3eSGM=", "BiriVI2ZeHM=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid amount" : [ "PJcSVwJu0IQ=", "7I5yDnIPXho=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|duplicate claimants" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|empty claimants" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "PJcSVwJu0IQ=" ],
-	"claimableBalance|protocol version 19|op source account last modified is updated on claim of sponsored balance|claim" : [ "64VvHyhdYBc=", "T+jjfKvjkig=" ],
-	"claimableBalance|protocol version 19|op source account last modified is updated on claim of sponsored balance|clawback" : [ "+il9/yduVeY=", "7f1g4oGZe6M=", "PxSAtG60R/I=" ],
+	"claimableBalance|protocol version 19|op source account last modified is updated on claim of sponsored balance|claim" : [ "64VvHyhdYBc=", "T+jjfKvjkig=", "HAfjrPT05gI=", "+twYBE2mlOE=" ],
+	"claimableBalance|protocol version 19|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"+il9/yduVeY=",
+		"7f1g4oGZe6M=",
+		"PxSAtG60R/I=",
+		"zHBI/4HkS8k=",
+		"fRNidxsYcv0="
+	],
 	"claimableBalance|protocol version 19|source account is issuer" : [ "/7gj0g08KIk=", "v4slnM5AeGs=" ],
 	"claimableBalance|protocol version 19|tx account is different than op account on successful create" : [ "4+5/3DcVguc=", "fvrNgJa5ZaM=", "SVAOAOSPbic=", "2jOOq1JY4uc=" ],
 	"claimableBalance|protocol version 19|validate tx account is used in hash" : 
@@ -8869,7 +8772,6 @@
 		"FT15/EcXpgc=",
 		"A3WaP8+oDhE="
 	],
-	"claimableBalance|protocol version 1|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"claimableBalance|protocol version 2" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
 	"claimableBalance|protocol version 20" : 
 	[
@@ -9410,6 +9312,7 @@
 		"haJPBe9bg4w=",
 		"0cxy937V3S0="
 	],
+	"claimableBalance|protocol version 20|claim and create are sponsored" : [ "Z8Sq8eLhkcc=", "OXRpJxAJSA8=" ],
 	"claimableBalance|protocol version 20|claim claimable trustline issues" : 
 	[
 		"y3J9P/sBKMU=",
@@ -9425,10 +9328,10 @@
 		"xAIUEJFZr1o=",
 		"EvZbPh7dVmQ="
 	],
-	"claimableBalance|protocol version 20|claim is sponsored" : [ "v0U2DUyE1U8=" ],
-	"claimableBalance|protocol version 20|create is sponsored" : [ "sWaFW9sfIk8=" ],
-	"claimableBalance|protocol version 20|invalid asset" : [ "nCFXIDhAqYE=" ],
-	"claimableBalance|protocol version 20|merge create account before claim" : [ "v0U2DUyE1U8=", "9EWh92vzunw=", "IyspDlISc9M=" ],
+	"claimableBalance|protocol version 20|claim is sponsored" : [ "v0U2DUyE1U8=", "X1uUYPjNGIQ=" ],
+	"claimableBalance|protocol version 20|claimable balance sponsorship can only be transferred" : [ "W12yNKaPwEs=", "Rb6b8kjOZFE=" ],
+	"claimableBalance|protocol version 20|create is sponsored" : [ "Z8Sq8eLhkcc=", "DzQZ8LrTQsc=" ],
+	"claimableBalance|protocol version 20|merge create account before claim" : [ "v0U2DUyE1U8=", "YsVA7V9MMNo=", "n2MvlAHbFgY=", "YcYooGdTqrM=" ],
 	"claimableBalance|protocol version 20|merge sponsoring account" : [ "sMVq6NbvG6M=", "Qzl6+kXX5Q0=" ],
 	"claimableBalance|protocol version 20|multiple claimants try to claim balance in same tx" : [ "3n3ev7Bo3VA=", "dbxzu2tYxks=", "ZV9YLsdMm6U=" ],
 	"claimableBalance|protocol version 20|multiple creates in tx to test index in hash" : [ "pt32/MAL+NE=", "SJo+PW8iegg=" ],
@@ -9817,16 +9720,6 @@
 	"claimableBalance|protocol version 20|native|valid predicate and claimant combinations|predicate at level 1" : [ "pbyxuW4FJ+4=", "XcE0OCbs0r0=" ],
 	"claimableBalance|protocol version 20|native|valid predicate and claimant combinations|predicate at level 2" : [ "SuVKNuuvsvM=", "0BditQGe02s=" ],
 	"claimableBalance|protocol version 20|native|valid predicate and claimant combinations|predicate at level 3" : [ "FvXr55AOEb4=", "7NLG0k6MRP4=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid amount" : [ "KuHD0Gh5OqY=", "4TovLIas5zk=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|duplicate claimants" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|empty claimants" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 20|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "KuHD0Gh5OqY=" ],
 	"claimableBalance|protocol version 20|non-native" : 
 	[
 		"PtaItCBDr6g=",
@@ -10319,18 +10212,15 @@
 	"claimableBalance|protocol version 20|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "5DiEoJKMVcA=", "U2K0+8AfupQ=" ],
 	"claimableBalance|protocol version 20|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "NhVfO+oE1g4=", "TDi70HbzeVc=" ],
 	"claimableBalance|protocol version 20|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "ms2RM0cPreg=", "oAjj8Tqdn08=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid amount" : [ "g8nuqUEFusk=", "I33ZkIC54Fw=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|duplicate claimants" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|empty claimants" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 20|op source account last modified is updated on claim of sponsored balance|claim" : [ "86H9sKuJxeI=", "6FsyLKGdqSc=" ],
-	"claimableBalance|protocol version 20|op source account last modified is updated on claim of sponsored balance|clawback" : [ "4ACpeyasd0M=", "6Wn6DB6i0Bs=", "u/j4fcNubZM=" ],
+	"claimableBalance|protocol version 20|op source account last modified is updated on claim of sponsored balance|claim" : [ "86H9sKuJxeI=", "6FsyLKGdqSc=", "qq0kTlz3p0Q=", "6jsGigHG57A=" ],
+	"claimableBalance|protocol version 20|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"4ACpeyasd0M=",
+		"6Wn6DB6i0Bs=",
+		"u/j4fcNubZM=",
+		"CRjshH4XcY0=",
+		"FV91JK/nmW4="
+	],
 	"claimableBalance|protocol version 20|source account is issuer" : [ "oJ4dRCrZ1rI=", "poCuebeK8hQ=" ],
 	"claimableBalance|protocol version 20|tx account is different than op account on successful create" : [ "UuiNc+vcdSs=", "7NoHmydY5bs=", "nDgAcSaw6Ac=", "fLHtgLJhzWg=" ],
 	"claimableBalance|protocol version 20|validate tx account is used in hash" : 
@@ -10883,6 +10773,7 @@
 		"haJPBe9bg4w=",
 		"0cxy937V3S0="
 	],
+	"claimableBalance|protocol version 21|claim and create are sponsored" : [ "Z8Sq8eLhkcc=", "OXRpJxAJSA8=" ],
 	"claimableBalance|protocol version 21|claim claimable trustline issues" : 
 	[
 		"y3J9P/sBKMU=",
@@ -10898,10 +10789,10 @@
 		"xAIUEJFZr1o=",
 		"EvZbPh7dVmQ="
 	],
-	"claimableBalance|protocol version 21|claim is sponsored" : [ "v0U2DUyE1U8=" ],
-	"claimableBalance|protocol version 21|create is sponsored" : [ "sWaFW9sfIk8=" ],
-	"claimableBalance|protocol version 21|invalid asset" : [ "nCFXIDhAqYE=" ],
-	"claimableBalance|protocol version 21|merge create account before claim" : [ "v0U2DUyE1U8=", "9EWh92vzunw=", "IyspDlISc9M=" ],
+	"claimableBalance|protocol version 21|claim is sponsored" : [ "v0U2DUyE1U8=", "X1uUYPjNGIQ=" ],
+	"claimableBalance|protocol version 21|claimable balance sponsorship can only be transferred" : [ "W12yNKaPwEs=", "Rb6b8kjOZFE=" ],
+	"claimableBalance|protocol version 21|create is sponsored" : [ "Z8Sq8eLhkcc=", "DzQZ8LrTQsc=" ],
+	"claimableBalance|protocol version 21|merge create account before claim" : [ "v0U2DUyE1U8=", "YsVA7V9MMNo=", "n2MvlAHbFgY=", "YcYooGdTqrM=" ],
 	"claimableBalance|protocol version 21|merge sponsoring account" : [ "sMVq6NbvG6M=", "Qzl6+kXX5Q0=" ],
 	"claimableBalance|protocol version 21|multiple claimants try to claim balance in same tx" : [ "3n3ev7Bo3VA=", "dbxzu2tYxks=", "ZV9YLsdMm6U=" ],
 	"claimableBalance|protocol version 21|multiple creates in tx to test index in hash" : [ "pt32/MAL+NE=", "SJo+PW8iegg=" ],
@@ -11290,16 +11181,6 @@
 	"claimableBalance|protocol version 21|native|valid predicate and claimant combinations|predicate at level 1" : [ "pbyxuW4FJ+4=", "XcE0OCbs0r0=" ],
 	"claimableBalance|protocol version 21|native|valid predicate and claimant combinations|predicate at level 2" : [ "SuVKNuuvsvM=", "0BditQGe02s=" ],
 	"claimableBalance|protocol version 21|native|valid predicate and claimant combinations|predicate at level 3" : [ "FvXr55AOEb4=", "7NLG0k6MRP4=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid amount" : [ "KuHD0Gh5OqY=", "4TovLIas5zk=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|duplicate claimants" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|empty claimants" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 21|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "KuHD0Gh5OqY=" ],
 	"claimableBalance|protocol version 21|non-native" : 
 	[
 		"PtaItCBDr6g=",
@@ -11792,18 +11673,15 @@
 	"claimableBalance|protocol version 21|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "5DiEoJKMVcA=", "U2K0+8AfupQ=" ],
 	"claimableBalance|protocol version 21|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "NhVfO+oE1g4=", "TDi70HbzeVc=" ],
 	"claimableBalance|protocol version 21|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "ms2RM0cPreg=", "oAjj8Tqdn08=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid amount" : [ "g8nuqUEFusk=", "I33ZkIC54Fw=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|duplicate claimants" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|empty claimants" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 21|op source account last modified is updated on claim of sponsored balance|claim" : [ "86H9sKuJxeI=", "6FsyLKGdqSc=" ],
-	"claimableBalance|protocol version 21|op source account last modified is updated on claim of sponsored balance|clawback" : [ "4ACpeyasd0M=", "6Wn6DB6i0Bs=", "u/j4fcNubZM=" ],
+	"claimableBalance|protocol version 21|op source account last modified is updated on claim of sponsored balance|claim" : [ "86H9sKuJxeI=", "6FsyLKGdqSc=", "qq0kTlz3p0Q=", "6jsGigHG57A=" ],
+	"claimableBalance|protocol version 21|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"4ACpeyasd0M=",
+		"6Wn6DB6i0Bs=",
+		"u/j4fcNubZM=",
+		"CRjshH4XcY0=",
+		"FV91JK/nmW4="
+	],
 	"claimableBalance|protocol version 21|source account is issuer" : [ "oJ4dRCrZ1rI=", "poCuebeK8hQ=" ],
 	"claimableBalance|protocol version 21|tx account is different than op account on successful create" : [ "UuiNc+vcdSs=", "7NoHmydY5bs=", "nDgAcSaw6Ac=", "fLHtgLJhzWg=" ],
 	"claimableBalance|protocol version 21|validate tx account is used in hash" : 
@@ -12356,6 +12234,7 @@
 		"haJPBe9bg4w=",
 		"0cxy937V3S0="
 	],
+	"claimableBalance|protocol version 22|claim and create are sponsored" : [ "Z8Sq8eLhkcc=", "OXRpJxAJSA8=" ],
 	"claimableBalance|protocol version 22|claim claimable trustline issues" : 
 	[
 		"y3J9P/sBKMU=",
@@ -12371,10 +12250,10 @@
 		"xAIUEJFZr1o=",
 		"EvZbPh7dVmQ="
 	],
-	"claimableBalance|protocol version 22|claim is sponsored" : [ "v0U2DUyE1U8=" ],
-	"claimableBalance|protocol version 22|create is sponsored" : [ "sWaFW9sfIk8=" ],
-	"claimableBalance|protocol version 22|invalid asset" : [ "nCFXIDhAqYE=" ],
-	"claimableBalance|protocol version 22|merge create account before claim" : [ "v0U2DUyE1U8=", "9EWh92vzunw=", "IyspDlISc9M=" ],
+	"claimableBalance|protocol version 22|claim is sponsored" : [ "v0U2DUyE1U8=", "X1uUYPjNGIQ=" ],
+	"claimableBalance|protocol version 22|claimable balance sponsorship can only be transferred" : [ "W12yNKaPwEs=", "Rb6b8kjOZFE=" ],
+	"claimableBalance|protocol version 22|create is sponsored" : [ "Z8Sq8eLhkcc=", "DzQZ8LrTQsc=" ],
+	"claimableBalance|protocol version 22|merge create account before claim" : [ "v0U2DUyE1U8=", "YsVA7V9MMNo=", "n2MvlAHbFgY=", "YcYooGdTqrM=" ],
 	"claimableBalance|protocol version 22|merge sponsoring account" : [ "sMVq6NbvG6M=", "Qzl6+kXX5Q0=" ],
 	"claimableBalance|protocol version 22|multiple claimants try to claim balance in same tx" : [ "3n3ev7Bo3VA=", "dbxzu2tYxks=", "ZV9YLsdMm6U=" ],
 	"claimableBalance|protocol version 22|multiple creates in tx to test index in hash" : [ "pt32/MAL+NE=", "SJo+PW8iegg=" ],
@@ -12763,16 +12642,6 @@
 	"claimableBalance|protocol version 22|native|valid predicate and claimant combinations|predicate at level 1" : [ "pbyxuW4FJ+4=", "XcE0OCbs0r0=" ],
 	"claimableBalance|protocol version 22|native|valid predicate and claimant combinations|predicate at level 2" : [ "SuVKNuuvsvM=", "0BditQGe02s=" ],
 	"claimableBalance|protocol version 22|native|valid predicate and claimant combinations|predicate at level 3" : [ "FvXr55AOEb4=", "7NLG0k6MRP4=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid amount" : [ "KuHD0Gh5OqY=", "4TovLIas5zk=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|duplicate claimants" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|empty claimants" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "KuHD0Gh5OqY=" ],
-	"claimableBalance|protocol version 22|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "KuHD0Gh5OqY=" ],
 	"claimableBalance|protocol version 22|non-native" : 
 	[
 		"PtaItCBDr6g=",
@@ -13265,18 +13134,15 @@
 	"claimableBalance|protocol version 22|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "5DiEoJKMVcA=", "U2K0+8AfupQ=" ],
 	"claimableBalance|protocol version 22|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "NhVfO+oE1g4=", "TDi70HbzeVc=" ],
 	"claimableBalance|protocol version 22|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "ms2RM0cPreg=", "oAjj8Tqdn08=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid amount" : [ "g8nuqUEFusk=", "I33ZkIC54Fw=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|duplicate claimants" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|empty claimants" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "g8nuqUEFusk=" ],
-	"claimableBalance|protocol version 22|op source account last modified is updated on claim of sponsored balance|claim" : [ "86H9sKuJxeI=", "6FsyLKGdqSc=" ],
-	"claimableBalance|protocol version 22|op source account last modified is updated on claim of sponsored balance|clawback" : [ "4ACpeyasd0M=", "6Wn6DB6i0Bs=", "u/j4fcNubZM=" ],
+	"claimableBalance|protocol version 22|op source account last modified is updated on claim of sponsored balance|claim" : [ "86H9sKuJxeI=", "6FsyLKGdqSc=", "qq0kTlz3p0Q=", "6jsGigHG57A=" ],
+	"claimableBalance|protocol version 22|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"4ACpeyasd0M=",
+		"6Wn6DB6i0Bs=",
+		"u/j4fcNubZM=",
+		"CRjshH4XcY0=",
+		"FV91JK/nmW4="
+	],
 	"claimableBalance|protocol version 22|source account is issuer" : [ "oJ4dRCrZ1rI=", "poCuebeK8hQ=" ],
 	"claimableBalance|protocol version 22|tx account is different than op account on successful create" : [ "UuiNc+vcdSs=", "7NoHmydY5bs=", "nDgAcSaw6Ac=", "fLHtgLJhzWg=" ],
 	"claimableBalance|protocol version 22|validate tx account is used in hash" : 
@@ -13829,6 +13695,7 @@
 		"wsjsKqyCK48=",
 		"3aPZLt6Ifgc="
 	],
+	"claimableBalance|protocol version 23|claim and create are sponsored" : [ "Cd1kZ2fixOs=", "y1x7UmflAF0=" ],
 	"claimableBalance|protocol version 23|claim claimable trustline issues" : 
 	[
 		"IF87YpW8M70=",
@@ -13844,10 +13711,10 @@
 		"+379KbDFQ0w=",
 		"4KHUyxFYaLA="
 	],
-	"claimableBalance|protocol version 23|claim is sponsored" : [ "wHdd57TIHfs=" ],
-	"claimableBalance|protocol version 23|create is sponsored" : [ "hZvzkHzw+lY=" ],
-	"claimableBalance|protocol version 23|invalid asset" : [ "xtHaja7O76w=" ],
-	"claimableBalance|protocol version 23|merge create account before claim" : [ "wHdd57TIHfs=", "s/kQ0KFX9zE=", "6/RFx4/TVUs=" ],
+	"claimableBalance|protocol version 23|claim is sponsored" : [ "wHdd57TIHfs=", "E360jL0nwIY=" ],
+	"claimableBalance|protocol version 23|claimable balance sponsorship can only be transferred" : [ "yqHA1TOhKos=", "nqTHbwoPAN8=" ],
+	"claimableBalance|protocol version 23|create is sponsored" : [ "Cd1kZ2fixOs=", "7td7Ne8j2cw=" ],
+	"claimableBalance|protocol version 23|merge create account before claim" : [ "wHdd57TIHfs=", "SoHO8ai3rZw=", "vMfQKvNinX0=", "yqS1ULeogvs=" ],
 	"claimableBalance|protocol version 23|merge sponsoring account" : [ "3cEJnQ+BKGw=", "QN+zg9n9BDo=" ],
 	"claimableBalance|protocol version 23|multiple claimants try to claim balance in same tx" : [ "Cz9zOTDmbx8=", "9weieLASzLA=", "Dw12IJrsLZk=" ],
 	"claimableBalance|protocol version 23|multiple creates in tx to test index in hash" : [ "/cZLoIvkgt4=", "ufpXmC+eyi0=" ],
@@ -14236,16 +14103,6 @@
 	"claimableBalance|protocol version 23|native|valid predicate and claimant combinations|predicate at level 1" : [ "AaLVjuRTixk=", "Z9Yi1pZIjKo=" ],
 	"claimableBalance|protocol version 23|native|valid predicate and claimant combinations|predicate at level 2" : [ "7WVmSTq3yP8=", "wy00/4E8u2E=" ],
 	"claimableBalance|protocol version 23|native|valid predicate and claimant combinations|predicate at level 3" : [ "iQoYBQR3/k4=", "DbJkQT/ZN8A=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid amount" : [ "fO5Hh5Gektc=", "eiOYWWzirgA=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|duplicate claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|empty claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 23|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "fO5Hh5Gektc=" ],
 	"claimableBalance|protocol version 23|non-native" : 
 	[
 		"zb40MJIjTdI=",
@@ -14738,18 +14595,15 @@
 	"claimableBalance|protocol version 23|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "fJHNZXDwKf0=", "5enns/kRnn0=" ],
 	"claimableBalance|protocol version 23|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "lXkZ5exmY+c=", "CzTSRiXH9Kc=" ],
 	"claimableBalance|protocol version 23|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "mGKoAhww12o=", "oVRBC09Hnrs=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid amount" : [ "nbdFtMfH56E=", "6vitIf7N+kg=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|duplicate claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|empty claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 23|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=" ],
-	"claimableBalance|protocol version 23|op source account last modified is updated on claim of sponsored balance|clawback" : [ "rxy9AEEvLJY=", "3yNA702jlkw=", "rtUohNutExc=" ],
+	"claimableBalance|protocol version 23|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=", "qsd/SRNrcOQ=", "JMqx9Tcu1Dw=" ],
+	"claimableBalance|protocol version 23|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"rxy9AEEvLJY=",
+		"3yNA702jlkw=",
+		"rtUohNutExc=",
+		"FMCrXxvb4tA=",
+		"i8N5TK5U8I4="
+	],
 	"claimableBalance|protocol version 23|source account is issuer" : [ "QCFQMKEfd2s=", "IoxuJAIJAeU=" ],
 	"claimableBalance|protocol version 23|tx account is different than op account on successful create" : [ "dupwEZTiUAc=", "/q42IhmfUv8=", "nD1CgBvPM9Q=", "Kku4R15nG5E=" ],
 	"claimableBalance|protocol version 23|validate tx account is used in hash" : 
@@ -15302,6 +15156,7 @@
 		"wsjsKqyCK48=",
 		"3aPZLt6Ifgc="
 	],
+	"claimableBalance|protocol version 24|claim and create are sponsored" : [ "Cd1kZ2fixOs=", "y1x7UmflAF0=" ],
 	"claimableBalance|protocol version 24|claim claimable trustline issues" : 
 	[
 		"IF87YpW8M70=",
@@ -15317,10 +15172,10 @@
 		"+379KbDFQ0w=",
 		"4KHUyxFYaLA="
 	],
-	"claimableBalance|protocol version 24|claim is sponsored" : [ "wHdd57TIHfs=" ],
-	"claimableBalance|protocol version 24|create is sponsored" : [ "hZvzkHzw+lY=" ],
-	"claimableBalance|protocol version 24|invalid asset" : [ "xtHaja7O76w=" ],
-	"claimableBalance|protocol version 24|merge create account before claim" : [ "wHdd57TIHfs=", "s/kQ0KFX9zE=", "6/RFx4/TVUs=" ],
+	"claimableBalance|protocol version 24|claim is sponsored" : [ "wHdd57TIHfs=", "E360jL0nwIY=" ],
+	"claimableBalance|protocol version 24|claimable balance sponsorship can only be transferred" : [ "yqHA1TOhKos=", "nqTHbwoPAN8=" ],
+	"claimableBalance|protocol version 24|create is sponsored" : [ "Cd1kZ2fixOs=", "7td7Ne8j2cw=" ],
+	"claimableBalance|protocol version 24|merge create account before claim" : [ "wHdd57TIHfs=", "SoHO8ai3rZw=", "vMfQKvNinX0=", "yqS1ULeogvs=" ],
 	"claimableBalance|protocol version 24|merge sponsoring account" : [ "3cEJnQ+BKGw=", "QN+zg9n9BDo=" ],
 	"claimableBalance|protocol version 24|multiple claimants try to claim balance in same tx" : [ "Cz9zOTDmbx8=", "9weieLASzLA=", "Dw12IJrsLZk=" ],
 	"claimableBalance|protocol version 24|multiple creates in tx to test index in hash" : [ "/cZLoIvkgt4=", "ufpXmC+eyi0=" ],
@@ -15709,16 +15564,6 @@
 	"claimableBalance|protocol version 24|native|valid predicate and claimant combinations|predicate at level 1" : [ "AaLVjuRTixk=", "Z9Yi1pZIjKo=" ],
 	"claimableBalance|protocol version 24|native|valid predicate and claimant combinations|predicate at level 2" : [ "7WVmSTq3yP8=", "wy00/4E8u2E=" ],
 	"claimableBalance|protocol version 24|native|valid predicate and claimant combinations|predicate at level 3" : [ "iQoYBQR3/k4=", "DbJkQT/ZN8A=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid amount" : [ "fO5Hh5Gektc=", "eiOYWWzirgA=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|duplicate claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|empty claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 24|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "fO5Hh5Gektc=" ],
 	"claimableBalance|protocol version 24|non-native" : 
 	[
 		"zb40MJIjTdI=",
@@ -16211,18 +16056,15 @@
 	"claimableBalance|protocol version 24|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "fJHNZXDwKf0=", "5enns/kRnn0=" ],
 	"claimableBalance|protocol version 24|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "lXkZ5exmY+c=", "CzTSRiXH9Kc=" ],
 	"claimableBalance|protocol version 24|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "mGKoAhww12o=", "oVRBC09Hnrs=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid amount" : [ "nbdFtMfH56E=", "6vitIf7N+kg=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|duplicate claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|empty claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 24|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=" ],
-	"claimableBalance|protocol version 24|op source account last modified is updated on claim of sponsored balance|clawback" : [ "rxy9AEEvLJY=", "3yNA702jlkw=", "rtUohNutExc=" ],
+	"claimableBalance|protocol version 24|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=", "qsd/SRNrcOQ=", "JMqx9Tcu1Dw=" ],
+	"claimableBalance|protocol version 24|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"rxy9AEEvLJY=",
+		"3yNA702jlkw=",
+		"rtUohNutExc=",
+		"FMCrXxvb4tA=",
+		"i8N5TK5U8I4="
+	],
 	"claimableBalance|protocol version 24|source account is issuer" : [ "QCFQMKEfd2s=", "IoxuJAIJAeU=" ],
 	"claimableBalance|protocol version 24|tx account is different than op account on successful create" : [ "dupwEZTiUAc=", "/q42IhmfUv8=", "nD1CgBvPM9Q=", "Kku4R15nG5E=" ],
 	"claimableBalance|protocol version 24|validate tx account is used in hash" : 
@@ -16775,6 +16617,7 @@
 		"wsjsKqyCK48=",
 		"3aPZLt6Ifgc="
 	],
+	"claimableBalance|protocol version 25|claim and create are sponsored" : [ "Cd1kZ2fixOs=", "y1x7UmflAF0=" ],
 	"claimableBalance|protocol version 25|claim claimable trustline issues" : 
 	[
 		"IF87YpW8M70=",
@@ -16790,10 +16633,10 @@
 		"+379KbDFQ0w=",
 		"4KHUyxFYaLA="
 	],
-	"claimableBalance|protocol version 25|claim is sponsored" : [ "wHdd57TIHfs=" ],
-	"claimableBalance|protocol version 25|create is sponsored" : [ "hZvzkHzw+lY=" ],
-	"claimableBalance|protocol version 25|invalid asset" : [ "xtHaja7O76w=" ],
-	"claimableBalance|protocol version 25|merge create account before claim" : [ "wHdd57TIHfs=", "s/kQ0KFX9zE=", "6/RFx4/TVUs=" ],
+	"claimableBalance|protocol version 25|claim is sponsored" : [ "wHdd57TIHfs=", "E360jL0nwIY=" ],
+	"claimableBalance|protocol version 25|claimable balance sponsorship can only be transferred" : [ "yqHA1TOhKos=", "nqTHbwoPAN8=" ],
+	"claimableBalance|protocol version 25|create is sponsored" : [ "Cd1kZ2fixOs=", "7td7Ne8j2cw=" ],
+	"claimableBalance|protocol version 25|merge create account before claim" : [ "wHdd57TIHfs=", "SoHO8ai3rZw=", "vMfQKvNinX0=", "yqS1ULeogvs=" ],
 	"claimableBalance|protocol version 25|merge sponsoring account" : [ "3cEJnQ+BKGw=", "QN+zg9n9BDo=" ],
 	"claimableBalance|protocol version 25|multiple claimants try to claim balance in same tx" : [ "Cz9zOTDmbx8=", "9weieLASzLA=", "Dw12IJrsLZk=" ],
 	"claimableBalance|protocol version 25|multiple creates in tx to test index in hash" : [ "/cZLoIvkgt4=", "ufpXmC+eyi0=" ],
@@ -17182,16 +17025,6 @@
 	"claimableBalance|protocol version 25|native|valid predicate and claimant combinations|predicate at level 1" : [ "AaLVjuRTixk=", "Z9Yi1pZIjKo=" ],
 	"claimableBalance|protocol version 25|native|valid predicate and claimant combinations|predicate at level 2" : [ "7WVmSTq3yP8=", "wy00/4E8u2E=" ],
 	"claimableBalance|protocol version 25|native|valid predicate and claimant combinations|predicate at level 3" : [ "iQoYBQR3/k4=", "DbJkQT/ZN8A=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid amount" : [ "fO5Hh5Gektc=", "eiOYWWzirgA=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|duplicate claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|empty claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 25|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "fO5Hh5Gektc=" ],
 	"claimableBalance|protocol version 25|non-native" : 
 	[
 		"zb40MJIjTdI=",
@@ -17684,18 +17517,15 @@
 	"claimableBalance|protocol version 25|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "fJHNZXDwKf0=", "5enns/kRnn0=" ],
 	"claimableBalance|protocol version 25|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "lXkZ5exmY+c=", "CzTSRiXH9Kc=" ],
 	"claimableBalance|protocol version 25|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "mGKoAhww12o=", "oVRBC09Hnrs=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid amount" : [ "nbdFtMfH56E=", "6vitIf7N+kg=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|duplicate claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|empty claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 25|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=" ],
-	"claimableBalance|protocol version 25|op source account last modified is updated on claim of sponsored balance|clawback" : [ "rxy9AEEvLJY=", "3yNA702jlkw=", "rtUohNutExc=" ],
+	"claimableBalance|protocol version 25|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=", "qsd/SRNrcOQ=", "JMqx9Tcu1Dw=" ],
+	"claimableBalance|protocol version 25|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"rxy9AEEvLJY=",
+		"3yNA702jlkw=",
+		"rtUohNutExc=",
+		"FMCrXxvb4tA=",
+		"i8N5TK5U8I4="
+	],
 	"claimableBalance|protocol version 25|source account is issuer" : [ "QCFQMKEfd2s=", "IoxuJAIJAeU=" ],
 	"claimableBalance|protocol version 25|tx account is different than op account on successful create" : [ "dupwEZTiUAc=", "/q42IhmfUv8=", "nD1CgBvPM9Q=", "Kku4R15nG5E=" ],
 	"claimableBalance|protocol version 25|validate tx account is used in hash" : 
@@ -18248,6 +18078,7 @@
 		"wsjsKqyCK48=",
 		"3aPZLt6Ifgc="
 	],
+	"claimableBalance|protocol version 26|claim and create are sponsored" : [ "Cd1kZ2fixOs=", "y1x7UmflAF0=" ],
 	"claimableBalance|protocol version 26|claim claimable trustline issues" : 
 	[
 		"IF87YpW8M70=",
@@ -18263,10 +18094,10 @@
 		"+379KbDFQ0w=",
 		"4KHUyxFYaLA="
 	],
-	"claimableBalance|protocol version 26|claim is sponsored" : [ "wHdd57TIHfs=" ],
-	"claimableBalance|protocol version 26|create is sponsored" : [ "hZvzkHzw+lY=" ],
-	"claimableBalance|protocol version 26|invalid asset" : [ "xtHaja7O76w=" ],
-	"claimableBalance|protocol version 26|merge create account before claim" : [ "wHdd57TIHfs=", "s/kQ0KFX9zE=", "6/RFx4/TVUs=" ],
+	"claimableBalance|protocol version 26|claim is sponsored" : [ "wHdd57TIHfs=", "E360jL0nwIY=" ],
+	"claimableBalance|protocol version 26|claimable balance sponsorship can only be transferred" : [ "yqHA1TOhKos=", "nqTHbwoPAN8=" ],
+	"claimableBalance|protocol version 26|create is sponsored" : [ "Cd1kZ2fixOs=", "7td7Ne8j2cw=" ],
+	"claimableBalance|protocol version 26|merge create account before claim" : [ "wHdd57TIHfs=", "SoHO8ai3rZw=", "vMfQKvNinX0=", "yqS1ULeogvs=" ],
 	"claimableBalance|protocol version 26|merge sponsoring account" : [ "3cEJnQ+BKGw=", "QN+zg9n9BDo=" ],
 	"claimableBalance|protocol version 26|multiple claimants try to claim balance in same tx" : [ "Cz9zOTDmbx8=", "9weieLASzLA=", "Dw12IJrsLZk=" ],
 	"claimableBalance|protocol version 26|multiple creates in tx to test index in hash" : [ "/cZLoIvkgt4=", "ufpXmC+eyi0=" ],
@@ -18655,16 +18486,6 @@
 	"claimableBalance|protocol version 26|native|valid predicate and claimant combinations|predicate at level 1" : [ "AaLVjuRTixk=", "Z9Yi1pZIjKo=" ],
 	"claimableBalance|protocol version 26|native|valid predicate and claimant combinations|predicate at level 2" : [ "7WVmSTq3yP8=", "wy00/4E8u2E=" ],
 	"claimableBalance|protocol version 26|native|valid predicate and claimant combinations|predicate at level 3" : [ "iQoYBQR3/k4=", "DbJkQT/ZN8A=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid amount" : [ "fO5Hh5Gektc=", "eiOYWWzirgA=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|duplicate claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|empty claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 26|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "fO5Hh5Gektc=" ],
 	"claimableBalance|protocol version 26|non-native" : 
 	[
 		"zb40MJIjTdI=",
@@ -19157,18 +18978,15 @@
 	"claimableBalance|protocol version 26|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "fJHNZXDwKf0=", "5enns/kRnn0=" ],
 	"claimableBalance|protocol version 26|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "lXkZ5exmY+c=", "CzTSRiXH9Kc=" ],
 	"claimableBalance|protocol version 26|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "mGKoAhww12o=", "oVRBC09Hnrs=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid amount" : [ "nbdFtMfH56E=", "6vitIf7N+kg=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|duplicate claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|empty claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 26|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=" ],
-	"claimableBalance|protocol version 26|op source account last modified is updated on claim of sponsored balance|clawback" : [ "rxy9AEEvLJY=", "3yNA702jlkw=", "rtUohNutExc=" ],
+	"claimableBalance|protocol version 26|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=", "qsd/SRNrcOQ=", "JMqx9Tcu1Dw=" ],
+	"claimableBalance|protocol version 26|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"rxy9AEEvLJY=",
+		"3yNA702jlkw=",
+		"rtUohNutExc=",
+		"FMCrXxvb4tA=",
+		"i8N5TK5U8I4="
+	],
 	"claimableBalance|protocol version 26|source account is issuer" : [ "QCFQMKEfd2s=", "IoxuJAIJAeU=" ],
 	"claimableBalance|protocol version 26|tx account is different than op account on successful create" : [ "dupwEZTiUAc=", "/q42IhmfUv8=", "nD1CgBvPM9Q=", "Kku4R15nG5E=" ],
 	"claimableBalance|protocol version 26|validate tx account is used in hash" : 
@@ -19721,6 +19539,7 @@
 		"wsjsKqyCK48=",
 		"3aPZLt6Ifgc="
 	],
+	"claimableBalance|protocol version 27|claim and create are sponsored" : [ "Cd1kZ2fixOs=", "y1x7UmflAF0=" ],
 	"claimableBalance|protocol version 27|claim claimable trustline issues" : 
 	[
 		"IF87YpW8M70=",
@@ -19736,10 +19555,10 @@
 		"+379KbDFQ0w=",
 		"4KHUyxFYaLA="
 	],
-	"claimableBalance|protocol version 27|claim is sponsored" : [ "wHdd57TIHfs=" ],
-	"claimableBalance|protocol version 27|create is sponsored" : [ "hZvzkHzw+lY=" ],
-	"claimableBalance|protocol version 27|invalid asset" : [ "xtHaja7O76w=" ],
-	"claimableBalance|protocol version 27|merge create account before claim" : [ "wHdd57TIHfs=", "s/kQ0KFX9zE=", "6/RFx4/TVUs=" ],
+	"claimableBalance|protocol version 27|claim is sponsored" : [ "wHdd57TIHfs=", "E360jL0nwIY=" ],
+	"claimableBalance|protocol version 27|claimable balance sponsorship can only be transferred" : [ "yqHA1TOhKos=", "nqTHbwoPAN8=" ],
+	"claimableBalance|protocol version 27|create is sponsored" : [ "Cd1kZ2fixOs=", "7td7Ne8j2cw=" ],
+	"claimableBalance|protocol version 27|merge create account before claim" : [ "wHdd57TIHfs=", "SoHO8ai3rZw=", "vMfQKvNinX0=", "yqS1ULeogvs=" ],
 	"claimableBalance|protocol version 27|merge sponsoring account" : [ "3cEJnQ+BKGw=", "QN+zg9n9BDo=" ],
 	"claimableBalance|protocol version 27|multiple claimants try to claim balance in same tx" : [ "Cz9zOTDmbx8=", "9weieLASzLA=", "Dw12IJrsLZk=" ],
 	"claimableBalance|protocol version 27|multiple creates in tx to test index in hash" : [ "/cZLoIvkgt4=", "ufpXmC+eyi0=" ],
@@ -20128,16 +19947,6 @@
 	"claimableBalance|protocol version 27|native|valid predicate and claimant combinations|predicate at level 1" : [ "AaLVjuRTixk=", "Z9Yi1pZIjKo=" ],
 	"claimableBalance|protocol version 27|native|valid predicate and claimant combinations|predicate at level 2" : [ "7WVmSTq3yP8=", "wy00/4E8u2E=" ],
 	"claimableBalance|protocol version 27|native|valid predicate and claimant combinations|predicate at level 3" : [ "iQoYBQR3/k4=", "DbJkQT/ZN8A=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid amount" : [ "fO5Hh5Gektc=", "eiOYWWzirgA=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|duplicate claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|empty claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 27|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "fO5Hh5Gektc=" ],
 	"claimableBalance|protocol version 27|non-native" : 
 	[
 		"zb40MJIjTdI=",
@@ -20630,18 +20439,15 @@
 	"claimableBalance|protocol version 27|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "fJHNZXDwKf0=", "5enns/kRnn0=" ],
 	"claimableBalance|protocol version 27|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "lXkZ5exmY+c=", "CzTSRiXH9Kc=" ],
 	"claimableBalance|protocol version 27|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "mGKoAhww12o=", "oVRBC09Hnrs=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid amount" : [ "nbdFtMfH56E=", "6vitIf7N+kg=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|duplicate claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|empty claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 27|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=" ],
-	"claimableBalance|protocol version 27|op source account last modified is updated on claim of sponsored balance|clawback" : [ "rxy9AEEvLJY=", "3yNA702jlkw=", "rtUohNutExc=" ],
+	"claimableBalance|protocol version 27|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=", "qsd/SRNrcOQ=", "JMqx9Tcu1Dw=" ],
+	"claimableBalance|protocol version 27|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"rxy9AEEvLJY=",
+		"3yNA702jlkw=",
+		"rtUohNutExc=",
+		"FMCrXxvb4tA=",
+		"i8N5TK5U8I4="
+	],
 	"claimableBalance|protocol version 27|source account is issuer" : [ "QCFQMKEfd2s=", "IoxuJAIJAeU=" ],
 	"claimableBalance|protocol version 27|tx account is different than op account on successful create" : [ "dupwEZTiUAc=", "/q42IhmfUv8=", "nD1CgBvPM9Q=", "Kku4R15nG5E=" ],
 	"claimableBalance|protocol version 27|validate tx account is used in hash" : 
@@ -21194,6 +21000,7 @@
 		"wsjsKqyCK48=",
 		"3aPZLt6Ifgc="
 	],
+	"claimableBalance|protocol version 28|claim and create are sponsored" : [ "Cd1kZ2fixOs=", "y1x7UmflAF0=" ],
 	"claimableBalance|protocol version 28|claim claimable trustline issues" : 
 	[
 		"IF87YpW8M70=",
@@ -21209,10 +21016,10 @@
 		"+379KbDFQ0w=",
 		"4KHUyxFYaLA="
 	],
-	"claimableBalance|protocol version 28|claim is sponsored" : [ "wHdd57TIHfs=" ],
-	"claimableBalance|protocol version 28|create is sponsored" : [ "hZvzkHzw+lY=" ],
-	"claimableBalance|protocol version 28|invalid asset" : [ "xtHaja7O76w=" ],
-	"claimableBalance|protocol version 28|merge create account before claim" : [ "wHdd57TIHfs=", "s/kQ0KFX9zE=", "6/RFx4/TVUs=" ],
+	"claimableBalance|protocol version 28|claim is sponsored" : [ "wHdd57TIHfs=", "E360jL0nwIY=" ],
+	"claimableBalance|protocol version 28|claimable balance sponsorship can only be transferred" : [ "yqHA1TOhKos=", "nqTHbwoPAN8=" ],
+	"claimableBalance|protocol version 28|create is sponsored" : [ "Cd1kZ2fixOs=", "7td7Ne8j2cw=" ],
+	"claimableBalance|protocol version 28|merge create account before claim" : [ "wHdd57TIHfs=", "SoHO8ai3rZw=", "vMfQKvNinX0=", "yqS1ULeogvs=" ],
 	"claimableBalance|protocol version 28|merge sponsoring account" : [ "3cEJnQ+BKGw=", "QN+zg9n9BDo=" ],
 	"claimableBalance|protocol version 28|multiple claimants try to claim balance in same tx" : [ "Cz9zOTDmbx8=", "9weieLASzLA=", "Dw12IJrsLZk=" ],
 	"claimableBalance|protocol version 28|multiple creates in tx to test index in hash" : [ "/cZLoIvkgt4=", "ufpXmC+eyi0=" ],
@@ -21601,16 +21408,6 @@
 	"claimableBalance|protocol version 28|native|valid predicate and claimant combinations|predicate at level 1" : [ "AaLVjuRTixk=", "Z9Yi1pZIjKo=" ],
 	"claimableBalance|protocol version 28|native|valid predicate and claimant combinations|predicate at level 2" : [ "7WVmSTq3yP8=", "wy00/4E8u2E=" ],
 	"claimableBalance|protocol version 28|native|valid predicate and claimant combinations|predicate at level 3" : [ "iQoYBQR3/k4=", "DbJkQT/ZN8A=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid amount" : [ "fO5Hh5Gektc=", "eiOYWWzirgA=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|duplicate claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|empty claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 28|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "fO5Hh5Gektc=" ],
 	"claimableBalance|protocol version 28|non-native" : 
 	[
 		"zb40MJIjTdI=",
@@ -22103,18 +21900,15 @@
 	"claimableBalance|protocol version 28|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "fJHNZXDwKf0=", "5enns/kRnn0=" ],
 	"claimableBalance|protocol version 28|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "lXkZ5exmY+c=", "CzTSRiXH9Kc=" ],
 	"claimableBalance|protocol version 28|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "mGKoAhww12o=", "oVRBC09Hnrs=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid amount" : [ "nbdFtMfH56E=", "6vitIf7N+kg=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|duplicate claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|empty claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 28|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=" ],
-	"claimableBalance|protocol version 28|op source account last modified is updated on claim of sponsored balance|clawback" : [ "rxy9AEEvLJY=", "3yNA702jlkw=", "rtUohNutExc=" ],
+	"claimableBalance|protocol version 28|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=", "qsd/SRNrcOQ=", "JMqx9Tcu1Dw=" ],
+	"claimableBalance|protocol version 28|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"rxy9AEEvLJY=",
+		"3yNA702jlkw=",
+		"rtUohNutExc=",
+		"FMCrXxvb4tA=",
+		"i8N5TK5U8I4="
+	],
 	"claimableBalance|protocol version 28|source account is issuer" : [ "QCFQMKEfd2s=", "IoxuJAIJAeU=" ],
 	"claimableBalance|protocol version 28|tx account is different than op account on successful create" : [ "dupwEZTiUAc=", "/q42IhmfUv8=", "nD1CgBvPM9Q=", "Kku4R15nG5E=" ],
 	"claimableBalance|protocol version 28|validate tx account is used in hash" : 
@@ -22667,6 +22461,7 @@
 		"wsjsKqyCK48=",
 		"3aPZLt6Ifgc="
 	],
+	"claimableBalance|protocol version 29|claim and create are sponsored" : [ "Cd1kZ2fixOs=", "y1x7UmflAF0=" ],
 	"claimableBalance|protocol version 29|claim claimable trustline issues" : 
 	[
 		"IF87YpW8M70=",
@@ -22682,10 +22477,10 @@
 		"+379KbDFQ0w=",
 		"4KHUyxFYaLA="
 	],
-	"claimableBalance|protocol version 29|claim is sponsored" : [ "wHdd57TIHfs=" ],
-	"claimableBalance|protocol version 29|create is sponsored" : [ "hZvzkHzw+lY=" ],
-	"claimableBalance|protocol version 29|invalid asset" : [ "xtHaja7O76w=" ],
-	"claimableBalance|protocol version 29|merge create account before claim" : [ "wHdd57TIHfs=", "s/kQ0KFX9zE=", "6/RFx4/TVUs=" ],
+	"claimableBalance|protocol version 29|claim is sponsored" : [ "wHdd57TIHfs=", "E360jL0nwIY=" ],
+	"claimableBalance|protocol version 29|claimable balance sponsorship can only be transferred" : [ "yqHA1TOhKos=", "nqTHbwoPAN8=" ],
+	"claimableBalance|protocol version 29|create is sponsored" : [ "Cd1kZ2fixOs=", "7td7Ne8j2cw=" ],
+	"claimableBalance|protocol version 29|merge create account before claim" : [ "wHdd57TIHfs=", "SoHO8ai3rZw=", "vMfQKvNinX0=", "yqS1ULeogvs=" ],
 	"claimableBalance|protocol version 29|merge sponsoring account" : [ "3cEJnQ+BKGw=", "QN+zg9n9BDo=" ],
 	"claimableBalance|protocol version 29|multiple claimants try to claim balance in same tx" : [ "Cz9zOTDmbx8=", "9weieLASzLA=", "Dw12IJrsLZk=" ],
 	"claimableBalance|protocol version 29|multiple creates in tx to test index in hash" : [ "/cZLoIvkgt4=", "ufpXmC+eyi0=" ],
@@ -23074,16 +22869,6 @@
 	"claimableBalance|protocol version 29|native|valid predicate and claimant combinations|predicate at level 1" : [ "AaLVjuRTixk=", "Z9Yi1pZIjKo=" ],
 	"claimableBalance|protocol version 29|native|valid predicate and claimant combinations|predicate at level 2" : [ "7WVmSTq3yP8=", "wy00/4E8u2E=" ],
 	"claimableBalance|protocol version 29|native|valid predicate and claimant combinations|predicate at level 3" : [ "iQoYBQR3/k4=", "DbJkQT/ZN8A=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid amount" : [ "fO5Hh5Gektc=", "eiOYWWzirgA=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|duplicate claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|empty claimants" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "fO5Hh5Gektc=" ],
-	"claimableBalance|protocol version 29|native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "fO5Hh5Gektc=" ],
 	"claimableBalance|protocol version 29|non-native" : 
 	[
 		"zb40MJIjTdI=",
@@ -23576,18 +23361,15 @@
 	"claimableBalance|protocol version 29|non-native|valid predicate and claimant combinations|predicate at level 1" : [ "fJHNZXDwKf0=", "5enns/kRnn0=" ],
 	"claimableBalance|protocol version 29|non-native|valid predicate and claimant combinations|predicate at level 2" : [ "lXkZ5exmY+c=", "CzTSRiXH9Kc=" ],
 	"claimableBalance|protocol version 29|non-native|valid predicate and claimant combinations|predicate at level 3" : [ "mGKoAhww12o=", "oVRBC09Hnrs=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid amount" : [ "nbdFtMfH56E=", "6vitIf7N+kg=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|duplicate claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|empty claimants" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|invalid predicate|invalid absBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|invalid predicate|invalid andPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|invalid predicate|invalid not nested" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|invalid predicate|invalid null not" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|invalid predicate|invalid orPredicate size" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|invalid predicate|invalid predicate height" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|non-native|validity checks|invalid claimants|invalid predicate|invalid relBefore" : [ "nbdFtMfH56E=" ],
-	"claimableBalance|protocol version 29|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=" ],
-	"claimableBalance|protocol version 29|op source account last modified is updated on claim of sponsored balance|clawback" : [ "rxy9AEEvLJY=", "3yNA702jlkw=", "rtUohNutExc=" ],
+	"claimableBalance|protocol version 29|op source account last modified is updated on claim of sponsored balance|claim" : [ "Sa3QK3wT+nY=", "BOVxyPIP1dg=", "qsd/SRNrcOQ=", "JMqx9Tcu1Dw=" ],
+	"claimableBalance|protocol version 29|op source account last modified is updated on claim of sponsored balance|clawback" : 
+	[
+		"rxy9AEEvLJY=",
+		"3yNA702jlkw=",
+		"rtUohNutExc=",
+		"FMCrXxvb4tA=",
+		"i8N5TK5U8I4="
+	],
 	"claimableBalance|protocol version 29|source account is issuer" : [ "QCFQMKEfd2s=", "IoxuJAIJAeU=" ],
 	"claimableBalance|protocol version 29|tx account is different than op account on successful create" : [ "dupwEZTiUAc=", "/q42IhmfUv8=", "nD1CgBvPM9Q=", "Kku4R15nG5E=" ],
 	"claimableBalance|protocol version 29|validate tx account is used in hash" : 
@@ -23601,19 +23383,11 @@
 		"2vnUfjzq67A=",
 		"nwUbQU2zWvU="
 	],
-	"claimableBalance|protocol version 2|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"claimableBalance|protocol version 3" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
-	"claimableBalance|protocol version 3|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"claimableBalance|protocol version 4" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
-	"claimableBalance|protocol version 4|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"claimableBalance|protocol version 5" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
-	"claimableBalance|protocol version 5|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"claimableBalance|protocol version 6" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
-	"claimableBalance|protocol version 6|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"claimableBalance|protocol version 7" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
-	"claimableBalance|protocol version 7|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"claimableBalance|protocol version 8" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
-	"claimableBalance|protocol version 8|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
-	"claimableBalance|protocol version 9" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ],
-	"claimableBalance|protocol version 9|not supported before version 14" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=" ]
+	"claimableBalance|protocol version 9" : [ "pANIfbx1stE=", "cew/Nd7f6vY=", "CJW/RgT8YsQ=", "6vb25xJeuuA=" ]
 }

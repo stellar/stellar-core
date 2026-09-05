@@ -127,7 +127,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer without account")
         {
-            auto a1 = TestAccount{*app, getAccount("a1"), 1};
+            auto a1 = TestAccount{*app, getAccount("a1")};
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(market.requireChangesWithOffer(
                                       {},
