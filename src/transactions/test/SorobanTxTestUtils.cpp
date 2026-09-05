@@ -736,17 +736,17 @@ TestContract::Invocation::deduplicateFootprint()
     xdr::xvector<LedgerKey> readWrite;
     UnorderedSet<LedgerKey> keys;
 
-    auto deduplicate = [&](auto const& fp) {
+    auto deduplicate = [&](auto const& fp, auto& output) {
         for (auto const& key : fp)
         {
             if (keys.insert(key).second)
             {
-                readWrite.push_back(key);
+                output.push_back(key);
             }
         }
     };
-    deduplicate(mSpec.getResources().footprint.readWrite);
-    deduplicate(mSpec.getResources().footprint.readOnly);
+    deduplicate(mSpec.getResources().footprint.readWrite, readWrite);
+    deduplicate(mSpec.getResources().footprint.readOnly, readOnly);
     mSpec =
         mSpec.setReadOnlyFootprint(readOnly).setReadWriteFootprint(readWrite);
 }
@@ -1708,6 +1708,7 @@ AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
         mContract
             .prepareInvocation("transfer", {fromVal, toVal, makeI128(amount)},
                                spec)
+            .withDeduplicatedFootprint()
             .withAuthorizedTopCall();
     if (!sourceIsRoot)
     {

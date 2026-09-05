@@ -38,6 +38,7 @@
 #include "test/TxTests.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
@@ -73,8 +74,23 @@ checkResults(TransactionResultSet& r, int expectedSuccess, int expectedFailed)
     }
 
     REQUIRE(successCounter == expectedSuccess);
-    REQUIRE(expectedFailed == expectedFailed);
+    REQUIRE(failedCounter == expectedFailed);
 };
+
+// closeLedger applies transactions in the transaction set's own order, so
+// results have to be matched back to transactions by hash.
+TransactionResult const&
+resultFor(TransactionResultSet const& resultSet,
+          TransactionFrameBasePtr const& tx)
+{
+    auto it =
+        std::find_if(resultSet.results.begin(), resultSet.results.end(),
+                     [&tx](TransactionResultPair const& pair) {
+                         return pair.transactionHash == tx->getContentsHash();
+                     });
+    REQUIRE(it != resultSet.results.end());
+    return it->result;
+}
 
 uint32_t
 getParallelSorobanTestProtocolVersion()
@@ -7891,10 +7907,9 @@ TEST_CASE("Module cache miss on immediate execution",
         auto invokeFailTx =
             makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_FAIL, C);
 
-        // Transaction 4: invocation (with inadequate instructions to
-        // succeed)
+        // Transaction 4: invocation (with adequate instructions to succeed).
         auto invokePassTx =
-            makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_PASS, C);
+            makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_PASS, D);
 
         // Run single ledger with all 4 txs. First 2 should pass, 3rd should
         // fail, 4th should pass.
@@ -11170,4 +11185,429 @@ TEST_CASE("create and invoke external ref contract", "[tx][soroban]")
         contract.prepareInvocation("add", {makeI32(3), makeI32(4)}, spec);
     REQUIRE(invocation.invoke());
     REQUIRE(invocation.getReturnValue().i32() == 7);
+}
+
+TEST_CASE_VERSIONS("Soroban pre-apply removes pre-auth tx signers",
+                   "[tx][soroban][preapply]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+
+    for_versions_from(20, *app, [&] {
+        // Number of transactions that all use the same op source with the
+        // respective pre-authorized transaction signers.
+        int const SHARED_SIGNER_COUNT = 20;
+        // Number of transactions with its own source account pre-authorizing
+        // the transaction.
+        int const OWN_SIGNER_COUNT = 10;
+
+        SorobanTest test(app);
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+            cfg.mStateArchivalSettings.minPersistentTTL = 1000;
+        });
+        auto& root = test.getRoot();
+
+        auto addPreAuthTxSigner = [&](Application& app, TestAccount& sponsor,
+                                      TestAccount& account, Hash const& txHash,
+                                      bool sponsored = false) {
+            SignerKey signer(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+            signer.preAuthTx() = txHash;
+            auto signerOp = setOptions(setSigner(Signer{signer, 1}));
+            signerOp.sourceAccount.activate() = toMuxedAccount(account);
+
+            std::vector<Operation> ops;
+            if (sponsored)
+            {
+                ops.push_back(
+                    beginSponsoringFutureReserves(account.getPublicKey()));
+                ops.push_back(signerOp);
+                auto endOp = endSponsoringFutureReserves();
+                endOp.sourceAccount.activate() = toMuxedAccount(account);
+                ops.push_back(endOp);
+            }
+            else
+            {
+                ops.push_back(signerOp);
+            }
+
+            auto signerTx = sponsor.tx(ops);
+            signerTx->addSignature(account.getSecretKey());
+
+            auto resultSet = closeLedger(app, {signerTx});
+            REQUIRE(isSuccessResult(resultSet.results.front().result));
+
+            if (sponsored)
+            {
+                auto ledgerView =
+                    app.getLedgerManager().copyImmutableLedgerView();
+                auto accountEntry =
+                    ledgerView.load(accountKey(account.getPublicKey()));
+                REQUIRE(getNumSponsored(accountEntry.current()) == 1);
+                auto sponsorEntry =
+                    ledgerView.load(accountKey(sponsor.getPublicKey()));
+                REQUIRE(getNumSponsoring(sponsorEntry.current()) == 1);
+            }
+        };
+
+        int64_t const startingBalance =
+            app->getLedgerManager().getLastMinBalance(50);
+
+        auto sponsor = test.getRoot().create("sponsor", startingBalance);
+        // Account holding a pre-auth signer for each of the shared-signer
+        // transactions below.
+        auto sharedSigner =
+            test.getRoot().create("sharedSigner", startingBalance);
+        auto feeBumper = test.getRoot().create("feeBumper", startingBalance);
+
+        std::vector<TestAccount> txSources;
+        for (int i = 0; i < SHARED_SIGNER_COUNT + OWN_SIGNER_COUNT; ++i)
+        {
+            txSources.push_back(
+                root.create(fmt::format("txSource{}", i), startingBalance));
+        }
+
+        auto& contract =
+            test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
+
+        auto spec = SorobanInvocationSpec()
+                        .setInstructions(2'000'000)
+                        .setReadBytes(10'000)
+                        .setInclusionFee(1000)
+                        .setNonRefundableResourceFee(100'000)
+                        .setRefundableResourceFee(200'000);
+
+        std::vector<TransactionFrameBasePtr> txs;
+
+        // Create transactions to pre-authorize by the sharedSigner account.
+        std::vector<Hash> sharedSignerTxHashes;
+        for (int i = 0; i < SHARED_SIGNER_COUNT; ++i)
+        {
+            auto tx =
+                contract
+                    .prepareInvocation("add", {makeI32(1), makeI32(2)}, spec)
+                    .withOpSourceAccount(sharedSigner.getPublicKey())
+                    .createTx(&txSources[i]);
+            sharedSignerTxHashes.push_back(tx->getContentsHash());
+            txs.push_back(tx);
+        }
+
+        // Add the pre-auth signers to the sharedSigner account.
+        std::vector<Operation> signerOps;
+        int sponsoredCount = 0;
+        for (int i = 0; i < SHARED_SIGNER_COUNT; ++i)
+        {
+            SignerKey signer(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+            signer.preAuthTx() = sharedSignerTxHashes[i];
+            auto signerOp = setOptions(setSigner(Signer{signer, 1}));
+            signerOp.sourceAccount.activate() = toMuxedAccount(sharedSigner);
+            // Make half of the signers sponsored.
+            if (i % 2 == 0)
+            {
+                ++sponsoredCount;
+                signerOps.push_back(
+                    beginSponsoringFutureReserves(sharedSigner.getPublicKey()));
+                signerOps.push_back(signerOp);
+                auto endOp = endSponsoringFutureReserves();
+                endOp.sourceAccount.activate() = toMuxedAccount(sharedSigner);
+                signerOps.push_back(endOp);
+            }
+            else
+            {
+                signerOps.push_back(signerOp);
+            }
+        }
+        auto signerTx = sponsor.tx(signerOps);
+        signerTx->addSignature(sharedSigner.getSecretKey());
+        REQUIRE(isSuccessResult(
+            closeLedger(*app, {signerTx}).results.front().result));
+        {
+            auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+            auto entry =
+                ledgerView.load(accountKey(sharedSigner.getPublicKey()));
+            REQUIRE(entry.current().data.account().signers.size() ==
+                    SHARED_SIGNER_COUNT);
+            REQUIRE(getNumSponsored(entry.current()) == sponsoredCount);
+            auto sponsorEntry =
+                ledgerView.load(accountKey(sponsor.getPublicKey()));
+            REQUIRE(getNumSponsoring(sponsorEntry.current()) == sponsoredCount);
+        }
+
+        // Create transactions and accounts that are pre-authorized at the
+        // tx source level.
+        std::vector<TestAccount> ownSponsors;
+        for (int i = 0; i < OWN_SIGNER_COUNT; ++i)
+        {
+            auto& source = txSources[SHARED_SIGNER_COUNT + i];
+            TransactionFrameBasePtr tx =
+                contract
+                    .prepareInvocation("add", {makeI32(1), makeI32(2)}, spec)
+                    .createTx(&source);
+            auto txEnvelope = tx->getEnvelope();
+            // No need for the actual signatures, as we're using pre-auth tx
+            // signer.
+            txEnvelope.v1().signatures.clear();
+            tx = TransactionFrameBase::makeTransactionFromWire(
+                app->getNetworkID(), txEnvelope);
+            ownSponsors.push_back(
+                root.create(fmt::format("ownSponsor{}", i), startingBalance));
+            // Make some of the signers sponsored.
+            addPreAuthTxSigner(*app, ownSponsors.back(), source,
+                               tx->getContentsHash(),
+                               /*sponsored=*/i % 2 == 0);
+            // Make some of transactions fee-bumped.
+            if (i % 2 == 1)
+            {
+                tx = feeBump(*app, feeBumper, tx, 10000);
+            }
+            txs.push_back(tx);
+        }
+
+        auto r = closeLedger(*app, txs);
+        REQUIRE(r.results.size() == txs.size());
+        for (auto const& tx : txs)
+        {
+            REQUIRE(isSuccessResult(resultFor(r, tx)));
+        }
+
+        auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+        // Every one-time signer is gone for the sharedSigner, and all the
+        // sponsorships are removed.
+        auto sharedEntry =
+            ledgerView.load(accountKey(sharedSigner.getPublicKey()));
+        REQUIRE(sharedEntry.current().data.account().signers.empty());
+        REQUIRE(getNumSponsored(sharedEntry.current()) == 0);
+        auto sponsorEntry = ledgerView.load(accountKey(sponsor.getPublicKey()));
+        REQUIRE(getNumSponsoring(sponsorEntry.current()) == 0);
+
+        // Every one-time signer is gone the tx sources, and all the
+        // sponsorships are removed.
+        for (int i = 0; i < txs.size(); ++i)
+        {
+            auto& source = txSources[i];
+            auto entry = ledgerView.load(accountKey(source.getPublicKey()));
+            REQUIRE(entry.current().data.account().signers.empty());
+            REQUIRE(getNumSponsored(entry.current()) == 0);
+
+            if (i >= SHARED_SIGNER_COUNT)
+            {
+                auto ownSponsorEntry = ledgerView.load(accountKey(
+                    ownSponsors[i - SHARED_SIGNER_COUNT].getPublicKey()));
+                REQUIRE(getNumSponsoring(ownSponsorEntry.current()) == 0);
+            }
+        }
+    });
+}
+
+TEST_CASE_VERSIONS(
+    "Soroban operation source created and removed in classic phase",
+    "[tx][soroban][preapply]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+
+    for_versions_from(20, *app, [&] {
+        // Number of transactions that create and remove accounts in the classic
+        // phase (and then are used as operation sources).
+        int const TX_COUNT_PER_ACCOUNT_CHANGE = 20;
+
+        SorobanTest test(app);
+        auto makeOpSourceInvocation = [&](TestContract& contract,
+                                          TestAccount& txSource,
+                                          AccountID const& opSource,
+                                          SecretKey const& opKey) {
+            auto spec = SorobanInvocationSpec()
+                            .setInstructions(1'000'000)
+                            .setReadBytes(10'000)
+                            .setInclusionFee(1000)
+                            .setNonRefundableResourceFee(100'000)
+                            .setRefundableResourceFee(200'000);
+            auto tx =
+                contract
+                    .prepareInvocation("add", {makeI32(1), makeI32(2)}, spec)
+                    .withOpSourceAccount(opSource)
+                    .createTx(&txSource);
+            tx->addSignature(opKey);
+            return tx;
+        };
+
+        auto& root = test.getRoot();
+        auto accountBalance = app->getLedgerManager().getLastMinBalance(2);
+
+        auto sorobanTxCount = 3 * TX_COUNT_PER_ACCOUNT_CHANGE;
+
+        // Setup all the accounts/keys necessary: accounts that create new
+        // accounts, accounts that keys of the created accounts, and accounts
+        // that are merged.
+        std::vector<TestAccount> creators;
+        std::vector<SecretKey> createdAccountKeys;
+        std::vector<TestAccount> mergedAccounts;
+        for (int i = 0; i < TX_COUNT_PER_ACCOUNT_CHANGE; ++i)
+        {
+            creators.push_back(
+                root.create(fmt::format("creator{}", i), accountBalance * 100));
+            mergedAccounts.push_back(
+                root.create(fmt::format("merged{}", i), accountBalance));
+            createdAccountKeys.push_back(
+                getAccount(fmt::format("created{}", i)));
+        }
+        // Setup the source account for Soroban txs (nothing interesting happens
+        // to these).
+        std::vector<TestAccount> sorobanSources;
+        for (int i = 0; i < sorobanTxCount; ++i)
+        {
+            sorobanSources.push_back(
+                root.create(fmt::format("sorobanSrc{}", i), accountBalance));
+        }
+
+        auto& contract =
+            test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
+
+        std::vector<TransactionFrameBasePtr> txs;
+        // Create classic txs: account creations and merges.
+        for (int i = 0; i < TX_COUNT_PER_ACCOUNT_CHANGE; ++i)
+        {
+            txs.push_back(creators[i].tx({createAccount(
+                createdAccountKeys[i].getPublicKey(), accountBalance)}));
+            txs.push_back(
+                mergedAccounts[i].tx({accountMerge(root.getPublicKey())}));
+        }
+        auto classicTxCount = txs.size();
+
+        for (int i = 0; i < TX_COUNT_PER_ACCOUNT_CHANGE; ++i)
+        {
+            // Tx that uses a created account as the operation source.
+            txs.push_back(makeOpSourceInvocation(
+                contract, sorobanSources[i],
+                createdAccountKeys[i].getPublicKey(), createdAccountKeys[i]));
+            // Tx that uses a merged account as the operation source (which
+            // should fail).
+            txs.push_back(makeOpSourceInvocation(
+                contract, sorobanSources[TX_COUNT_PER_ACCOUNT_CHANGE + i],
+                mergedAccounts[i].getPublicKey(),
+                mergedAccounts[i].getSecretKey()));
+            // 'Baseline' tx that just uses an existing account as the operation
+            // source (but the source account was also used in the classic
+            // phase).
+            txs.push_back(makeOpSourceInvocation(
+                contract, sorobanSources[2 * TX_COUNT_PER_ACCOUNT_CHANGE + i],
+                creators[i].getPublicKey(), creators[i].getSecretKey()));
+        }
+
+        auto r = closeLedger(*app, txs);
+        REQUIRE(r.results.size() == txs.size());
+
+        for (int i = 0; i < classicTxCount; ++i)
+        {
+            INFO("classic tx " << i);
+            REQUIRE(isSuccessResult(resultFor(r, txs[i])));
+        }
+        for (int i = 0; i < TX_COUNT_PER_ACCOUNT_CHANGE; ++i)
+        {
+            INFO("created account " << i);
+            REQUIRE(isSuccessResult(resultFor(r, txs[classicTxCount + 3 * i])));
+            INFO("merged account " << i);
+            auto const& accountMergedRes =
+                resultFor(r, txs[classicTxCount + 3 * i + 1]);
+            REQUIRE(accountMergedRes.result.code() == txFAILED);
+            REQUIRE(accountMergedRes.result.results()[0].code() ==
+                    opNO_ACCOUNT);
+            INFO("existing account " << i);
+            REQUIRE(
+                isSuccessResult(resultFor(r, txs[classicTxCount + 3 * i + 2])));
+        }
+    });
+}
+
+TEST_CASE_VERSIONS("classic phase bumps sequence of Soroban tx source account",
+                   "[tx][soroban][preapply]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+
+    for_versions_from(20, *app, [&] {
+        int const BUMPED_ACCOUNT_COUNT = 20;
+        int const NORMAL_ACCOUNT_COUNT = 10;
+
+        SorobanTest test(app);
+        auto& root = test.getRoot();
+        auto accountBalance = app->getLedgerManager().getLastMinBalance(10);
+
+        std::vector<TestAccount> bumpSources;
+        std::vector<TestAccount> bumpedAccounts;
+        for (int i = 0; i < BUMPED_ACCOUNT_COUNT; ++i)
+        {
+            bumpSources.push_back(
+                root.create(fmt::format("bumpsrc{}", i), accountBalance));
+            bumpedAccounts.push_back(
+                root.create(fmt::format("bumped{}", i), accountBalance));
+        }
+        std::vector<TestAccount> normalAccounts;
+        for (int i = 0; i < NORMAL_ACCOUNT_COUNT; ++i)
+        {
+            normalAccounts.push_back(
+                root.create(fmt::format("normal{}", i), accountBalance));
+        }
+
+        auto& contract =
+            test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
+
+        auto makeInvocation = [&](TestAccount& source) {
+            auto spec = SorobanInvocationSpec()
+                            .setInstructions(1'000'000)
+                            .setReadBytes(10'000)
+                            .setInclusionFee(1000)
+                            .setNonRefundableResourceFee(100'000)
+                            .setRefundableResourceFee(200'000);
+            return contract
+                .prepareInvocation("add", {makeI32(1), makeI32(2)}, spec)
+                .createTx(&source);
+        };
+
+        std::vector<TransactionFrameBasePtr> txs;
+        // Build the Soroban transactions first, so that they capture the
+        // pre-bump sequence numbers.
+        std::vector<TransactionFrameBasePtr> sorobanTxs;
+        for (int i = 0; i < BUMPED_ACCOUNT_COUNT; ++i)
+        {
+            txs.push_back(makeInvocation(bumpedAccounts[i]));
+        }
+        for (int i = 0; i < NORMAL_ACCOUNT_COUNT; ++i)
+        {
+            txs.push_back(makeInvocation(normalAccounts[i]));
+        }
+        auto sorobanTxCount = txs.size();
+
+        // Build the classic sequence bump transactions now, which will bump the
+        // sequence numbers of the bumpedAccounts via operation source accounts.
+        for (int i = 0; i < BUMPED_ACCOUNT_COUNT; ++i)
+        {
+            auto bumpOp =
+                bumpSequence(bumpedAccounts[i].getLastSequenceNumber() + 1000);
+            bumpOp.sourceAccount.activate() =
+                toMuxedAccount(bumpedAccounts[i].getPublicKey());
+            auto bumpTx = bumpSources[i].tx({bumpOp});
+            bumpTx->addSignature(bumpedAccounts[i].getSecretKey());
+            txs.push_back(bumpTx);
+        }
+
+        auto r = closeLedger(*app, txs);
+        REQUIRE(r.results.size() == txs.size());
+
+        for (size_t i = 0; i < BUMPED_ACCOUNT_COUNT; ++i)
+        {
+            INFO("classic tx " << i);
+            REQUIRE(isSuccessResult(resultFor(r, txs[sorobanTxCount + i])));
+        }
+        for (int i = 0; i < BUMPED_ACCOUNT_COUNT; ++i)
+        {
+            INFO("bumped account " << i);
+            REQUIRE(resultFor(r, txs[i]).result.code() == txBAD_SEQ);
+        }
+        for (int i = 0; i < NORMAL_ACCOUNT_COUNT; ++i)
+        {
+            INFO("normal account " << i);
+            REQUIRE(
+                isSuccessResult(resultFor(r, txs[BUMPED_ACCOUNT_COUNT + i])));
+        }
+    });
 }

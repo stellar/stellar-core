@@ -156,11 +156,20 @@ class TransactionFrameBase
           std::optional<SorobanNetworkConfig const> const& sorobanConfig,
           Hash const& sorobanBasePrngSeed) const = 0;
 
-    virtual void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const = 0;
+    // The read-only half of the Soroban pre-apply: validation, signature checks
+    // and the operation's checkValid. Performs no writes. Safe to run
+    // concurrently for distinct transactions, provided `ls` supports concurrent
+    // reads.
+    virtual void preParallelApplyReadOnly(
+        AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig) const = 0;
+
+    // The write half of the Soroban pre-apply. Has to run on the thread that
+    // owns `ltx`, serially across transactions, in canonical transaction order.
+    virtual void preParallelApplyWrite(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase const& txResult) const = 0;
 
     // If the transaction fails during parallel apply, returns std::nullopt.
     // Otherwise returns a ParallelTxSuccessVal containing the modified entries

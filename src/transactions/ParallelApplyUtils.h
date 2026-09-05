@@ -219,9 +219,15 @@ class GlobalParallelApplyLedgerState
     //    after -- as well as written back to the ltx at the phase's end.
     ParallelApplyEntryMap<staticScope> mGlobalEntryMap;
 
-    void preParallelApplyAndCollectModifiedClassicEntries(
+    void preApplyAndCollectModifiedClassicEntries(
         AppConnector& app, AbstractLedgerTxn& ltx,
         std::vector<ApplyStage> const& stages);
+
+    // Runs the read-only pre-apply stage for every bundle.
+    void readOnlyParallelPreApply(AppConnector& app,
+                                  std::vector<TxBundle const*> const& txBundles,
+                                  std::shared_ptr<LedgerHeader const> header,
+                                  AbstractLedgerTxn& ltx);
 
     bool
     maybeMergeRoTTLBumps(LedgerKey const& key,
