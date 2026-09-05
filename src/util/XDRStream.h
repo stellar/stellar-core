@@ -245,7 +245,7 @@ class XDRInputFileStream
 IMPORTANT: some areas of core require durable writes that
 are resistant to application and system crashes. If you need durable writes:
 1. Use a stream implementation that supports fsync, e.g. OutputFileStream
-2. Write to a temp file first. If you don't intent to persist temp files across
+2. Write to a temp file first. If you don't intend to persist temp files across
 runs, fsyncing on close is sufficient. Otherwise, use durableWriteOne to flush
 and fsync after every write.
 3. Close the temp stream to make sure flush and fsync are called.
