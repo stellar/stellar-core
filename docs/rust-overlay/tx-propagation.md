@@ -8,9 +8,10 @@ for much lower bandwidth: in steady state a TX announcement costs ~40
 bytes per peer instead of the full TX bytes-per-peer.
 
 All three message types share **one** QUIC stream per peer
-(`/stellar/tx/1.0.0`), distinguished by a one-byte type prefix. SCP and
-TxSet have their own streams (see [transport.md](transport.md)), so
-heavy TX traffic cannot stall consensus.
+(`/stellar/tx/1.0.0`), distinguished by the `StellarMessage` XDR union arm.
+Control and tx-set data use separate, higher-priority streams (see
+[transport.md](transport.md)). Stream locks are independent, while connection
+flow control, congestion control, and bandwidth remain shared.
 
 ## Wire format
 

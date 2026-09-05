@@ -16,7 +16,7 @@ async fn dispatcher_with_blocked_write(command: &str) {
         .insert(peer, Arc::clone(&streams));
     let blocked = match command {
         "txset" => streams.txset.lock().await,
-        "fetch" => streams.txset_request.lock().await,
+        "fetch" => streams.scp.lock().await,
         _ => streams.scp.lock().await,
     };
     let mut task = tokio::spawn(async move { overlay.run("127.0.0.1", 0).await });
@@ -82,6 +82,10 @@ struct TestNode {
 
 impl TestNode {
     async fn start() -> Self {
+        Self::start_with_control(true).await
+    }
+
+    async fn start_with_control(accept_control: bool) -> Self {
         let (handle, events, tx_events, mut overlay) =
             create_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
         let peer = *overlay.swarm.local_peer_id();
@@ -103,7 +107,7 @@ impl TestNode {
         })
         .await
         .expect("listener did not start");
-        let task = tokio::spawn(overlay.run_event_loop());
+        let task = tokio::spawn(overlay.run_event_loop_with_control(accept_control));
         Self {
             handle,
             events,
@@ -123,7 +127,6 @@ impl TestNode {
                     if streams.scp.lock().await.is_some()
                         && streams.tx.lock().await.is_some()
                         && streams.txset.lock().await.is_some()
-                        && streams.txset_request.lock().await.is_some()
                     {
                         return streams;
                     }
@@ -296,7 +299,7 @@ async fn txset_fetch_reaches_peer_while_response_to_same_peer_is_blocked() {
     // reopening. All three requests must arrive while the response is blocked.
     for id in [42, 43, 44] {
         if id == 44 {
-            streams.txset_request.lock().await.take();
+            streams.scp.lock().await.take();
         }
         let requested_hash = [id; 32];
         sender
@@ -322,6 +325,10 @@ async fn txset_fetch_reaches_peer_while_response_to_same_peer_is_blocked() {
         })
         .await
         .expect("fetch request waited for a blocked response to the same peer");
+        let control = streams.scp.lock().await;
+        let control = control.as_ref().unwrap();
+        assert_eq!(control.protocol, CONTROL_PROTOCOL);
+        assert_eq!(control.stream.priority().unwrap(), 2);
     }
 
     // Releasing the response still delivers the original frame intact.
@@ -341,6 +348,135 @@ async fn txset_fetch_reaches_peer_while_response_to_same_peer_is_blocked() {
     .expect("response did not resume after releasing its stream");
     sender.stop().await;
     receiver.stop().await;
+}
+
+#[tokio::test]
+async fn quic_transport_priorities_are_applied_to_each_route_and_reopening() {
+    let mut sender = TestNode::start().await;
+    let mut receiver = TestNode::start().await;
+    sender.connect(&receiver).await;
+    let streams = sender.streams_to(receiver.peer).await;
+    // This getter reaches Quinn through the actual swarm, negotiation, erased
+    // muxer and QUIC wrappers. It does not read our route constants or a cache.
+    for (mutex, expected) in [(&streams.scp, 2), (&streams.txset, 1), (&streams.tx, 0)] {
+        let guard = mutex.lock().await;
+        assert_eq!(guard.as_ref().unwrap().stream.priority().unwrap(), expected);
+    }
+    assert!(streams.legacy_txset_request.lock().await.is_none());
+    streams.txset.lock().await.take();
+    let (hash, data) = test_txset_xdr(1);
+    // Await the actual write, rather than command enqueue, to observe reopening.
+    send_to_peer_stream(
+        &sender.state,
+        receiver.peer,
+        StreamType::TxSet,
+        &crate::xdr::frame_tx_set(&data),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        streams
+            .txset
+            .lock()
+            .await
+            .as_ref()
+            .unwrap()
+            .stream
+            .priority()
+            .unwrap(),
+        1
+    );
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            if let OverlayEvent::TxSetReceived { hash: received, .. } =
+                receiver.events.recv().await.unwrap()
+            {
+                assert_eq!(received, hash);
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    sender.stop().await;
+    receiver.stop().await;
+}
+
+#[tokio::test]
+async fn legacy_peer_receives_scp_and_fetches_on_its_supported_routes() {
+    let mut sender = TestNode::start().await;
+    // This peer advertises only the old protocols, and its SCP reader rejects
+    // GetTxSet. A silent send on the wrong route therefore fails this test.
+    let mut legacy = TestNode::start_with_control(false).await;
+    sender.connect(&legacy).await;
+    let streams = sender.streams_to(legacy.peer).await;
+    let blocked_response = streams.txset.lock().await;
+    // Legacy compatibility must preserve request isolation, including when
+    // negotiation and request streams need reopening during a blocked response.
+    for id in [17, 18] {
+        if id == 18 {
+            streams.scp.lock().await.take();
+            streams.legacy_txset_request.lock().await.take();
+        }
+        let hash = [id; 32];
+        sender.handle.record_txset_source(hash, legacy.peer).await;
+        sender.handle.fetch_txset(hash, id as u32).await;
+        let scp = test_scp_envelope_xdr(id as u64);
+        sender.handle.broadcast_scp(scp.clone()).await;
+        tokio::time::timeout(Duration::from_secs(2), async {
+            let mut got_request = false;
+            let mut got_scp = false;
+            while !got_request || !got_scp {
+                match legacy.events.recv().await.unwrap() {
+                    OverlayEvent::TxSetRequested { hash: h, from } => {
+                        assert_eq!(h, hash);
+                        assert_eq!(from, sender.peer);
+                        got_request = true;
+                    }
+                    OverlayEvent::ScpReceived { envelope, .. } if envelope == scp => got_scp = true,
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("legacy SCP or fetch waited for a blocked response or used an unsupported route");
+        for (mutex, protocol) in [
+            (&streams.scp, SCP_PROTOCOL),
+            (&streams.legacy_txset_request, TXSET_PROTOCOL),
+        ] {
+            let guard = mutex.lock().await;
+            let stream = guard.as_ref().unwrap();
+            assert_eq!(stream.protocol, protocol);
+            assert_eq!(stream.stream.priority().unwrap(), 2);
+        }
+    }
+    drop(blocked_response);
+
+    // Updated receivers still understand requests arriving on the old route.
+    let hash = [17; 32];
+    send_to_peer_stream(
+        &legacy.state,
+        sender.peer,
+        StreamType::TxSet,
+        &crate::xdr::frame_get_tx_set(hash),
+    )
+    .await
+    .unwrap();
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            if let OverlayEvent::TxSetRequested { hash: h, from } =
+                sender.events.recv().await.unwrap()
+            {
+                assert_eq!(h, hash);
+                assert_eq!(from, legacy.peer);
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    sender.stop().await;
+    legacy.stop().await;
 }
 
 async fn bulk_send_admission_is_bounded(byte_limit: bool) {

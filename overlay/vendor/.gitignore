@@ -1,0 +1,4 @@
+# Published libp2p-core includes generated source required to compile. The
+# repository-wide generated/ ignore rule must not omit it from this copy.
+!libp2p-core/src/generated/
+!libp2p-core/src/generated/**

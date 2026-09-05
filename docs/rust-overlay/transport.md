@@ -43,14 +43,26 @@ is whatever libp2p's QUIC transport provides.
 
 ## Stream protocols
 
-Each peer opens four outbound libp2p streams, multiplexed over a single
-QUIC connection, using three protocol IDs:
+Updated peers open three outbound libp2p streams, multiplexed over a single
+QUIC connection. Send priorities are set in Quinn, the QUIC implementation:
 
-| Protocol ID             | Purpose            | Role                                |
-|-------------------------|--------------------|-------------------------------------|
-| `/stellar/scp/1.0.0`    | SCP envelopes      | Push-based, length-prefixed frames |
-| `/stellar/tx/1.0.0`     | TX flooding        | INV/GETDATA/TX (1-byte type prefix) |
-| `/stellar/txset/1.0.0`  | TX set fetch       | Separate request and response streams, length-prefixed |
+| Protocol ID | Messages | Send priority |
+|-------------|----------|---------------|
+| `/stellar/control/1.0.0` | SCP envelopes, `GET_SCP_STATE`, `GET_TX_SET` | **2 — highest** |
+| `/stellar/txset/1.0.0` | Tx-set responses | **1** |
+| `/stellar/tx/1.0.0` | Transaction INV, GETDATA, TX | **0 — lowest** |
+
+SCP and tx-set requests share one FIFO stream; there is no separate priority
+between messages on that stream. `DONT_HAVE` handling is not implemented.
+
+Older peers remain supported. An explicit rejection of the control protocol
+causes the sender to negotiate `/stellar/scp/1.0.0` for SCP and SCP-state
+requests, at priority 2. Tx-set requests then use a separate stream with the
+legacy `/stellar/txset/1.0.0` protocol, also at priority 2. This fallback opens
+on demand and is reused, preserving request isolation from responses while
+using four outbound streams for old peers. Connection errors do not trigger
+protocol downgrade. Updated receivers continue accepting both legacy
+protocols, including tx-set requests on `/stellar/txset/1.0.0`.
 
 In addition, libp2p's `Identify` protocol runs as `/stellar/1.0.0`
 (`libp2p_overlay.rs:380`). It exchanges peer-id + listen addresses on
@@ -66,27 +78,37 @@ as independent tasks, so:
 - An outstanding TxSet write does not hold the dispatcher or the SCP stream
   mutex while it waits for the recipient.
 - INV batches and TX response data flow on `/stellar/tx/1.0.0` only.
-- Tx-set fetch requests have their own stream and mutex, so a large response
-  to the same peer cannot hold up a request behind its frame or stream lock.
-  Both streams use the existing tx-set protocol and encoding. The unchanged
-  receiver already accepts multiple streams for that protocol, including
-  requests from older peers on their combined request/response stream.
+- Between updated peers, tx-set fetch requests share the control stream with
+  SCP, so a large response to the same peer cannot hold up a request behind
+  its frame or stream lock. With legacy peers, a separate request stream
+  preserves that isolation as described above.
 - Loss recovery on one stream does not require another stream to wait for
   that stream's missing bytes.
 
-The request stream opens alongside the other streams when a peer connects
-and reopens on demand after failure. The connection owns a fixed additional
-stream per peer; this does not create a new stream for every fetch.
+Streams open when a peer connects and reopen on demand after failure. Every
+opening applies the route's priority before writing application data. A fetch
+reuses the existing stream; it does not open a new stream per request.
 
 Streams still share connection-level flow control, congestion control, CPU,
 and link bandwidth. This separation removes dispatcher and stream-lock
 serialization; it does not guarantee SCP latency under link saturation.
-These streams do not currently have different QUIC scheduling priorities.
+Quinn gives higher-priority sendable streams precedence over lower-priority
+ones. This is strict priority, not a weighted bandwidth allocation: continuously
+backlogged higher-priority streams can starve transaction flooding. Priority
+cannot reclaim bytes already sent, reserve connection flow-control capacity,
+or change the receiving node's task scheduling. Priorities apply separately to
+each connection and each direction; an old peer still chooses its own outbound
+scheduling.
+
+The pinned libp2p releases hide Quinn's stream priority API. A small API bridge
+in four vendored crates exposes it through the existing stream wrappers,
+without changing dependency versions or replacing the scheduler. See
+[`overlay/vendor/README.md`](../../overlay/vendor/README.md) for the patch and
+upstream provenance.
 
 ## Frame formats
 
-Both `/stellar/scp/1.0.0` and `/stellar/txset/1.0.0` use **length-prefixed
-binary frames**:
+All overlay protocols use **length-prefixed `StellarMessage` XDR frames**:
 
 ```
 [length:u32 big-endian][payload]
@@ -96,8 +118,8 @@ Maximum frame size: 16 MB (`libp2p_overlay.rs:42`,
 `MAX_FRAME_SIZE`). `read_framed` / `write_framed` at
 `libp2p_overlay.rs:1222` and `:1266`.
 
-`/stellar/tx/1.0.0` uses a 1-byte type prefix instead (see
-[tx-propagation.md](tx-propagation.md)).
+On `/stellar/tx/1.0.0`, the XDR union arm distinguishes transaction adverts,
+demands, and bodies (see [tx-propagation.md](tx-propagation.md)).
 
 > Note: the **IPC** protocol between Core and Overlay (Unix socket) uses
 > *native-endian* lengths. Only the libp2p network frames use big-endian.
@@ -109,8 +131,10 @@ Maximum frame size: 16 MB (`libp2p_overlay.rs:42`,
 Behavior:
 
 1. Looks up the peer's outbound stream from `peer_streams` (per-peer
-   `PeerOutboundStreams { scp, tx, txset }`, each behind its own mutex).
-2. If no stream is cached, opens one (`control.open_stream(peer_id, proto)`).
+   `PeerOutboundStreams`, with each route behind its own mutex).
+2. If no stream is cached, negotiates the protocol and sets its send priority
+   through `open_peer_stream`. A legacy tx-set request selects its separate
+   request stream after releasing the control lock.
 3. Writes the framed payload.
 4. On error: drops the cached stream, reopens, and retries.
 
@@ -162,12 +186,18 @@ The fetch-isolation regression holds a response stream lock while requests
 reach that same peer over QUIC, checks stream reuse and reopening, then
 verifies that the original response arrives intact after release. Its initial
 request timed out before the streams were separated.
+The priority test reads back Quinn's actual priority through the complete
+libp2p wrapper stack and checks reopening. The compatibility test uses a peer
+advertising only the old protocols, verifies SCP and fetch delivery during a
+blocked response (including reopening), and sends a legacy request back to an
+updated receiver. These tests establish routing
+and transport configuration; they do not measure latency under link saturation.
 
 ## Inbound stream handling
 
 For each accepted stream, the overlay spawns a long-lived task that loops
-on `read_framed` (or, for `/stellar/tx/1.0.0`, reads the 1-byte type and
-dispatches). On read error the task exits and the stream is dropped from
+on `read_framed` and dispatches the decoded message. On read error the task
+exits and the stream is dropped from
 state; if the peer is still connected, libp2p will accept a fresh stream
 on demand.
 
@@ -182,5 +212,6 @@ deployments where a pod's hostname can resolve back to itself.
 
 - **No TCP fallback.** QUIC only. A peer that cannot reach the QUIC port
   (UDP-blocked network) will not connect.
-- **No bandwidth shaping or QoS** — relies on QUIC stream-level fairness.
+- **No bandwidth reservation or shaping.** QUIC send priorities order eligible
+  streams, but do not guarantee a service share for a traffic class.
 - **No custom encryption layer** on top of QUIC TLS 1.3.

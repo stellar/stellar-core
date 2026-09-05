@@ -4,9 +4,9 @@
 //! Streams still share connection flow control, congestion control and bandwidth.
 //!
 //! Uses libp2p-stream for persistent bidirectional streams:
-//! - SCP stream: consensus messages (~500B)
+//! - Control stream: SCP and TX set requests (highest send priority)
 //! - TX stream: transaction flooding (~1KB) - uses INV/GETDATA protocol
-//! - TxSet streams: separate requests (36B) and responses (~10MB)
+//! - TxSet stream: responses (~10MB), ahead of transaction flooding
 //!
 //! Each stream is opened once per peer and kept alive.
 //! QUIC provides independent loss recovery per stream.
@@ -38,6 +38,7 @@ use tracing::{debug, error, info, trace, warn};
 
 // Protocol identifiers for dedicated streams
 pub const SCP_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/scp/1.0.0");
+pub const CONTROL_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/control/1.0.0");
 pub const TX_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/tx/1.0.0");
 pub const TXSET_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/txset/1.0.0");
 
@@ -122,16 +123,22 @@ pub enum OverlayCommand {
     Ping(tokio::sync::oneshot::Sender<()>),
 }
 
-/// Outbound streams to a peer - each stream has its own mutex to avoid head-of-line blocking.
-/// A large TxSet write won't block SCP sends to the same peer.
+/// Each route has its own mutex, so a TxSet write does not hold the control
+/// stream lock. Connection flow control and congestion capacity remain shared.
 struct PeerOutboundStreams {
-    scp: Mutex<Option<Stream>>,
-    tx: Mutex<Option<Stream>>,
-    txset: Mutex<Option<Stream>>,
-    // Uses the existing TxSet protocol. Requests must not wait
-    // for a response write to this peer, including bytes already queued on
-    // that response stream. The peer already accepts multiple protocol streams.
-    txset_request: Mutex<Option<Stream>>,
+    scp: Mutex<Option<OutboundStream>>,
+    tx: Mutex<Option<OutboundStream>>,
+    txset: Mutex<Option<OutboundStream>>,
+    // Only opened for peers that reject the combined control protocol. Their
+    // requests still need isolation from response writes, using the old ID.
+    legacy_txset_request: Mutex<Option<OutboundStream>>,
+}
+
+struct OutboundStream {
+    stream: Stream,
+    // Remember negotiation on the cached stream, including after reopening.
+    // Legacy peers accept requests only on their TxSet protocol.
+    protocol: StreamProtocol,
 }
 
 impl PeerOutboundStreams {
@@ -140,7 +147,7 @@ impl PeerOutboundStreams {
             scp: Mutex::new(None),
             tx: Mutex::new(None),
             txset: Mutex::new(None),
-            txset_request: Mutex::new(None),
+            legacy_txset_request: Mutex::new(None),
         }
     }
 }
@@ -520,7 +527,19 @@ impl StellarOverlay {
         self.run_event_loop().await;
     }
 
-    async fn run_event_loop(mut self) {
+    async fn run_event_loop(self) {
+        self.run_event_loop_with_control(
+            #[cfg(test)]
+            true,
+        )
+        .await;
+    }
+
+    // Keeping the legacy-only mode in this helper lets interoperability tests
+    // exercise real protocol negotiation; production always advertises control.
+    async fn run_event_loop_with_control(mut self, #[cfg(test)] accept_control: bool) {
+        #[cfg(not(test))]
+        let accept_control = true;
         // Accept incoming streams for each protocol
         let scp_incoming = match self.control.accept(SCP_PROTOCOL) {
             Ok(incoming) => incoming,
@@ -553,9 +572,24 @@ impl StellarOverlay {
             }
         };
 
+        let control_incoming = if accept_control {
+            match self.control.accept(CONTROL_PROTOCOL) {
+                Ok(incoming) => Some(incoming),
+                Err(e) => {
+                    error!("Failed to accept control protocol: {:?}", e);
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+
         // Spawn inbound stream handlers
         let state = self.state.clone();
-        tokio::spawn(handle_inbound_scp_streams(scp_incoming, state.clone()));
+        tokio::spawn(handle_inbound_scp_streams(scp_incoming, state.clone(), false));
+        if let Some(incoming) = control_incoming {
+            tokio::spawn(handle_inbound_scp_streams(incoming, state.clone(), true));
+        }
         tokio::spawn(handle_inbound_tx_streams(tx_incoming, state.clone()));
         tokio::spawn(handle_inbound_txset_streams(txset_incoming, state.clone()));
 
@@ -630,7 +664,7 @@ impl StellarOverlay {
                             let state = Arc::clone(&self.state);
                             let message = crate::xdr::frame_scp(&envelope);
                             self.sends.spawn(async move {
-                                if let Err(e) = send_to_peer_stream(&state, peer_id, StreamType::Scp, &message).await {
+                                if let Err(e) = send_to_peer_stream(&state, peer_id, StreamType::Control, &message).await {
                                     warn!("Failed to send SCP to {}: {:?}", peer_id, e);
                                 }
                             });
@@ -868,7 +902,7 @@ impl StellarOverlay {
             let state = Arc::clone(&self.state);
             let message = message.clone();
             self.sends.spawn(async move {
-                match send_to_peer_stream(&state, peer_id.clone(), StreamType::Scp, &message).await
+                match send_to_peer_stream(&state, peer_id.clone(), StreamType::Control, &message).await
                 {
                     Ok(_) => {
                         state
@@ -1088,7 +1122,7 @@ impl StellarOverlay {
             let request = request.clone();
             self.sends.spawn(async move {
                 if let Err(e) =
-                    send_to_peer_stream(&state, peer_id, StreamType::Scp, &request).await
+                    send_to_peer_stream(&state, peer_id, StreamType::Control, &request).await
                 {
                     warn!("Failed to send SCP state request to {}: {:?}", peer_id, e);
                 }
@@ -1099,7 +1133,7 @@ impl StellarOverlay {
     /// Send SCP envelope to a specific peer
     pub async fn send_scp_to_peer(&self, peer_id: PeerId, envelope: &[u8]) -> io::Result<()> {
         let message = crate::xdr::frame_scp(envelope);
-        send_to_peer_stream(&self.state, peer_id, StreamType::Scp, &message).await
+        send_to_peer_stream(&self.state, peer_id, StreamType::Control, &message).await
     }
 }
 
@@ -1144,67 +1178,26 @@ async fn send_txset_response(state: Arc<SharedState>, peer: PeerId, hash: [u8; 3
     }
 }
 
-/// Open SCP, TX, and TxSet streams to a peer.
+/// Open control, TX, and TxSet streams to a peer.
 /// Spawned as a background task so the swarm event loop stays unblocked —
 /// `control.open_stream()` needs the swarm to be polled to complete.
-async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, peer_id: PeerId) {
+async fn open_streams_to_peer(control: Control, state: Arc<SharedState>, peer_id: PeerId) {
     debug!("Opening streams to peer {}", peer_id);
-
-    let mut control2 = control.clone();
-    let mut control3 = control.clone();
-    let mut control4 = control.clone();
-
-    let scp_fut = async { control.open_stream(peer_id, SCP_PROTOCOL).await };
-    let tx_fut = async { control2.open_stream(peer_id, TX_PROTOCOL).await };
-    let txset_fut = async { control3.open_stream(peer_id, TXSET_PROTOCOL).await };
-    let txset_request_fut = async { control4.open_stream(peer_id, TXSET_PROTOCOL).await };
-
-    let (scp_result, tx_result, txset_result, txset_request_result) =
-        tokio::join!(scp_fut, tx_fut, txset_fut, txset_request_fut);
-
-    let scp_stream = match scp_result {
-        Ok(s) => {
-            debug!("Opened SCP stream to {}", peer_id);
-            Some(s)
-        }
+    let (scp_stream, tx_stream, txset_stream) = tokio::join!(
+        open_peer_stream(control.clone(), peer_id, StreamType::Control),
+        open_peer_stream(control.clone(), peer_id, StreamType::Tx),
+        open_peer_stream(control, peer_id, StreamType::TxSet),
+    );
+    let opened = |result: io::Result<OutboundStream>| match result {
+        Ok(stream) => Some(stream),
         Err(e) => {
-            warn!("Failed to open SCP stream to {}: {:?}", peer_id, e);
+            warn!("Failed to open stream to {}: {}", peer_id, e);
             None
         }
     };
-
-    let tx_stream = match tx_result {
-        Ok(s) => {
-            debug!("Opened TX stream to {}", peer_id);
-            Some(s)
-        }
-        Err(e) => {
-            warn!("Failed to open TX stream to {}: {:?}", peer_id, e);
-            None
-        }
-    };
-
-    let txset_stream = match txset_result {
-        Ok(s) => {
-            debug!("Opened TxSet stream to {}", peer_id);
-            Some(s)
-        }
-        Err(e) => {
-            warn!("Failed to open TxSet stream to {}: {:?}", peer_id, e);
-            None
-        }
-    };
-
-    let txset_request_stream = match txset_request_result {
-        Ok(s) => {
-            debug!("Opened TxSet request stream to {}", peer_id);
-            Some(s)
-        }
-        Err(e) => {
-            warn!("Failed to open TxSet request stream to {}: {:?}", peer_id, e);
-            None
-        }
-    };
+    let scp_stream = opened(scp_stream);
+    let tx_stream = opened(tx_stream);
+    let txset_stream = opened(txset_stream);
 
     // Store streams
     {
@@ -1218,9 +1211,6 @@ async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, pee
             if let Some(stream) = tx_stream {
                 *peer_streams.tx.lock().await = Some(stream);
             }
-            if let Some(stream) = txset_request_stream {
-                *peer_streams.txset_request.lock().await = Some(stream);
-            }
             if let Some(stream) = txset_stream {
                 *peer_streams.txset.lock().await = Some(stream);
             }
@@ -1231,7 +1221,7 @@ async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, pee
     info!("Peer {} streams opened, sending SCP state request", peer_id);
     let ledger_seq: u32 = 0;
     let request = crate::xdr::frame_get_scp_state(ledger_seq);
-    if let Err(e) = send_to_peer_stream(&state, peer_id.clone(), StreamType::Scp, &request).await {
+    if let Err(e) = send_to_peer_stream(&state, peer_id.clone(), StreamType::Control, &request).await {
         info!(
             "Failed to request SCP state from newly connected peer {}: {:?}",
             peer_id, e
@@ -1239,22 +1229,55 @@ async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, pee
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum StreamType {
-    Scp,
+    Control,
     Tx,
     TxSet,
     TxSetRequest,
+    LegacyTxSetRequest,
 }
 
 impl StreamType {
     fn protocol(&self) -> StreamProtocol {
         match self {
-            StreamType::Scp => SCP_PROTOCOL,
+            StreamType::Control | StreamType::TxSetRequest => CONTROL_PROTOCOL,
             StreamType::Tx => TX_PROTOCOL,
-            StreamType::TxSet | StreamType::TxSetRequest => TXSET_PROTOCOL,
+            StreamType::TxSet | StreamType::LegacyTxSetRequest => TXSET_PROTOCOL,
         }
     }
+
+    fn priority(self) -> i32 {
+        match self {
+            Self::Control | Self::TxSetRequest | Self::LegacyTxSetRequest => 2,
+            Self::TxSet => 1,
+            Self::Tx => 0,
+        }
+    }
+}
+
+/// Negotiate the route, then set actual QUIC priority before application bytes
+/// are written. Only an explicit unsupported-protocol response permits fallback.
+async fn open_peer_stream(
+    mut control: Control,
+    peer: PeerId,
+    kind: StreamType,
+) -> io::Result<OutboundStream> {
+    let mut protocol = kind.protocol();
+    let result = control.open_stream(peer, protocol.clone()).await;
+    let stream = match result {
+        Err(libp2p_stream::OpenStreamError::UnsupportedProtocol(_))
+            if protocol == CONTROL_PROTOCOL =>
+        {
+            protocol = SCP_PROTOCOL;
+            control.open_stream(peer, protocol.clone()).await
+        }
+        result => result,
+    }
+    .map_err(|e| io::Error::new(io::ErrorKind::NotConnected, e))?;
+    stream.set_priority(kind.priority())?;
+    debug!(%peer, %protocol, priority = kind.priority(), "Opened outbound stream");
+    Ok(OutboundStream { stream, protocol })
 }
 
 /// Send message to a specific peer's stream only if already open (for flooding)
@@ -1274,10 +1297,10 @@ async fn try_send_to_existing_stream(
 
     // Serialize frames only within this peer's stream for this purpose.
     let stream_mutex = match stream_type {
-        StreamType::Scp => &peer_streams.scp,
+        StreamType::Control | StreamType::TxSetRequest => &peer_streams.scp,
         StreamType::Tx => &peer_streams.tx,
         StreamType::TxSet => &peer_streams.txset,
-        StreamType::TxSetRequest => &peer_streams.txset_request,
+        StreamType::LegacyTxSetRequest => &peer_streams.legacy_txset_request,
     };
 
     let mut stream_guard = stream_mutex.lock().await;
@@ -1287,7 +1310,7 @@ async fn try_send_to_existing_stream(
         .as_mut()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotConnected, "stream not open"))?;
 
-    write_framed(stream, data).await
+    write_framed(&mut stream.stream, data).await
 }
 
 /// Restart the per-peer GETDATA timeout clock for hashes whose demand chunk
@@ -1330,10 +1353,10 @@ async fn send_to_peer_stream(
 
         // Serialize frames only within this peer's stream for this purpose.
         let stream_mutex = match stream_type {
-            StreamType::Scp => &peer_streams.scp,
+            StreamType::Control | StreamType::TxSetRequest => &peer_streams.scp,
             StreamType::Tx => &peer_streams.tx,
             StreamType::TxSet => &peer_streams.txset,
-            StreamType::TxSetRequest => &peer_streams.txset_request,
+            StreamType::LegacyTxSetRequest => &peer_streams.legacy_txset_request,
         };
 
         let mut stream_guard = stream_mutex.lock().await;
@@ -1346,12 +1369,7 @@ async fn send_to_peer_stream(
                 peer_id,
                 attempt + 1
             );
-            match state
-                .control
-                .clone()
-                .open_stream(peer_id, stream_type.protocol())
-                .await
-            {
+            match open_peer_stream(state.control.clone(), peer_id, stream_type).await {
                 Ok(s) => {
                     debug!(
                         "Successfully reopened {:?} stream to {}",
@@ -1391,7 +1409,19 @@ async fn send_to_peer_stream(
         }
 
         let stream = stream_guard.as_mut().unwrap();
-        match write_framed(stream, data).await {
+        if stream_type == StreamType::TxSetRequest && stream.protocol != CONTROL_PROTOCOL {
+            // Never send a request to an old SCP reader: it would silently
+            // discard it. Keep requests isolated from legacy response writes.
+            drop(stream_guard);
+            return Box::pin(send_to_peer_stream(
+                state,
+                peer_id,
+                StreamType::LegacyTxSetRequest,
+                data,
+            ))
+            .await;
+        }
+        match write_framed(&mut stream.stream, data).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 // Clear the broken stream
@@ -1500,7 +1530,11 @@ async fn read_framed(stream: &mut Stream) -> io::Result<Vec<u8>> {
 }
 
 /// Handle inbound SCP streams from peers
-async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
+async fn handle_inbound_scp_streams(
+    mut incoming: IncomingStreams,
+    state: Arc<SharedState>,
+    accepts_txset_requests: bool,
+) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
         info!("SCP_STREAM: Accepted inbound SCP stream from {}", peer_id);
         state
@@ -1529,6 +1563,12 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                         };
 
                         let scp_envelope = match message {
+                            stellar_xdr::curr::StellarMessage::GetTxSet(hash)
+                                if accepts_txset_requests =>
+                            {
+                                handle_txset_request(&state, peer_id, hash.0);
+                                continue;
+                            }
                             stellar_xdr::curr::StellarMessage::GetScpState(ledger_seq) => {
                                 info!(
                                     "SCP_STATE_REQ: Peer {} requests SCP state for ledger >= {}",
@@ -1973,6 +2013,24 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
     state.metrics.update_recv_transaction_max(elapsed_us);
 }
 
+/// Both the control protocol and the legacy TxSet protocol accept requests.
+fn handle_txset_request(state: &SharedState, peer_id: PeerId, hash: [u8; 32]) {
+    info!(
+        "TXSET_REQ_IN: Received TxSet request for {:02x?}... from {}",
+        &hash[..4],
+        peer_id
+    );
+    if let Err(e) = state.event_tx.send(OverlayEvent::TxSetRequested {
+        hash,
+        from: peer_id,
+    }) {
+        warn!(
+            "Failed to forward TxSetRequested event from {}: {}",
+            peer_id, e
+        );
+    }
+}
+
 /// Handle inbound TxSet streams from peers
 async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
@@ -2002,22 +2060,7 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
 
                         match message {
                             stellar_xdr::curr::StellarMessage::GetTxSet(hash) => {
-                                let hash = hash.0;
-                                info!(
-                                    "TXSET_REQ_IN: Received TxSet request for {:02x?}... from {}",
-                                    &hash[..4],
-                                    peer_id
-                                );
-
-                                if let Err(e) = state.event_tx.send(OverlayEvent::TxSetRequested {
-                                    hash,
-                                    from: peer_id,
-                                }) {
-                                    warn!(
-                                        "Failed to forward TxSetRequested event from {}: {}",
-                                        peer_id, e
-                                    );
-                                }
+                                handle_txset_request(&state, peer_id, hash.0);
                             }
                             stellar_xdr::curr::StellarMessage::GeneralizedTxSet(_tx_set) => {
                                 // The message was strict-decoded above, so the

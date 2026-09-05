@@ -473,7 +473,8 @@ stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 # Rust overlay binary - separate process for networking
 STELLAR_OVERLAY=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/stellar-overlay
-$(STELLAR_OVERLAY): $(top_srcdir)/overlay/Cargo.toml $(top_srcdir)/overlay/src/*.rs $(top_srcdir)/overlay/src/**/*.rs Makefile $(RUST_TOOLCHAIN_FILE)
+RUST_OVERLAY_VENDOR_FILES=$(shell find $(top_srcdir)/overlay/vendor -type f)
+$(STELLAR_OVERLAY): $(top_srcdir)/overlay/Cargo.toml $(top_srcdir)/overlay/src/*.rs $(top_srcdir)/overlay/src/**/*.rs $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock $(RUST_OVERLAY_VENDOR_FILES) Makefile $(RUST_TOOLCHAIN_FILE)
 	cd $(abspath $(top_srcdir))/overlay && \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) build \

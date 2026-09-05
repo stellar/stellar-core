@@ -59,7 +59,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 │  │  Mempool + flood    │          │  libp2p Swarm (QUIC)       │ │
 │  │  (integrated.rs,    │          │                            │ │
 │  │   flood/)           │          │  Behaviours:               │ │
-│  │                     │          │  • libp2p-stream (3 protos)│ │
+│  │                     │          │  • libp2p-stream (routes)  │ │
 │  │  • Fee-ordered pool │          │  • Identify (informational)│ │
 │  │  • INV batching     │          │                            │ │
 │  │  • GETDATA tracking │          │  Transport: QUIC over UDP  │ │
@@ -69,7 +69,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 │                           ┌───────────────┼───────────────┐      │
 │                           ▼               ▼               ▼      │
 │                      [Peer 1]        [Peer 2]        [Peer N]    │
-│                      SCP stream      SCP stream      SCP stream  │
+│                      Ctl stream      Ctl stream      Ctl stream  │
 │                      TX stream       TX stream       TX stream   │
 │                      TxSet stream    TxSet stream    TxSet str.  │
 └──────────────────────────────────────────────────────────────────┘
@@ -80,11 +80,13 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 - **Transport**: QUIC over UDP, via libp2p. TLS 1.3, 0-RTT reconnects,
   per-stream flow control. Listen port = `peer_port + 1000`. See
   [transport.md](rust-overlay/transport.md).
-- **Stream independence**: SCP, TX, and TxSet each get their own libp2p
-  stream (`/stellar/scp/1.0.0`, `/stellar/tx/1.0.0`,
-  `/stellar/txset/1.0.0`). A multi-MB TxSet write cannot stall a
-  500-byte SCP envelope. This is the single biggest design win over the
-  legacy single-TCP-stream overlay.
+- **Stream routing and priority**: control traffic (SCP and tx-set requests)
+  uses `/stellar/control/1.0.0` at highest send priority; tx-set responses use
+  `/stellar/txset/1.0.0` next; TX flooding uses `/stellar/tx/1.0.0` last.
+  Legacy peers remain supported. Writes run outside the dispatcher, with
+  bounded bulk-send admission. Streams still share bandwidth and connection
+  flow control; priority is not a bandwidth reservation. See
+  [transport.md](rust-overlay/transport.md).
 - **Peer membership is Core-driven**. There is no peer-discovery
   protocol — no Kademlia, no peer exchange, no gossip. The overlay
   connects to addresses Core sends via `SetPeerConfig` and accepts any
@@ -112,7 +114,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 |-----------------------------|-------------------------------------------|-------------------------------------------------------|
 | Process boundary            | In-process with consensus                 | Separate process, IPC over Unix socket                |
 | Transport                   | TCP + custom auth                         | QUIC (TLS 1.3 + multiplexing) via libp2p              |
-| Stream isolation            | Single TCP connection per peer            | Three logical streams per peer over one QUIC conn    |
+| Stream isolation            | Single TCP connection per peer            | Prioritized routes with legacy compatibility    |
 | Memory-safety class         | C++                                       | Safe Rust                                             |
 | TX flooding                 | Pull-based (existing INV/GETDATA scheme)  | Pull-based (INV/GETDATA), reimplemented              |
 | SCP flooding                | Push-based                                | Push-based                                            |

@@ -1,0 +1,50 @@
+[
+  {
+    "crate": "libp2p-core",
+    "version": "0.42.0",
+    "upstream_vcs": {
+      "git": {
+        "sha1": "4725f46f0d0e14f3ef4e88edc085729c1312dff6"
+      },
+      "path_in_vcs": "core"
+    },
+    "registry_checksum": "a61f26c83ed111104cd820fe9bc3aaabbac5f1652a1d213ed6e900b7918a1298",
+    "license_source": "https://raw.githubusercontent.com/libp2p/rust-libp2p/4725f46f0d0e14f3ef4e88edc085729c1312dff6/LICENSE"
+  },
+  {
+    "crate": "libp2p-swarm",
+    "version": "0.45.1",
+    "upstream_vcs": {
+      "git": {
+        "sha1": "87101870709aaf64e141e07624855155ed4faaac"
+      },
+      "path_in_vcs": "swarm"
+    },
+    "registry_checksum": "d7dd6741793d2c1fb2088f67f82cf07261f25272ebe3c0b0c311e0c6b50e851a",
+    "license_source": "https://raw.githubusercontent.com/libp2p/rust-libp2p/87101870709aaf64e141e07624855155ed4faaac/LICENSE"
+  },
+  {
+    "crate": "libp2p-quic",
+    "version": "0.11.1",
+    "upstream_vcs": {
+      "git": {
+        "sha1": "1b409e182cad8a4963dcfc3c3eee4004db99c33a"
+      },
+      "path_in_vcs": "transports/quic"
+    },
+    "registry_checksum": "46352ac5cd040c70e88e7ff8257a2ae2f891a4076abad2c439584a31c15fd24e",
+    "license_source": "https://raw.githubusercontent.com/libp2p/rust-libp2p/1b409e182cad8a4963dcfc3c3eee4004db99c33a/LICENSE"
+  },
+  {
+    "crate": "multistream-select",
+    "version": "0.13.0",
+    "upstream_vcs": {
+      "git": {
+        "sha1": "42566869b2ab3d1903d164c84da3308e7e890b8b"
+      },
+      "path_in_vcs": "misc/multistream-select"
+    },
+    "registry_checksum": "ea0df8e5eec2298a62b326ee4f0d7fe1a6b90a09dfcf9df37b38f947a8c42f19",
+    "license_source": "https://raw.githubusercontent.com/libp2p/rust-libp2p/42566869b2ab3d1903d164c84da3308e7e890b8b/LICENSE"
+  }
+]
