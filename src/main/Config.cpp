@@ -2236,6 +2236,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 void
 Config::adjust()
 {
+    // Query the current descriptor limit through the platform abstraction.
+    // fs::getMaxHandles() always returns a bounded, non-negative int64_t, so
+    // RLIM_INFINITY and very large finite limits can never overflow here.
+    adjust(fs::getMaxHandles());
+}
+
+void
+Config::adjust(int64_t maxFsConnections)
+{
     if (MAX_ADDITIONAL_PEER_CONNECTIONS == -1)
     {
         if (TARGET_PEER_CONNECTIONS <=
@@ -2268,8 +2277,13 @@ Config::adjust()
     auto const originalTargetPeerConnections = TARGET_PEER_CONNECTIONS;
     auto const originalMaxPendingConnections = MAX_PENDING_CONNECTIONS;
 
-    int maxFsConnections = std::min<int>(
-        std::numeric_limits<unsigned short>::max(), fs::getMaxHandles());
+    // Safely clamp the descriptor budget to the range representable by
+    // unsigned short. Keep the arithmetic in int64_t and bound both ends so
+    // that negative (or huge) budgets are normalized before the narrowing
+    // cast below.
+    int maxFs = static_cast<int>(std::max<int64_t>(
+        0, std::min<int64_t>(std::numeric_limits<unsigned short>::max(),
+                             maxFsConnections)));
 
     auto totalAuthenticatedConnections =
         TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
@@ -2290,19 +2304,17 @@ Config::adjust()
         };
 
         // see if we need to reduce maxPendingConnections
-        if (totalAuthenticatedConnections + maxPendingConnections >
-            maxFsConnections)
+        if (totalAuthenticatedConnections + maxPendingConnections > maxFs)
         {
             maxPendingConnections =
-                totalAuthenticatedConnections >= maxFsConnections
+                totalAuthenticatedConnections >= maxFs
                     ? 1
                     : static_cast<unsigned short>(
-                          maxFsConnections - totalAuthenticatedConnections);
+                          maxFs - totalAuthenticatedConnections);
         }
 
         // if we're still over, we scale everything
-        if (totalAuthenticatedConnections + maxPendingConnections >
-            maxFsConnections)
+        if (totalAuthenticatedConnections + maxPendingConnections > maxFs)
         {
             maxPendingConnections = std::max<int>(MAX_PENDING_CONNECTIONS, 1);
 
@@ -2315,17 +2327,16 @@ Config::adjust()
                                totalRequiredConnections;
 
             TARGET_PEER_CONNECTIONS =
-                doubleToNonzeroUnsignedShort(maxFsConnections * outboundRate);
+                doubleToNonzeroUnsignedShort(maxFs * outboundRate);
             MAX_ADDITIONAL_PEER_CONNECTIONS =
-                doubleToNonzeroUnsignedShort(maxFsConnections * inboundRate);
+                doubleToNonzeroUnsignedShort(maxFs * inboundRate);
 
             auto authenticatedConnections =
                 TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
-            maxPendingConnections =
-                authenticatedConnections >= maxFsConnections
-                    ? 1
-                    : static_cast<unsigned short>(maxFsConnections -
-                                                  authenticatedConnections);
+            maxPendingConnections = authenticatedConnections >= maxFs
+                                        ? 1
+                                        : static_cast<unsigned short>(
+                                              maxFs - authenticatedConnections);
         }
 
         MAX_PENDING_CONNECTIONS = static_cast<unsigned short>(std::min<int>(
@@ -2349,6 +2360,7 @@ Config::adjust()
         MAX_OUTBOUND_PENDING_CONNECTIONS = 0;
         MAX_INBOUND_PENDING_CONNECTIONS = 0;
     }
+
     auto warnIfChanged = [&](std::string const name, auto const originalValue,
                              auto const newValue) {
         if (originalValue != newValue)
