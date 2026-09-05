@@ -148,8 +148,10 @@ SorobanMetrics::SorobanMetrics(MetricsRegistry& metrics)
           metrics.NewTimer({"soroban", "module-cache", "compilation-time"}))
     , mModuleCacheRebuildTime(
           metrics.NewTimer({"soroban", "module-cache", "rebuild-time"}))
-    , mModuleCacheRebuildBytes(
-          metrics.NewCounter({"soroban", "module-cache", "rebuild-bytes"}))
+    , mModuleCacheRebuildWasmBytes(
+          metrics.NewCounter({"soroban", "module-cache", "rebuild-wasm-bytes"}))
+    , mModuleCacheRebuildHeapBytes(
+          metrics.NewCounter({"soroban", "module-cache", "rebuild-heap-bytes"}))
     , mContractCodeStateSize(metrics.NewCounter(
           {"soroban", "in-memory-state", "contract-code-size"}))
     , mContractDataStateSize(metrics.NewCounter(
