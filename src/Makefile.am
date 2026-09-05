@@ -75,9 +75,11 @@ MAIN_FILES = $(GENERATED_VERSION_SOURCES) main/main.cpp
 
 if BUILD_TESTS
 stellar_core_SOURCES = $(MAIN_FILES) $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
+CARGO_FEATURE_FUZZ_TARGETS = --features fuzz_targets
 CARGO_FEATURE_TESTUTILS = --features testutils
 else # !BUILD_TESTS
 stellar_core_SOURCES = $(MAIN_FILES) $(SRC_CXX_FILES)
+CARGO_FEATURE_FUZZ_TARGETS =
 CARGO_FEATURE_TESTUTILS =
 endif # !BUILD_TESTS
 
@@ -144,10 +146,19 @@ stellar_core_SOURCES += $(GENERATED_XDRQUERY_SOURCES) util/xdrquery/XDRQueryPars
 BUILT_SOURCES += rust/RustBridge.h $(GENERATED_RUST_SOURCES)
 stellar_core_SOURCES += rust/RustBridge.h $(GENERATED_RUST_SOURCES)
 
+# Figure out if we ought to be passing -Zsanitizer=... RUSTFLAGS and friends
+SANITIZE_FLAGS := $(filter -fsanitize=%,$(CXXFLAGS))
+RUSTFLAGS_ASAN := $(if $(findstring address,$(SANITIZE_FLAGS)),-Zsanitizer=address,)
+RUSTFLAGS_TSAN := $(if $(findstring thread,$(SANITIZE_FLAGS)),-Zsanitizer=thread,)
+RUSTFLAGS_SANI := $(RUSTFLAGS_ASAN) $(RUSTFLAGS_TSAN)
+CARGOFLAGS_BUILDSTD := $(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),-Zbuild-std,)
+RUSTFLAGS_CFGS := $(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),--cfg curve25519_dalek_backend=\"serial\",)
+
+
 RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_FILE_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
 if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
-RUST_TOOLCHAIN_CHANNEL=$(if $(findstring -fsanitize=,$(CXXFLAGS)),nightly,$(RUST_TOOLCHAIN_FILE_CHANNEL))
+RUST_TOOLCHAIN_CHANNEL=$(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),nightly,$(RUST_TOOLCHAIN_FILE_CHANNEL))
 else
 RUST_TOOLCHAIN_CHANNEL=$(RUST_TOOLCHAIN_FILE_CHANNEL)
 endif
@@ -310,19 +321,57 @@ $(SOROBAN_BUILD_DIR)/%/target/git-state.txt: $(top_srcdir)/.git/modules/src/rust
 	printf '%s\n' "$$state" > $@.tmp; \
 	if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
-# The fastdev rust build is a special non-production mode that builds all of
-# the rust dependencies of librust_stellar_core.a through a single cargo
-# invocation, which is actually the "normal" way cargo operates, but which also
-# has the negative side effect of resolving (merging) different point releases
-# and pre-release minor versions across transitive dependencies, which means we
+# The fastdev rust build is a special non-production mode that builds all of the
+# rust dependencies of librust_stellar_core.a through a single cargo invocation,
+# which is actually the "normal" way cargo operates, but which also has the
+# negative side effect of resolving (merging) different point releases and
+# pre-release minor versions across transitive dependencies, which means we
 # can't control the _exact_ transitive dependencies as well as we'd like.
 #
-# So we only use the fastdev rust build for certain special cases such as
-# testing with asan/tsan (they seem to only work well when built this way) and
-# use the non-unified build (with separate .a files for each separate soroban
-# version) for production builds.
+# So we only use the fastdev rust build for fast iteration while doing
+# development, or for special cases like testing with asan/tsan (they seem to
+# only work well when built this way), and use the non-unified build (with
+# separate .a files for each separate soroban version) for production builds.
+#
 
 if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+
+# Another delicate bit: the $(CARGO_FEATURE_FUZZ_TARGETS) feature.
+#
+# It pulls in a separate copy of the soroban host with `testutils` enabled,
+# which, in fastdev mode, winds up causing `testutils` to be enabled _on the
+# production soroban host_ as well (due to cargo feature unification), which
+# will cause the build to have slightly different costs and therefore diverge if
+# run against mainnet. Because of this, we are selective about it:
+#
+#   - Regular build: turn on $(CARGO_FEATURE_FUZZ_TARGETS) for smoke-testing
+#   - Fastdev build: turn off, to avoid divergence risk
+#   - Fastdev + ENABLE_FUZZ: turn back on, to allow fuzzing
+#
+# This does mean that a fastdev + ENABLE_FUZZ build might diverge when run
+# against mainnet. But such a build is very slow, typically with multiple
+# sanitizers as well as the fuzzer instrumentation, and should not usually be
+# run against production traffic anyways. It exists just for running fuzzing
+# loops offline.
+
+if ENABLE_FUZZ
+FASTDEV_CARGO_FEATURE_FUZZ_TARGETS=$(CARGO_FEATURE_FUZZ_TARGETS)
+# Since we're manually invoking cargo rustc here, not running `cargo-fuzz`, we
+# have to manually pass some sancov flags along to get fuzz instrumentation in
+# the rust code. We also have to inhibit the trace-pc-guard instrumentation if
+# the fuzz engine is libfuzzer, because it explicitly refuses to run with that
+# mode (it just exits with a message to turn it off). The other fuzz engines,
+# of course, require it.
+TRACE_PC_GUARD_FLAG := $(if $(findstring -fsanitize=fuzzer,$(LIB_FUZZING_ENGINE)),,-Cllvm-args=-sanitizer-coverage-trace-pc-guard)
+RUSTFLAGS_FUZZ := -C passes=sancov-module \
+				  -C llvm-args=-sanitizer-coverage-level=3 \
+				  -C llvm-args=-sanitizer-coverage-inline-8bit-counters \
+				  -C llvm-args=-sanitizer-coverage-pc-table \
+				  $(TRACE_PC_GUARD_FLAG)
+else
+FASTDEV_CARGO_FEATURE_FUZZ_TARGETS=
+RUSTFLAGS_FUZZ :=
+endif
 
 # In the fastdev build, we have to pass the --target flag. This actually breaks
 # the non-unified build, so we wind up setting LIBRUST_STELLAR_CORE separately
@@ -330,17 +379,11 @@ if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 RUST_TARGET=$(shell rustc -vV | sed -n 's/host: //p')
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_TARGET)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
 
-RUSTFLAGS_ASAN := $(if $(findstring -fsanitize=address,$(CXXFLAGS)),-Zsanitizer=address,)
-RUSTFLAGS_TSAN := $(if $(findstring -fsanitize=thread,$(CXXFLAGS)),-Zsanitizer=thread,)
-RUSTFLAGS_SANI := $(RUSTFLAGS_ASAN) $(RUSTFLAGS_TSAN)
-CARGOFLAGS_BUILDSTD := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),-Zbuild-std,)
-RUSTFLAGS_CFGS := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),--cfg curve25519_dalek_backend=\"serial\",)
-
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST_TOOLCHAIN_FILE)
 	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
-	RUSTFLAGS="$(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS)" \
+	RUSTFLAGS="$(RUSTFLAGS) $(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS) $(RUSTFLAGS_FUZZ)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		$(CARGOFLAGS_BUILDSTD) \
@@ -350,6 +393,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
 		$(CARGO_FEATURE_FASTDEV) $(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
+		$(FASTDEV_CARGO_FEATURE_FUZZ_TARGETS) \
 		$(CARGO_FEATURE_TCMALLOC)
 
 else # !ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
@@ -416,7 +460,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_
 		cd $(abspath $(top_srcdir))/src/rust/soroban/$$proto && \
 		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 		RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
-		RUSTFLAGS="-Cmetadata=$$proto" \
+		RUSTFLAGS="$(RUSTFLAGS) -Cmetadata=$$proto" \
 		CARGO_TARGET_DIR=$(SOROBAN_BUILD_DIR)/$$proto/target \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
@@ -461,7 +505,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) $(ALL_SOROBAN_L
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
 		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
-		$(CARGO_FEATURE_TCMALLOC) \
+		$(CARGO_FEATURE_TCMALLOC) $(CARGO_FEATURE_FUZZ_TARGETS) \
 		-- \
 		$(ALL_SOROBAN_EXTERN_ARGS) \
 		$(ALL_SOROBAN_DEPEND_ARGS)
