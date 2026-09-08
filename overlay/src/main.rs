@@ -459,21 +459,19 @@ impl App {
         // Create libp2p QUIC overlay for SCP + TX + TxSet (unified, independent streams)
         let libp2p_keypair = Libp2pKeypair::generate_ed25519();
         let metrics = Arc::new(OverlayMetrics::new());
-        let (libp2p_handle, libp2p_event_rx, tx_event_rx, libp2p_overlay) =
+        let (libp2p_handle, libp2p_event_rx, tx_event_rx, mut libp2p_overlay) =
             create_overlay(libp2p_keypair, Arc::clone(&metrics))
                 .map_err(|e| format!("Failed to create libp2p overlay: {}", e))?;
 
         // Use peer_port + 1000 for libp2p QUIC to avoid collision with legacy TCP
         let libp2p_port = config.peer_port + 1000;
-        let libp2p_listen_ip = config.libp2p_listen_ip.clone();
+        libp2p_overlay.listen(&config.libp2p_listen_ip, libp2p_port)?;
 
         // Compute local addresses for self-dial detection (instant + async DNS in background)
         let local_addrs = collect_local_addrs(libp2p_port);
 
         // Spawn libp2p overlay task
-        tokio::spawn(async move {
-            libp2p_overlay.run(&libp2p_listen_ip, libp2p_port).await;
-        });
+        tokio::spawn(libp2p_overlay.run_event_loop());
 
         info!(
             "Started libp2p QUIC overlay on {}:{} (SCP + TX + TxSet streams)",
@@ -1767,20 +1765,23 @@ mod tests {
         let kp2 = Libp2pKeypair::generate_ed25519();
         let kp3 = Libp2pKeypair::generate_ed25519();
 
-        let (handle1, _events1, _tx1, overlay1) =
+        let (handle1, _events1, _tx1, mut overlay1) =
             create_overlay(kp1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx2, overlay2) =
+        let (handle2, mut events2, _tx2, mut overlay2) =
             create_overlay(kp2, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle3, mut events3, _tx3, overlay3) =
+        let (handle3, mut events3, _tx3, mut overlay3) =
             create_overlay(kp3, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Start all three on different ports
         let port1: u16 = 18501;
         let port2: u16 = 18502;
         let port3: u16 = 18503;
-        tokio::spawn(async move { overlay1.run("127.0.0.1", port1).await });
-        tokio::spawn(async move { overlay2.run("127.0.0.1", port2).await });
-        tokio::spawn(async move { overlay3.run("127.0.0.1", port3).await });
+        overlay1.listen("127.0.0.1", port1).unwrap();
+        tokio::spawn(overlay1.run_event_loop());
+        overlay2.listen("127.0.0.1", port2).unwrap();
+        tokio::spawn(overlay2.run_event_loop());
+        overlay3.listen("127.0.0.1", port3).unwrap();
+        tokio::spawn(overlay3.run_event_loop());
         tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Node1 resolves and dials all peers using a mix of IP and DNS formats.

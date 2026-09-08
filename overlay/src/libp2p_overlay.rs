@@ -507,27 +507,28 @@ pub fn create_overlay(
 }
 
 impl StellarOverlay {
-    /// Run the overlay event loop
-    ///
-    /// `listen_ip` should be a specific IP (e.g., "127.0.0.1" for local tests)
-    /// to avoid multi-homing issues where Identify advertises multiple addresses.
-    pub async fn run(mut self, listen_ip: &str, listen_port: u16) {
-        // Start listening on QUIC (UDP)
-        // Use specific IP to avoid Identify advertising all local IPs
+    /// Bind before starting App so a transport requirement failure aborts startup.
+    pub fn listen(&mut self, listen_ip: &str, listen_port: u16) -> io::Result<()> {
         let listen_addr: Multiaddr = format!("/ip4/{}/udp/{}/quic-v1", listen_ip, listen_port)
             .parse()
-            .unwrap();
-
-        if let Err(e) = self.swarm.listen_on(listen_addr.clone()) {
-            error!("Failed to listen on {}: {}", listen_addr, e);
-            return;
-        }
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        self.swarm.listen_on(listen_addr.clone()).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to listen on {listen_addr}: {e:?}"),
+            )
+        })?;
         info!("Listening on QUIC port {}", listen_port);
+        Ok(())
+    }
 
+    #[cfg(test)]
+    async fn run(mut self, listen_ip: &str, listen_port: u16) {
+        self.listen(listen_ip, listen_port).unwrap();
         self.run_event_loop().await;
     }
 
-    async fn run_event_loop(self) {
+    pub async fn run_event_loop(self) {
         self.run_event_loop_with_control(
             #[cfg(test)]
             true,
@@ -586,7 +587,11 @@ impl StellarOverlay {
 
         // Spawn inbound stream handlers
         let state = self.state.clone();
-        tokio::spawn(handle_inbound_scp_streams(scp_incoming, state.clone(), false));
+        tokio::spawn(handle_inbound_scp_streams(
+            scp_incoming,
+            state.clone(),
+            false,
+        ));
         if let Some(incoming) = control_incoming {
             tokio::spawn(handle_inbound_scp_streams(incoming, state.clone(), true));
         }
@@ -902,7 +907,8 @@ impl StellarOverlay {
             let state = Arc::clone(&self.state);
             let message = message.clone();
             self.sends.spawn(async move {
-                match send_to_peer_stream(&state, peer_id.clone(), StreamType::Control, &message).await
+                match send_to_peer_stream(&state, peer_id.clone(), StreamType::Control, &message)
+                    .await
                 {
                     Ok(_) => {
                         state
@@ -1221,7 +1227,9 @@ async fn open_streams_to_peer(control: Control, state: Arc<SharedState>, peer_id
     info!("Peer {} streams opened, sending SCP state request", peer_id);
     let ledger_seq: u32 = 0;
     let request = crate::xdr::frame_get_scp_state(ledger_seq);
-    if let Err(e) = send_to_peer_stream(&state, peer_id.clone(), StreamType::Control, &request).await {
+    if let Err(e) =
+        send_to_peer_stream(&state, peer_id.clone(), StreamType::Control, &request).await
+    {
         info!(
             "Failed to request SCP state from newly connected peer {}: {:?}",
             peer_id, e

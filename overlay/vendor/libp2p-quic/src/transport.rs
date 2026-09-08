@@ -195,6 +195,15 @@ impl<P: Provider> GenTransport<P> {
 
         socket.bind(&socket_addr.into())?;
 
+        let effective_receive_bytes = crate::udp::configure_receive_buffer(&socket)?;
+        tracing::info!(
+            local_addr = %socket.local_addr()?.as_socket().expect("IP socket"),
+            requested_receive_bytes = crate::udp::RECEIVE_BUFFER_BYTES,
+            effective_receive_bytes,
+            effective_send_bytes = socket.send_buffer_size()?,
+            "QUIC_UDP_BUFFER: operating-system socket buffers (Linux reports doubled SO_RCVBUF accounting)"
+        );
+
         Ok(socket.into())
     }
 
@@ -207,7 +216,7 @@ impl<P: Provider> GenTransport<P> {
             SocketFamily::Ipv4 => SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0),
             SocketFamily::Ipv6 => SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), 0),
         };
-        let socket = UdpSocket::bind(listen_socket_addr)?;
+        let socket = self.create_socket(listen_socket_addr)?;
         let endpoint_config = self.quinn_config.endpoint_config.clone();
         let endpoint = Self::new_endpoint(endpoint_config, None, socket)?;
         Ok(endpoint)
@@ -746,6 +755,29 @@ fn socketaddr_to_multiaddr(socket_addr: &SocketAddr, version: ProtocolVersion) -
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "tokio")]
+    #[test]
+    fn udp_receive_buffer_is_required_without_configuration() {
+        let key = libp2p_identity::Keypair::generate_ed25519();
+        let transport = crate::tokio::Transport::new(Config::new(&key));
+        let socket = transport
+            .create_socket("127.0.0.1:0".parse().unwrap())
+            .unwrap();
+        let actual = socket2::SockRef::from(&socket).recv_buffer_size().unwrap();
+        let expected = if cfg!(target_os = "linux") {
+            8 * 1024 * 1024
+        } else {
+            4 * 1024 * 1024
+        };
+        assert!(actual >= expected, "undersized socket: {actual}");
+        let untouched = UdpSocket::bind("127.0.0.1:0").unwrap();
+        assert_eq!(
+            socket2::SockRef::from(&socket).send_buffer_size().unwrap(),
+            socket2::SockRef::from(&untouched).send_buffer_size().unwrap()
+        );
+    }
+
     use futures::future::poll_fn;
 
     #[test]

@@ -123,27 +123,18 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 
 ## Configuration
 
-TOML, parsed at startup (`config.rs`):
+TOML, parsed at startup (`config.rs`). Unknown fields are rejected.
 
-| Field               | Type          | Default                       | Description                                         |
-|---------------------|---------------|-------------------------------|-----------------------------------------------------|
-| `core_socket`       | `PathBuf`     | `/tmp/stellar-overlay.sock`   | IPC socket path                                     |
-| `listen_addr`       | `SocketAddr`  | `0.0.0.0:11625`               | Legacy peer-port placeholder                        |
-| `libp2p_listen_ip`  | `String`      | `0.0.0.0`                     | QUIC bind interface                                 |
-| `peer_port`         | `u16`         | `11625`                       | Base port. QUIC listens on `peer_port + 1000`       |
-| `target_outbound_peers` | `usize`   | `8`                           | **Defined but unused**                              |
-| `max_inbound_peers` | `usize`       | `64`                          | **Defined but unused**                              |
-| `preferred_peers`   | `Vec<SocketAddr>` | `[]`                       | Static preferred peers (see note below)             |
-| `known_peers`       | `Vec<SocketAddr>` | `[]`                       | Static known peers (see note below)                 |
-| `tx_push_peer_count`| `usize`       | `8`                           | **Defined but unused** in network code              |
-| `max_mempool_size`  | `usize`       | `100_000`                     | **Defined but unused** — mempool is hardcoded       |
-| `http_addr`         | `Option<SocketAddr>` | `127.0.0.1:11626`      | HTTP server (TX submission, status)                 |
-| `log_level`         | `String`      | `info`                        | `tracing` log level                                 |
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `core_socket` | `PathBuf` | `/tmp/stellar-overlay.sock` | IPC socket path |
+| `libp2p_listen_ip` | `String` | `0.0.0.0` | QUIC bind interface |
+| `peer_port` | `u16` | `11625` | Base port; QUIC listens on `peer_port + 1000` |
+| `log_level` | `String` | `info` | `tracing` log level |
 
-> **About `known_peers` / `preferred_peers` in the file**: peer
-> membership at runtime is set by Core via the `SetPeerConfig` IPC
-> message, *not* by the values in this file. The static fields here are
-> kept for tooling and tests but are not the source of truth.
+Core supplies peer membership through the `SetPeerConfig` IPC message.
+The UDP receive-buffer requirement is fixed at 4 MiB; see
+[transport](rust-overlay/transport.md) for the mandatory OS allowance.
 
 ## Code structure
 

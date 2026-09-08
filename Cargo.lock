@@ -1950,6 +1950,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "if-watch",
+ "libc",
  "libp2p-core",
  "libp2p-identity",
  "libp2p-tls",

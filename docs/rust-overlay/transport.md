@@ -43,6 +43,31 @@ is whatever libp2p's QUIC transport provides.
 
 ## Stream protocols
 
+### Operating-system UDP buffers
+
+Every listener and dial-only QUIC socket requests a **4 MiB OS UDP receive
+buffer** before Quinn takes ownership. This is a fixed transport requirement;
+there is no configuration setting, environment switch, or smaller-buffer mode.
+
+Socket creation checks the effective size after the ordinary `SO_RCVBUF`
+request. Linux reports doubled accounting, so the minimum reported value there
+is 8 MiB. If Linux clamps the ordinary request, the transport automatically
+tries `SO_RCVBUFFORCE` and checks the effective size again. That operation
+requires an existing `CAP_NET_ADMIN` grant.
+Other platforms must satisfy the ordinary request.
+
+An insufficient buffer or a denied increase is an error. Listener creation
+fails App initialization; outbound socket creation fails the dial. The overlay
+never continues with an undersized socket. Linux deployments must either allow
+the ordinary request with `net.core.rmem_max >= 4194304`, or already grant
+`CAP_NET_ADMIN`. The process does not grant itself privileges or change sysctls.
+Raising the kernel allowance alone does not resize existing sockets.
+
+Every successfully created socket logs `QUIC_UDP_BUFFER` with the fixed request
+and effective receive/send sizes. Send buffers and QUIC connection/stream
+receive windows are unaffected. Buffering absorbs bursts; it does not increase
+the rate at which the receiver can process sustained traffic.
+
 Updated peers open three outbound libp2p streams, multiplexed over a single
 QUIC connection. Send priorities are set in Quinn, the QUIC implementation:
 
