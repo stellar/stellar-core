@@ -2534,8 +2534,11 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
 
     uint32_t const rentFee =
-        protocolVersionIsBefore(getLclProtocolVersion(*app),
-                                ProtocolVersion::V_26)
+        protocolVersionStartsFrom(getLclProtocolVersion(*app),
+                                  ProtocolVersion::V_29)
+            ? 20'370
+        : protocolVersionIsBefore(getLclProtocolVersion(*app),
+                                  ProtocolVersion::V_26)
             ? 20'368
             : 20'369;
     resourceFee += rentFee;

@@ -1218,8 +1218,12 @@ runTest(int64_t seed, std::vector<std::pair<int, int>> const& scenarios,
             testConfig,
             static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) - 1,
             seed, autoRestore, 1, 1, randomWasms, hotArchiveEntryCreatedLedger);
-        compareResults(true, true, preParallelSorobanResult, baseResult,
-                       hotArchiveEntryCreatedLedger);
+        auto parallelSorobanResult = applyTestTransactions(
+            testConfig,
+            static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
+            seed, autoRestore, 1, 1, randomWasms, hotArchiveEntryCreatedLedger);
+        compareResults(true, true, preParallelSorobanResult,
+                       parallelSorobanResult, hotArchiveEntryCreatedLedger);
     }
 }
 
