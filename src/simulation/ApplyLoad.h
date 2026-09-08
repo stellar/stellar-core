@@ -50,25 +50,20 @@ class ApplyLoad
     uint32_t getTotalHotArchiveEntries() const;
 
   private:
-    // Whether this run records tx-set validation phase timings (i.e. runs in
-    // the TX_SET_VALIDATION_AND_APPLY timing path).
-    bool measuresTxSetValidation() const;
+    // Whether this run records tx-set phase timings (i.e. runs in the
+    // TX_SET_VALIDATION_AND_APPLY timing path).
+    bool measuresTxSetPhases() const;
 
-    // Simulates a non-leader receiving a tx set over the wire, then closes it
-    // through local consensus. Tx-set creation is outside the measured span.
-    void
-    closeLedgerViaConsensus(std::vector<TransactionFrameBasePtr> const& txs,
-                            bool recordUtilization);
     // Closes a benchmark ledger through the path selected by
-    // APPLY_LOAD_TIMING_PHASES.
+    // APPLY_LOAD_TIMING_PHASES. Tx-set timing covers leader construction,
+    // followed by cold receiver validation and application via local consensus.
     void closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
                               bool recordUtilization);
-    void recordSorobanUtilization(ApplicableTxSetFrame const& txSet,
-                                  uint32_t ledgerVersion);
+    void recordSorobanUtilization(ApplicableTxSetFrame const& txSet);
 
-    // Logs the phase timings recorded by closeLedgerViaConsensus. Must only
-    // be called when measuresTxSetValidation() is true.
-    void logTxSetValidationPhaseStats() const;
+    // Logs the phase timings recorded by closeBenchmarkLedger. Must only
+    // be called when measuresTxSetPhases() is true.
+    void logTxSetPhaseStats() const;
 
     uint32_t calculateRequiredHotArchiveEntries(Config const& cfg);
 
@@ -117,8 +112,7 @@ class ApplyLoad
     // parameters.
     double benchmarkLimitsIteration();
 
-    // Generates APPLY_LOAD_CLASSIC_TXS_PER_LEDGER classic payment TXs
-    // using accounts starting at startAccountIdx.
+    // Generate classic payment candidates from accounts at startAccountIdx.
     void generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
                                  uint32_t startAccountIdx);
 
@@ -144,6 +138,14 @@ class ApplyLoad
     // to execute, taking APPLY_LOAD_BATCH_SAC_COUNT into account.
     uint32_t calculateBenchmarkModelTxCount() const;
 
+    // Scales model and classic candidate counts by the queue size multiplier
+    // when measuring tx-set phases; otherwise returns 1. Limit-based Soroban
+    // generation always scales its resource budget by the configured
+    // multiplier.
+    uint32_t txQueueMultiplier(bool isSoroban) const;
+    // Number of classic payment candidates generated per ledger.
+    uint32_t classicTxCount() const;
+
     // Iterate over all available accounts to make sure they are loaded into the
     // BucketListDB cache. Note that this should be run every time an account
     // entry is modified.
@@ -164,17 +166,19 @@ class ApplyLoad
     ApplyLoadTxProfile mLimitsBasedTxProfile;
     ApplyLoadTimingPhases mTimingPhases;
 
-    // A phase is a timed portion of one ledger's receiver-side processing. We
-    // track cold tx-set validation, ledger close/application, and end-to-end
-    // time from wire decoding through the completed ledger close. Ledger close
-    // includes apply-side prepareForApply.
+    // Construction is timed separately from receiver-side decoding, cold
+    // validation and ledger close. Ledger close includes prepareForApply.
+    std::vector<double> mPhaseConstructionMs;
     std::vector<double> mPhaseValidationMs;
     std::vector<double> mPhaseLedgerCloseMs;
-    std::vector<double> mPhaseEndToEndMs;
+    std::vector<double> mPhaseReceiveToCloseMs;
 
-    // Signature cache totals and the transaction count used to interpret them.
+    // Signature cache totals and the transaction counts used to interpret
+    // them: candidates offered to the tx-set builder, and transactions it
+    // included in the built sets.
     uint64_t mLedgerSigCacheHits = 0;
     uint64_t mLedgerSigCacheMisses = 0;
+    uint64_t mBenchmarkCandidateTxCount = 0;
     uint64_t mBenchmarkTxCount = 0;
 
     uint32_t mTotalHotArchiveEntries;

@@ -1164,9 +1164,13 @@ TEST_CASE("apply load benchmark model tx",
 TEST_CASE("apply load benchmark custom token",
           "[loadgen][applyload][soroban][acceptance]")
 {
+    auto const timingPhases =
+        GENERATE(ApplyLoadTimingPhases::APPLY_ONLY,
+                 ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY);
     auto cfg = getTestConfig();
     cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
     cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::CUSTOM_TOKEN;
+    cfg.APPLY_LOAD_TIMING_PHASES = timingPhases;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -1192,14 +1196,25 @@ TEST_CASE("apply load benchmark custom token",
     auto& successCountMetric =
         app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
     REQUIRE(successCountMetric.count() > 0);
+    if (timingPhases == ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY)
+    {
+        // Each benchmark ledger runs at least one cold tx set validation.
+        REQUIRE(app->getMetrics()
+                    .NewTimer({"herder", "txset", "validate"})
+                    .count() >= cfg.APPLY_LOAD_NUM_LEDGERS);
+    }
 }
 
 TEST_CASE("apply load benchmark soroswap",
           "[loadgen][applyload][soroban][acceptance]")
 {
+    auto const timingPhases =
+        GENERATE(ApplyLoadTimingPhases::APPLY_ONLY,
+                 ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY);
     auto cfg = getTestConfig();
     cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
     cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SOROSWAP;
+    cfg.APPLY_LOAD_TIMING_PHASES = timingPhases;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.MANUAL_CLOSE = true;
@@ -1224,6 +1239,13 @@ TEST_CASE("apply load benchmark soroswap",
     auto& successCountMetric =
         app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
     REQUIRE(successCountMetric.count() > 0);
+    if (timingPhases == ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY)
+    {
+        // Each benchmark ledger runs at least one cold tx set validation.
+        REQUIRE(app->getMetrics()
+                    .NewTimer({"herder", "txset", "validate"})
+                    .count() >= cfg.APPLY_LOAD_NUM_LEDGERS);
+    }
 }
 
 TEST_CASE("noisy binary search", "[applyload]")
