@@ -187,11 +187,27 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
         n0->getOverlayManager().getOverlayMetrics().mRecvErrorTimer;
     auto p0recvErrorCount = p0recvError.count();
 
-    auto const& recvTx =
-        n1->getOverlayManager().getOverlayMetrics().mRecvTransactionTimer;
-    auto recvTxPrev = recvTx.count();
+    auto const& recvGetTxSet =
+        n1->getOverlayManager().getOverlayMetrics().mRecvGetTxSetTimer;
+    auto recvGetTxSetPrev = recvGetTxSet.count();
 
-    auto msg = makeStellarMessage(1);
+    // Send non-flood messages: flood messages must go through FlowControl's
+    // outbound queue, while the *ForTesting helpers write directly to the
+    // socket
+    auto msg = std::make_shared<StellarMessage>();
+    msg->type(GET_TX_SET);
+    msg->txSetHash() = Hash();
+
+    // Wrap a transaction of the given size in a TX_SET (not flow-controlled)
+    auto makeTxSetMessage = [](uint32_t wasmSize) {
+        auto txSet = std::make_shared<StellarMessage>();
+        txSet->type(TX_SET);
+        txSet->txSet().previousLedgerHash = sha256("not a tx batch");
+        txSet->txSet().txs.push_back(
+            makeStellarMessage(wasmSize)->transaction());
+        REQUIRE(!OverlayManager::isFloodMessage(*txSet));
+        return txSet;
+    };
 
     auto crankAndValidateDrop = [&](std::string const& dropReason,
                                     bool shouldSendError) {
@@ -210,17 +226,17 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
         {
             // p0 received ERROR from p1
             REQUIRE(p0recvErrorCount + 1 == p0recvError.count());
-            REQUIRE(recvTx.count() == recvTxPrev);
+            REQUIRE(recvGetTxSet.count() == recvGetTxSetPrev);
         }
     };
 
     SECTION("message size is over limit")
     {
-        auto bigMessage = makeStellarMessage(MAX_MESSAGE_SIZE * 2);
+        auto bigMessage = makeTxSetMessage(MAX_MESSAGE_SIZE * 2);
         REQUIRE(xdr::xdr_size(*bigMessage) > MAX_MESSAGE_SIZE);
 
         p0->sendAuthenticatedMessageForTesting(bigMessage);
-        p0->sendAuthenticatedMessageForTesting(makeStellarMessage(1000));
+        p0->sendAuthenticatedMessageForTesting(makeTxSetMessage(1000));
         crankAndValidateDrop("error during read", false);
     }
     SECTION("bad auth sequence")

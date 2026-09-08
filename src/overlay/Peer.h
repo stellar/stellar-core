@@ -479,12 +479,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool isAuthenticatedForTesting() const;
     bool shouldAbortForTesting() const;
     bool isConnectedForTesting() const;
-    void
-    sendAuthenticatedMessageForTesting(
-        std::shared_ptr<StellarMessage const> msg)
-    {
-        sendAuthenticatedMessage(std::move(msg));
-    }
+    void sendAuthenticatedMessageForTesting(
+        std::shared_ptr<StellarMessage const> msg);
     void
     sendXdrMessageForTesting(xdr::msg_ptr xdrBytes,
                              std::shared_ptr<StellarMessage const> msg)
