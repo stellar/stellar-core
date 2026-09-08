@@ -1,141 +1,78 @@
-# TX Set Fetching
+# TX set fetching
 
-A TX set is the full list of transaction envelopes a validator nominates
-for a ledger. Validators reference TX sets by hash inside SCP messages,
-so any node that hasn't seen the body needs to fetch it from a peer
-before it can validate the SCP round.
+SCP envelopes reference transaction sets by hash. Rust prefetches their bodies
+from peers and keeps them in the tx-set cache. Core receives a set only after
+it establishes demand with `RequestTxSet`; see
+[Core delivery](core-txset-delivery.md).
 
-The Rust overlay handles this on a dedicated stream
-(`/stellar/txset/1.0.0`), separate from the SCP and TX streams. This
-keeps multi-megabyte TxSet transfers from stalling consensus or TX
-flooding.
+## Wire formats and routes
 
-## Stream wire format
+Network messages use a four-byte big-endian frame length followed by a
+`StellarMessage`. `GetTxSet` contains the 32-byte hash; `GeneralizedTxSet`
+contains the set XDR. The response hash is computed from the canonical bytes
+after strict decoding, without re-encoding the set.
 
-`/stellar/txset/1.0.0` uses **length-prefixed frames** (4-byte BE length,
-see [transport.md](transport.md#frame-formats)). The payload is a
-`StellarMessage`, strict-decoded on receipt:
+Requests share the highest-priority control route with SCP. Responses use the
+next-priority tx-set route. Legacy-only peers use separate request and response
+streams under the old tx-set protocol, while SCP uses its old protocol. All
+routes share QUIC connection limits. See [transport](transport.md).
 
-| `StellarMessage` arm | Meaning  | Payload                           |
-|----------------------|----------|-----------------------------------|
-| `GetTxSet`           | Request  | The 32-byte TX set hash           |
-| `GeneralizedTxSet`   | Response | The full `GeneralizedTransactionSet` XDR |
+## Core requests and network prefetches
 
-Responses carry no explicit hash: because the decode is strict, the
-bytes after the 4-byte union discriminant are the canonical encoding,
-and the reader identifies the set by their sha256 — no re-encode. The
-inbound handler (`libp2p_overlay.rs:1855`) verifies/clears the pending
-request and measures fetch latency right there in the reader task, so
-the main loop receives an already-verified `TxSetReceived { hash, data }`.
+`RequestTxSet` IPC carries `[hash:32][slot:u32 LE]`. App records the newest
+requested slot for each pending hash. A cache hit immediately satisfies that
+demand. A miss initiates a network fetch; the eventual matching arrival is
+cached and satisfies the pending demand once. Duplicate arrivals remain cached.
 
-## Two paths
+A network prefetch arriving before the Core request stays in the cache. A later
+explicit request still receives it, even if Core has requested the same hash
+before. Locally built sets supplied with `CacheTxSet` can also satisfy pending
+demand. There is no permanent delivered marker. Failed IPC enqueueing retains
+the pending request.
 
-### Core asks Overlay for a TX set
+## Peer requests
 
-Trigger: `RequestTxSet` IPC message (`main.rs:1023-1065`). Payload is a
-32-byte hash.
+The reader emits `TxSetRequested { hash, from }`. App looks up the cache and
+starts a response send. Send admission and the stream write happen outside the
+App and network dispatcher loops. Count and byte permits bound admitted bulk
+sends; per-route stream locks preserve complete frame ordering.
 
-Resolution order:
+A cache miss has no network reply. There is no `DontHave` message or automatic
+alternate-peer retry in this path.
 
-1. **Local cache lookup** (`tx_set_cache`). On hit, the overlay
-   immediately replies with a `TxSetAvailable` IPC message containing
-   the cached XDR. No network traffic.
-2. **Cache miss** → mark the hash as pending, then call
-   `libp2p_handle.fetch_txset(hash)`. The eventual `TxSetReceived` event
-   from libp2p triggers a `TxSetAvailable` IPC reply to Core.
+## Fetch selection
 
-### Peer asks Overlay for a TX set
+Before spawning the request write, the dispatcher reserves the hash with
+`(peer, request_time, slot)` in `pending_txset_requests`. An existing request to
+a connected peer suppresses another request. Selection prefers the connected
+peer that supplied an SCP reference, then another connected peer. With no peer,
+the attempt returns without reserving the hash.
 
-A peer sends a `GetTxSet(hash)` frame on its TxSet stream. The inbound
-handler emits a `TxSetRequested { hash, from }` event
-(`libp2p_overlay.rs:1882-1899`). The main loop looks up the cache and,
-on hit, calls `send_txset_response(peer, hash, xdr)`, which frames the
-cached canonical bytes as a `GeneralizedTxSet` message (discriminant
-prefix, no re-encode) and sends it on the TxSet stream
-(`libp2p_overlay.rs:994-1010`).
+A failed write removes only its own reservation. Disconnect cleanup removes
+reservations assigned to that peer. A received response clears its matching
+reservation and records fetch latency and the requested slot. This does not
+provide a timeout or automatic retry for a silent peer.
 
-On miss there is no reply — the requester is responsible for retrying
-to a different peer (which currently is not implemented; see
-[Known gaps](#known-gaps)).
+## Cache and externalization
 
-## fetch_txset peer selection
+The cache holds up to 100 sets in App. Each entry contains its content hash,
+canonical XDR, and ledger sequence. Capacity eviction uses insertion order;
+updating an existing hash does not move it. `LedgerClosed` evicts entries older
+than `sequence - 12`, using saturating subtraction. Pending Core demand expires
+against the same retained-slot boundary.
 
-`libp2p_overlay.rs:810-911`.
+`CacheTxSet` IPC carries `[hash:32][slot:u32 LE][txset_xdr]`. Core's bytes are
+trusted for encoding, but their content hash is checked before insertion.
+Network bytes are strict-decoded and content-hashed by the reader before App
+caches them. Unrequested arrivals are not sent to Core.
 
-1. **Dedup**: if a request for this hash is already pending to a still-
-   connected peer, do nothing (`pending_txset_requests`).
-2. **Prefer the SCP source**: `txset_sources` is an LRU populated when
-   we receive an SCP message that references a TX set hash, mapping
-   `hash → PeerId`. If that peer is still connected, fetch from them.
-3. **Fallback**: pick any connected peer (`peer_streams.keys().next()`).
-4. **No peers connected**: log and return — the request is *not*
-   queued. Core will retry on its own schedule.
+`TxSetExternalized` supplies the set hash and included transaction hashes.
+App awaits mempool removal before processing the next Core message. The cached
+set remains available for peer requests until normal capacity or slot eviction.
+See [mempool](mempool.md).
 
-The pending-request entry records `(peer, Instant)` so we can log
-fetch latency when the response arrives.
+## Remaining limitations
 
-## TX set cache
-
-`flood/txset.rs`.
-
-```rust
-pub struct TxSetCache {
-    by_hash: HashMap<Hash256, CachedTxSet>,
-    max_size: usize,
-}
-```
-
-Each `CachedTxSet` carries the hash, the XDR bytes, the ledger sequence
-it was built for, and the contained TX hashes (used by Core to remove
-externalized TXs from the mempool — see [mempool.md](mempool.md)).
-
-### Eviction
-
-- **Capacity-based**: if `by_hash.len() >= max_size`, the cache evicts
-  one arbitrary entry chosen via `keys().next()` (`txset.rs:48`). This
-  is **not LRU and not FIFO** — it depends on `HashMap` iteration order,
-  which is randomized per-process. For TX sets specifically this matters
-  much less than for mempool/INV state, because cache lifetime is mainly
-  controlled by `evict_before`.
-- **Ledger-based**: on `LedgerClosed { seq }`, the cache calls
-  `evict_before(seq.saturating_sub(12))` — TX sets older than 12 ledgers
-  behind the current one are dropped (`main.rs:1158-1161`).
-
-### Population sources
-
-- `CacheTxSet` IPC: Core has just built a TX set locally and pushes
-  the XDR + hash so the overlay can serve it to peers. Core is trusted
-  for encoding, so the overlay does not decode — it only verifies that
-  the hash matches the bytes (`tx_set_hash_matches`, `main.rs:1059`),
-  guarding against a mismatch that would make the set unfetchable
-  network-wide.
-- `TxSetReceived` from libp2p: a peer answered our `fetch_txset`. The
-  bytes were strict-decoded and content-hashed in the reader task, so
-  they are cached and forwarded to Core via `TxSetAvailable` as-is.
-
-## Externalization handoff
-
-`TxSetExternalized` IPC (`main.rs:1166-1208`):
-
-1. Core sends `[txset_hash:32][num_tx:4][tx_hash:32]…`.
-2. The overlay calls `mempool.remove_txs_sync(tx_hashes)` and **awaits**
-   completion before returning to the main event loop. This is
-   intentional: the next nomination cycle must not see TXs that have
-   already been included.
-3. The TX-set entry itself is **not** removed from the cache here — it
-   stays around to serve catch-up replies. Cache eviction is handled
-   later by the per-ledger `evict_before` on `LedgerClosed`.
-
-## Known gaps
-
-- **No per-fetch timeout / retry.** A retry task was scaffolded in
-  `libp2p_overlay.rs:1829-1916` and is **commented out**. If a peer goes
-  silent after receiving our 32-byte request, the pending entry
-  effectively leaks until the peer disconnects. Core's own retry policy
-  is the only safety net.
-- **No alternate-peer fallback** within a single fetch. We pick one peer
-  and stop.
-- **Eviction is non-deterministic** under capacity pressure. Acceptable
-  given the `evict_before(seq-12)` cleanup, but worth flagging.
-- **No request prioritization**. All TxSet fetches are FIFO on the
-  shared TxSet stream.
+- A peer that stays connected but silent can leave a fetch pending indefinitely.
+- A cache miss at the selected peer has no explicit negative response or retry.
+- Selecting one connected peer does not guarantee it has the requested body.

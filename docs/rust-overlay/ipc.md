@@ -63,8 +63,8 @@ are rejected with `InvalidData`.
 |  7 | `Shutdown`            | (empty)                                      | Graceful shutdown                                 |
 |  8 | `SetPeerConfig`       | UTF-8 JSON (see below)                       | Configure peer addresses                          |
 | 10 | `SubmitTx`            | `[fee:i64 LE][num_ops:u32 LE][tx_xdr]`       | Submit TX for flood + mempool                     |
-| 11 | `RequestTxSet`        | `[hash:32]`                                  | Fetch TX set body by hash                         |
-| 12 | `CacheTxSet`          | `[hash:32][txset_xdr]`                       | Tell overlay to cache a locally-built TX set      |
+| 11 | `RequestTxSet`        | `[hash:32][slot:u32 LE]`                     | Fetch TX set body by hash                         |
+| 12 | `CacheTxSet`          | `[hash:32][slot:u32 LE][txset_xdr]`          | Tell overlay to cache a locally-built TX set      |
 | 13 | `RequestOverlayMetrics` | (empty)                                    | Request metrics snapshot                          |
 
 ### Overlay → Core
