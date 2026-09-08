@@ -563,6 +563,13 @@ class CapacityTrackedMessage : private NonMovableOrCopyable
     StellarMessage const& getMessage() const;
     ~CapacityTrackedMessage();
     std::optional<Hash> maybeGetHash() const;
+    // Whether flow control admitted this message. If false, the peer was
+    // dropped during construction and no further work was done on the message.
+    bool
+    isCapacityLocked() const
+    {
+        return mCapacityLocked;
+    }
     std::unordered_map<Hash, TransactionFrameBasePtr> const&
     getTxMap() const
     {
