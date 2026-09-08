@@ -43,30 +43,45 @@ is whatever libp2p's QUIC transport provides.
 
 ## Stream protocols
 
-Each peer has three independent libp2p streams, multiplexed over the single
-QUIC connection. Stream protocol IDs (`libp2p_overlay.rs:36-38`):
+Each peer opens four outbound libp2p streams, multiplexed over a single
+QUIC connection, using three protocol IDs:
 
 | Protocol ID             | Purpose            | Role                                |
 |-------------------------|--------------------|-------------------------------------|
 | `/stellar/scp/1.0.0`    | SCP envelopes      | Push-based, length-prefixed frames |
 | `/stellar/tx/1.0.0`     | TX flooding        | INV/GETDATA/TX (1-byte type prefix) |
-| `/stellar/txset/1.0.0`  | TX set fetch       | Request/response, length-prefixed   |
+| `/stellar/txset/1.0.0`  | TX set fetch       | Separate request and response streams, length-prefixed |
 
 In addition, libp2p's `Identify` protocol runs as `/stellar/1.0.0`
 (`libp2p_overlay.rs:380`). It exchanges peer-id + listen addresses on
 connect; the overlay logs the result but does not currently feed it into
 peer selection.
 
-### Why three streams
+### Stream isolation
 
-The overlay's most important property: **SCP traffic never queues behind TX
-or TxSet traffic**. Each stream has its own QUIC stream-level flow control
-and its own per-peer mutex on the send side, so:
+Each stream has its own QUIC stream-level flow control and its own per-peer
+mutex on the send side. The command dispatcher also schedules network writes
+as independent tasks, so:
 
-- A multi-MB TxSet write cannot delay a 500-byte SCP message.
+- An outstanding TxSet write does not hold the dispatcher or the SCP stream
+  mutex while it waits for the recipient.
 - INV batches and TX response data flow on `/stellar/tx/1.0.0` only.
-- Packet loss on one stream does not stall the others — this is QUIC's
-  big advantage over single-TCP-connection multiplexing schemes.
+- Tx-set fetch requests have their own stream and mutex, so a large response
+  to the same peer cannot hold up a request behind its frame or stream lock.
+  Both streams use the existing tx-set protocol and encoding. The unchanged
+  receiver already accepts multiple streams for that protocol, including
+  requests from older peers on their combined request/response stream.
+- Loss recovery on one stream does not require another stream to wait for
+  that stream's missing bytes.
+
+The request stream opens alongside the other streams when a peer connects
+and reopens on demand after failure. The connection owns a fixed additional
+stream per peer; this does not create a new stream for every fetch.
+
+Streams still share connection-level flow control, congestion control, CPU,
+and link bandwidth. This separation removes dispatcher and stream-lock
+serialization; it does not guarantee SCP latency under link saturation.
+These streams do not currently have different QUIC scheduling priorities.
 
 ## Frame formats
 
@@ -105,9 +120,48 @@ final failure the send is abandoned and an error is returned to the caller;
 the SCP/TX/TxSet broadcast paths log a warning and increment
 `error_write` / similar metrics.
 
-Per-stream mutexes mean concurrent broadcasts to the same peer on the same
-stream serialize, but broadcasts to different peers, or to different
-streams of the same peer, run in parallel via `tokio::spawn`.
+Per-stream mutexes serialize complete frames on a given peer/protocol stream.
+Writes to different peers, or different protocols of the same peer, can
+progress concurrently.
+
+The dispatcher tracks tx-set responses, tx-set requests, SCP broadcasts,
+direct SCP messages, and SCP-state requests in a `JoinSet`. It continues
+polling the swarm and accepting commands while these writes wait for stream
+locks, stream opening, socket capacity, or write-error retries. Stream opening
+itself needs the swarm to be polled, so awaiting it inside the dispatcher can
+otherwise prevent completion.
+
+Tx-set responses acquire capacity **before** entering the command queue:
+at most 64 responses and 256 MiB of framed tx-set payloads may be queued or
+active. The caller waits when capacity is exhausted; the dispatcher remains
+available to process SCP and connection events. Permits are held until the
+write completes or fails. These limits cover admitted sends, not cached sets
+or the input buffers owned by callers still waiting for admission. The peer
+wire limit remains 16 MiB per message, including the StellarMessage
+discriminant; oversized outgoing sets are logged and rejected.
+
+These permits end at local write completion. Quinn's `flush()` returns
+immediately; it does not wait for acknowledgement or remote receipt. The
+limits therefore do not bound bytes still buffered inside QUIC or the network.
+
+Fetch selection and pending-request reservation stay in the dispatcher, before
+the write is spawned. This preserves duplicate-request suppression. A failed
+write clears only its own reservation, so it cannot erase a request reassigned
+after a disconnect. This change does not add a fetch timeout or retry policy.
+
+On shutdown, the command receiver and swarm are closed before outstanding
+dispatcher sends are cancelled. Waiting producers wake up and send permits
+are released.
+
+`cargo test -p stellar-overlay --lib dispatch_tests` covers blocked writes,
+actual SCP/tx-set delivery across three QUIC nodes, stream reopening and
+framing, admission limits, shutdown, and fetch-reservation races. The transport
+fixture contains 6,000 envelopes and exceeds 4 MiB; it is not a SAC throughput
+benchmark.
+The fetch-isolation regression holds a response stream lock while requests
+reach that same peer over QUIC, checks stream reuse and reopening, then
+verifies that the original response arrives intact after release. Its initial
+request timed out before the streams were separated.
 
 ## Inbound stream handling
 
