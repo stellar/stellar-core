@@ -101,30 +101,23 @@ are rejected with `InvalidData`.
 
 ## Channel discipline
 
-The overlay's main loop consumes IPC messages from a single `mpsc`
-receiver
-(`main.rs:554-566`, the `core_ipc.receiver.recv()` arm). On the libp2p
-side it consumes events from two channels:
+The App loop consumes Core IPC and a separate libp2p event channel. Network
+transactions enter the mempool command FIFO directly, without passing through
+App or sending a per-transaction IPC upcall to Core.
 
-| Channel                   | Bound  | Drops? | Carries                                       |
-|---------------------------|--------|--------|-----------------------------------------------|
-| `event_rx` (libp2p)       | unbounded | never | SCP envelopes, TxSet events, peer events    |
-| `tx_event_rx` (libp2p)    | bounded (10,000) | yes, on overflow | TX-flood events only            |
-| `core_ipc.sender`         | mpsc unbounded | never | Outbound to Core                          |
-| `core_ipc.receiver`       | mpsc | mpsc semantics | Inbound from Core                         |
+| Channel or admission point | Bound | Carries |
+|---|---|---|
+| libp2p App events | Unbounded; no overflow dropping | SCP, TxSet, and peer events |
+| Network mempool admission | 10,000 queued plus active inserts; nonblocking refusal | Network TXs |
+| Mempool command FIFO | Unbounded channel; network producers require admission permits | Admissions, Core submissions, removals, queries |
+| Core IPC sender | Unbounded | Outbound IPC messages |
+| Core IPC receiver | Existing mpsc channel | Inbound IPC messages |
 
-Two consequences:
-
-- SCP and TxSet messages from peers **cannot be dropped** at the
-  overlay-Core boundary. If Core stalls processing them, the overlay
-  will accumulate work in the unbounded queue (which is acceptable for
-  the relatively low volume of SCP/TxSet messages).
-- TX flood events **can be dropped** — see
-  [tx-propagation.md](tx-propagation.md#backpressure). The TX itself
-  remains in the overlay's `tx_buffer` and is still served to peers via
-  GETDATA; only the upcall to Core for that single arrival is lost.
-  Subsequent INVs from peers (or our own future GETDATA cycles) re-push
-  it.
+Network saturation does not prevent removal or query commands from entering
+the FIFO. Refused admissions are not marked seen, allowing a later response
+to succeed. Unbounded queues can accumulate work if consumers stall, and sends
+to closed channels still fail. See [ordered admission](mempool-admission.md)
+and [TX backpressure](tx-propagation.md#backpressure).
 
 ## Failure modes
 

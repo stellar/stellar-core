@@ -4,8 +4,8 @@ use super::*;
 // This is deterministic: no large allocation, socket-buffer assumption, or
 // timing-dependent attempt to saturate a loopback connection is needed.
 async fn dispatcher_with_blocked_write(command: &str) {
-    let (handle, _events, _tx_events, overlay) =
-        create_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, _events, _admissions, overlay) =
+        create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
     let peer = PeerId::random();
     let streams = Arc::new(PeerOutboundStreams::new());
     overlay
@@ -73,7 +73,7 @@ async fn blocked_scp_state_request_does_not_block_dispatcher() {
 struct TestNode {
     handle: OverlayHandle,
     events: mpsc::UnboundedReceiver<OverlayEvent>,
-    _tx_events: mpsc::Receiver<OverlayEvent>,
+    _admissions: mpsc::UnboundedReceiver<CoreCommand>,
     state: Arc<SharedState>,
     peer: PeerId,
     address: Multiaddr,
@@ -86,8 +86,9 @@ impl TestNode {
     }
 
     async fn start_with_control(accept_control: bool) -> Self {
-        let (handle, events, tx_events, mut overlay) =
-            create_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, events, admissions, mut overlay) =
+            create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new()))
+                .unwrap();
         let peer = *overlay.swarm.local_peer_id();
         let state = Arc::clone(&overlay.state);
         // Ask the OS for a port and observe the bound address, rather than
@@ -111,7 +112,7 @@ impl TestNode {
         Self {
             handle,
             events,
-            _tx_events: tx_events,
+            _admissions: admissions,
             state,
             peer,
             address,
@@ -480,8 +481,8 @@ async fn legacy_peer_receives_scp_and_fetches_on_its_supported_routes() {
 }
 
 async fn bulk_send_admission_is_bounded(byte_limit: bool) {
-    let (mut handle, _events, _tx_events, overlay) =
-        create_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (mut handle, _events, _admissions, overlay) =
+        create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
     let peer = PeerId::random();
     let streams = Arc::new(PeerOutboundStreams::new());
     overlay
@@ -534,8 +535,8 @@ async fn bulk_send_bytes_are_bounded_without_blocking_dispatcher() {
 
 #[tokio::test]
 async fn failed_txset_send_releases_admission() {
-    let (handle, _events, _tx_events, overlay) =
-        create_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, _events, _admissions, overlay) =
+        create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
     let mut task = tokio::spawn(async move { overlay.run("127.0.0.1", 0).await });
     let (hash, data) = test_txset_xdr(1);
     handle.send_txset(hash, data, PeerId::random()).await;
@@ -558,8 +559,9 @@ async fn failed_txset_send_releases_admission() {
 #[tokio::test]
 async fn fetch_reservation_is_deduplicated_and_failure_preserves_reassignment() {
     for reassigned in [false, true] {
-        let (_handle, _events, _tx_events, mut overlay) =
-            create_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+        let (_handle, _events, _admissions, mut overlay) =
+            create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new()))
+                .unwrap();
         let peer = PeerId::random();
         overlay
             .state
@@ -607,8 +609,8 @@ async fn fetch_reservation_is_deduplicated_and_failure_preserves_reassignment() 
 
 #[tokio::test]
 async fn queued_peer_sends_share_payload_and_release_it_on_drop() {
-    let (handle, _events, _tx_events, mut overlay) =
-        create_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, _events, _admissions, mut overlay) =
+        create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
     let (hash, data) = test_txset_xdr(1);
     let data = Arc::new(data);
     let retained = Arc::downgrade(&data);

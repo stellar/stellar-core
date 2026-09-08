@@ -23,8 +23,6 @@ use stellar_overlay::config::Config;
 use stellar_overlay::flood::{CachedTxSet, Hash256, TxSetCache};
 use stellar_overlay::integrated::{Overlay, OverlayHandle};
 use stellar_overlay::ipc::{CoreIpc, Message, MessageType};
-#[cfg(test)]
-use stellar_overlay::libp2p_overlay::create_overlay;
 use stellar_overlay::libp2p_overlay::{
     create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
 };
@@ -405,8 +403,6 @@ struct App {
     libp2p_handle: LibP2pOverlayHandle,
     /// libp2p overlay events (SCP, TxSet - critical, unbounded)
     libp2p_events: mpsc::UnboundedReceiver<LibP2pOverlayEvent>,
-    /// libp2p TX events (bounded, may drop under backpressure)
-    tx_events: mpsc::Receiver<LibP2pOverlayEvent>,
     /// Pending SCP state requests: maps request_id to requesting peer
     /// When Core responds with ScpStateResponse containing request_id, we look up the peer
     pending_scp_state_requests: Arc<RwLock<HashMap<u64, PeerId>>>,
@@ -464,8 +460,8 @@ impl App {
         // Create libp2p QUIC overlay for SCP + TX + TxSet (unified, independent streams)
         let libp2p_keypair = Libp2pKeypair::generate_ed25519();
         let metrics = Arc::new(OverlayMetrics::new());
-        let (libp2p_handle, libp2p_event_rx, tx_event_rx, mut libp2p_overlay) =
-            create_overlay(libp2p_keypair, Arc::clone(&metrics))
+        let (libp2p_handle, libp2p_event_rx, mut libp2p_overlay) =
+            create_overlay(libp2p_keypair, Arc::clone(&metrics), overlay_handle.clone())
                 .map_err(|e| format!("Failed to create libp2p overlay: {}", e))?;
 
         // Use peer_port + 1000 for libp2p QUIC to avoid collision with legacy TCP
@@ -491,7 +487,6 @@ impl App {
             current_ledger_seq: 0,
             libp2p_handle,
             libp2p_events: libp2p_event_rx,
-            tx_events: tx_event_rx,
             pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
             next_scp_request_id: Arc::new(AtomicU64::new(1)),
             local_addrs,
@@ -536,11 +531,6 @@ impl App {
 
                 // Receive events from libp2p QUIC overlay (SCP + TxSet - critical)
                 Some(event) = self.libp2p_events.recv() => {
-                    self.handle_libp2p_event(event).await;
-                }
-
-                // Receive TX events from libp2p (bounded channel, may drop under backpressure)
-                Some(event) = self.tx_events.recv() => {
                     self.handle_libp2p_event(event).await;
                 }
 
@@ -724,14 +714,6 @@ impl App {
                         &id_bytes[..id_len]
                     );
                 }
-            }
-            LibP2pOverlayEvent::TxReceived { tx, from } => {
-                debug!(
-                    "Received TX via QUIC from {}: {} bytes",
-                    from,
-                    tx.bytes().len()
-                );
-                self.overlay_handle.submit_tx(tx);
             }
             LibP2pOverlayEvent::TxSetReceived {
                 hash,
@@ -1519,6 +1501,22 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn create_test_overlay(
+        keypair: Libp2pKeypair,
+        metrics: Arc<OverlayMetrics>,
+    ) -> Result<
+        (
+            LibP2pOverlayHandle,
+            mpsc::UnboundedReceiver<LibP2pOverlayEvent>,
+            stellar_overlay::libp2p_overlay::StellarOverlay,
+        ),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        tokio::spawn(Overlay::new(cmd_rx).run());
+        create_overlay(keypair, metrics, OverlayHandle::new(cmd_tx))
+    }
+
     use stellar_xdr::curr::{Limits, ScpEnvelope, WriteXdr};
 
     fn test_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
@@ -1639,8 +1637,8 @@ mod tests {
             .insert("127.0.0.1:12625".parse().unwrap());
 
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("127.0.0.1:11625", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1653,8 +1651,8 @@ mod tests {
     async fn test_resolve_and_dial_dns_failure_returns_addr() {
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("unresolvable.invalid", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1668,8 +1666,8 @@ mod tests {
         // A valid IP:port that is NOT in local_addrs should return Dialed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("10.255.255.1:11625", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1683,8 +1681,8 @@ mod tests {
         // "localhost" should resolve via DNS and return Dialed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("localhost", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1708,8 +1706,8 @@ mod tests {
         // Empty unresolved list should not spawn anything
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         // This should return immediately without spawning a task
         spawn_peer_retry_task(
@@ -1728,8 +1726,8 @@ mod tests {
         // We put it in the "unresolved" list as if initial resolution failed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Use tokio::time::pause() so the test doesn't actually sleep 2+ seconds
         tokio::time::pause();
@@ -1757,8 +1755,8 @@ mod tests {
         // (no max attempts). We verify it survives multiple retry cycles.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         tokio::time::pause();
 
@@ -1793,12 +1791,12 @@ mod tests {
         let kp2 = Libp2pKeypair::generate_ed25519();
         let kp3 = Libp2pKeypair::generate_ed25519();
 
-        let (handle1, _events1, _tx1, mut overlay1) =
-            create_overlay(kp1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx2, mut overlay2) =
-            create_overlay(kp2, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle3, mut events3, _tx3, mut overlay3) =
-            create_overlay(kp3, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, mut overlay1) =
+            create_test_overlay(kp1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, mut overlay2) =
+            create_test_overlay(kp2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle3, mut events3, mut overlay3) =
+            create_test_overlay(kp3, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Start all three on different ports
         let port1: u16 = 18501;
@@ -1882,8 +1880,8 @@ mod tests {
         // After the first 4 retries (2+4+8+16=30s), each additional retry is 30s.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         tokio::time::pause();
 
@@ -1955,8 +1953,12 @@ mod tests {
         let overlay_handle = OverlayHandle::new(cmd_tx);
 
         let metrics = Arc::new(OverlayMetrics::new());
-        let (libp2p_handle, libp2p_events, tx_events, network) =
-            create_overlay(Libp2pKeypair::generate_ed25519(), Arc::clone(&metrics)).unwrap();
+        let (libp2p_handle, libp2p_events, network) = create_overlay(
+            Libp2pKeypair::generate_ed25519(),
+            Arc::clone(&metrics),
+            overlay_handle.clone(),
+        )
+        .unwrap();
 
         let app = App {
             core_ipc,
@@ -1966,7 +1968,6 @@ mod tests {
             current_ledger_seq: 0,
             libp2p_handle,
             libp2p_events,
-            tx_events,
             pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
             next_scp_request_id: Arc::new(AtomicU64::new(1)),
             local_addrs: Arc::new(RwLock::new(HashSet::new())),
@@ -1993,6 +1994,64 @@ mod tests {
         let bytes = tx_set.to_xdr(Limits::none()).unwrap();
         let hash = xdr::sha256_hash(&bytes);
         (hash, bytes)
+    }
+
+    fn test_mempool_tx(seq: i64) -> Arc<ValidatedTx> {
+        use stellar_xdr::curr::{
+            Operation, SequenceNumber, Transaction, TransactionEnvelope, TransactionV1Envelope,
+        };
+        let envelope = TransactionEnvelope::Tx(TransactionV1Envelope {
+            tx: Transaction {
+                fee: 100,
+                seq_num: SequenceNumber(seq),
+                operations: vec![Operation::default()].try_into().unwrap(),
+                ..Transaction::default()
+            },
+            signatures: Default::default(),
+        });
+        ValidatedTx::from_core_trusted(envelope.to_xdr(Limits::none()).unwrap(), 100, 1).unwrap()
+    }
+
+    fn remove_tx_message(tx_set_hash: Hash256, tx_hash: Hash256) -> Message {
+        let mut payload = tx_set_hash.to_vec();
+        payload.extend_from_slice(&1u32.to_le_bytes());
+        payload.extend_from_slice(&tx_hash);
+        Message::new(MessageType::TxSetExternalized, payload)
+    }
+
+    #[tokio::test]
+    async fn externalization_removes_queued_admission_without_remembering_hashes() {
+        let (mut app, _core) = test_app();
+        let tx = test_mempool_tx(1);
+        assert!(app.overlay_handle.try_submit_network_tx(tx.clone()));
+        app.handle_core_message(remove_tx_message([1; 32], *tx.hash()))
+            .await;
+        assert!(app.overlay_handle.get_top_txs(10).await.unwrap().is_empty());
+
+        // Truly later admissions are deliberately allowed; no finalized hash
+        // history remains. Ledger-state validity is still checked by Core.
+        assert!(app.overlay_handle.try_submit_network_tx(tx.clone()));
+        let top = app.overlay_handle.get_top_txs(10).await.unwrap();
+        assert_eq!(top.len(), 1);
+        assert_eq!(top[0].hash(), tx.hash());
+    }
+
+    #[tokio::test]
+    async fn discarded_transaction_can_be_resubmitted() {
+        let (mut app, _core) = test_app();
+        let tx = test_mempool_tx(1);
+        app.overlay_handle.submit_tx(tx.clone());
+        assert_eq!(app.overlay_handle.get_top_txs(10).await.unwrap().len(), 1);
+
+        // OverlayIPC::removeTransactions uses a zero set hash for candidates
+        // discarded by the builder, rather than finalized transactions.
+        app.handle_core_message(remove_tx_message([0; 32], *tx.hash()))
+            .await;
+        assert!(app.overlay_handle.get_top_txs(10).await.unwrap().is_empty());
+        app.overlay_handle.submit_tx(tx.clone());
+        let top = app.overlay_handle.get_top_txs(10).await.unwrap();
+        assert_eq!(top.len(), 1);
+        assert_eq!(top[0].hash(), tx.hash());
     }
 
     #[tokio::test]

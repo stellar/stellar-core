@@ -12,6 +12,7 @@ for the overall architecture and rationale.
 | [tx-propagation.md](tx-propagation.md)    | Pull-based INV/GETDATA TX flooding                              |
 | [txset-fetching.md](txset-fetching.md)    | Fetching nominated TX sets, cache lifecycle                     |
 | [mempool.md](mempool.md)                  | Fee-ordered pending-TX store                                    |
+| [mempool-admission.md](mempool-admission.md) | Ordered, bounded network admission and removal                |
 | [ipc.md](ipc.md)                          | Core ↔ Overlay Unix-socket protocol                             |
 
 All file:line references use paths relative to the repo root (e.g.

@@ -51,7 +51,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 │  ┌───────────────────────────────────▼──────────────────────────┐│
 │  │                       Main event loop                        ││
 │  │  • Reads IPC messages from Core                              ││
-│  │  • Consumes libp2p events (SCP / TxSet / peer / TX)          ││
+│  │  • Consumes libp2p events (SCP / TxSet / peer)               ││
 │  │  • Drives reconnect timer                                    ││
 │  └──────────┬──────────────────────────────────┬────────────────┘│
 │             │                                  │                 │
@@ -102,11 +102,13 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 - **Mempool lives in the overlay**. Fee-ordered, capacity 100,000,
   300-second max age. Core queries it for nomination via `GetTopTxs`.
   See [mempool.md](rust-overlay/mempool.md).
-- **Backpressure asymmetry**. SCP and TxSet events to Core are on an
-  unbounded channel and never drop. TX events are on a bounded channel
-  (10,000) and may drop under load — TXs are re-fetchable via the same
-  INV/GETDATA protocol, so this is acceptable. See
-  [ipc.md](rust-overlay/ipc.md#channel-discipline).
+- **Bounded network TX admission**. Readers enqueue directly into the same
+  mempool FIFO as Core submissions, removals, and queries. A shared semaphore
+  bounds queued plus active network insertions at 10,000. Refused admissions
+  remain retryable; controls need no admission permit. SCP, TxSet, and peer
+  events use an unbounded App channel. See
+  [ordered admission](rust-overlay/mempool-admission.md) and
+  [IPC channel discipline](rust-overlay/ipc.md#channel-discipline).
 
 ## What changed vs. the legacy C++ overlay
 
@@ -133,8 +135,13 @@ TOML, parsed at startup (`config.rs`). Unknown fields are rejected.
 | `log_level` | `String` | `info` | `tracing` log level |
 
 Core supplies peer membership through the `SetPeerConfig` IPC message.
-The UDP receive-buffer requirement is fixed at 4 MiB; see
-[transport](rust-overlay/transport.md) for the mandatory OS allowance.
+The overlay performance behavior is unconditional: concurrent sends, control
+and tx-set priorities, 4 MiB UDP receive-buffer requests, demand-driven Core
+set delivery, shared tx-set payloads, and ordered bounded network admission
+have no feature switches. See [transport](rust-overlay/transport.md) for the
+mandatory OS buffer allowance. Early nomination preparation also runs
+automatically for eligible validators; its ledger, time, and capacity checks
+preserve proposal validity and refresh underfilled snapshots.
 
 ## Code structure
 

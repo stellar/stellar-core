@@ -97,13 +97,18 @@ entry with `ValidatedTx::from_core_trusted`, which trusts Core's
 metadata and does not re-decode (it only rejects fee-bumps via the
 envelope discriminant and hashes the bytes).
 
-### TX received over the network (`main.rs:727-734`)
+### TX received over the network
 
-`LibP2pOverlayEvent::TxReceived` already carries an `Arc<ValidatedTx>`:
-the per-peer TX stream reader minted it with `ValidatedTx::from_network`
-during its single strict decode of the inbound message
-(`flood/inv_messages.rs`), reading fee/op metadata off the decoded
-envelope. The handler just forwards it to `submit_tx`.
+The per-peer reader creates an `Arc<ValidatedTx>` with `from_network` during
+its strict decode, extracting fee/op metadata from the envelope. The receive
+handler enqueues it directly through `try_submit_network_tx`, before recording
+it as seen or awaiting relay bookkeeping. This shares the Core command FIFO
+and bounds queued plus active network admissions at 10,000. There is no App
+forwarding queue. See [ordered admission](mempool-admission.md).
+
+An admission queued before externalization runs before the subsequent removal.
+An admission first queued after removal is allowed; this design does not retain
+finalized-hash history or assume ordering between independent network streams.
 
 ## Querying
 

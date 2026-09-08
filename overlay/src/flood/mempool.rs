@@ -102,7 +102,7 @@ impl Mempool {
 
     /// Add a transaction to the mempool.
     ///
-    /// Returns true if the transaction was added (not a duplicate).
+    /// Returns true if added. Live duplicates are rejected before capacity eviction.
     pub fn insert(&mut self, meta: Arc<ValidatedTx>) -> bool {
         let hash = *meta.hash();
 
