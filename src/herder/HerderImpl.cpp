@@ -47,6 +47,7 @@
 
 #include "util/GlobalChecks.h"
 #include <algorithm>
+#include <chrono>
 #include <ctime>
 #include <fmt/format.h>
 
@@ -82,6 +83,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "envelope", "invalidsig"}, "envelope"))
     , mTriggerPrepareStartFallback(app.getMetrics().NewMeter(
           {"scp", "trigger", "prepare-start-fallback"}, "trigger"))
+    , mTxSetBuild(app.getMetrics().NewTimer({"herder", "txset", "build"}))
 {
 }
 
@@ -1664,6 +1666,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // Since we are not currently applying, it is safe to use read-only LCL, as
     // it's guaranteed to be up-to-date
     auto lcl = mLedgerManager.getLastClosedLedgerHeader();
+    auto const txSetBuildStart = std::chrono::steady_clock::now();
     PerPhaseTransactionList txPhases;
     txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
 
@@ -1751,6 +1754,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
     mTransactionQueue.ban(
         invalidTxPhases[static_cast<size_t>(TxSetPhase::CLASSIC)]);
+
+    // Stop before addTxSet below: its side effects can include SCP callbacks
+    // and even externalizing a ledger, which are not tx set building.
+    mSCPMetrics.mTxSetBuild.Update(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - txSetBuildStart));
 
     auto txSetHash = proposedSet->getContentsHash();
 
