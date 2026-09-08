@@ -1,6 +1,7 @@
 //! TX set cache for peer request/response handling.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 
 /// 32-byte hash
 pub type Hash256 = [u8; 32];
@@ -10,8 +11,9 @@ pub type Hash256 = [u8; 32];
 pub struct CachedTxSet {
     /// The TX set hash (SHA256 of XDR)
     pub hash: Hash256,
-    /// The serialized GeneralizedTransactionSet XDR
-    pub xdr: Vec<u8>,
+    /// Immutable XDR shared by the cache and pending peer responses. Keep the
+    /// Vec allocation when caching; fanout clones only the Arc.
+    pub xdr: Arc<Vec<u8>>,
     /// Ledger sequence this was built for
     pub ledger_seq: u32,
 }
@@ -83,7 +85,7 @@ mod tests {
 
         let tx_set = CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![1, 2, 3],
+            xdr: vec![1, 2, 3].into(),
             ledger_seq: 100,
         };
 
@@ -93,7 +95,7 @@ mod tests {
         assert!(retrieved.is_some());
         let retrieved = retrieved.unwrap();
         assert_eq!(retrieved.ledger_seq, 100);
-        assert_eq!(retrieved.xdr, vec![1, 2, 3]);
+        assert_eq!(retrieved.xdr.as_slice(), vec![1, 2, 3].as_slice());
         assert!(cache.get(&[2u8; 32]).is_none());
     }
 
@@ -103,12 +105,12 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![],
+            xdr: vec![].into(),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: vec![],
+            xdr: vec![].into(),
             ledger_seq: 200,
         });
 
@@ -124,12 +126,12 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![],
+            xdr: vec![].into(),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: vec![],
+            xdr: vec![].into(),
             ledger_seq: 101,
         });
 
@@ -138,7 +140,7 @@ mod tests {
         // Insert 3rd - should evict one
         cache.insert(CachedTxSet {
             hash: [3u8; 32],
-            xdr: vec![],
+            xdr: vec![].into(),
             ledger_seq: 102,
         });
 
@@ -163,21 +165,21 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![1, 2, 3],
+            xdr: vec![1, 2, 3].into(),
             ledger_seq: 100,
         });
 
         // Insert with same hash but different data
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![4, 5, 6],
+            xdr: vec![4, 5, 6].into(),
             ledger_seq: 200,
         });
 
         assert_eq!(cache.len(), 1, "Should not create duplicate");
         let retrieved = cache.get(&[1u8; 32]).unwrap();
         assert_eq!(retrieved.ledger_seq, 200, "Should have newer data");
-        assert_eq!(retrieved.xdr, vec![4, 5, 6]);
+        assert_eq!(retrieved.xdr.as_slice(), vec![4, 5, 6].as_slice());
     }
 
     #[test]
@@ -186,7 +188,7 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![1, 2, 3],
+            xdr: vec![1, 2, 3].into(),
             ledger_seq: 100,
         });
         assert_eq!(cache.len(), 1, "Cache is full");
@@ -195,7 +197,7 @@ mod tests {
         // not evict the entry or shrink the cache below capacity.
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![4, 5, 6],
+            xdr: vec![4, 5, 6].into(),
             ledger_seq: 102,
         });
 
@@ -204,7 +206,7 @@ mod tests {
             .get(&[1u8; 32])
             .expect("Overwritten item should remain present");
         assert_eq!(retrieved.ledger_seq, 102, "Should have newer data");
-        assert_eq!(retrieved.xdr, vec![4, 5, 6]);
+        assert_eq!(retrieved.xdr.as_slice(), vec![4, 5, 6].as_slice());
     }
 
     #[test]
@@ -214,12 +216,12 @@ mod tests {
         // Insert, then overwrite the same hash with a newer ledger_seq.
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![1, 2, 3],
+            xdr: vec![1, 2, 3].into(),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![4, 5, 6],
+            xdr: vec![4, 5, 6].into(),
             ledger_seq: 200,
         });
 
@@ -237,12 +239,12 @@ mod tests {
         // cache exactly at capacity (not one over).
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: vec![],
+            xdr: vec![].into(),
             ledger_seq: 300,
         });
         cache.insert(CachedTxSet {
             hash: [3u8; 32],
-            xdr: vec![],
+            xdr: vec![].into(),
             ledger_seq: 400,
         });
 

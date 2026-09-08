@@ -80,6 +80,7 @@ pub(crate) fn frame_scp(envelope_bytes: &[u8]) -> Vec<u8> {
 }
 
 /// `StellarMessage::GeneralizedTxSet(..)` framing over canonical tx set bytes.
+#[cfg(test)]
 pub(crate) fn frame_tx_set(tx_set_bytes: &[u8]) -> Vec<u8> {
     frame(MessageType::GeneralizedTxSet, tx_set_bytes)
 }

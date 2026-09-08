@@ -604,3 +604,37 @@ async fn fetch_reservation_is_deduplicated_and_failure_preserves_reassignment() 
         );
     }
 }
+
+#[tokio::test]
+async fn queued_peer_sends_share_payload_and_release_it_on_drop() {
+    let (handle, _events, _tx_events, mut overlay) =
+        create_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (hash, data) = test_txset_xdr(1);
+    let data = Arc::new(data);
+    let retained = Arc::downgrade(&data);
+    for _ in 0..29 {
+        handle
+            .send_txset(hash, data.clone(), PeerId::random())
+            .await;
+    }
+    for _ in 0..29 {
+        let OverlayCommand::SendTxSet { data: pending, .. } = overlay.cmd_rx.recv().await.unwrap()
+        else {
+            panic!("expected a queued response");
+        };
+        assert!(Arc::ptr_eq(&data, &pending));
+    }
+    assert_eq!(
+        handle.txset_send_slots.available_permits(),
+        MAX_OUTSTANDING_TXSET_SENDS
+    );
+    assert_eq!(
+        handle.txset_send_bytes.available_permits(),
+        MAX_OUTSTANDING_TXSET_BYTES
+    );
+    drop(data);
+    assert!(
+        retained.upgrade().is_none(),
+        "completed sends retained the payload"
+    );
+}

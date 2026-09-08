@@ -373,8 +373,8 @@ fn collect_local_addrs(libp2p_port: u16) -> Arc<RwLock<HashSet<SocketAddr>>> {
     local_addrs
 }
 
-fn get_cached_tx_set_xdr(tx_set_cache: &TxSetCache, hash: &Hash256) -> Option<Vec<u8>> {
-    tx_set_cache.get(hash).map(|cached| cached.xdr.clone())
+fn get_cached_tx_set_xdr<'a>(tx_set_cache: &'a TxSetCache, hash: &Hash256) -> Option<&'a [u8]> {
+    tx_set_cache.get(hash).map(|cached| cached.xdr.as_slice())
 }
 
 fn cache_tx_set_xdr(
@@ -385,7 +385,7 @@ fn cache_tx_set_xdr(
 ) {
     tx_set_cache.insert(CachedTxSet {
         hash,
-        xdr,
+        xdr: Arc::new(xdr),
         ledger_seq: current_ledger_seq,
     });
 }
@@ -1935,6 +1935,15 @@ mod tests {
     /// The libp2p overlay object is dropped (not run), so cache-miss fetches
     /// just log a warning — these tests only exercise the cache paths.
     fn test_app() -> (App, StdUnixStream) {
+        let (app, core, _network) = test_app_with_network();
+        (app, core)
+    }
+
+    fn test_app_with_network() -> (
+        App,
+        StdUnixStream,
+        stellar_overlay::libp2p_overlay::StellarOverlay,
+    ) {
         let (overlay_side, core_side) = StdUnixStream::pair().unwrap();
         let core_ipc = CoreIpc::from_stream(overlay_side).unwrap();
 
@@ -1946,7 +1955,7 @@ mod tests {
         let overlay_handle = OverlayHandle::new(cmd_tx);
 
         let metrics = Arc::new(OverlayMetrics::new());
-        let (libp2p_handle, libp2p_events, tx_events, _overlay) =
+        let (libp2p_handle, libp2p_events, tx_events, network) =
             create_overlay(Libp2pKeypair::generate_ed25519(), Arc::clone(&metrics)).unwrap();
 
         let app = App {
@@ -1970,7 +1979,7 @@ mod tests {
             peer_hostnames: Arc::new(RwLock::new(HashMap::new())),
             metrics,
         };
-        (app, core_side)
+        (app, core_side, network)
     }
 
     /// A minimal valid GeneralizedTransactionSet whose content hash matches,
@@ -1984,6 +1993,44 @@ mod tests {
         let bytes = tx_set.to_xdr(Limits::none()).unwrap();
         let hash = xdr::sha256_hash(&bytes);
         (hash, bytes)
+    }
+
+    #[tokio::test]
+    async fn peer_responses_share_cached_storage_and_survive_eviction() {
+        // Keep the network dispatcher alive but unpolled: responses remain
+        // queued or awaiting dispatch, as when the transport is delayed.
+        let (mut app, _core, network) = test_app_with_network();
+        let (hash, data) = test_txset_xdr(7);
+        cache_tx_set_xdr(&mut app.tx_set_cache, 1, hash, data.clone());
+        let cached = Arc::downgrade(&app.tx_set_cache.get(&hash).unwrap().xdr);
+        for _ in 0..29 {
+            app.handle_libp2p_event(LibP2pOverlayEvent::TxSetRequested {
+                hash,
+                from: PeerId::random(),
+            })
+            .await;
+        }
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while cached.strong_count() != 30 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("each queued peer response must share the cached allocation");
+
+        app.tx_set_cache.evict_before(2);
+        assert!(app.tx_set_cache.get(&hash).is_none());
+        assert_eq!(cached.strong_count(), 29);
+        assert_eq!(cached.upgrade().unwrap().as_slice(), data.as_slice());
+        drop(network);
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while cached.strong_count() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("shutdown releases queued payloads and wakes waiting sends");
+        assert!(cached.upgrade().is_none());
     }
 
     fn request_tx_set_payload(hash: &[u8; 32], slot: u32) -> Vec<u8> {
@@ -2027,7 +2074,10 @@ mod tests {
             slot: Some(100),
         })
         .await;
-        assert_eq!(app.tx_set_cache.get(&hash).unwrap().xdr, data);
+        assert_eq!(
+            app.tx_set_cache.get(&hash).unwrap().xdr.as_slice(),
+            data.as_slice()
+        );
 
         assert_no_core_txset(&mut core);
 
@@ -2189,7 +2239,7 @@ mod tests {
                 if app
                     .core_ipc
                     .sender
-                    .send_tx_set_available(hash, vec![])
+                    .send_tx_set_available(hash, &[])
                     .is_err()
                 {
                     break;
@@ -2212,7 +2262,10 @@ mod tests {
         })
         .await;
         assert!(app.pending_core_tx_sets.contains_key(&hash));
-        assert_eq!(app.tx_set_cache.get(&hash).unwrap().xdr, data);
+        assert_eq!(
+            app.tx_set_cache.get(&hash).unwrap().xdr.as_slice(),
+            data.as_slice()
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

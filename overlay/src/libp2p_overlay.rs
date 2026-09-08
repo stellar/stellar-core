@@ -16,7 +16,7 @@ use crate::flood::{
 };
 use crate::metrics::OverlayMetrics;
 use crate::wire::ValidatedTx;
-use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
+use futures::{AsyncReadExt, StreamExt};
 use libp2p::{
     identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
     identity::Keypair,
@@ -35,6 +35,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, OwnedSemaphorePermit, RwLock, Semaphore};
 use tokio::task::JoinSet;
 use tracing::{debug, error, info, trace, warn};
+
+mod framed_io;
 
 // Protocol identifiers for dedicated streams
 pub const SCP_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/scp/1.0.0");
@@ -101,7 +103,7 @@ pub enum OverlayCommand {
     /// Send TX set to a specific peer (response to their request)
     SendTxSet {
         hash: [u8; 32],
-        data: Vec<u8>,
+        data: Arc<Vec<u8>>,
         to: PeerId,
         permits: (OwnedSemaphorePermit, OwnedSemaphorePermit),
     },
@@ -222,7 +224,8 @@ impl OverlayHandle {
         }
     }
 
-    pub async fn send_txset(&self, hash: [u8; 32], data: Vec<u8>, to: PeerId) {
+    pub async fn send_txset(&self, hash: [u8; 32], data: impl Into<Arc<Vec<u8>>>, to: PeerId) {
+        let data = data.into();
         // Include the StellarMessage discriminant in the existing wire limit.
         if data.len() > MAX_MESSAGE_SIZE - 4 {
             warn!(
@@ -1144,7 +1147,12 @@ impl StellarOverlay {
 }
 
 /// Send TX set response to a specific peer
-async fn send_txset_response(state: Arc<SharedState>, peer: PeerId, hash: [u8; 32], data: Vec<u8>) {
+async fn send_txset_response(
+    state: Arc<SharedState>,
+    peer: PeerId,
+    hash: [u8; 32],
+    data: Arc<Vec<u8>>,
+) {
     info!(
         "TXSET_SEND: Sending TX set {:02x?}... ({} bytes) to {}",
         &hash[..4],
@@ -1153,22 +1161,25 @@ async fn send_txset_response(state: Arc<SharedState>, peer: PeerId, hash: [u8; 3
     );
 
     // `data` is a tx set we already validated on entry (from a peer) or
-    // built locally (trusted core); frame by concatenation.
-    let response = crate::xdr::frame_tx_set(&data);
-    drop(data);
+    // built locally (trusted core). Keep the payload shared through admission
+    // and transmission, writing the small discriminant separately under the
+    // same stream lock as the payload.
+    let discriminant = (stellar_xdr::curr::MessageType::GeneralizedTxSet as i32).to_be_bytes();
+    let bytes = discriminant.len() + data.len();
 
-    match send_to_peer_stream(&state, peer, StreamType::TxSet, &response).await {
+    match send_to_peer_stream_parts(&state, peer, StreamType::TxSet, &[&discriminant, &data]).await
+    {
         Ok(_) => {
             state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
             state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
             state
                 .metrics
                 .byte_write
-                .fetch_add(response.len() as u64, Ordering::Relaxed);
+                .fetch_add(bytes as u64, Ordering::Relaxed);
             info!(
                 "TXSET_SEND_OK: Successfully sent TX set {:02x?}... ({} bytes on wire) to {}",
                 &hash[..4],
-                response.len(),
+                bytes,
                 peer
             );
         }
@@ -1343,6 +1354,17 @@ async fn send_to_peer_stream(
     stream_type: StreamType,
     data: &[u8],
 ) -> io::Result<()> {
+    send_to_peer_stream_parts(state, peer_id, stream_type, &[data]).await
+}
+
+/// All parts form one frame, including across partial writes and retries.
+/// The per-route lock stays held until that entire frame has been written.
+async fn send_to_peer_stream_parts(
+    state: &SharedState,
+    peer_id: PeerId,
+    stream_type: StreamType,
+    parts: &[&[u8]],
+) -> io::Result<()> {
     // Retry up to 2 times (3 attempts total) for reliability
     const MAX_RETRIES: usize = 2;
 
@@ -1421,15 +1443,15 @@ async fn send_to_peer_stream(
             // Never send a request to an old SCP reader: it would silently
             // discard it. Keep requests isolated from legacy response writes.
             drop(stream_guard);
-            return Box::pin(send_to_peer_stream(
+            return Box::pin(send_to_peer_stream_parts(
                 state,
                 peer_id,
                 StreamType::LegacyTxSetRequest,
-                data,
+                parts,
             ))
             .await;
         }
-        match write_framed(&mut stream.stream, data).await {
+        match framed_io::write_frame_parts(&mut stream.stream, parts).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 // Clear the broken stream
@@ -1459,11 +1481,7 @@ async fn send_to_peer_stream(
 
 /// Write length-prefixed frame to stream
 async fn write_framed(stream: &mut Stream, data: &[u8]) -> io::Result<()> {
-    let len = data.len() as u32;
-    stream.write_all(&len.to_be_bytes()).await?;
-    stream.write_all(data).await?;
-    stream.flush().await?;
-    Ok(())
+    framed_io::write_frame_parts(stream, &[data]).await
 }
 
 /// Flush INV batch for a specific peer
