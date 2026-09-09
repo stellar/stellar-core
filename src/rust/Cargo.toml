@@ -227,10 +227,20 @@ tcmalloc = []
 # staging work across intra-protocol releases.
 next = []
 
-
 # The testutils feature turns on stuff that should only be available in a core
 # BUILD_TESTS build, such as the code to support transaction re-execution on a
-# secondary host, AND enables the soroban-fuzz-targets dependency. This allows
-# fuzz smoke tests to run in normal test builds without requiring the full fuzz
-# _instrumentation_ infrastructure.
-testutils = ["dep:soroban-fuzz-targets"]
+# secondary host.
+
+testutils = []
+
+# Enables the soroban-fuzz-targets dependency. This may be enabled either in
+# full fuzz-instrumentation builds, or even just during normal test-enabled
+# builds in which the core unit tests will run soroban fuzz targets as smoke
+# tests.
+#
+# However, this should _not_ be enabled in a fastdev build, because the
+# soroban-fuzz-targets crate will pull in its own copy of the soroban host _with
+# testutils enabled_ (for recording), and since fastdev is a unified build, this
+# will turn on testutils in the accompanying _production soroban host_, which
+# will cause it to diverge if run on mainnet.
+fuzz_targets = ["dep:soroban-fuzz-targets"]

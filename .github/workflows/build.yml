@@ -228,6 +228,10 @@ jobs:
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: ./install-rust.sh
 
+      - name: Install rust nightly and src
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: rustup toolchain add nightly --component rust-src
+
       - name: Install rustup components
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: rustup component add rustfmt
