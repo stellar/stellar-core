@@ -116,7 +116,7 @@ App or sending a per-transaction IPC upcall to Core.
 Network saturation does not prevent removal or query commands from entering
 the FIFO. Refused admissions are not marked seen, allowing a later response
 to succeed. Unbounded queues can accumulate work if consumers stall, and sends
-to closed channels still fail. See [ordered admission](mempool-admission.md)
+to closed channels still fail. See [ordered admission](mempool.md#tx-received-over-the-network)
 and [TX backpressure](tx-propagation.md#backpressure).
 
 ## Failure modes

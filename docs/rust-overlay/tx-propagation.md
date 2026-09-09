@@ -112,7 +112,7 @@ When a node receives a `TX` message (a response to its own GETDATA):
    the hash, excluding the peer that supplied the response.
 
 There is no separate App TX event queue or per-transaction upcall to Core.
-See [ordered admission](mempool-admission.md) for removal ordering and capacity
+See [ordered admission](mempool.md#tx-received-over-the-network) for removal ordering and capacity
 lifetime.
 
 ## Timeout and retry

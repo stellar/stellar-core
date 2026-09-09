@@ -2,8 +2,7 @@
 
 SCP envelopes reference transaction sets by hash. Rust prefetches their bodies
 from peers and keeps them in the tx-set cache. Core receives a set only after
-it establishes demand with `RequestTxSet`; see
-[Core delivery](core-txset-delivery.md).
+it establishes demand with `RequestTxSet`.
 
 ## Wire formats and routes
 

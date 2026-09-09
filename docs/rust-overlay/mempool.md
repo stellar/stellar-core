@@ -104,7 +104,7 @@ its strict decode, extracting fee/op metadata from the envelope. The receive
 handler enqueues it directly through `try_submit_network_tx`, before recording
 it as seen or awaiting relay bookkeeping. This shares the Core command FIFO
 and bounds queued plus active network admissions at 10,000. There is no App
-forwarding queue. See [ordered admission](mempool-admission.md).
+forwarding queue.
 
 An admission queued before externalization runs before the subsequent removal.
 An admission first queued after removal is allowed; this design does not retain

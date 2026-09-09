@@ -128,8 +128,9 @@ scheduling.
 The pinned libp2p releases hide Quinn's stream priority API. A small API bridge
 in four vendored crates exposes it through the existing stream wrappers,
 without changing dependency versions or replacing the scheduler. See
-[`overlay/vendor/README.md`](../../overlay/vendor/README.md) for the patch and
-upstream provenance.
+[`stream-priority.patch`](../../overlay/vendor/stream-priority.patch) for the
+bridge and [`UPSTREAM.json`](../../overlay/vendor/UPSTREAM.json) for upstream
+provenance.
 
 ## Frame formats
 

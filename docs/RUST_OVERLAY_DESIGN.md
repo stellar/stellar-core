@@ -107,7 +107,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
   bounds queued plus active network insertions at 10,000. Refused admissions
   remain retryable; controls need no admission permit. SCP, TxSet, and peer
   events use an unbounded App channel. See
-  [ordered admission](rust-overlay/mempool-admission.md) and
+  [ordered admission](rust-overlay/mempool.md#tx-received-over-the-network) and
   [IPC channel discipline](rust-overlay/ipc.md#channel-discipline).
 
 ## What changed vs. the legacy C++ overlay
