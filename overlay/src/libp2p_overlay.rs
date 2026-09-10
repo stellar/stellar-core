@@ -113,7 +113,11 @@ pub enum OverlayCommand {
     /// Request SCP state from all peers
     RequestScpState { ledger_seq: u32 },
     /// Send SCP envelope to a specific peer
-    SendScpToPeer { peer_id: PeerId, envelope: Vec<u8> },
+    SendScpToPeer {
+        peer_id: PeerId,
+        envelope: Vec<u8>,
+        responder: tokio::sync::oneshot::Sender<io::Result<()>>,
+    },
     /// Shutdown
     Shutdown,
     /// Query the number of connected peers (responds via oneshot)
@@ -306,14 +310,24 @@ impl OverlayHandle {
     }
 
     pub async fn send_scp_to_peer(&self, peer_id: PeerId, envelope: &[u8]) -> io::Result<()> {
+        let (responder, completion) = tokio::sync::oneshot::channel();
         self.cmd_tx
             .send(OverlayCommand::SendScpToPeer {
                 peer_id,
                 envelope: envelope.to_vec(),
+                responder,
             })
             .await
             .map_err(|_| io::Error::new(io::ErrorKind::Other, "Channel closed"))?;
-        Ok(())
+        // SCP-state responses send recent slots before the detached checkpoint.
+        // Wait for the write so a caller awaiting successive sends preserves
+        // that order, without making the dispatcher wait on network I/O.
+        completion.await.map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "SCP send canceled before completion",
+            )
+        })?
     }
 
     pub async fn shutdown(&self) {
@@ -662,13 +676,15 @@ impl StellarOverlay {
                             info!("Requesting SCP state (ledger >= {}) from all peers", ledger_seq);
                             self.request_scp_state_from_all_peers(ledger_seq).await;
                         }
-                        OverlayCommand::SendScpToPeer { peer_id, envelope } => {
+                        OverlayCommand::SendScpToPeer { peer_id, envelope, responder } => {
                             let state = Arc::clone(&self.state);
                             let message = crate::xdr::frame_scp(&envelope);
                             self.sends.spawn(async move {
-                                if let Err(e) = send_to_peer_stream(&state, peer_id, StreamType::Control, &message).await {
+                                let result = send_to_peer_stream(&state, peer_id, StreamType::Control, &message).await;
+                                if let Err(e) = &result {
                                     warn!("Failed to send SCP to {}: {:?}", peer_id, e);
                                 }
+                                let _ = responder.send(result);
                             });
                         }
                         OverlayCommand::Shutdown => {

@@ -20,16 +20,18 @@ async fn dispatcher_with_blocked_write(command: &str) {
         _ => streams.scp.lock().await,
     };
     let mut task = tokio::spawn(async move { overlay.run("127.0.0.1", 0).await });
+    let envelope = test_scp_envelope_xdr(1);
+    let scp_send = handle.send_scp_to_peer(peer, &envelope);
+    tokio::pin!(scp_send);
     match command {
         "txset" => {
             let (hash, data) = test_txset_xdr(1);
             handle.send_txset(hash, data, peer).await;
         }
         "fetch" => handle.fetch_txset([1; 32], 1).await,
-        "scp" => handle
-            .send_scp_to_peer(peer, &test_scp_envelope_xdr(1))
-            .await
-            .unwrap(),
+        // Awaiting a direct send must preserve ordering within an SCP-state
+        // response, while the dispatcher remains free to process commands.
+        "scp" => assert!(futures::poll!(scp_send.as_mut()).is_pending()),
         "scp-state" => handle.request_scp_state_from_all_peers(1).await,
         _ => unreachable!(),
     }
@@ -48,6 +50,12 @@ async fn dispatcher_with_blocked_write(command: &str) {
         "dispatcher stopped responding during {command}: {progress:?}"
     );
     assert!(shutdown.is_ok(), "shutdown waited for the blocked write");
+    if command == "scp" {
+        assert!(
+            scp_send.await.is_err(),
+            "shutdown reported an unwritten SCP as sent"
+        );
+    }
 }
 
 #[tokio::test]
@@ -159,6 +167,69 @@ impl Drop for TestNode {
     fn drop(&mut self) {
         self.task.abort();
     }
+}
+
+#[tokio::test]
+async fn scp_state_sends_preserve_slot_order_without_blocking_other_peers() {
+    let mut sender = TestNode::start().await;
+    let mut receiver = TestNode::start().await;
+    let mut healthy = TestNode::start().await;
+    sender.connect(&receiver).await;
+    sender.connect(&healthy).await;
+
+    let streams = sender.streams_to(receiver.peer).await;
+    let blocked = streams.scp.lock().await;
+    // Match Core's SCP-state order: recent slots, then an older checkpoint.
+    let slots = [10, 11, 12, 8];
+    let handle = sender.handle.clone();
+    let peer = receiver.peer;
+    let sends = tokio::spawn(async move {
+        for slot in slots {
+            handle
+                .send_scp_to_peer(peer, &test_scp_envelope_xdr(slot))
+                .await
+                .unwrap();
+        }
+    });
+
+    let independent = test_scp_envelope_xdr(13);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        sender
+            .handle
+            .send_scp_to_peer(healthy.peer, &independent)
+            .await
+            .unwrap();
+        loop {
+            if let OverlayEvent::ScpReceived { envelope, .. } = healthy.events.recv().await.unwrap()
+            {
+                assert_eq!(envelope, independent);
+                break;
+            }
+        }
+    })
+    .await
+    .expect("blocked SCP-state response prevented a send to another peer");
+    assert!(!sends.is_finished());
+
+    drop(blocked);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        sends.await.unwrap();
+        for slot in slots {
+            loop {
+                if let OverlayEvent::ScpReceived { envelope, .. } =
+                    receiver.events.recv().await.unwrap()
+                {
+                    assert_eq!(envelope, test_scp_envelope_xdr(slot));
+                    break;
+                }
+            }
+        }
+    })
+    .await
+    .expect("SCP-state response did not resume after release");
+    sender.stop().await;
+    receiver.stop().await;
+    healthy.stop().await;
 }
 
 fn large_txset() -> ([u8; 32], Vec<u8>) {
