@@ -6127,46 +6127,67 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
 TEST_CASE("only the first two nomination leaders prepare early",
           "[herder][early-nomination]")
 {
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    cfg.HTTP_PORT = 0;
-    cfg.MANUAL_CLOSE = false;
-    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
-    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
-    auto app = createTestApplication(clock, cfg);
-    auto& herder = static_cast<HerderImpl&>(app->getHerder());
-    auto& scp = herder.getSCP();
-    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-    auto const seq = lcl.header.ledgerSeq + 1;
-    auto const previous = xdr::xdr_to_opaque(lcl.header.scpValue);
-    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
-    size_t pulls = 0;
-    herder.mGetTopTransactionsForTesting = [&](size_t) {
-        ++pulls;
-        return std::vector<TransactionEnvelope>{};
-    };
-    std::set<int> checkedRoles;
-    // Vary the peer IDs to exercise the real Herder weights and hashes for
-    // each local role, without a fake leader-selection implementation.
-    for (int attempt = 0; attempt < 100 && checkedRoles.size() < 3; ++attempt)
+    // A fixed, unanimous quorum gives all three nodes the same weights and
+    // leader ordering. Exercise each member as the local node, rather than
+    // hoping random peers cover every role for one fixed local priority.
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qset;
+    qset.threshold = 3;
+    for (int i = 0; i < 3; ++i)
     {
-        auto qset = cfg.QUORUM_SET;
-        qset.threshold = 3;
-        qset.validators = {cfg.NODE_SEED.getPublicKey(),
-                           SecretKey::pseudoRandomForTesting().getPublicKey(),
-                           SecretKey::pseudoRandomForTesting().getPublicKey()};
-        scp.updateLocalQuorumSet(qset);
-        auto first = scp.predictNominationLeaders(seq, previous, 1);
-        auto firstTwo = scp.predictNominationLeaders(seq, previous, 2);
+        keys.push_back(SecretKey::fromSeed(
+            sha256(fmt::format("early-nomination-node-{}", i))));
+        qset.validators.push_back(keys.back().getPublicKey());
+    }
+
+    std::set<int> checkedRoles;
+    std::optional<Value> previous;
+    std::optional<std::set<NodeID>> expectedFirst;
+    std::optional<std::set<NodeID>> expectedFirstTwo;
+    for (int i = 0; i < 3; ++i)
+    {
+        VirtualClock clock;
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+        auto cfg = getTestConfig(i);
+        cfg.HTTP_PORT = 0;
+        cfg.MANUAL_CLOSE = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+        cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+        cfg.NODE_SEED = keys[i];
+        cfg.QUORUM_SET = qset;
+        auto app = createTestApplication(clock, cfg);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getSCP();
+        auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const seq = lcl.header.ledgerSeq + 1;
+        auto const value = xdr::xdr_to_opaque(lcl.header.scpValue);
+        if (!previous)
+        {
+            previous = value;
+        }
+        REQUIRE(value == *previous);
+        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        size_t pulls = 0;
+        herder.mGetTopTransactionsForTesting = [&](size_t) {
+            ++pulls;
+            return std::vector<TransactionEnvelope>{};
+        };
+        auto first = scp.predictNominationLeaders(seq, value, 1);
+        auto firstTwo = scp.predictNominationLeaders(seq, value, 2);
+        REQUIRE(first.size() == 1);
+        REQUIRE(firstTwo.size() == 2);
+        if (!expectedFirst)
+        {
+            expectedFirst = first;
+            expectedFirstTwo = firstTwo;
+        }
+        REQUIRE(first == *expectedFirst);
+        REQUIRE(firstTwo == *expectedFirstTwo);
         int role = first.count(scp.getLocalNodeID())      ? 0
                    : firstTwo.count(scp.getLocalNodeID()) ? 1
                                                           : 2;
-        if (!checkedRoles.insert(role).second)
-        {
-            continue;
-        }
+        REQUIRE(checkedRoles.insert(role).second);
         CAPTURE(role);
-        auto const before = pulls;
         EarlyNominationTestAccess::schedule(herder);
         REQUIRE(EarlyNominationTestAccess::scheduled(herder) == (role < 2));
         bool done = false;
@@ -6177,14 +6198,14 @@ TEST_CASE("only the first two nomination leaders prepare early",
             app, [&]() { return done; }, std::chrono::seconds(1));
         REQUIRE(done);
         REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
-        REQUIRE(pulls == before + (role < 2 ? 1 : 0));
+        REQUIRE(pulls == (role < 2 ? 1 : 0));
         REQUIRE(bool(EarlyNominationTestAccess::prepared(herder)) ==
                 (role < 2));
         REQUIRE(scp.getNominationLeaders(seq).empty());
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
+        herder.mGetTopTransactionsForTesting = nullptr;
     }
     REQUIRE(checkedRoles == std::set<int>{0, 1, 2});
-    herder.mGetTopTransactionsForTesting = nullptr;
 }
 
 TEST_CASE("early underfilled proposals refresh at the trigger",
