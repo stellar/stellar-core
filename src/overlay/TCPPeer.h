@@ -21,6 +21,10 @@ static auto const MAX_UNAUTH_MESSAGE_SIZE = 0x1000;
 // Peer that communicates via a TCP socket.
 class TCPPeer : public Peer
 {
+#ifdef BUILD_TESTS
+    friend class TCPPeerHandshakeTests;
+#endif
+
   public:
     typedef asio::buffered_read_stream<asio::ip::tcp::socket> SocketType;
     static constexpr size_t BUFSZ = 0x40000; // 256KB

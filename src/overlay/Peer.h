@@ -471,6 +471,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     friend class CapacityTrackedMessage;
 
 #ifdef BUILD_TESTS
+    friend class TCPPeerHandshakeTests;
     std::shared_ptr<FlowControl>
     getFlowControl() const
     {
