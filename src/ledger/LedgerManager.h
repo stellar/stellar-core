@@ -19,7 +19,8 @@ namespace stellar
 
 class LedgerCloseData;
 class Database;
-class SorobanMetrics;
+class SorobanMetricsRegistry;
+struct SorobanApplyMetrics;
 class InMemorySorobanState;
 
 // This diagram provides a schematic of the flow of (logical) ledgers coming in
@@ -373,11 +374,11 @@ class LedgerManager
     // upgradeApplied should be true if a protocol or network config setting
     // upgrade occurred during the ledger close. If inMemorySnapshotForInvariant
     // is not null, this will kick off a snapshot invariant check.
-    virtual void completeLedgerClose(uint32_t ledgerSeq,
-                                     bool calledViaExternalize,
-                                     LedgerCloseData const& ledgerData,
-                                     ImmutableLedgerDataPtr appliedLedgerState,
-                                     bool upgradeApplied) = 0;
+    virtual void completeLedgerClose(
+        uint32_t ledgerSeq, bool calledViaExternalize,
+        LedgerCloseData const& ledgerData,
+        ImmutableLedgerDataPtr appliedLedgerState, bool upgradeApplied,
+        std::vector<SorobanApplyMetrics>&& sorobanApplyMetrics) = 0;
 
     virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS
@@ -398,7 +399,7 @@ class LedgerManager
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
 
-    virtual SorobanMetrics& getSorobanMetrics() = 0;
+    virtual SorobanMetricsRegistry& getSorobanMetrics() = 0;
     virtual ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() = 0;
 
     virtual ~LedgerManager()

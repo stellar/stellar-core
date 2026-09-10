@@ -298,7 +298,8 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     AppConnector& app, ApplyLedgerView applyView, AbstractLedgerTxn& ltx,
     std::vector<ApplyStage> const& stages,
     InMemorySorobanState const& inMemoryState,
-    SorobanNetworkConfig const& sorobanConfig)
+    SorobanNetworkConfig const& sorobanConfig,
+    SorobanApplyMetrics& sorobanMetrics)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
     , mLCLApplyView(std::move(applyView))
     , mInMemorySorobanState(inMemoryState)
@@ -319,14 +320,16 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     // had their sequence numbers bumped and fees charged. preParallelApply will
     // update sequence numbers so it needs to be called before we check
     // LedgerTxn.
-    preParallelApplyAndCollectModifiedClassicEntries(app, ltx, stages);
+    preParallelApplyAndCollectModifiedClassicEntries(app, ltx, stages,
+                                                     sorobanMetrics);
 }
 
 void
 GlobalParallelApplyLedgerState::
     preParallelApplyAndCollectModifiedClassicEntries(
         AppConnector& app, AbstractLedgerTxn& ltx,
-        std::vector<ApplyStage> const& stages)
+        std::vector<ApplyStage> const& stages,
+        SorobanApplyMetrics& sorobanMetrics)
 {
     auto fetchInMemoryClassicEntries =
         [&](xdr::xvector<LedgerKey> const& keys) {
@@ -366,7 +369,7 @@ GlobalParallelApplyLedgerState::
             // modify the fee source accounts sequence numbers.
             txBundle.getTx()->preParallelApply(
                 app, ltx, txBundle.getEffects().getMeta(),
-                txBundle.getResPayload(), mSorobanConfig);
+                txBundle.getResPayload(), mSorobanConfig, sorobanMetrics);
         }
     }
 

@@ -19,6 +19,7 @@ namespace stellar
 
 class InMemorySorobanState;
 class GlobalParallelApplyLedgerState;
+struct SorobanApplyMetrics;
 
 class ParallelLedgerInfo
 {
@@ -221,7 +222,8 @@ class GlobalParallelApplyLedgerState
 
     void preParallelApplyAndCollectModifiedClassicEntries(
         AppConnector& app, AbstractLedgerTxn& ltx,
-        std::vector<ApplyStage> const& stages);
+        std::vector<ApplyStage> const& stages,
+        SorobanApplyMetrics& sorobanMetrics);
 
     bool
     maybeMergeRoTTLBumps(LedgerKey const& key,
@@ -245,7 +247,8 @@ class GlobalParallelApplyLedgerState
                                    AbstractLedgerTxn& ltx,
                                    std::vector<ApplyStage> const& stages,
                                    InMemorySorobanState const& inMemoryState,
-                                   SorobanNetworkConfig const& sorobanConfig);
+                                   SorobanNetworkConfig const& sorobanConfig,
+                                   SorobanApplyMetrics& sorobanMetrics);
 
     ParallelApplyEntryMap<staticScope> const& getGlobalEntryMap() const;
     RestoredEntries const& getRestoredEntries() const;
