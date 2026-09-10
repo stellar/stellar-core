@@ -3285,13 +3285,20 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
     Config cfg2 = getTestConfig(2);
     Config cfg3 = getTestConfig(3);
 
-    // Real-time simulation: 1s ledgers and 8-ledger checkpoints instead of
+    // Real-time simulation: 2s ledgers and 8-ledger checkpoints instead of
     // 5s ledgers and 64-ledger checkpoints. The checkpoint slot is only
     // retained separately when it falls outside the MAX_SLOTS_TO_REMEMBER
     // window, so keep that window smaller than the checkpoint frequency.
+    // Ledgers are slowed to 2s (from the 1s accelerated default) because the
+    // main node keeps closing ledgers while the out of sync nodes below
+    // connect and process its SCP state; once it gets two ledgers past the
+    // next checkpoint boundary, the buffered checkpoint is superseded. On a
+    // loaded CI runner the out of sync nodes need over a second per slot,
+    // so 1s ledgers leave no margin.
     for (auto* cfg : {&cfg1, &cfg2, &cfg3})
     {
         cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg->ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 2;
         cfg->MAX_SLOTS_TO_REMEMBER = 4;
     }
 
@@ -3322,17 +3329,50 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
             simulation->getExpectedLedgerCloseTime(),
         false);
 
-    // An out of sync node should buffer every ledger from the checkpoint up to
-    // the main node's latest. The main node applies ledgers asynchronously
-    // after externalizing them and the out of sync node hears about them
-    // asynchronously, so this only holds at moments where the two line up.
-    auto hasBufferedCheckpointToLcl = [&](LedgerApplyManagerImpl const& lam) {
-        auto const& buffered = lam.getBufferedLedgers();
-        return !buffered.empty() &&
-               buffered.begin()->first == firstCheckpoint &&
-               buffered.crbegin()->first ==
-                   mainNode->getLedgerManager().getLastClosedLedgerNum();
+    // The checkpoint slot is only sent as a detached slot once the main node
+    // is more than MAX_SLOTS_TO_REMEMBER ledgers past it. The out of sync
+    // sections crank one more ledger so this holds when their nodes connect,
+    // regardless of how long connecting takes.
+    auto const detachedCheckpointLedger = firstCheckpoint + halfCheckpoint + 1;
+    auto crankUntilCheckpointDetached = [&]() {
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(detachedCheckpointLedger,
+                                                       1);
+            },
+            4 * simulation->getExpectedLedgerCloseTime(), false);
     };
+
+    // An out of sync node should learn the checkpoint ledger and the main
+    // node's retained window from the SCP state it is sent, buffer all of it
+    // and start catchup. The main node keeps closing ledgers meanwhile, so
+    // the top of the buffer is a moving target, and once the main node gets
+    // two ledgers past the next checkpoint boundary the buffered checkpoint
+    // is trimmed in favour of the newer one. Latch what is observed while
+    // cranking instead of requiring it all to hold at one sampled instant.
+    struct Observed
+    {
+        bool bufferedCheckpointToLcl{false};
+        bool catchupInitialized{false};
+    };
+    auto observe = [&](LedgerApplyManagerImpl const& lam, uint32_t lclAtStart,
+                       Observed& o) {
+        auto const& buffered = lam.getBufferedLedgers();
+        if (!buffered.empty() && buffered.begin()->first == firstCheckpoint &&
+            buffered.crbegin()->first >= lclAtStart)
+        {
+            o.bufferedCheckpointToLcl = true;
+        }
+        if (lam.isCatchupInitialized())
+        {
+            o.catchupInitialized = true;
+        }
+        return o.bufferedCheckpointToLcl && o.catchupInitialized;
+    };
+    // Connecting over QUIC, receiving the SCP state, fetching the tx sets and
+    // externalizing each slot takes a few seconds here and well over that on
+    // a loaded CI runner; the predicate returns as soon as it is satisfied.
+    auto const outOfSyncTimeout = std::chrono::seconds(30);
 
     SECTION("GC old checkpoints")
     {
@@ -3365,6 +3405,10 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
 
     SECTION("Out of sync node receives checkpoint")
     {
+        crankUntilCheckpointDetached();
+        auto const lclAtStart =
+            mainNode->getLedgerManager().getLastClosedLedgerNum();
+
         // Start out of sync node
         auto outOfSync = simulation->addNode(v1SecretKey, qSet, &cfg2);
         simulation->addPendingConnection(v0NodeID, v1NodeID);
@@ -3374,17 +3418,20 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
 
         // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
+        Observed observed;
         simulation->crankUntil(
-            [&]() {
-                return lam.isCatchupInitialized() &&
-                       hasBufferedCheckpointToLcl(lam);
-            },
-            2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
-        REQUIRE(hasBufferedCheckpointToLcl(lam));
+            [&]() { return observe(lam, lclAtStart, observed); },
+            outOfSyncTimeout, false);
+        REQUIRE(observed.bufferedCheckpointToLcl);
+        REQUIRE(observed.catchupInitialized);
     }
 
     SECTION("Two out of sync nodes receive checkpoint")
     {
+        crankUntilCheckpointDetached();
+        auto const lclAtStart =
+            mainNode->getLedgerManager().getLastClosedLedgerNum();
+
         // Start two out of sync nodes
         auto outOfSync1 = simulation->addNode(v1SecretKey, qSet, &cfg2);
         auto outOfSync2 = simulation->addNode(v2SecretKey, qSet, &cfg3);
@@ -3398,18 +3445,21 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
             outOfSync2->getLedgerApplyManager());
 
-        // Crank until outOfSync node has received checkpoint ledger and started
-        // catchup
+        // Crank until both outOfSync nodes have received the checkpoint
+        // ledger and started catchup
+        Observed observed1, observed2;
         simulation->crankUntil(
             [&]() {
-                return cm1.isCatchupInitialized() &&
-                       cm2.isCatchupInitialized() &&
-                       hasBufferedCheckpointToLcl(cm1) &&
-                       hasBufferedCheckpointToLcl(cm2);
+                // Evaluate both so each latches independently
+                bool done1 = observe(cm1, lclAtStart, observed1);
+                bool done2 = observe(cm2, lclAtStart, observed2);
+                return done1 && done2;
             },
-            2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
-        REQUIRE(hasBufferedCheckpointToLcl(cm1));
-        REQUIRE(hasBufferedCheckpointToLcl(cm2));
+            outOfSyncTimeout, false);
+        REQUIRE(observed1.bufferedCheckpointToLcl);
+        REQUIRE(observed1.catchupInitialized);
+        REQUIRE(observed2.bufferedCheckpointToLcl);
+        REQUIRE(observed2.catchupInitialized);
     }
 }
 
