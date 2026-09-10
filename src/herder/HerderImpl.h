@@ -287,6 +287,9 @@ class HerderImpl : public Herder
     void broadcast(SCPEnvelope const& e);
 
     void processSCPQueueUpToIndex(uint64 slotIndex);
+    // While out of sync, step over slots for which no SCP messages exist to
+    // the ready slots beyond them; see the definition for why.
+    void processReadySlotsPastGaps();
     void newSlotExternalized(StellarValue const& value);
     void purgeOldSlots();
     void purgeOldPersistedTxSets();

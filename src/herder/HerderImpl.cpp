@@ -1056,6 +1056,7 @@ HerderImpl::processSCPQueue(bool synchronous)
                 return;
             }
             processSCPQueueUpToIndex(nextIndex);
+            processReadySlotsPastGaps();
         };
 
         if (synchronous)
@@ -1085,6 +1086,71 @@ HerderImpl::processSCPQueue(bool synchronous)
                 break;
             }
         }
+        // The slot that externalized may have no successor on the network
+        processReadySlotsPastGaps();
+    }
+}
+
+// An out of sync node learns the network's state from peers' SCP state
+// responses, which carry the most recent slots plus the most recent checkpoint
+// slot with a gap between the two that no one will ever fill (see
+// getSCPStateForPeer). Each slot is handed to SCP once its tx set is
+// available, so if the checkpoint slot's tx set arrives first the node
+// externalizes that slot and starts tracking it. Tracking mode then only
+// consumes envelopes up to the next slot, which never comes, and the node
+// would sit idle until the consensus-stuck timer fires before looking at the
+// recent slots. LedgerApplyManager buffers out-of-order ledgers regardless, so
+// while out of sync, step over such gaps to the ready slots beyond them.
+void
+HerderImpl::processReadySlotsPastGaps()
+{
+    ZoneScoped;
+    // Only while out of sync: an in-sync node must wait for the next slot.
+    auto outOfSync = [this]() {
+        return isTracking() && !mLedgerManager.isSynced() &&
+               !mLedgerManager.isApplying() && !mApp.isStopping();
+    };
+    while (outOfSync())
+    {
+        auto const nextIndex = nextConsensusLedgerIndex();
+        if (mPendingEnvelopes.hasEnvelopesForSlot(nextIndex))
+        {
+            // The network has, or had, messages for the next slot, so this is
+            // not a gap; the regular flow consumes them as they become ready.
+            return;
+        }
+        auto const ready = mPendingEnvelopes.readySlots(); // ascending
+        auto it = std::upper_bound(ready.begin(), ready.end(), nextIndex);
+        if (it == ready.end())
+        {
+            return;
+        }
+        CLOG_INFO(Herder,
+                  "Out of sync at slot {} with no SCP messages for slot {}, "
+                  "processing ready slot {}",
+                  nextIndex - 1, nextIndex, *it);
+        // The tracked slot is not the network's latest, so this node is not
+        // tracking the network. Record that before handing SCP the later
+        // slot: while tracking, the driver rejects values for any slot beyond
+        // the next one.
+        lostSync();
+        processSCPQueueUpToIndex(*it);
+        if (!isTracking())
+        {
+            // Nothing externalized. Stay out of sync and let the recovery
+            // timer ask peers for more state, as herderOutOfSync does.
+            startOutOfSyncTimer();
+            return;
+        }
+        // Tracking again from the later slot. Slots that became ready while
+        // the node was stuck would have been consumed one at a time as they
+        // arrived, so drain the ones that now directly follow.
+        uint64 before;
+        do
+        {
+            before = nextConsensusLedgerIndex();
+            processSCPQueueUpToIndex(before);
+        } while (outOfSync() && nextConsensusLedgerIndex() != before);
     }
 }
 

@@ -3463,6 +3463,119 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
     }
 }
 
+// A node that is out of sync learns the network state from a peer's SCP
+// state, which carries the most recent slots plus the earlier checkpoint slot
+// with nothing in between (see HerderImpl::getSCPStateForPeer). Each slot is
+// handed to SCP as soon as its tx set is available, so the checkpoint slot can
+// become ready before the recent ones. The node then externalizes the
+// checkpoint slot and tracks it; it must still go on to the recent slots
+// rather than wait for a successor to the checkpoint slot that no one has.
+TEST_CASE(
+    "out of sync node processes SCP state past a detached checkpoint slot",
+    "[herder][catchup]")
+{
+    auto validator = SecretKey::pseudoRandomForTesting();
+
+    // A watcher that trusts only `validator`. FORCE_SCP is off so the node
+    // stays out of sync and learns everything from the envelopes below, and
+    // catchup is off so buffered ledgers remain buffered.
+    Config cfg = getTestConfig(0);
+    // 8-ledger checkpoints
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+    // Test configs default to manual close, under which the herder discards
+    // every SCP envelope
+    cfg.MANUAL_CLOSE = false;
+    cfg.FORCE_SCP = false;
+    cfg.NODE_IS_VALIDATOR = false;
+    cfg.MODE_DOES_CATCHUP = false;
+    cfg.QUORUM_SET.threshold = 1;
+    cfg.QUORUM_SET.validators.clear();
+    cfg.QUORUM_SET.validators.push_back(validator.getPublicKey());
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lam =
+        static_cast<LedgerApplyManagerImpl&>(app->getLedgerApplyManager());
+    REQUIRE(!herder.isTracking());
+
+    // What a peer's SCP state contains: the checkpoint slot, a gap, and the
+    // slots in its retained window
+    uint32_t const checkpointSlot =
+        HistoryManager::firstLedgerAfterCheckpointContaining(1, cfg);
+    std::vector<uint32_t> const recentSlots = {
+        checkpointSlot + 2, checkpointSlot + 3, checkpointSlot + 4,
+        checkpointSlot + 5};
+    uint32_t const latestSlot = recentSlots.back();
+
+    SCPQuorumSet const& qSet = cfg.QUORUM_SET;
+    auto const qSetHash = xdrSha256(qSet);
+    auto const txSet = TxSetXDRFrame::makeEmpty(
+        app->getLedgerManager().getLastClosedLedgerHeader());
+    auto const now = VirtualClock::to_time_t(clock.system_now());
+
+    auto makeExternalize = [&](uint32_t slot) {
+        // Close times increase with the slot. They must be after the LCL's
+        // close time and no further than MAX_TIME_SLIP_SECONDS ahead of the
+        // clock, which for a virtual clock starts at zero.
+        uint64_t const closeTime = now + slot;
+        StellarValue sv = herder.makeStellarValue(
+            txSet->getContentsHash(), closeTime, emptyUpgradeSteps, validator);
+        SCPEnvelope envelope;
+        envelope.statement.nodeID = validator.getPublicKey();
+        envelope.statement.slotIndex = slot;
+        envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
+        auto& ext = envelope.statement.pledges.externalize();
+        ext.commit.counter = 1;
+        ext.commit.value = xdr::xdr_to_opaque(sv);
+        ext.nH = 1;
+        ext.commitQuorumSetHash = qSetHash;
+        herder.signEnvelope(validator, envelope);
+        return envelope;
+    };
+    // Supplying the qset and tx set makes the envelope ready at once, which
+    // is when the herder hands the slot to SCP
+    auto receive = [&](uint32_t slot) {
+        REQUIRE(herder.recvSCPEnvelope(makeExternalize(slot), qSet, txSet) ==
+                Herder::ENVELOPE_STATUS_READY);
+    };
+    auto bufferedLedgers = [&]() {
+        std::vector<uint32_t> seqs;
+        for (auto const& kv : lam.getBufferedLedgers())
+        {
+            seqs.push_back(kv.first);
+        }
+        return seqs;
+    };
+
+    SECTION("checkpoint slot becomes ready first")
+    {
+        receive(checkpointSlot);
+        REQUIRE(herder.isTracking());
+        REQUIRE(herder.trackingConsensusLedgerIndex() == checkpointSlot);
+        REQUIRE(bufferedLedgers() == std::vector<uint32_t>{checkpointSlot});
+        for (auto slot : recentSlots)
+        {
+            receive(slot);
+        }
+    }
+
+    SECTION("recent slots become ready first")
+    {
+        for (auto slot : recentSlots)
+        {
+            receive(slot);
+        }
+        REQUIRE(herder.trackingConsensusLedgerIndex() == latestSlot);
+        receive(checkpointSlot);
+    }
+
+    REQUIRE(herder.trackingConsensusLedgerIndex() == latestSlot);
+    std::vector<uint32_t> expected{checkpointSlot};
+    expected.insert(expected.end(), recentSlots.begin(), recentSlots.end());
+    REQUIRE(bufferedLedgers() == expected);
+}
+
 TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
