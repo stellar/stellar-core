@@ -6,7 +6,7 @@ use std::io;
 use std::sync::Arc;
 use stellar_xdr::curr::{
     FloodAdvert, FloodDemand, Hash, Limits, ReadXdr, StellarMessage, TxAdvertVector,
-    TxDemandVector, WriteXdr, TX_DEMAND_VECTOR_MAX_SIZE,
+    TxDemandVector, WriteXdr, TX_ADVERT_VECTOR_MAX_SIZE, TX_DEMAND_VECTOR_MAX_SIZE,
 };
 
 use crate::wire::ValidatedTx;
@@ -42,7 +42,30 @@ impl InvBatch {
         self.entries.push(entry);
     }
 
-    /// Encode as a `StellarMessage::FloodAdvert` XDR.
+    /// Encode as one or more `StellarMessage::FloodAdvert` XDR messages,
+    /// splitting the entries so no message exceeds the `TxAdvertVector` XDR
+    /// bound (`TX_ADVERT_VECTOR_MAX_SIZE`).
+    ///
+    /// Each chunk is returned with the entries it carries, so callers can
+    /// track per-chunk delivery.
+    pub fn encode_chunked(&self) -> io::Result<Vec<(Vec<u8>, Vec<InvEntry>)>> {
+        self.entries
+            .chunks(TX_ADVERT_VECTOR_MAX_SIZE as usize)
+            .map(|chunk| {
+                let hashes = chunk.iter().map(|e| Hash(e.hash)).collect::<Vec<_>>();
+                let tx_hashes = TxAdvertVector::try_from(hashes).map_err(to_invalid_data)?;
+                let encoded = StellarMessage::FloodAdvert(FloodAdvert { tx_hashes })
+                    .to_xdr(Limits::none())
+                    .map_err(to_invalid_data)?;
+                Ok((encoded, chunk.to_vec()))
+            })
+            .collect()
+    }
+
+    /// Encode as a single `StellarMessage::FloodAdvert` XDR.
+    ///
+    /// Returns an error if the batch exceeds `TX_ADVERT_VECTOR_MAX_SIZE`.
+    /// Prefer `encode_chunked()` for batches that may exceed the limit.
     pub fn encode(&self) -> io::Result<Vec<u8>> {
         let hashes = self
             .entries
@@ -110,14 +133,14 @@ impl Default for GetData {
 /// The `Tx` arm carries an already-validated `Arc<ValidatedTx>`: `decode`
 /// performs the single strict `StellarMessage` decode this module is allowed to
 /// do, then mints the tx from the decoded envelope without re-decoding.
+///
+/// `FloodAdvert` and `FloodDemand` are **not** valid on the TX stream; they
+/// have been promoted to the SCP (control) stream so they are not head-of-line
+/// blocked behind bulk transaction payloads.
 #[derive(Debug, Clone)]
 pub enum TxStreamMessage {
     /// A validated transaction
     Tx(Arc<ValidatedTx>),
-    /// Batch of INV announcements
-    InvBatch(InvBatch),
-    /// Request for transactions
-    GetData(GetData),
 }
 
 impl TxStreamMessage {
@@ -134,6 +157,39 @@ impl TxStreamMessage {
                     ValidatedTx::from_network(&envelope, &data[4..]).map_err(to_invalid_data)?;
                 Ok(TxStreamMessage::Tx(tx))
             }
+            other => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "unexpected TX stream StellarMessage {} (adverts/demands belong on SCP stream)",
+                    other.name()
+                ),
+            )),
+        }
+    }
+}
+
+/// Parsed SCP control-stream message (control traffic promoted above bulk
+/// transaction flooding).
+///
+/// Consensus-related SCP envelopes are handled directly by the SCP stream
+/// reader in `libp2p_overlay`; this decoder covers the additional control
+/// messages that now share the high-priority SCP stream: TX adverts
+/// (`FloodAdvert`) and TX demands (`FloodDemand`).
+#[derive(Debug, Clone)]
+pub enum ScpControlMessage {
+    /// Batch of INV announcements (advertised TX hashes)
+    InvBatch(InvBatch),
+    /// Request for transactions by hash (demand)
+    GetData(GetData),
+}
+
+impl ScpControlMessage {
+    /// Decode a `StellarMessage` off the SCP control stream.
+    ///
+    /// Only `FloodAdvert` and `FloodDemand` are accepted; all other message
+    /// types belong to a different stream and are rejected.
+    pub fn decode(data: &[u8]) -> io::Result<Self> {
+        match StellarMessage::from_xdr(data, Limits::none()).map_err(to_invalid_data)? {
             StellarMessage::FloodAdvert(advert) => {
                 let entries = advert
                     .tx_hashes
@@ -143,15 +199,18 @@ impl TxStreamMessage {
                         fee_per_op: 0,
                     })
                     .collect();
-                Ok(TxStreamMessage::InvBatch(InvBatch { entries }))
+                Ok(ScpControlMessage::InvBatch(InvBatch { entries }))
             }
             StellarMessage::FloodDemand(demand) => {
                 let hashes = demand.tx_hashes.iter().map(|hash| hash.0).collect();
-                Ok(TxStreamMessage::GetData(GetData { hashes }))
+                Ok(ScpControlMessage::GetData(GetData { hashes }))
             }
             other => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("unexpected TX stream StellarMessage {}", other.name()),
+                format!(
+                    "unexpected SCP control stream StellarMessage {}",
+                    other.name()
+                ),
             )),
         }
     }
@@ -173,20 +232,43 @@ mod tests {
 
         match TxStreamMessage::decode(&encoded).unwrap() {
             TxStreamMessage::Tx(tx) => assert_eq!(tx.bytes(), &tx_data[..]),
-            _ => panic!("Expected Tx"),
         }
     }
 
     #[test]
-    fn test_tx_stream_message_inv_batch() {
+    fn test_tx_stream_rejects_flood_advert() {
         let mut batch = InvBatch::new();
         batch.push(InvEntry {
             hash: [0x42; 32],
             fee_per_op: 500,
         });
         let encoded = batch.encode().unwrap();
-        let decoded = TxStreamMessage::decode(&encoded).unwrap();
-        if let TxStreamMessage::InvBatch(decoded_batch) = decoded {
+        let result = TxStreamMessage::decode(&encoded);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("SCP stream"));
+    }
+
+    #[test]
+    fn test_tx_stream_rejects_flood_demand() {
+        let mut gd = GetData::new();
+        gd.push([0xFF; 32]);
+        let chunks = gd.encode_chunked().unwrap();
+        let (encoded, _) = &chunks[0];
+        let result = TxStreamMessage::decode(encoded);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("SCP stream"));
+    }
+
+    #[test]
+    fn test_scp_control_inv_batch() {
+        let mut batch = InvBatch::new();
+        batch.push(InvEntry {
+            hash: [0x42; 32],
+            fee_per_op: 500,
+        });
+        let encoded = batch.encode().unwrap();
+        let decoded = ScpControlMessage::decode(&encoded).unwrap();
+        if let ScpControlMessage::InvBatch(decoded_batch) = decoded {
             assert_eq!(decoded_batch.entries.len(), 1);
             assert_eq!(decoded_batch.entries[0].hash, batch.entries[0].hash);
         } else {
@@ -195,15 +277,15 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_stream_message_getdata() {
+    fn test_scp_control_getdata() {
         let mut gd = GetData::new();
         gd.push([0xFF; 32]);
         let chunks = gd.encode_chunked().unwrap();
         assert_eq!(chunks.len(), 1);
         let (encoded, chunk_hashes) = &chunks[0];
         assert_eq!(chunk_hashes, &gd.hashes);
-        let decoded = TxStreamMessage::decode(encoded).unwrap();
-        if let TxStreamMessage::GetData(decoded_gd) = decoded {
+        let decoded = ScpControlMessage::decode(encoded).unwrap();
+        if let ScpControlMessage::GetData(decoded_gd) = decoded {
             assert_eq!(gd, decoded_gd);
         } else {
             panic!("Expected GetData");
@@ -228,8 +310,8 @@ mod tests {
         let mut decoded_hashes = Vec::new();
         let mut reported_hashes = Vec::new();
         for (encoded, chunk_hashes) in &chunks {
-            match TxStreamMessage::decode(encoded).unwrap() {
-                TxStreamMessage::GetData(decoded) => {
+            match ScpControlMessage::decode(encoded).unwrap() {
+                ScpControlMessage::GetData(decoded) => {
                     assert!(decoded.hashes.len() <= max);
                     // The reported hashes must match the encoded content.
                     assert_eq!(&decoded.hashes, chunk_hashes);
@@ -250,8 +332,77 @@ mod tests {
     }
 
     #[test]
+    fn test_scp_control_decode_empty_fails() {
+        let result = ScpControlMessage::decode(&[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_decode_unknown_type_fails() {
         let result = TxStreamMessage::decode(&[0xFF, 0x01, 0x02]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_inv_batch_encode_chunked_splits_at_xdr_bound() {
+        let max = TX_ADVERT_VECTOR_MAX_SIZE as usize;
+        let mut batch = InvBatch::new();
+        for i in 0..(max * 2 + 5) {
+            let mut hash = [0u8; 32];
+            hash[..8].copy_from_slice(&(i as u64).to_be_bytes());
+            batch.push(InvEntry {
+                hash,
+                fee_per_op: (i as i64) * 10,
+            });
+        }
+
+        let chunks = batch.encode_chunked().unwrap();
+        assert_eq!(chunks.len(), 3);
+
+        let mut decoded_entries = Vec::new();
+        let mut reported_entries = Vec::new();
+        for (encoded, chunk_entries) in &chunks {
+            match ScpControlMessage::decode(encoded).unwrap() {
+                ScpControlMessage::InvBatch(decoded_batch) => {
+                    assert!(decoded_batch.entries.len() <= max);
+                    assert_eq!(&decoded_batch.entries, chunk_entries);
+                    decoded_entries.extend(decoded_batch.entries);
+                }
+                _ => panic!("Expected InvBatch"),
+            }
+            reported_entries.extend(chunk_entries.iter().cloned());
+        }
+        assert_eq!(decoded_entries, batch.entries);
+        assert_eq!(reported_entries, batch.entries);
+    }
+
+    #[test]
+    fn test_inv_batch_encode_chunked_small_batch() {
+        let mut batch = InvBatch::new();
+        for i in 0..5 {
+            let mut hash = [0u8; 32];
+            hash[0] = i;
+            batch.push(InvEntry {
+                hash,
+                fee_per_op: 100,
+            });
+        }
+
+        let chunks = batch.encode_chunked().unwrap();
+        assert_eq!(chunks.len(), 1);
+        let (encoded, chunk_entries) = &chunks[0];
+        assert_eq!(chunk_entries.len(), 5);
+
+        // Verify round-trip
+        let decoded = ScpControlMessage::decode(encoded).unwrap();
+        if let ScpControlMessage::InvBatch(decoded_batch) = decoded {
+            assert_eq!(decoded_batch.entries.len(), 5);
+            for (i, entry) in decoded_batch.entries.iter().enumerate() {
+                assert_eq!(entry.hash[0], i as u8);
+                assert_eq!(entry.fee_per_op, 100);
+            }
+        } else {
+            panic!("Expected InvBatch");
+        }
     }
 }

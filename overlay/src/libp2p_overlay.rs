@@ -4,8 +4,8 @@
 //! If a packet is lost on the TX stream, SCP stream is UNAFFECTED.
 //!
 //! Uses libp2p-stream for persistent bidirectional streams:
-//! - SCP stream: consensus messages (priority, ~500B)
-//! - TX stream: transaction flooding (~1KB) - uses INV/GETDATA protocol
+//! - SCP stream: consensus messages + control traffic (TX adverts/demands) - highest priority
+//! - TX stream: transaction flooding (~1KB) - uses INV/GETDATA protocol for bulk payloads
 //! - TxSet stream: TX set request/response (~10MB)
 //!
 //! Each stream is opened once per peer and kept alive.
@@ -1353,43 +1353,47 @@ async fn flush_inv_batch_to_peer(state: &Arc<SharedState>, peer: PeerId) {
     }
 }
 
-/// Send an INV batch to a peer
+/// Send an INV batch to a peer, chunked to respect the XDR advert-vector bound
 async fn send_inv_batch(state: &Arc<SharedState>, peer: PeerId, batch: InvBatch) {
     let batch_size = batch.entries.len() as u64;
-    let encoded = match batch.encode() {
-        Ok(encoded) => encoded,
+    let chunks = match batch.encode_chunked() {
+        Ok(chunks) => chunks,
         Err(e) => {
             state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
             warn!("Failed to encode INV batch for {}: {}", peer, e);
             return;
         }
     };
-    let encoded_len = encoded.len() as u64;
 
     let state = Arc::clone(state);
     tokio::spawn(async move {
-        if let Err(e) = send_to_peer_stream(&state, peer.clone(), StreamType::Tx, &encoded).await {
-            state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
-            warn!("Failed to send INV batch to {}: {}", peer, e);
-        } else {
-            state
-                .metrics
-                .send_transaction
-                .fetch_add(1, Ordering::Relaxed);
-            state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
-            state
-                .metrics
-                .byte_write
-                .fetch_add(encoded_len, Ordering::Relaxed);
-            state
-                .metrics
-                .flood_tx_batch_size_sum
-                .fetch_add(batch_size, Ordering::Relaxed);
-            state
-                .metrics
-                .flood_tx_batch_size_count
-                .fetch_add(1, Ordering::Relaxed);
-            debug!("TX_INV_SENT: Sent INV batch to {}", peer);
+        for (encoded, _chunk_entries) in chunks {
+            let encoded_len = encoded.len() as u64;
+            if let Err(e) =
+                send_to_peer_stream(&state, peer.clone(), StreamType::Scp, &encoded).await
+            {
+                state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                warn!("Failed to send INV batch chunk to {}: {}", peer, e);
+            } else {
+                state
+                    .metrics
+                    .send_transaction
+                    .fetch_add(1, Ordering::Relaxed);
+                state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                state
+                    .metrics
+                    .byte_write
+                    .fetch_add(encoded_len, Ordering::Relaxed);
+                state
+                    .metrics
+                    .flood_tx_batch_size_sum
+                    .fetch_add(batch_size, Ordering::Relaxed);
+                state
+                    .metrics
+                    .flood_tx_batch_size_count
+                    .fetch_add(1, Ordering::Relaxed);
+                debug!("TX_INV_SENT: Sent INV batch chunk to {}", peer);
+            }
         }
     });
 }
@@ -1440,6 +1444,40 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                                 continue;
                             }
                         };
+
+                        // Handle control messages promoted from the TX stream.
+                        // These arrive on the SCP stream so they are not
+                        // head-of-line blocked behind bulk TX flooding.
+                        match &message {
+                            stellar_xdr::curr::StellarMessage::FloodAdvert(_) => {
+                                match crate::flood::inv_messages::ScpControlMessage::decode(&data) {
+                                    Ok(crate::flood::inv_messages::ScpControlMessage::InvBatch(batch)) => {
+                                        handle_inv_batch(&state, &peer_id, batch).await;
+                                    }
+                                    Ok(_) => unreachable!(),
+                                    Err(e) => {
+                                        warn!("SCP_CONTROL_PARSE_ERR: Failed to decode FloodAdvert from {}: {}", peer_id, e);
+                                    }
+                                }
+                                continue;
+                            }
+                            stellar_xdr::curr::StellarMessage::FloodDemand(_) => {
+                                match crate::flood::inv_messages::ScpControlMessage::decode(&data) {
+                                    Ok(crate::flood::inv_messages::ScpControlMessage::GetData(getdata)) => {
+                                        // Demands arrive on the SCP stream (high priority),
+                                        // but TX responses go on the TX stream via
+                                        // send_to_peer_stream inside handle_getdata.
+                                        handle_getdata(&state, &peer_id, getdata).await;
+                                    }
+                                    Ok(_) => unreachable!(),
+                                    Err(e) => {
+                                        warn!("SCP_CONTROL_PARSE_ERR: Failed to decode FloodDemand from {}: {}", peer_id, e);
+                                    }
+                                }
+                                continue;
+                            }
+                            _ => {} // Fall through to SCP envelope handling below
+                        }
 
                         let scp_envelope = match message {
                             stellar_xdr::curr::StellarMessage::GetScpState(ledger_seq) => {
@@ -1568,8 +1606,8 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
                             .metrics
                             .byte_read
                             .fetch_add(data.len() as u64, Ordering::Relaxed);
-                        // Parse INV/GETDATA message
-                        handle_tx_stream_message(&state, &peer_id, &data, &mut stream).await;
+                        // Parse transaction message (adverts/demands are on SCP stream)
+                        handle_tx_stream_message(&state, &peer_id, &data).await;
                     }
                     Err(e) => {
                         state.metrics.error_read.fetch_add(1, Ordering::Relaxed);
@@ -1583,20 +1621,13 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
     }
 }
 
-/// Handle TX stream message in INV/GETDATA mode
+/// Handle TX stream message (transactions only; adverts/demands are on SCP stream)
 async fn handle_tx_stream_message(
     state: &Arc<SharedState>,
     peer_id: &PeerId,
     data: &[u8],
-    stream: &mut Stream,
 ) {
     match TxStreamMessage::decode(data) {
-        Ok(TxStreamMessage::InvBatch(batch)) => {
-            handle_inv_batch(state, peer_id, batch).await;
-        }
-        Ok(TxStreamMessage::GetData(getdata)) => {
-            handle_getdata(state, peer_id, getdata, stream).await;
-        }
         Ok(TxStreamMessage::Tx(tx)) => {
             handle_tx_response(state, peer_id, tx).await;
         }
@@ -1679,7 +1710,7 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         tokio::spawn(async move {
             for (encoded, chunk_hashes) in encoded_chunks {
                 if let Err(e) =
-                    send_to_peer_stream(&state_clone, peer_clone, StreamType::Tx, &encoded).await
+                    send_to_peer_stream(&state_clone, peer_clone, StreamType::Scp, &encoded).await
                 {
                     warn!("Failed to send GETDATA to {}: {}", peer_clone, e);
                 } else {
@@ -1698,7 +1729,6 @@ async fn handle_getdata(
     state: &Arc<SharedState>,
     peer_id: &PeerId,
     getdata: GetData,
-    _stream: &mut Stream,
 ) {
     debug!(
         "TX_GETDATA_RECV: Peer {} requesting {} TXs",
@@ -2095,7 +2125,7 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                         match try_send_to_existing_stream(
                             &task_state,
                             peer,
-                            StreamType::Tx,
+                            StreamType::Scp,
                             &encoded,
                         )
                         .await
