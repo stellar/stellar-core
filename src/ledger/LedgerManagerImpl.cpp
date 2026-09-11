@@ -2751,6 +2751,16 @@ LedgerManagerImpl::applySorobanStage(
     }
 
     globalParState.commitChangesFromThreads(app, threadStates, stage);
+
+    // Thread states are rather large and can take up to a few ms to be
+    // deallocated. Defer the deallocation to the background worker in order to
+    // not block the apply thread unnecessarily.
+    auto deferredThreadStates = std::make_shared<
+        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>>(
+        std::move(threadStates));
+    app.postOnBackgroundThread(
+        [deferredThreadStates]() { deferredThreadStates->clear(); },
+        "destroy parallel apply thread states");
 }
 
 void
@@ -2760,9 +2770,10 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                                       Hash const& sorobanBasePrngSeed)
 {
     ZoneScoped;
-    GlobalParallelApplyLedgerState globalParState(
+    auto globalParStatePtr = std::make_unique<GlobalParallelApplyLedgerState>(
         app, mApplyState.copyApplyLedgerView(), ltx, stages,
         mApplyState.getInMemorySorobanState(), sorobanConfig);
+    auto& globalParState = *globalParStatePtr;
     // LedgerTxn is not passed into applySorobanStage, so there's no risk
     // of the header being updated while we apply the stages.
     auto const& header = ltx.loadHeader().current();
@@ -2772,6 +2783,16 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                           sorobanBasePrngSeed);
     }
     globalParState.commitChangesToLedgerTxn(ltx);
+
+    // Global state is rather large and can take up to a few ms to be
+    // deallocated. Defer the deallocation to the background worker in order to
+    // not block the apply thread unnecessarily.
+    auto deferredGlobalState =
+        std::make_shared<std::unique_ptr<GlobalParallelApplyLedgerState>>(
+            std::move(globalParStatePtr));
+    app.postOnBackgroundThread(
+        [deferredGlobalState]() { deferredGlobalState->reset(); },
+        "destroy parallel apply global state");
 }
 
 void
