@@ -1574,7 +1574,17 @@ ApplyLoad::setupBucketList()
             }
         }
 
-        bl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion, liveEntries, {}, {});
+        LedgerEntryRefVec initEntryRefs;
+        LedgerEntryRefVec liveEntryRefs;
+        LedgerKeyRefVec deadEntryRefs;
+        liveEntryRefs.reserve(liveEntries.size());
+        for (auto const& le : liveEntries)
+        {
+            liveEntryRefs.emplace_back(le);
+        }
+
+        bl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion, initEntryRefs,
+                    liveEntryRefs, deadEntryRefs);
         if (mTotalHotArchiveEntries > 0)
         {
             hotArchiveBl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion,

@@ -37,15 +37,27 @@ getAppLedgerVersion(Application::pointer app)
 
 void
 addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
-                              std::vector<LedgerEntry> const& initEntries,
-                              std::vector<LedgerEntry> const& liveEntries,
-                              std::vector<LedgerKey> const& deadEntries)
+                              LedgerEntryRefs initEntries,
+                              LedgerEntryRefs liveEntries,
+                              LedgerKeyRefs deadEntries)
 {
     auto& liveBl = app.getBucketManager().getLiveBucketList();
     liveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
                     liveEntries, deadEntries);
 
     app.getLedgerManager().updateCanonicalStateForTesting(header);
+}
+
+void
+addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
+                              std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> const& liveEntries,
+                              std::vector<LedgerKey> const& deadEntries)
+{
+    auto initRefs = toRefs(initEntries);
+    auto liveRefs = toRefs(liveEntries);
+    auto deadRefs = toRefs(deadEntries);
+    addLiveBatchAndUpdateSnapshot(app, header, initRefs, liveRefs, deadRefs);
 }
 
 void
@@ -181,8 +193,8 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     if (mUseTestEntries)
     {
         // Seal the ltx but throw its entries away.
-        std::vector<LedgerEntry> init, live;
-        std::vector<LedgerKey> dead;
+        LedgerEntryRefVec init, live;
+        LedgerKeyRefVec dead;
 
         // Any V20 features must be behind initialLedgerVers check, see comment
         // in LedgerManagerImpl::ledgerClosed
@@ -262,7 +274,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
         // Seal the ltx and collect its entries, but don't load Soroban
         // config yet -- test entries (including network config like eviction
         // iterator) are added directly to the BucketList below, not via ltx.
-        ltx.getAllEntries(init, live, dead);
+        ltx.sealAndBorrowAllEntries(init, live, dead);
 
         // Add dead entries from ltx to entries that will be added to BucketList
         // so we can test background eviction properly
@@ -280,7 +292,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
             // When the actual entries have the same key as test entries, we
             // override the actual entries with the test entries (here we
             // just don't add the actual entries if they're already present).
-            for (auto const& liveEntry : live)
+            for (LedgerEntry const& liveEntry : live)
             {
                 if (std::find_if(mTestLiveEntries.begin(),
                                  mTestLiveEntries.end(),
@@ -295,12 +307,15 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
         }
 
         // Use the testing values.
+        auto testInitRefs = toRefs(mTestInitEntries);
+        auto testLiveRefs = toRefs(mTestLiveEntries);
+        auto testDeadRefs = toRefs(mTestDeadEntries);
         mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
-                                                 mTestInitEntries);
+                                                 testInitRefs);
         mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
-                                                 mTestLiveEntries);
-        mApp.getBucketManager().addLiveBatch(
-            mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
+                                                 testLiveRefs);
+        mApp.getBucketManager().addLiveBatch(mApp, lh, testInitRefs,
+                                             testLiveRefs, testDeadRefs);
 
         // Load the final Soroban config AFTER addLiveBatch so that test
         // entries (e.g. stateArchivalSettings with eviction iterator) are
@@ -325,8 +340,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
         }
 
         mApplyState.updateInMemorySorobanState(
-            mTestInitEntries, mTestLiveEntries, mTestDeadEntries, lh,
-            finalSorobanConfig);
+            testInitRefs, testLiveRefs, testDeadRefs, lh, finalSorobanConfig);
 
         mUseTestEntries = false;
         mAlsoAddActualEntries = false;
