@@ -8,6 +8,7 @@
 #include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -15,6 +16,7 @@
 #include <exception>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -43,18 +45,50 @@ class BatchExecutor : private NonMovableOrCopyable
     // Executes every task in `tasks` in parallel and returns their results in
     // the same order.
     //
-    // Every task will always be executed by a separate worker thread. Passing
-    // more tasks than physical cores is allowed, but will result in performance
-    // degradation.
+    // Every task will always be executed by a separate worker thread, unless a
+    // single task is provided (in which case it will be executed on the caller
+    // thread). Passing more tasks than physical cores is allowed, but will
+    // result in performance degradation.
     //
-    // Only a single thread may call executeBatch at a time (enforced by an
-    // assertion), but the executor may be reused for multiple batches scheduled
-    // from arbitrary threads over its lifetime.
+    // Only a single thread may call executeBatch/executeBatchOverRanges at a
+    // time off the caller thread (enforced by an assertion), but the executor
+    // may be reused for multiple batches scheduled from arbitrary threads over
+    // its lifetime.
     //
     // Rethrows the first exception captured from a `runTask` invocation,
     // if any.
     template <typename T>
     std::vector<T> executeBatch(std::vector<std::function<T()>> tasks);
+
+    // Splits [0, count) into contiguous ranges and executes
+    // `work(begin, end, rangeIndex)` for every range in parallel, using
+    // `numTasks` ranges.
+    // `rangeIndex` is the index of the range within the batch. Runs the whole
+    // range on the calling thread if there are fewer elements than the
+    // `numTasks` - prefer using `executeBatch` for a small number of
+    // heavy tasks.
+    //
+    // Only a single thread may call executeBatch/executeBatchOverRanges at a
+    // time off the caller thread (enforced by an assertion), but the executor
+    // may be reused for multiple batches scheduled from arbitrary threads over
+    // its lifetime.
+    //
+    // Rethrows the first exception captured from a `work` invocation, if any.
+    void executeBatchOverRanges(
+        size_t count, size_t numTasks,
+        std::function<void(size_t, size_t, size_t)> const& work);
+
+    // Returns the maximum number of tasks to use in `executeBatch` without
+    // oversubscribing physical cores.
+    // Use this many tasks whenever possible to maximize parallelism and avoid
+    // oversubscription.
+    size_t preferredTaskCount() const;
+
+#ifdef BUILD_TESTS
+    // Overrides the value returned by `preferredTaskCount`, so that tests can
+    // pin the parallelism independently of the machine they run on.
+    void setPreferredTaskCountForTesting(size_t count);
+#endif
 
   private:
     // Runs `runTask(0)..runTask(numTasks-1)` across `numTasks` pinned workers
@@ -96,6 +130,10 @@ class BatchExecutor : private NonMovableOrCopyable
     // Marks that a batch is currently running, to prevent concurrent
     // executeBatch calls.
     std::atomic<bool> mBatchRunning{false};
+
+#ifdef BUILD_TESTS
+    std::optional<size_t> mPreferredTaskCountForTesting;
+#endif
 };
 
 template <typename T>
@@ -111,15 +149,21 @@ BatchExecutor::executeBatch(std::vector<std::function<T()>> tasks)
     static_assert(!std::is_same_v<T, bool>,
                   "BatchExecutor::executeBatch does not support bool results");
 
-    // Only one executeBatch may be in progress at a time.
-    releaseAssert(!mBatchRunning.exchange(true));
-    auto resetRunning = gsl::finally([this]() { mBatchRunning.store(false); });
-
     std::vector<T> results(tasks.size());
     if (tasks.empty())
     {
         return results;
     }
+    if (tasks.size() == 1)
+    {
+        results[0] = tasks[0]();
+        return results;
+    }
+
+    // Only one executeBatch that uses pinned workers may be in progress at a
+    // time.
+    releaseAssert(!mBatchRunning.exchange(true));
+    auto resetRunning = gsl::finally([this]() { mBatchRunning.store(false); });
     // Type-erase the typed tasks/results into a single index-based functor so
     // the worker loop is independent of T.
     std::function<void(size_t)> runTask = [&tasks, &results](size_t i) {

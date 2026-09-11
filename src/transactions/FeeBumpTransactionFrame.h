@@ -90,11 +90,14 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     ~FeeBumpTransactionFrame() override = default;
 
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
+    void preParallelApplyReadOnly(
+        AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
+    void preParallelApplyWrite(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase const& txResult) const override;
 
     std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
