@@ -198,6 +198,134 @@ class TestNominationSCP : public SCPDriver
     }
 };
 
+// Deliberately repeat the first winner in round 2, so the second call must
+// fast-forward to round 3. This catches predicting round 2's hash in isolation.
+class LeaderPreviewTestDriver : public TestNominationSCP
+{
+  public:
+    std::vector<NodeID> nodes;
+    bool tie = false;
+    std::set<NodeID> zeroWeight;
+    size_t emitted = 0;
+    size_t timers = 0;
+    std::function<void()> nominationTimeout;
+
+    LeaderPreviewTestDriver(NodeID const& local, SCPQuorumSet const& qset)
+        : TestNominationSCP(local, qset), nodes(qset.validators)
+    {
+    }
+
+    uint64
+    getNodeWeight(NodeID const& id, SCPQuorumSet const&, bool) const override
+    {
+        return zeroWeight.count(id) ? 0 : UINT64_MAX;
+    }
+
+    uint64
+    computeHashNode(uint64, Value const&, bool priority, int32 round,
+                    NodeID const& id) override
+    {
+        if (!priority)
+        {
+            return 0;
+        }
+        auto winner = round < 3 ? nodes[0] : nodes[1];
+        return id == winner || (tie && round < 3 && id == nodes[2]) ? 100 : 1;
+    }
+
+    void
+    emitEnvelope(SCPEnvelope const&) override
+    {
+        ++emitted;
+    }
+
+    void
+    setupTimer(uint64, int timerID, std::chrono::milliseconds,
+               std::function<void()> cb) override
+    {
+        ++timers;
+        if (timerID == Slot::NOMINATION_TIMER)
+        {
+            nominationTimeout = std::move(cb);
+        }
+    }
+};
+
+TEST_CASE("nomination leader preview has no protocol side effects",
+          "[scp][early-nomination]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SCPQuorumSet qset;
+    qset.threshold = 2;
+    qset.validators = {v0NodeID, v1NodeID, v2NodeID};
+    // The local node is the *second* leader. Merely preparing its value must
+    // not cause it to vote before the actual nomination timeout.
+    LeaderPreviewTestDriver driver(v1NodeID, qset);
+    auto& scp = driver.mSCP;
+    Value previous{42}, value{43};
+    auto slot = std::make_shared<Slot>(7, scp);
+    auto const first = scp.predictNominationLeaders(7, previous, 1);
+    auto const firstTwo = scp.predictNominationLeaders(7, previous, 2);
+    REQUIRE(first == std::set<NodeID>{v0NodeID});
+    REQUIRE(firstTwo == std::set<NodeID>{v0NodeID, v1NodeID});
+    REQUIRE(scp.getKnownSlotsCount() == 0);
+    REQUIRE(slot->getNominationLeaders().empty());
+    REQUIRE(driver.emitted == 0);
+    REQUIRE(driver.timers == 0);
+
+    slot->nominate(std::make_shared<ValueWrapper>(value), previous, false);
+    REQUIRE(slot->getNominationLeaders() == first);
+    REQUIRE(driver.emitted == 0);
+    REQUIRE(driver.timers == 1);
+    // Preview again after nomination has started: it still changes no state.
+    REQUIRE(scp.predictNominationLeaders(7, previous, 2) == firstTwo);
+    REQUIRE(slot->getNominationLeaders() == first);
+    REQUIRE(driver.timers == 1);
+    auto timeout = std::move(driver.nominationTimeout);
+    REQUIRE(timeout);
+    timeout();
+    REQUIRE(slot->getNominationLeaders() == firstTwo);
+    REQUIRE(driver.emitted == 1);
+    REQUIRE(driver.timers == 2);
+}
+
+TEST_CASE("nomination leader preview preserves ties and zero weights",
+          "[scp][early-nomination]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SCPQuorumSet qset;
+    qset.threshold = 2;
+    qset.validators = {v0NodeID, v1NodeID, v2NodeID};
+    LeaderPreviewTestDriver driver(v1NodeID, qset);
+    Value previous{42};
+    SECTION("ties may elect more than two nodes in the first two calls")
+    {
+        driver.tie = true;
+        REQUIRE(driver.mSCP.predictNominationLeaders(7, previous, 1) ==
+                std::set<NodeID>{v0NodeID, v2NodeID});
+        REQUIRE(driver.mSCP.predictNominationLeaders(7, previous, 2) ==
+                std::set<NodeID>{v0NodeID, v1NodeID, v2NodeID});
+    }
+    SECTION("zero weight winners are excluded, including self")
+    {
+        driver.zeroWeight = {v0NodeID, v1NodeID};
+        REQUIRE(driver.mSCP.predictNominationLeaders(7, previous, 2) ==
+                std::set<NodeID>{v2NodeID});
+    }
+    SECTION("no eligible nodes")
+    {
+        driver.zeroWeight = {v0NodeID, v1NodeID, v2NodeID};
+        REQUIRE(driver.mSCP.predictNominationLeaders(7, previous, 2).empty());
+    }
+    REQUIRE(driver.emitted == 0);
+    REQUIRE(driver.timers == 0);
+    REQUIRE(driver.mSCP.getKnownSlotsCount() == 0);
+}
+
 TEST_CASE("nomination weight", "[scp]")
 {
     SIMULATION_CREATE_NODE(0);

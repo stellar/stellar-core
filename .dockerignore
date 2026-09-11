@@ -105,3 +105,5 @@ lib/libmedida/test/
 **/*.vcxproj.user
 **/.vs
 
+# These generated protobuf bindings are shipped source in the vendored crate.
+!overlay/vendor/libp2p-core/src/generated/

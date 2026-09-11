@@ -83,11 +83,11 @@ impl CoreSender {
     }
 
     /// Convenience: send TX set available notification
-    pub fn send_tx_set_available(&self, hash: [u8; 32], xdr: Vec<u8>) -> Result<(), IpcError> {
+    pub fn send_tx_set_available(&self, hash: [u8; 32], xdr: &[u8]) -> Result<(), IpcError> {
         // Payload: [hash:32][xdr...]
         let mut payload = Vec::with_capacity(32 + xdr.len());
         payload.extend_from_slice(&hash);
-        payload.extend_from_slice(&xdr);
+        payload.extend_from_slice(xdr);
         self.send(Message::new(MessageType::TxSetAvailable, payload))
     }
 }
@@ -630,7 +630,7 @@ mod tests {
         // Overlay responds with TxSetAvailable
         let tx_set_data = vec![1, 2, 3, 4, 5, 6, 7, 8];
         ipc.sender
-            .send_tx_set_available(tx_set_hash, tx_set_data.clone())
+            .send_tx_set_available(tx_set_hash, &tx_set_data)
             .unwrap();
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;

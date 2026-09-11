@@ -95,6 +95,7 @@ HerderImpl::HerderImpl(Application& app)
     , mTrackingTimer(app)
     , mLastExternalize(app.getClock().now())
     , mTriggerTimer(app)
+    , mPrepareTxSetTimer(app)
     , mOutOfSyncTimer(app)
     , mTxSetGarbageCollectTimer(app)
     , mCheckForDeadNodesTimer(app)
@@ -206,6 +207,7 @@ HerderImpl::setState(State st)
 void
 HerderImpl::lostSync()
 {
+    discardPreparedTxSet();
     mHerderSCPDriver.stateChanged();
     setState(Herder::State::HERDER_SYNCING_STATE);
 }
@@ -296,6 +298,7 @@ HerderImpl::purgeOldSlots()
 void
 HerderImpl::shutdown()
 {
+    discardPreparedTxSet();
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
@@ -513,6 +516,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // we do not want it to trigger while downloading the current set
         // and there is no point in taking a position after the round is over
         mTriggerTimer.cancel();
+        discardPreparedTxSet();
 
         // This call may cause LedgerManager to trigger ledger close
         processExternalized(slotIndex, value, isLatestSlot);
@@ -1052,6 +1056,7 @@ HerderImpl::processSCPQueue(bool synchronous)
                 return;
             }
             processSCPQueueUpToIndex(nextIndex);
+            processReadySlotsPastGaps();
         };
 
         if (synchronous)
@@ -1081,6 +1086,71 @@ HerderImpl::processSCPQueue(bool synchronous)
                 break;
             }
         }
+        // The slot that externalized may have no successor on the network
+        processReadySlotsPastGaps();
+    }
+}
+
+// An out of sync node learns the network's state from peers' SCP state
+// responses, which carry the most recent slots plus the most recent checkpoint
+// slot with a gap between the two that no one will ever fill (see
+// getSCPStateForPeer). Each slot is handed to SCP once its tx set is
+// available, so if the checkpoint slot's tx set arrives first the node
+// externalizes that slot and starts tracking it. Tracking mode then only
+// consumes envelopes up to the next slot, which never comes, and the node
+// would sit idle until the consensus-stuck timer fires before looking at the
+// recent slots. LedgerApplyManager buffers out-of-order ledgers regardless, so
+// while out of sync, step over such gaps to the ready slots beyond them.
+void
+HerderImpl::processReadySlotsPastGaps()
+{
+    ZoneScoped;
+    // Only while out of sync: an in-sync node must wait for the next slot.
+    auto outOfSync = [this]() {
+        return isTracking() && !mLedgerManager.isSynced() &&
+               !mLedgerManager.isApplying() && !mApp.isStopping();
+    };
+    while (outOfSync())
+    {
+        auto const nextIndex = nextConsensusLedgerIndex();
+        if (mPendingEnvelopes.hasEnvelopesForSlot(nextIndex))
+        {
+            // The network has, or had, messages for the next slot, so this is
+            // not a gap; the regular flow consumes them as they become ready.
+            return;
+        }
+        auto const ready = mPendingEnvelopes.readySlots(); // ascending
+        auto it = std::upper_bound(ready.begin(), ready.end(), nextIndex);
+        if (it == ready.end())
+        {
+            return;
+        }
+        CLOG_INFO(Herder,
+                  "Out of sync at slot {} with no SCP messages for slot {}, "
+                  "processing ready slot {}",
+                  nextIndex - 1, nextIndex, *it);
+        // The tracked slot is not the network's latest, so this node is not
+        // tracking the network. Record that before handing SCP the later
+        // slot: while tracking, the driver rejects values for any slot beyond
+        // the next one.
+        lostSync();
+        processSCPQueueUpToIndex(*it);
+        if (!isTracking())
+        {
+            // Nothing externalized. Stay out of sync and let the recovery
+            // timer ask peers for more state, as herderOutOfSync does.
+            startOutOfSyncTimer();
+            return;
+        }
+        // Tracking again from the later slot. Slots that became ready while
+        // the node was stuck would have been consumed one at a time as they
+        // arrived, so drain the ones that now directly follow.
+        uint64 before;
+        do
+        {
+            before = nextConsensusLedgerIndex();
+            processSCPQueueUpToIndex(before);
+        } while (outOfSync() && nextConsensusLedgerIndex() != before);
     }
 }
 
@@ -1149,6 +1219,7 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
                                       bool upgradeApplied)
 {
     releaseAssert(threadIsMain());
+    discardPreparedTxSet();
 
     // Ensure potential upgrades are handled in overlay
     maybeHandleUpgrade();
@@ -1329,6 +1400,7 @@ HerderImpl::triggerAnchorFromConsensusCloseTime(
 void
 HerderImpl::setupTriggerNextLedger()
 {
+    discardPreparedTxSet();
     // Invariant: core proceeds to vote for the next ledger only when it's _not_
     // applying to ensure block production does not conflict with ledger close.
     releaseAssert(!mLedgerManager.isApplying());
@@ -1401,6 +1473,33 @@ HerderImpl::setupTriggerNextLedger()
                                            static_cast<uint32_t>(nextIndex),
                                            true),
                                  &VirtualTimer::onFailureNoop);
+
+        if (getSCP().isValidator())
+        {
+            auto leaders = getSCP().predictNominationLeaders(
+                nextIndex, xdr::xdr_to_opaque(lcl.header.scpValue), 2);
+            if (leaders.count(getSCP().getLocalNodeID()))
+            {
+                // Validate against the close time we expect at the trigger,
+                // not the earlier wall-clock time at which we start work.
+                auto closeTime = std::max<uint64_t>(
+                    minCandidateCt,
+                    VirtualClock::to_time_t(
+                        mApp.getClock().system_now() +
+                        std::chrono::duration_cast<
+                            VirtualClock::system_time_point::duration>(
+                            triggerTime - now)));
+                // Yield out of ledger close before touching its read view.
+                // This is main-thread work; only its scheduling changes.
+                mPrepareTxSetTimer.expires_at(now);
+                mPrepareTxSetTimer.async_wait(
+                    [this, nextIndex, closeTime]() {
+                        prepareTxSet(static_cast<uint32_t>(nextIndex),
+                                     closeTime);
+                    },
+                    &VirtualTimer::onFailureNoop);
+            }
+        }
     }
 
 #ifdef BUILD_TESTS
@@ -1534,97 +1633,40 @@ HerderImpl::setInSyncAndTriggerNextLedger()
     triggerNextLedger(lcl + 1, false);
 }
 
-// called to take a position during the next round
-// uses the state in LedgerManager to derive a starting position
 void
-HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
-                              bool checkTrackingSCP)
+HerderImpl::discardPreparedTxSet()
 {
-    ZoneScoped;
-    ZoneValue(static_cast<int64_t>(ledgerSeqToTrigger));
+    mPrepareTxSetTimer.cancel();
+    mPreparedTxSet.reset();
+}
 
-    auto isTrackingValid = isTracking() || !checkTrackingSCP;
-
-    if (!isTrackingValid || !mLedgerManager.isSynced())
+void
+HerderImpl::prepareTxSet(uint32_t ledgerSeq, uint64_t closeTime)
+{
+    if (!isTracking() || !mLedgerManager.isSynced() ||
+        mLedgerManager.isApplying() ||
+        ledgerSeq != mLedgerManager.getLastClosedLedgerNum() + 1)
     {
-        CLOG_DEBUG(Herder, "triggerNextLedger: skipping (out of sync) : {}",
-                   mApp.getStateHuman());
         return;
     }
+    mPreparedTxSet = buildTxSet(ledgerSeq, closeTime);
+    CLOG_INFO(Herder,
+              "Prepared TX set for ledger {} before trigger: {} transactions, "
+              "close time {}",
+              ledgerSeq, mPreparedTxSet->txSet->sizeTxTotal(), closeTime);
+}
 
-    // If applying, the next ledger will trigger voting
-    if (mLedgerManager.isApplying())
-    {
-        // This can only happen when closing ledgers in parallel
-        releaseAssert(mApp.getConfig().parallelLedgerClose());
-        CLOG_DEBUG(Herder, "triggerNextLedger: skipping (applying) : {}",
-                   mApp.getStateHuman());
-        return;
-    }
-
-    // our first choice for this round's set is all the tx we have collected
-    // during last few ledger closes
-    // Since we are not currently applying, it is safe to use read-only LCL, as
-    // it's guaranteed to be up-to-date
-    auto lcl = mLedgerManager.getLastClosedLedgerHeader();
-
-    // We pick as next close time the current time unless it's before the last
-    // close time. We don't know how much time it will take to reach consensus
-    // so this is the most appropriate value to use as closeTime.
-    uint64_t nextCloseTime =
-        VirtualClock::to_time_t(mApp.getClock().system_now());
-    if (ledgerSeqToTrigger == lcl.header.ledgerSeq + 1)
-    {
-        auto it = mDriftCTSlidingWindow.find(ledgerSeqToTrigger);
-        if (it == mDriftCTSlidingWindow.end())
-        {
-            // Record local close time _before_ it gets adjusted to be valid
-            // below
-            mDriftCTSlidingWindow[ledgerSeqToTrigger] =
-                std::make_pair(nextCloseTime, std::nullopt);
-            while (mDriftCTSlidingWindow.size() >
-                   CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE)
-            {
-                mDriftCTSlidingWindow.erase(mDriftCTSlidingWindow.begin());
-            }
-        }
-        else
-        {
-            CLOG_WARNING(Herder,
-                         "Herder::triggerNextLedger called twice on ledger {}",
-                         ledgerSeqToTrigger);
-        }
-    }
-
-    if (nextCloseTime <= lcl.header.scpValue.closeTime)
-    {
-        nextCloseTime = lcl.header.scpValue.closeTime + 1;
-    }
-
-    // Ensure we're about to nominate a value with valid close time
-    auto isCtValid =
-        ctValidityOffset(nextCloseTime) == std::chrono::milliseconds::zero();
-
-    if (!isCtValid)
-    {
-        CLOG_WARNING(Herder,
-                     "Invalid close time selected ({}), skipping nomination",
-                     nextCloseTime);
-        return;
-    }
-
-    // Protocols including the "closetime change" (CAP-0034) externalize
-    // the exact closeTime contained in the StellarValue with the best
-    // transaction set, so we know the exact closeTime against which to
-    // validate here -- 'nextCloseTime'.  (The _offset_, therefore, is
-    // the difference between 'nextCloseTime' and the last ledger close time.)
-    TimePoint upperBoundCloseTimeOffset, lowerBoundCloseTimeOffset;
-    upperBoundCloseTimeOffset = nextCloseTime - lcl.header.scpValue.closeTime;
-    lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
-
+HerderImpl::PreparedTxSet
+HerderImpl::buildTxSet(uint32_t ledgerSeq, uint64_t closeTime)
+{
+    auto const lcl = mLedgerManager.getLastClosedLedgerHeader();
+    releaseAssert(ledgerSeq == lcl.header.ledgerSeq + 1);
+    releaseAssert(closeTime > lcl.header.scpValue.closeTime);
+    auto const lowerBoundCloseTimeOffset =
+        closeTime - lcl.header.scpValue.closeTime;
+    auto const upperBoundCloseTimeOffset = lowerBoundCloseTimeOffset;
     TxSetXDRFrameConstPtr proposedSet;
     ApplicableTxSetFrameConstPtr applicableProposedSet;
-    Hash txSetHash;
 
     // Build TX set from Rust overlay's mempool (not local TransactionQueue)
     // The Rust overlay maintains the mempool via TX flooding
@@ -1639,7 +1681,13 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         maxCandidates +=
             lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
     }
-    auto txEnvelopes = overlayMgr.getTopTransactions(maxCandidates * 2);
+    auto txEnvelopes =
+#ifdef BUILD_TESTS
+        mGetTopTransactionsForTesting
+            ? mGetTopTransactionsForTesting(maxCandidates * 2)
+            :
+#endif
+            overlayMgr.getTopTransactions(maxCandidates * 2);
 
     CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
               txEnvelopes.size());
@@ -1717,9 +1765,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // The mempool does no stateful validation, so it would keep handing us the
     // transactions that just failed validation (stale sequence number, can't
     // pay fee, expired, ...) on every nomination, crowding out valid ones.
-    // Drop them, except for transactions with a *future* sequence number:
-    // those are chained behind a pending transaction from the same account
-    // and become valid once it applies.
+    // Collect removals to apply at the trigger, except for transactions with
+    // a *future* sequence number: those are chained behind a pending
+    // transaction from the same account and become valid once it applies.
     std::vector<Hash> invalidTxHashes;
     if (!invalidTxPhases.empty())
     {
@@ -1735,7 +1783,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                     continue;
                 }
                 CLOG_DEBUG(Herder,
-                           "Dropping invalid tx {} from mempool: seq {} "
+                           "Invalid tx {} in mempool pull: seq {} "
                            "(account seq {})",
                            hexAbbrev(tx->getFullHash()), tx->getSeqNum(),
                            acc ? acc.current().data.account().seqNum : -1);
@@ -1743,13 +1791,142 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
             }
         }
     }
-    if (!invalidTxHashes.empty())
+
+    // If all valid candidates fit, refresh at the trigger so an early empty
+    // or small snapshot doesn't prevent collecting transactions during the
+    // timer wait. Reuse a snapshot when selection actually excluded valid
+    // candidates. Invalid transactions do not establish excess demand.
+    size_t validCandidates = 0;
+    for (size_t i = 0; i < txPhases.size(); ++i)
+    {
+        validCandidates += txPhases[i].size() - invalidTxPhases[i].size();
+    }
+    bool capacityLimited = validCandidates > proposedSet->sizeTxTotal();
+    return PreparedTxSet{lcl.hash,
+                         ledgerSeq,
+                         closeTime,
+                         proposedSet,
+                         std::move(applicableProposedSet),
+                         std::move(invalidTxHashes),
+                         capacityLimited};
+}
+
+// called to take a position during the next round
+// uses the state in LedgerManager to derive a starting position
+void
+HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
+                              bool checkTrackingSCP)
+{
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(ledgerSeqToTrigger));
+
+    auto isTrackingValid = isTracking() || !checkTrackingSCP;
+
+    if (!isTrackingValid || !mLedgerManager.isSynced())
+    {
+        CLOG_DEBUG(Herder, "triggerNextLedger: skipping (out of sync) : {}",
+                   mApp.getStateHuman());
+        return;
+    }
+
+    // If applying, the next ledger will trigger voting
+    if (mLedgerManager.isApplying())
+    {
+        // This can only happen when closing ledgers in parallel
+        releaseAssert(mApp.getConfig().parallelLedgerClose());
+        CLOG_DEBUG(Herder, "triggerNextLedger: skipping (applying) : {}",
+                   mApp.getStateHuman());
+        return;
+    }
+
+    // our first choice for this round's set is all the tx we have collected
+    // during last few ledger closes
+    // Since we are not currently applying, it is safe to use read-only LCL, as
+    // it's guaranteed to be up-to-date
+    auto lcl = mLedgerManager.getLastClosedLedgerHeader();
+
+    if (ledgerSeqToTrigger != lcl.header.ledgerSeq + 1)
+    {
+        return;
+    }
+
+    // We pick as next close time the current time unless it's before the last
+    // close time. We don't know how much time it will take to reach consensus
+    // so this is the most appropriate value to use as closeTime.
+    uint64_t nextCloseTime =
+        VirtualClock::to_time_t(mApp.getClock().system_now());
+    if (ledgerSeqToTrigger == lcl.header.ledgerSeq + 1)
+    {
+        auto it = mDriftCTSlidingWindow.find(ledgerSeqToTrigger);
+        if (it == mDriftCTSlidingWindow.end())
+        {
+            // Record local close time _before_ it gets adjusted to be valid
+            // below
+            mDriftCTSlidingWindow[ledgerSeqToTrigger] =
+                std::make_pair(nextCloseTime, std::nullopt);
+            while (mDriftCTSlidingWindow.size() >
+                   CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE)
+            {
+                mDriftCTSlidingWindow.erase(mDriftCTSlidingWindow.begin());
+            }
+        }
+        else
+        {
+            CLOG_WARNING(Herder,
+                         "Herder::triggerNextLedger called twice on ledger {}",
+                         ledgerSeqToTrigger);
+        }
+    }
+
+    if (nextCloseTime <= lcl.header.scpValue.closeTime)
+    {
+        nextCloseTime = lcl.header.scpValue.closeTime + 1;
+    }
+
+    // Ensure we're about to nominate a value with valid close time
+    auto isCtValid =
+        ctValidityOffset(nextCloseTime) == std::chrono::milliseconds::zero();
+
+    if (!isCtValid)
+    {
+        CLOG_WARNING(Herder,
+                     "Invalid close time selected ({}), skipping nomination",
+                     nextCloseTime);
+        return;
+    }
+
+    // Consume the private snapshot only for the ledger it was built against.
+    // Keep its close time: changing it would invalidate time-bound transactions
+    // and the cached validation result.
+    auto prepared = std::move(mPreparedTxSet);
+    mPreparedTxSet.reset();
+    mPrepareTxSetTimer.cancel();
+    if (!prepared || !prepared->capacityLimited ||
+        prepared->ledgerSeq != ledgerSeqToTrigger ||
+        prepared->previousLedgerHash != lcl.hash ||
+        ctValidityOffset(prepared->closeTime) !=
+            std::chrono::milliseconds::zero())
+    {
+        prepared = buildTxSet(ledgerSeqToTrigger, nextCloseTime);
+    }
+    else
+    {
+        CLOG_INFO(Herder, "Using prepared TX set for ledger {}",
+                  ledgerSeqToTrigger);
+    }
+    nextCloseTime = prepared->closeTime;
+    auto const upperBoundCloseTimeOffset =
+        nextCloseTime - lcl.header.scpValue.closeTime;
+    auto const& proposedSet = prepared->txSet;
+    auto const& applicableProposedSet = prepared->applicableTxSet;
+    Hash txSetHash;
+    if (!prepared->invalidTxHashes.empty())
     {
         CLOG_DEBUG(Herder,
                    "Removing {} transactions that failed tx set validation "
                    "from the mempool",
-                   invalidTxHashes.size());
-        overlayMgr.removeTransactions(invalidTxHashes);
+                   prepared->invalidTxHashes.size());
+        mApp.getOverlayManager().removeTransactions(prepared->invalidTxHashes);
     }
 
     if (!applicableProposedSet)

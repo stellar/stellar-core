@@ -26,6 +26,20 @@ NominationProtocol::NominationProtocol(Slot& slot)
 {
 }
 
+std::set<NodeID>
+NominationProtocol::predictLeaders(Slot& slot, Value const& previousValue,
+                                   uint32_t rounds)
+{
+    NominationProtocol preview(slot);
+    preview.mPreviousValue = previousValue;
+    for (uint32_t i = 0; i < rounds; ++i)
+    {
+        ++preview.mRoundNumber;
+        preview.updateRoundLeaders();
+    }
+    return preview.mRoundLeaders;
+}
+
 bool
 NominationProtocol::isNewerStatement(NodeID const& nodeID,
                                      SCPNomination const& st)

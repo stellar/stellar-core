@@ -41,6 +41,14 @@ SCP::nominate(uint64 slotIndex, ValueWrapperPtr value,
     return getSlot(slotIndex, true)->nominate(value, previousValue, false);
 }
 
+std::set<NodeID>
+SCP::predictNominationLeaders(uint64 slotIndex, Value const& previousValue,
+                              uint32_t rounds)
+{
+    Slot preview(slotIndex, *this);
+    return NominationProtocol::predictLeaders(preview, previousValue, rounds);
+}
+
 void
 SCP::stopNomination(uint64 slotIndex)
 {

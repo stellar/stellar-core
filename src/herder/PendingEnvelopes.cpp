@@ -787,6 +787,20 @@ PendingEnvelopes::readySlots()
     return result;
 }
 
+bool
+PendingEnvelopes::hasEnvelopesForSlot(uint64 slotIndex) const
+{
+    auto it = mEnvelopes.find(slotIndex);
+    if (it == mEnvelopes.end())
+    {
+        return false;
+    }
+    auto const& envs = it->second;
+    return !envs.mDiscardedEnvelopes.empty() ||
+           !envs.mProcessedEnvelopes.empty() ||
+           !envs.mFetchingEnvelopes.empty() || !envs.mReadyEnvelopes.empty();
+}
+
 void
 PendingEnvelopes::eraseOutsideRange(std::optional<uint64> minSlot,
                                     std::optional<uint64> maxSlot,

@@ -1,7 +1,15 @@
 [workspace]
 resolver = "2"
 members = ["src/rust", "overlay"]
-exclude = ["overlay-stub"]
+exclude = ["overlay-stub", "overlay/vendor/*"]
+
+# Preserve QUIC stream priority through libp2p's stream wrappers. These are the
+# already-pinned releases with a small API bridge; see overlay/vendor/README.md.
+[patch.crates-io]
+libp2p-core = { path = "overlay/vendor/libp2p-core" }
+libp2p-swarm = { path = "overlay/vendor/libp2p-swarm" }
+libp2p-quic = { path = "overlay/vendor/libp2p-quic" }
+multistream-select = { path = "overlay/vendor/multistream-select" }
 
 [profile.release]
 codegen-units = 1

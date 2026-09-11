@@ -1,12 +1,12 @@
 //! Unified libp2p Overlay v2
 //!
-//! **Transport: QUIC** for true stream independence - no TCP head-of-line blocking.
-//! If a packet is lost on the TX stream, SCP stream is UNAFFECTED.
+//! **Transport: QUIC** avoids TCP head-of-line blocking between streams.
+//! Streams still share connection flow control, congestion control and bandwidth.
 //!
 //! Uses libp2p-stream for persistent bidirectional streams:
-//! - SCP stream: consensus messages (priority, ~500B)
+//! - Control stream: SCP and TX set requests (highest send priority)
 //! - TX stream: transaction flooding (~1KB) - uses INV/GETDATA protocol
-//! - TxSet stream: TX set request/response (~10MB)
+//! - TxSet stream: responses (~10MB), ahead of transaction flooding
 //!
 //! Each stream is opened once per peer and kept alive.
 //! QUIC provides independent loss recovery per stream.
@@ -14,9 +14,12 @@
 use crate::flood::{
     GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxStreamMessage,
 };
+#[cfg(test)]
+use crate::integrated::CoreCommand;
+use crate::integrated::OverlayHandle as MempoolHandle;
 use crate::metrics::OverlayMetrics;
 use crate::wire::ValidatedTx;
-use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
+use futures::{AsyncReadExt, StreamExt};
 use libp2p::{
     identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
     identity::Keypair,
@@ -32,11 +35,15 @@ use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{mpsc, Mutex, OwnedSemaphorePermit, RwLock, Semaphore};
+use tokio::task::JoinSet;
 use tracing::{debug, error, info, trace, warn};
+
+mod framed_io;
 
 // Protocol identifiers for dedicated streams
 pub const SCP_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/scp/1.0.0");
+pub const CONTROL_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/control/1.0.0");
 pub const TX_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/tx/1.0.0");
 pub const TXSET_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/txset/1.0.0");
 
@@ -44,9 +51,10 @@ pub const TXSET_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/txset/1
 /// Max message size: 16MB (for large TX sets)
 const MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
 
-/// Bounded channel capacity for TX events (backpressure for TX flooding)
-/// TXs that can't be queued are dropped - they'll be re-requested if needed.
-const TX_EVENT_CHANNEL_CAPACITY: usize = 10_000;
+// Bound queued + active bulk sends. Admission waits in the caller, never in
+// the swarm loop: a backpressured peer must not stop SCP or swarm polling.
+const MAX_OUTSTANDING_TXSET_SENDS: usize = 64;
+const MAX_OUTSTANDING_TXSET_BYTES: usize = 256 * 1024 * 1024;
 
 /// Events from the overlay to the application
 #[derive(Debug, Clone)]
@@ -61,8 +69,6 @@ pub enum OverlayEvent {
         /// tx sets fetched on behalf of this envelope.
         slot: u32,
     },
-    /// Received TX from peer
-    TxReceived { tx: Arc<ValidatedTx>, from: PeerId },
     /// Received TX set response
     TxSetReceived {
         hash: [u8; 32],
@@ -94,8 +100,9 @@ pub enum OverlayCommand {
     /// Send TX set to a specific peer (response to their request)
     SendTxSet {
         hash: [u8; 32],
-        data: Vec<u8>,
+        data: Arc<Vec<u8>>,
         to: PeerId,
+        permits: (OwnedSemaphorePermit, OwnedSemaphorePermit),
     },
     /// Record that a peer has a specific TX set (learned from SCP message)
     RecordTxSetSource { hash: [u8; 32], peer: PeerId },
@@ -106,7 +113,11 @@ pub enum OverlayCommand {
     /// Request SCP state from all peers
     RequestScpState { ledger_seq: u32 },
     /// Send SCP envelope to a specific peer
-    SendScpToPeer { peer_id: PeerId, envelope: Vec<u8> },
+    SendScpToPeer {
+        peer_id: PeerId,
+        envelope: Vec<u8>,
+        responder: tokio::sync::oneshot::Sender<io::Result<()>>,
+    },
     /// Shutdown
     Shutdown,
     /// Query the number of connected peers (responds via oneshot)
@@ -115,12 +126,22 @@ pub enum OverlayCommand {
     Ping(tokio::sync::oneshot::Sender<()>),
 }
 
-/// Outbound streams to a peer - each stream has its own mutex to avoid head-of-line blocking.
-/// A large TxSet write won't block SCP sends to the same peer.
+/// Each route has its own mutex, so a TxSet write does not hold the control
+/// stream lock. Connection flow control and congestion capacity remain shared.
 struct PeerOutboundStreams {
-    scp: Mutex<Option<Stream>>,
-    tx: Mutex<Option<Stream>>,
-    txset: Mutex<Option<Stream>>,
+    scp: Mutex<Option<OutboundStream>>,
+    tx: Mutex<Option<OutboundStream>>,
+    txset: Mutex<Option<OutboundStream>>,
+    // Only opened for peers that reject the combined control protocol. Their
+    // requests still need isolation from response writes, using the old ID.
+    legacy_txset_request: Mutex<Option<OutboundStream>>,
+}
+
+struct OutboundStream {
+    stream: Stream,
+    // Remember negotiation on the cached stream, including after reopening.
+    // Legacy peers accept requests only on their TxSet protocol.
+    protocol: StreamProtocol,
 }
 
 impl PeerOutboundStreams {
@@ -129,6 +150,7 @@ impl PeerOutboundStreams {
             scp: Mutex::new(None),
             tx: Mutex::new(None),
             txset: Mutex::new(None),
+            legacy_txset_request: Mutex::new(None),
         }
     }
 }
@@ -163,6 +185,8 @@ impl From<IdentifyEvent> for StellarBehaviourEvent {
 #[derive(Clone)]
 pub struct OverlayHandle {
     cmd_tx: mpsc::Sender<OverlayCommand>,
+    txset_send_slots: Arc<Semaphore>,
+    txset_send_bytes: Arc<Semaphore>,
 }
 
 impl OverlayHandle {
@@ -201,10 +225,34 @@ impl OverlayHandle {
         }
     }
 
-    pub async fn send_txset(&self, hash: [u8; 32], data: Vec<u8>, to: PeerId) {
+    pub async fn send_txset(&self, hash: [u8; 32], data: impl Into<Arc<Vec<u8>>>, to: PeerId) {
+        let data = data.into();
+        // Include the StellarMessage discriminant in the existing wire limit.
+        if data.len() > MAX_MESSAGE_SIZE - 4 {
+            warn!(
+                "Cannot send oversized TX set to {}: {} bytes",
+                to,
+                data.len()
+            );
+            return;
+        }
+        let permits = tokio::select! {
+            permits = async {
+                let slots = Arc::clone(&self.txset_send_slots).acquire_owned().await.unwrap();
+                let bytes = Arc::clone(&self.txset_send_bytes)
+                    .acquire_many_owned((data.len() + 4) as u32).await.unwrap();
+                (slots, bytes)
+            } => permits,
+            _ = self.cmd_tx.closed() => return,
+        };
         if let Err(e) = self
             .cmd_tx
-            .send(OverlayCommand::SendTxSet { hash, data, to })
+            .send(OverlayCommand::SendTxSet {
+                hash,
+                data,
+                to,
+                permits,
+            })
             .await
         {
             warn!(
@@ -262,14 +310,24 @@ impl OverlayHandle {
     }
 
     pub async fn send_scp_to_peer(&self, peer_id: PeerId, envelope: &[u8]) -> io::Result<()> {
+        let (responder, completion) = tokio::sync::oneshot::channel();
         self.cmd_tx
             .send(OverlayCommand::SendScpToPeer {
                 peer_id,
                 envelope: envelope.to_vec(),
+                responder,
             })
             .await
             .map_err(|_| io::Error::new(io::ErrorKind::Other, "Channel closed"))?;
-        Ok(())
+        // SCP-state responses send recent slots before the detached checkpoint.
+        // Wait for the write so a caller awaiting successive sends preserves
+        // that order, without making the dispatcher wait on network I/O.
+        completion.await.map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "SCP send canceled before completion",
+            )
+        })?
     }
 
     pub async fn shutdown(&self) {
@@ -302,7 +360,7 @@ impl OverlayHandle {
 
 /// Shared state for stream handlers
 struct SharedState {
-    /// Outbound streams per peer - each peer has three independently-locked streams
+    /// Outbound streams per peer, with independent locks for each purpose
     peer_streams: RwLock<HashMap<PeerId, Arc<PeerOutboundStreams>>>,
     /// SCP messages seen (for dedup)
     scp_seen: RwLock<lru::LruCache<[u8; 32], ()>>,
@@ -317,8 +375,8 @@ struct SharedState {
     pending_txset_requests: RwLock<HashMap<[u8; 32], (PeerId, Instant, u32)>>,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
-    /// Bounded TX event sender (backpressure - drops allowed)
-    tx_event_tx: mpsc::Sender<OverlayEvent>,
+    /// Direct, bounded admission into the same mempool FIFO as Core removal.
+    mempool: MempoolHandle,
     /// Counter for TXs dropped due to backpressure
     tx_dropped_count: AtomicU64,
     /// Stream control for reopening streams
@@ -340,7 +398,7 @@ struct SharedState {
 impl SharedState {
     fn new(
         event_tx: mpsc::UnboundedSender<OverlayEvent>,
-        tx_event_tx: mpsc::Sender<OverlayEvent>,
+        mempool: MempoolHandle,
         control: Control,
         metrics: Arc<OverlayMetrics>,
     ) -> Self {
@@ -360,7 +418,7 @@ impl SharedState {
             )),
             pending_txset_requests: RwLock::new(HashMap::new()),
             event_tx,
-            tx_event_tx,
+            mempool,
             tx_dropped_count: AtomicU64::new(0),
             control,
             // INV/GETDATA state
@@ -379,6 +437,8 @@ pub struct StellarOverlay {
     control: Control,
     state: Arc<SharedState>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
+    // Reaped while polling the swarm; dropping the overlay cancels its sends.
+    sends: JoinSet<()>,
 }
 
 /// Create the overlay and return handle + event receivers
@@ -386,16 +446,15 @@ pub struct StellarOverlay {
 /// Returns:
 /// - `OverlayHandle`: for sending commands to the overlay
 /// - `UnboundedReceiver<OverlayEvent>`: for SCP, TxSet events (critical path, never dropped)
-/// - `Receiver<OverlayEvent>`: for TX events (bounded, may drop under backpressure)
 /// - `StellarOverlay`: the overlay to run
 pub fn create_overlay(
     keypair: Keypair,
     metrics: Arc<OverlayMetrics>,
+    mempool: MempoolHandle,
 ) -> Result<
     (
         OverlayHandle,
         mpsc::UnboundedReceiver<OverlayEvent>,
-        mpsc::Receiver<OverlayEvent>,
         StellarOverlay,
     ),
     Box<dyn std::error::Error + Send + Sync>,
@@ -433,12 +492,10 @@ pub fn create_overlay(
     let (cmd_tx, cmd_rx) = mpsc::channel(256);
     // Unbounded channel for critical events (SCP, TxSet) - never drop
     let (event_tx, event_rx) = mpsc::unbounded_channel();
-    // Bounded channel for TX events - drops allowed under backpressure
-    let (tx_event_tx, tx_event_rx) = mpsc::channel(TX_EVENT_CHANNEL_CAPACITY);
 
     let state = Arc::new(SharedState::new(
         event_tx,
-        tx_event_tx,
+        mempool,
         control.clone(),
         metrics,
     ));
@@ -448,31 +505,53 @@ pub fn create_overlay(
         control,
         state,
         cmd_rx,
+        sends: JoinSet::new(),
     };
 
-    let handle = OverlayHandle { cmd_tx };
+    let handle = OverlayHandle {
+        cmd_tx,
+        txset_send_slots: Arc::new(Semaphore::new(MAX_OUTSTANDING_TXSET_SENDS)),
+        txset_send_bytes: Arc::new(Semaphore::new(MAX_OUTSTANDING_TXSET_BYTES)),
+    };
 
-    Ok((handle, event_rx, tx_event_rx, overlay))
+    Ok((handle, event_rx, overlay))
 }
 
 impl StellarOverlay {
-    /// Run the overlay event loop
-    ///
-    /// `listen_ip` should be a specific IP (e.g., "127.0.0.1" for local tests)
-    /// to avoid multi-homing issues where Identify advertises multiple addresses.
-    pub async fn run(mut self, listen_ip: &str, listen_port: u16) {
-        // Start listening on QUIC (UDP)
-        // Use specific IP to avoid Identify advertising all local IPs
+    /// Bind before starting App so a transport requirement failure aborts startup.
+    pub fn listen(&mut self, listen_ip: &str, listen_port: u16) -> io::Result<()> {
         let listen_addr: Multiaddr = format!("/ip4/{}/udp/{}/quic-v1", listen_ip, listen_port)
             .parse()
-            .unwrap();
-
-        if let Err(e) = self.swarm.listen_on(listen_addr.clone()) {
-            error!("Failed to listen on {}: {}", listen_addr, e);
-            return;
-        }
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        self.swarm.listen_on(listen_addr.clone()).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to listen on {listen_addr}: {e:?}"),
+            )
+        })?;
         info!("Listening on QUIC port {}", listen_port);
+        Ok(())
+    }
 
+    #[cfg(test)]
+    async fn run(mut self, listen_ip: &str, listen_port: u16) {
+        self.listen(listen_ip, listen_port).unwrap();
+        self.run_event_loop().await;
+    }
+
+    pub async fn run_event_loop(self) {
+        self.run_event_loop_with_control(
+            #[cfg(test)]
+            true,
+        )
+        .await;
+    }
+
+    // Keeping the legacy-only mode in this helper lets interoperability tests
+    // exercise real protocol negotiation; production always advertises control.
+    async fn run_event_loop_with_control(mut self, #[cfg(test)] accept_control: bool) {
+        #[cfg(not(test))]
+        let accept_control = true;
         // Accept incoming streams for each protocol
         let scp_incoming = match self.control.accept(SCP_PROTOCOL) {
             Ok(incoming) => incoming,
@@ -505,9 +584,28 @@ impl StellarOverlay {
             }
         };
 
+        let control_incoming = if accept_control {
+            match self.control.accept(CONTROL_PROTOCOL) {
+                Ok(incoming) => Some(incoming),
+                Err(e) => {
+                    error!("Failed to accept control protocol: {:?}", e);
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+
         // Spawn inbound stream handlers
         let state = self.state.clone();
-        tokio::spawn(handle_inbound_scp_streams(scp_incoming, state.clone()));
+        tokio::spawn(handle_inbound_scp_streams(
+            scp_incoming,
+            state.clone(),
+            false,
+        ));
+        if let Some(incoming) = control_incoming {
+            tokio::spawn(handle_inbound_scp_streams(incoming, state.clone(), true));
+        }
         tokio::spawn(handle_inbound_tx_streams(tx_incoming, state.clone()));
         tokio::spawn(handle_inbound_txset_streams(txset_incoming, state.clone()));
 
@@ -516,6 +614,11 @@ impl StellarOverlay {
 
         loop {
             tokio::select! {
+                Some(result) = self.sends.join_next(), if !self.sends.is_empty() => {
+                    if let Err(e) = result {
+                        error!("Overlay send task failed: {}", e);
+                    }
+                }
                 event = self.swarm.select_next_some() => {
                     self.handle_swarm_event(event).await;
                 }
@@ -531,8 +634,12 @@ impl StellarOverlay {
                         OverlayCommand::FetchTxSet { hash, slot } => {
                             self.fetch_txset(hash, slot).await;
                         }
-                        OverlayCommand::SendTxSet { hash, data, to } => {
-                            self.send_txset_response(to, hash, data).await;
+                        OverlayCommand::SendTxSet { hash, data, to, permits } => {
+                            let state = Arc::clone(&self.state);
+                            self.sends.spawn(async move {
+                                let _permits = permits;
+                                send_txset_response(state, to, hash, data).await;
+                            });
                         }
                         OverlayCommand::RecordTxSetSource { hash, peer } => {
                             let mut sources = self.state.txset_sources.write().await;
@@ -569,13 +676,16 @@ impl StellarOverlay {
                             info!("Requesting SCP state (ledger >= {}) from all peers", ledger_seq);
                             self.request_scp_state_from_all_peers(ledger_seq).await;
                         }
-                        OverlayCommand::SendScpToPeer { peer_id, envelope } => {
-                            // Don't hold &self across await - extract state and call helper directly
+                        OverlayCommand::SendScpToPeer { peer_id, envelope, responder } => {
                             let state = Arc::clone(&self.state);
                             let message = crate::xdr::frame_scp(&envelope);
-                            if let Err(e) = send_to_peer_stream(&state, peer_id.clone(), StreamType::Scp, &message).await {
-                                warn!("Failed to send SCP to {}: {:?}", peer_id, e);
-                            }
+                            self.sends.spawn(async move {
+                                let result = send_to_peer_stream(&state, peer_id, StreamType::Control, &message).await;
+                                if let Err(e) = &result {
+                                    warn!("Failed to send SCP to {}: {:?}", peer_id, e);
+                                }
+                                let _ = responder.send(result);
+                            });
                         }
                         OverlayCommand::Shutdown => {
                             info!("Overlay shutting down");
@@ -592,6 +702,12 @@ impl StellarOverlay {
                 }
             }
         }
+        // Close admission first so callers waiting for bulk-send permits also
+        // wake up. Abort writes only at shutdown, when streams are being torn
+        // down; resuming a partially written frame would corrupt the stream.
+        self.cmd_rx.close();
+        drop(self.swarm);
+        self.sends.shutdown().await;
     }
 
     async fn handle_swarm_event(&mut self, event: SwarmEvent<StellarBehaviourEvent>) {
@@ -803,8 +919,9 @@ impl StellarOverlay {
         for peer_id in peers_to_send {
             let state = Arc::clone(&self.state);
             let message = message.clone();
-            tokio::spawn(async move {
-                match send_to_peer_stream(&state, peer_id.clone(), StreamType::Scp, &message).await
+            self.sends.spawn(async move {
+                match send_to_peer_stream(&state, peer_id.clone(), StreamType::Control, &message)
+                    .await
                 {
                     Ok(_) => {
                         state
@@ -970,84 +1087,40 @@ impl StellarOverlay {
             }
         };
 
-        // Record this pending request with timestamp for latency tracking
+        // Keep selection and reservation in the dispatcher, before spawning
+        // the write, so repeated FetchTxSet commands cannot race past dedup.
+        let pending_request = (peer, Instant::now(), slot);
         self.state
             .pending_txset_requests
             .write()
             .await
-            .insert(hash, (peer.clone(), Instant::now(), slot));
+            .insert(hash, pending_request);
 
         let request = crate::xdr::frame_get_tx_set(hash);
-
-        match send_to_peer_stream(&self.state, peer.clone(), StreamType::TxSet, &request).await {
-            Ok(_) => info!(
-                "TXSET_FETCH_SENT: Sent request for TxSet {:02x?}... to {}",
-                &hash[..4],
-                peer
-            ),
-            Err(e) => {
-                warn!(
-                    "TXSET_FETCH_FAIL: Failed to send TxSet request {:02x?}... to {}: {}",
+        let state = Arc::clone(&self.state);
+        self.sends.spawn(async move {
+            match send_to_peer_stream(&state, peer, StreamType::TxSetRequest, &request).await {
+                Ok(_) => info!(
+                    "TXSET_FETCH_SENT: Sent request for TxSet {:02x?}... to {}",
                     &hash[..4],
-                    peer,
-                    e
-                );
-                self.state
-                    .pending_txset_requests
-                    .write()
-                    .await
-                    .remove(&hash);
-            }
-        }
-    }
-
-    /// Send TX set response to a specific peer
-    async fn send_txset_response(&mut self, peer: PeerId, hash: [u8; 32], data: Vec<u8>) {
-        info!(
-            "TXSET_SEND: Sending TX set {:02x?}... ({} bytes) to {}",
-            &hash[..4],
-            data.len(),
-            peer
-        );
-
-        // `data` is a tx set we already validated on entry (from a peer) or
-        // built locally (trusted core); frame by concatenation.
-        let response = crate::xdr::frame_tx_set(&data);
-
-        match send_to_peer_stream(&self.state, peer, StreamType::TxSet, &response).await {
-            Ok(_) => {
-                self.state
-                    .metrics
-                    .send_txset
-                    .fetch_add(1, Ordering::Relaxed);
-                self.state
-                    .metrics
-                    .message_write
-                    .fetch_add(1, Ordering::Relaxed);
-                self.state
-                    .metrics
-                    .byte_write
-                    .fetch_add(response.len() as u64, Ordering::Relaxed);
-                info!(
-                    "TXSET_SEND_OK: Successfully sent TX set {:02x?}... ({} bytes on wire) to {}",
-                    &hash[..4],
-                    response.len(),
                     peer
-                );
+                ),
+                Err(e) => {
+                    warn!(
+                        "TXSET_FETCH_FAIL: Failed to send TxSet request {:02x?}... to {}: {}",
+                        &hash[..4],
+                        peer,
+                        e
+                    );
+                    // A disconnect/reconnect may have assigned a new request
+                    // while this send was in flight. Only clear our own entry.
+                    let mut pending = state.pending_txset_requests.write().await;
+                    if pending.get(&hash) == Some(&pending_request) {
+                        pending.remove(&hash);
+                    }
+                }
             }
-            Err(e) => {
-                self.state
-                    .metrics
-                    .error_write
-                    .fetch_add(1, Ordering::Relaxed);
-                warn!(
-                    "TXSET_SEND_FAIL: Failed to send TxSet {:02x?}... to {}: {}",
-                    &hash[..4],
-                    peer,
-                    e
-                );
-            }
-        }
+        });
     }
 
     /// Request SCP state from all connected peers
@@ -1064,73 +1137,101 @@ impl StellarOverlay {
 
         let request = crate::xdr::frame_get_scp_state(ledger_seq);
         for peer_id in peers {
-            if let Err(e) =
-                send_to_peer_stream(&self.state, peer_id, StreamType::Scp, &request).await
-            {
-                warn!("Failed to send SCP state request to {}: {:?}", peer_id, e);
-            }
+            let state = Arc::clone(&self.state);
+            let request = request.clone();
+            self.sends.spawn(async move {
+                if let Err(e) =
+                    send_to_peer_stream(&state, peer_id, StreamType::Control, &request).await
+                {
+                    warn!("Failed to send SCP state request to {}: {:?}", peer_id, e);
+                }
+            });
         }
     }
 
     /// Send SCP envelope to a specific peer
     pub async fn send_scp_to_peer(&self, peer_id: PeerId, envelope: &[u8]) -> io::Result<()> {
         let message = crate::xdr::frame_scp(envelope);
-        send_to_peer_stream(&self.state, peer_id, StreamType::Scp, &message).await
+        send_to_peer_stream(&self.state, peer_id, StreamType::Control, &message).await
     }
 }
 
-/// Open SCP, TX, and TxSet streams to a peer.
+/// Send TX set response to a specific peer
+async fn send_txset_response(
+    state: Arc<SharedState>,
+    peer: PeerId,
+    hash: [u8; 32],
+    data: Arc<Vec<u8>>,
+) {
+    info!(
+        "TXSET_SEND: Sending TX set {:02x?}... ({} bytes) to {}",
+        &hash[..4],
+        data.len(),
+        peer
+    );
+
+    // `data` is a tx set we already validated on entry (from a peer) or
+    // built locally (trusted core). Keep the payload shared through admission
+    // and transmission, writing the small discriminant separately under the
+    // same stream lock as the payload.
+    let discriminant = (stellar_xdr::curr::MessageType::GeneralizedTxSet as i32).to_be_bytes();
+    let bytes = discriminant.len() + data.len();
+
+    match send_to_peer_stream_parts(&state, peer, StreamType::TxSet, &[&discriminant, &data]).await
+    {
+        Ok(_) => {
+            state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
+            state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+            state
+                .metrics
+                .byte_write
+                .fetch_add(bytes as u64, Ordering::Relaxed);
+            info!(
+                "TXSET_SEND_OK: Successfully sent TX set {:02x?}... ({} bytes on wire) to {}",
+                &hash[..4],
+                bytes,
+                peer
+            );
+        }
+        Err(e) => {
+            state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+            warn!(
+                "TXSET_SEND_FAIL: Failed to send TxSet {:02x?}... to {}: {}",
+                &hash[..4],
+                peer,
+                e
+            );
+        }
+    }
+}
+
+/// Open control, TX, and TxSet streams to a peer.
 /// Spawned as a background task so the swarm event loop stays unblocked —
 /// `control.open_stream()` needs the swarm to be polled to complete.
-async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, peer_id: PeerId) {
+async fn open_streams_to_peer(control: Control, state: Arc<SharedState>, peer_id: PeerId) {
     debug!("Opening streams to peer {}", peer_id);
-
-    let mut control2 = control.clone();
-    let mut control3 = control.clone();
-
-    let scp_fut = async { control.open_stream(peer_id, SCP_PROTOCOL).await };
-    let tx_fut = async { control2.open_stream(peer_id, TX_PROTOCOL).await };
-    let txset_fut = async { control3.open_stream(peer_id, TXSET_PROTOCOL).await };
-
-    let (scp_result, tx_result, txset_result) = tokio::join!(scp_fut, tx_fut, txset_fut);
-
-    let scp_stream = match scp_result {
-        Ok(s) => {
-            debug!("Opened SCP stream to {}", peer_id);
-            Some(s)
-        }
+    let (scp_stream, tx_stream, txset_stream) = tokio::join!(
+        open_peer_stream(control.clone(), peer_id, StreamType::Control),
+        open_peer_stream(control.clone(), peer_id, StreamType::Tx),
+        open_peer_stream(control, peer_id, StreamType::TxSet),
+    );
+    let opened = |result: io::Result<OutboundStream>| match result {
+        Ok(stream) => Some(stream),
         Err(e) => {
-            warn!("Failed to open SCP stream to {}: {:?}", peer_id, e);
+            warn!("Failed to open stream to {}: {}", peer_id, e);
             None
         }
     };
-
-    let tx_stream = match tx_result {
-        Ok(s) => {
-            debug!("Opened TX stream to {}", peer_id);
-            Some(s)
-        }
-        Err(e) => {
-            warn!("Failed to open TX stream to {}: {:?}", peer_id, e);
-            None
-        }
-    };
-
-    let txset_stream = match txset_result {
-        Ok(s) => {
-            debug!("Opened TxSet stream to {}", peer_id);
-            Some(s)
-        }
-        Err(e) => {
-            warn!("Failed to open TxSet stream to {}: {:?}", peer_id, e);
-            None
-        }
-    };
+    let scp_stream = opened(scp_stream);
+    let tx_stream = opened(tx_stream);
+    let txset_stream = opened(txset_stream);
 
     // Store streams
     {
-        let streams = state.peer_streams.read().await;
-        if let Some(peer_streams) = streams.get(&peer_id) {
+        // Never retain the peer-map lock while waiting for a stream writer:
+        // connection/disconnection handling needs to update this map.
+        let peer_streams = state.peer_streams.read().await.get(&peer_id).cloned();
+        if let Some(peer_streams) = peer_streams {
             if let Some(stream) = scp_stream {
                 *peer_streams.scp.lock().await = Some(stream);
             }
@@ -1147,7 +1248,9 @@ async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, pee
     info!("Peer {} streams opened, sending SCP state request", peer_id);
     let ledger_seq: u32 = 0;
     let request = crate::xdr::frame_get_scp_state(ledger_seq);
-    if let Err(e) = send_to_peer_stream(&state, peer_id.clone(), StreamType::Scp, &request).await {
+    if let Err(e) =
+        send_to_peer_stream(&state, peer_id.clone(), StreamType::Control, &request).await
+    {
         info!(
             "Failed to request SCP state from newly connected peer {}: {:?}",
             peer_id, e
@@ -1155,21 +1258,55 @@ async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, pee
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum StreamType {
-    Scp,
+    Control,
     Tx,
     TxSet,
+    TxSetRequest,
+    LegacyTxSetRequest,
 }
 
 impl StreamType {
     fn protocol(&self) -> StreamProtocol {
         match self {
-            StreamType::Scp => SCP_PROTOCOL,
+            StreamType::Control | StreamType::TxSetRequest => CONTROL_PROTOCOL,
             StreamType::Tx => TX_PROTOCOL,
-            StreamType::TxSet => TXSET_PROTOCOL,
+            StreamType::TxSet | StreamType::LegacyTxSetRequest => TXSET_PROTOCOL,
         }
     }
+
+    fn priority(self) -> i32 {
+        match self {
+            Self::Control | Self::TxSetRequest | Self::LegacyTxSetRequest => 2,
+            Self::TxSet => 1,
+            Self::Tx => 0,
+        }
+    }
+}
+
+/// Negotiate the route, then set actual QUIC priority before application bytes
+/// are written. Only an explicit unsupported-protocol response permits fallback.
+async fn open_peer_stream(
+    mut control: Control,
+    peer: PeerId,
+    kind: StreamType,
+) -> io::Result<OutboundStream> {
+    let mut protocol = kind.protocol();
+    let result = control.open_stream(peer, protocol.clone()).await;
+    let stream = match result {
+        Err(libp2p_stream::OpenStreamError::UnsupportedProtocol(_))
+            if protocol == CONTROL_PROTOCOL =>
+        {
+            protocol = SCP_PROTOCOL;
+            control.open_stream(peer, protocol.clone()).await
+        }
+        result => result,
+    }
+    .map_err(|e| io::Error::new(io::ErrorKind::NotConnected, e))?;
+    stream.set_priority(kind.priority())?;
+    debug!(%peer, %protocol, priority = kind.priority(), "Opened outbound stream");
+    Ok(OutboundStream { stream, protocol })
 }
 
 /// Send message to a specific peer's stream only if already open (for flooding)
@@ -1187,11 +1324,12 @@ async fn try_send_to_existing_stream(
         .clone();
     drop(streams);
 
-    // Lock only the specific stream we need - no head-of-line blocking
+    // Serialize frames only within this peer's stream for this purpose.
     let stream_mutex = match stream_type {
-        StreamType::Scp => &peer_streams.scp,
+        StreamType::Control | StreamType::TxSetRequest => &peer_streams.scp,
         StreamType::Tx => &peer_streams.tx,
         StreamType::TxSet => &peer_streams.txset,
+        StreamType::LegacyTxSetRequest => &peer_streams.legacy_txset_request,
     };
 
     let mut stream_guard = stream_mutex.lock().await;
@@ -1201,7 +1339,7 @@ async fn try_send_to_existing_stream(
         .as_mut()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotConnected, "stream not open"))?;
 
-    write_framed(stream, data).await
+    write_framed(&mut stream.stream, data).await
 }
 
 /// Restart the per-peer GETDATA timeout clock for hashes whose demand chunk
@@ -1226,6 +1364,17 @@ async fn send_to_peer_stream(
     stream_type: StreamType,
     data: &[u8],
 ) -> io::Result<()> {
+    send_to_peer_stream_parts(state, peer_id, stream_type, &[data]).await
+}
+
+/// All parts form one frame, including across partial writes and retries.
+/// The per-route lock stays held until that entire frame has been written.
+async fn send_to_peer_stream_parts(
+    state: &SharedState,
+    peer_id: PeerId,
+    stream_type: StreamType,
+    parts: &[&[u8]],
+) -> io::Result<()> {
     // Retry up to 2 times (3 attempts total) for reliability
     const MAX_RETRIES: usize = 2;
 
@@ -1242,11 +1391,12 @@ async fn send_to_peer_stream(
         };
         drop(streams);
 
-        // Lock only the specific stream we need - no head-of-line blocking
+        // Serialize frames only within this peer's stream for this purpose.
         let stream_mutex = match stream_type {
-            StreamType::Scp => &peer_streams.scp,
+            StreamType::Control | StreamType::TxSetRequest => &peer_streams.scp,
             StreamType::Tx => &peer_streams.tx,
             StreamType::TxSet => &peer_streams.txset,
+            StreamType::LegacyTxSetRequest => &peer_streams.legacy_txset_request,
         };
 
         let mut stream_guard = stream_mutex.lock().await;
@@ -1259,12 +1409,7 @@ async fn send_to_peer_stream(
                 peer_id,
                 attempt + 1
             );
-            match state
-                .control
-                .clone()
-                .open_stream(peer_id, stream_type.protocol())
-                .await
-            {
+            match open_peer_stream(state.control.clone(), peer_id, stream_type).await {
                 Ok(s) => {
                     debug!(
                         "Successfully reopened {:?} stream to {}",
@@ -1304,7 +1449,19 @@ async fn send_to_peer_stream(
         }
 
         let stream = stream_guard.as_mut().unwrap();
-        match write_framed(stream, data).await {
+        if stream_type == StreamType::TxSetRequest && stream.protocol != CONTROL_PROTOCOL {
+            // Never send a request to an old SCP reader: it would silently
+            // discard it. Keep requests isolated from legacy response writes.
+            drop(stream_guard);
+            return Box::pin(send_to_peer_stream_parts(
+                state,
+                peer_id,
+                StreamType::LegacyTxSetRequest,
+                parts,
+            ))
+            .await;
+        }
+        match framed_io::write_frame_parts(&mut stream.stream, parts).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 // Clear the broken stream
@@ -1334,11 +1491,7 @@ async fn send_to_peer_stream(
 
 /// Write length-prefixed frame to stream
 async fn write_framed(stream: &mut Stream, data: &[u8]) -> io::Result<()> {
-    let len = data.len() as u32;
-    stream.write_all(&len.to_be_bytes()).await?;
-    stream.write_all(data).await?;
-    stream.flush().await?;
-    Ok(())
+    framed_io::write_frame_parts(stream, &[data]).await
 }
 
 /// Flush INV batch for a specific peer
@@ -1413,7 +1566,11 @@ async fn read_framed(stream: &mut Stream) -> io::Result<Vec<u8>> {
 }
 
 /// Handle inbound SCP streams from peers
-async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
+async fn handle_inbound_scp_streams(
+    mut incoming: IncomingStreams,
+    state: Arc<SharedState>,
+    accepts_txset_requests: bool,
+) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
         info!("SCP_STREAM: Accepted inbound SCP stream from {}", peer_id);
         state
@@ -1442,6 +1599,12 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                         };
 
                         let scp_envelope = match message {
+                            stellar_xdr::curr::StellarMessage::GetTxSet(hash)
+                                if accepts_txset_requests =>
+                            {
+                                handle_txset_request(&state, peer_id, hash.0);
+                                continue;
+                            }
                             stellar_xdr::curr::StellarMessage::GetScpState(ledger_seq) => {
                                 info!(
                                     "SCP_STATE_REQ: Peer {} requests SCP state for ledger >= {}",
@@ -1778,6 +1941,20 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
                 .fetch_add(tx_len, Ordering::Relaxed);
             return;
         }
+        // Enqueue before marking seen or awaiting buffer/relay work. A later
+        // Core removal is ordered after this admission even if App is busy.
+        if !state.mempool.try_submit_network_tx(Arc::clone(&tx)) {
+            state.metrics.message_drop.fetch_add(1, Ordering::Relaxed);
+            let dropped = state.tx_dropped_count.fetch_add(1, Ordering::Relaxed) + 1;
+            if dropped % 1000 == 1 {
+                warn!(
+                    "TX_BACKPRESSURE: Dropped TX {:02x?}... (total dropped: {})",
+                    &hash[..4],
+                    dropped
+                );
+            }
+            return;
+        }
         seen.put(hash, ());
         state
             .metrics
@@ -1817,22 +1994,6 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
         tx.bytes().len(),
         peer_id
     );
-
-    // Forward to Core via bounded TX channel
-    if let Err(_) = state.tx_event_tx.try_send(OverlayEvent::TxReceived {
-        tx: Arc::clone(&tx),
-        from: peer_id.clone(),
-    }) {
-        state.metrics.message_drop.fetch_add(1, Ordering::Relaxed);
-        let dropped = state.tx_dropped_count.fetch_add(1, Ordering::Relaxed) + 1;
-        if dropped % 1000 == 1 {
-            warn!(
-                "TX_BACKPRESSURE: Dropped TX {:02x?}... (total dropped: {})",
-                &hash[..4],
-                dropped
-            );
-        }
-    }
 
     // RELAY: Announce to other peers via INV
     let peers_to_announce: Vec<PeerId> = {
@@ -1886,6 +2047,24 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
     state.metrics.update_recv_transaction_max(elapsed_us);
 }
 
+/// Both the control protocol and the legacy TxSet protocol accept requests.
+fn handle_txset_request(state: &SharedState, peer_id: PeerId, hash: [u8; 32]) {
+    info!(
+        "TXSET_REQ_IN: Received TxSet request for {:02x?}... from {}",
+        &hash[..4],
+        peer_id
+    );
+    if let Err(e) = state.event_tx.send(OverlayEvent::TxSetRequested {
+        hash,
+        from: peer_id,
+    }) {
+        warn!(
+            "Failed to forward TxSetRequested event from {}: {}",
+            peer_id, e
+        );
+    }
+}
+
 /// Handle inbound TxSet streams from peers
 async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
@@ -1915,22 +2094,7 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
 
                         match message {
                             stellar_xdr::curr::StellarMessage::GetTxSet(hash) => {
-                                let hash = hash.0;
-                                info!(
-                                    "TXSET_REQ_IN: Received TxSet request for {:02x?}... from {}",
-                                    &hash[..4],
-                                    peer_id
-                                );
-
-                                if let Err(e) = state.event_tx.send(OverlayEvent::TxSetRequested {
-                                    hash,
-                                    from: peer_id,
-                                }) {
-                                    warn!(
-                                        "Failed to forward TxSetRequested event from {}: {}",
-                                        peer_id, e
-                                    );
-                                }
+                                handle_txset_request(&state, peer_id, hash.0);
                             }
                             stellar_xdr::curr::StellarMessage::GeneralizedTxSet(_tx_set) => {
                                 // The message was strict-decoded above, so the
@@ -2155,14 +2319,134 @@ fn test_txset_xdr(seed: u8) -> ([u8; 32], Vec<u8>) {
 }
 
 #[cfg(test)]
+type TestOverlay = (
+    OverlayHandle,
+    mpsc::UnboundedReceiver<OverlayEvent>,
+    mpsc::UnboundedReceiver<CoreCommand>,
+    StellarOverlay,
+);
+
+#[cfg(test)]
+fn create_test_overlay(
+    keypair: Keypair,
+    metrics: Arc<OverlayMetrics>,
+) -> Result<TestOverlay, Box<dyn std::error::Error + Send + Sync>> {
+    let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+    let (handle, events, overlay) = create_overlay(keypair, metrics, MempoolHandle::new(cmd_tx))?;
+    Ok((handle, events, cmd_rx, overlay))
+}
+
+#[cfg(test)]
+mod dispatch_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn network_admission_precedes_app_removal() {
+        use crate::integrated::{Overlay as MempoolManager, OverlayHandle as MempoolHandle};
+
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let mempool = MempoolHandle::new(cmd_tx);
+        let task = tokio::spawn(MempoolManager::new(cmd_rx).run());
+        let (_handle, _events, overlay) = create_overlay(
+            Keypair::generate_ed25519(),
+            Arc::new(OverlayMetrics::new()),
+            mempool.clone(),
+        )
+        .unwrap();
+        let tx = test_tx(1);
+
+        // No App event loop is running. A completed network admission must
+        // already precede subsequent commands in the mempool FIFO.
+        handle_tx_response(&overlay.state, &PeerId::random(), tx.clone()).await;
+        let top = mempool.get_top_txs(10).await.unwrap();
+        assert_eq!(
+            top.len(),
+            1,
+            "network admission must not wait for App polling"
+        );
+        assert_eq!(top[0].hash(), tx.hash());
+        mempool.remove_txs_sync(vec![*tx.hash()]).await;
+        assert!(mempool.get_top_txs(10).await.unwrap().is_empty());
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn removal_cannot_be_overtaken_by_admission_waiting_on_relay_bookkeeping() {
+        use crate::integrated::Overlay as MempoolManager;
+        use futures::poll;
+
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let mempool = MempoolHandle::new(cmd_tx);
+        let (_handle, _events, overlay) = create_overlay(
+            Keypair::generate_ed25519(),
+            Arc::new(OverlayMetrics::new()),
+            mempool.clone(),
+        )
+        .unwrap();
+        let tx = test_tx(1);
+        let peer = PeerId::random();
+        let pending = overlay.state.pending_getdata.write().await;
+        let receive = handle_tx_response(&overlay.state, &peer, tx.clone());
+        tokio::pin!(receive);
+        assert!(poll!(receive.as_mut()).is_pending());
+
+        // The reader is paused at its first bookkeeping await after admission.
+        // Core can remove the transaction even before that reader resumes.
+        let task = tokio::spawn(MempoolManager::new(cmd_rx).run());
+        assert_eq!(mempool.get_top_txs(10).await.unwrap().len(), 1);
+        mempool.remove_txs_sync(vec![*tx.hash()]).await;
+        drop(pending);
+        receive.await;
+        assert!(mempool.get_top_txs(10).await.unwrap().is_empty());
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn saturated_network_admission_is_retryable_and_duplicates_enqueue_once() {
+        let (cmd_tx, mut commands) = mpsc::unbounded_channel();
+        let mempool = MempoolHandle::with_admission_capacity(cmd_tx, 1);
+        let (_handle, _events, overlay) = create_overlay(
+            Keypair::generate_ed25519(),
+            Arc::new(OverlayMetrics::new()),
+            mempool,
+        )
+        .unwrap();
+        let state = &overlay.state;
+        let first = test_tx(1);
+        let second = test_tx(2);
+        let peer = PeerId::random();
+        handle_tx_response(state, &peer, first.clone()).await;
+        handle_tx_response(state, &peer, second.clone()).await;
+        assert_eq!(state.tx_dropped_count.load(Ordering::Relaxed), 1);
+        assert!(!state.tx_seen.read().await.contains(second.hash()));
+        assert!(state.tx_buffer.write().await.get(second.hash()).is_none());
+
+        // Observing/dropping the first command releases capacity. Two readers
+        // retrying the second TX must enqueue it once, using existing dedup.
+        let command = commands.try_recv().unwrap();
+        assert!(matches!(&command, CoreCommand::SubmitTx { tx, .. } if tx.hash() == first.hash()));
+        drop(command);
+        let other = PeerId::random();
+        tokio::join!(
+            handle_tx_response(state, &peer, second.clone()),
+            handle_tx_response(state, &other, second.clone()),
+        );
+        let command = commands.try_recv().unwrap();
+        assert!(matches!(&command, CoreCommand::SubmitTx { tx, .. } if tx.hash() == second.hash()));
+        assert!(commands.try_recv().is_err());
+        assert_eq!(state.tx_dropped_count.load(Ordering::Relaxed), 1);
+        assert!(state.tx_seen.read().await.contains(second.hash()));
+        assert!(state.tx_buffer.write().await.get(second.hash()).is_some());
+    }
+
+    #[tokio::test]
     async fn test_overlay_creation() {
         let keypair = Keypair::generate_ed25519();
-        let (handle, _events, _tx_events, overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _events, _admissions, overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let overlay_task = tokio::spawn(async move {
             overlay.run("127.0.0.1", 0).await;
@@ -2182,10 +2466,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, _admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19101;
         let _overlay1_task = tokio::spawn(async move {
@@ -2239,10 +2523,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, _admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19201;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2304,10 +2588,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, mut tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, mut admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19301;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2327,7 +2611,7 @@ mod tests {
 
         // Drain connection events
         while events2.try_recv().is_ok() {}
-        while tx_events2.try_recv().is_ok() {}
+        while admissions2.try_recv().is_ok() {}
 
         let tx_count = 1000;
 
@@ -2342,7 +2626,7 @@ mod tests {
         handle1.broadcast_scp(scp_msg.clone()).await;
 
         // Track when SCP arrives vs when all TXs arrive
-        // SCP comes on unbounded events channel, TX on bounded tx_events channel
+        // SCP comes on unbounded events channel, TX on bounded admissions channel
         let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
         let mut scp_received_at: Option<std::time::Instant> = None;
         let mut tx_count_received = 0u32;
@@ -2357,8 +2641,8 @@ mod tests {
                         }
                     }
                 }
-                Some(event) = tx_events2.recv() => {
-                    if let OverlayEvent::TxReceived { .. } = event {
+                Some(event) = admissions2.recv() => {
+                    if let CoreCommand::SubmitTx { .. } = event {
                         tx_count_received += 1;
                         if tx_count_received >= tx_count && all_tx_received_at.is_none() {
                             all_tx_received_at = Some(std::time::Instant::now());
@@ -2416,10 +2700,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, mut tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, mut admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19501;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2439,7 +2723,7 @@ mod tests {
 
         // Drain connection events
         while events2.try_recv().is_ok() {}
-        while tx_events2.try_recv().is_ok() {}
+        while admissions2.try_recv().is_ok() {}
 
         let scp_count = 1000;
 
@@ -2455,7 +2739,7 @@ mod tests {
         handle1.broadcast_tx(Arc::clone(&tx_msg)).await;
 
         // Track when TX arrives vs when all SCPs arrive
-        // SCP comes on unbounded events channel, TX on bounded tx_events channel
+        // SCP comes on unbounded events channel, TX on bounded admissions channel
         let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
         let mut tx_received_at: Option<std::time::Instant> = None;
         let mut scp_count_received = 0u32;
@@ -2463,8 +2747,8 @@ mod tests {
 
         while tokio::time::Instant::now() < deadline {
             tokio::select! {
-                Some(event) = tx_events2.recv() => {
-                    if let OverlayEvent::TxReceived { tx, .. } = event {
+                Some(event) = admissions2.recv() => {
+                    if let CoreCommand::SubmitTx { tx, .. } = event {
                         if tx.bytes() == tx_msg.bytes() && tx_received_at.is_none() {
                             tx_received_at = Some(std::time::Instant::now());
                         }
@@ -2523,10 +2807,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, _events2, mut tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, _events2, mut admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19401;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2545,20 +2829,20 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Drain events
-        while tx_events2.try_recv().is_ok() {}
+        while admissions2.try_recv().is_ok() {}
 
         // Send TX
         let tx_msg = test_tx(20_000);
         handle1.broadcast_tx(Arc::clone(&tx_msg)).await;
 
-        // Wait for TX on the bounded TX events channel
+        // Wait for TX on the mempool command stream
         let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
         let mut received = false;
 
         while tokio::time::Instant::now() < deadline && !received {
             tokio::select! {
-                Some(event) = tx_events2.recv() => {
-                    if let OverlayEvent::TxReceived { tx, .. } = event {
+                Some(event) = admissions2.recv() => {
+                    if let CoreCommand::SubmitTx { tx, .. } = event {
                         assert_eq!(tx.bytes(), tx_msg.bytes());
                         received = true;
                     }
@@ -2580,10 +2864,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, mut events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, mut events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, _admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19601;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2663,10 +2947,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, _events2, mut tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, _events2, mut admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19701;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2685,7 +2969,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Drain events
-        while tx_events2.try_recv().is_ok() {}
+        while admissions2.try_recv().is_ok() {}
 
         // Send multiple TXs
         let tx_count = 10;
@@ -2693,14 +2977,14 @@ mod tests {
             handle1.broadcast_tx(test_tx(i as i64)).await;
         }
 
-        // Wait for all TXs on bounded TX events channel
+        // Wait for all TXs on mempool command stream
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
         let mut received_count = 0;
 
         while tokio::time::Instant::now() < deadline && received_count < tx_count {
             tokio::select! {
-                Some(event) = tx_events2.recv() => {
-                    if let OverlayEvent::TxReceived { .. } = event {
+                Some(event) = admissions2.recv() => {
+                    if let CoreCommand::SubmitTx { .. } = event {
                         received_count += 1;
                     }
                 }
@@ -2725,10 +3009,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, _events2, mut tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, _events2, mut admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19801;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2747,7 +3031,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Drain events
-        while tx_events2.try_recv().is_ok() {}
+        while admissions2.try_recv().is_ok() {}
 
         // Send same TX twice
         let tx = test_tx(30_000);
@@ -2759,8 +3043,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         let mut received_count = 0;
-        while let Ok(event) = tx_events2.try_recv() {
-            if let OverlayEvent::TxReceived { .. } = event {
+        while let Ok(event) = admissions2.try_recv() {
+            if let CoreCommand::SubmitTx { .. } = event {
                 received_count += 1;
             }
         }
@@ -2785,12 +3069,12 @@ mod tests {
         let keypair_b = Keypair::generate_ed25519();
         let keypair_c = Keypair::generate_ed25519();
 
-        let (handle_a, mut events_a, _tx_events_a, overlay_a) =
-            create_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle_b, mut events_b, _tx_events_b, overlay_b) =
-            create_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle_c, mut events_c, _tx_events_c, overlay_c) =
-            create_overlay(keypair_c, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_a, mut events_a, _admissions_a, overlay_a) =
+            create_test_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_b, mut events_b, _admissions_b, overlay_b) =
+            create_test_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_c, mut events_c, _admissions_c, overlay_c) =
+            create_test_overlay(keypair_c, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Start all nodes on different ports
         let port_a = 19901;
@@ -2879,12 +3163,12 @@ mod tests {
         let keypair_b = Keypair::generate_ed25519();
         let keypair_c = Keypair::generate_ed25519();
 
-        let (handle_a, _events_a, _tx_events_a, overlay_a) =
-            create_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle_b, _events_b, mut tx_events_b, overlay_b) =
-            create_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle_c, _events_c, mut tx_events_c, overlay_c) =
-            create_overlay(keypair_c, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_a, _events_a, _admissions_a, overlay_a) =
+            create_test_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_b, _events_b, mut admissions_b, overlay_b) =
+            create_test_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_c, _events_c, mut admissions_c, overlay_c) =
+            create_test_overlay(keypair_c, Arc::new(OverlayMetrics::new())).unwrap();
 
         let port_a = 20001;
         let port_b = 20002;
@@ -2913,8 +3197,8 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(500)).await;
 
-        while tx_events_b.try_recv().is_ok() {}
-        while tx_events_c.try_recv().is_ok() {}
+        while admissions_b.try_recv().is_ok() {}
+        while admissions_c.try_recv().is_ok() {}
 
         // A broadcasts TX
         let tx_msg = test_tx(40_000);
@@ -2926,15 +3210,15 @@ mod tests {
 
         while tokio::time::Instant::now() < deadline && (!b_received || !c_received) {
             tokio::select! {
-                Some(event) = tx_events_b.recv() => {
-                    if let OverlayEvent::TxReceived { tx, .. } = event {
+                Some(event) = admissions_b.recv() => {
+                    if let CoreCommand::SubmitTx { tx, .. } = event {
                         if tx.bytes() == tx_msg.bytes() {
                             b_received = true;
                         }
                     }
                 }
-                Some(event) = tx_events_c.recv() => {
-                    if let OverlayEvent::TxReceived { tx, .. } = event {
+                Some(event) = admissions_c.recv() => {
+                    if let CoreCommand::SubmitTx { tx, .. } = event {
                         if tx.bytes() == tx_msg.bytes() {
                             c_received = true;
                         }
@@ -2956,8 +3240,8 @@ mod tests {
     #[tokio::test]
     async fn test_clean_shutdown() {
         let keypair = Keypair::generate_ed25519();
-        let (handle, _events, _tx_events, overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _events, _admissions, overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let overlay_task = tokio::spawn(async move {
             overlay.run("127.0.0.1", 20100).await;
@@ -2986,8 +3270,8 @@ mod tests {
     #[tokio::test]
     async fn test_dial_invalid_address() {
         let keypair = Keypair::generate_ed25519();
-        let (handle, _events, _tx_events, overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _events, _admissions, overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         tokio::spawn(async move { overlay.run("127.0.0.1", 20200).await });
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -3007,16 +3291,16 @@ mod tests {
     /// Verifies:
     /// 1. SCP messages are NEVER dropped (critical path on unbounded channel)
     /// 2. TXs may be dropped under extreme load (acceptable - they'll be re-requested)
-    /// 3. No unbounded memory growth (bounded TX channel caps at TX_EVENT_CHANNEL_CAPACITY)
+    /// 3. No unbounded memory growth (network admission permits cap queued + active insertions at 10,000)
     #[tokio::test]
     async fn test_tx_backpressure_stress() {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, mut tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _admissions1, overlay1) =
+            create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, mut admissions2, overlay2) =
+            create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Use unique ports to avoid conflicts with other tests
         let listen_port = 22901;
@@ -3035,7 +3319,7 @@ mod tests {
 
         // Drain any initial events
         while events2.try_recv().is_ok() {}
-        while tx_events2.try_recv().is_ok() {}
+        while admissions2.try_recv().is_ok() {}
 
         // STRESS TEST: Flood with many TXs while also sending SCP
         // This simulates a real attack scenario where the network is flooded with TXs
@@ -3081,17 +3365,17 @@ mod tests {
                         scp_received += 1;
                     }
                 }
-                Some(event) = tx_events2.recv() => {
-                    if let OverlayEvent::TxReceived { .. } = event {
+                Some(event) = admissions2.recv() => {
+                    if let CoreCommand::SubmitTx { .. } = event {
                         tx_received += 1;
                     }
                 }
                 _ = tokio::time::sleep(Duration::from_millis(100)) => {
                     // Check if channels are empty
-                    if events2.is_empty() && tx_events2.is_empty() {
+                    if events2.is_empty() && admissions2.is_empty() {
                         // Give a bit more time for any in-flight messages
                         tokio::time::sleep(Duration::from_millis(200)).await;
-                        if events2.is_empty() && tx_events2.is_empty() {
+                        if events2.is_empty() && admissions2.is_empty() {
                             break;
                         }
                     }
@@ -3134,10 +3418,10 @@ async fn test_txset_source_tracking() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20101;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3178,10 +3462,10 @@ async fn test_txset_fetch_flow() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20201;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3228,10 +3512,10 @@ async fn test_peer_disconnect_detection() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20301;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3266,8 +3550,8 @@ async fn test_peer_disconnect_detection() {
 #[tokio::test]
 async fn test_connect_unreachable_peer_timeout() {
     let keypair = Keypair::generate_ed25519();
-    let (handle, _events, _tx_events, overlay) =
-        create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, _events, _admissions, overlay) =
+        create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20401;
     tokio::spawn(async move { overlay.run("127.0.0.1", listen_port).await });
@@ -3300,10 +3584,10 @@ async fn test_large_txset_doesnt_block_scp() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20501;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3368,10 +3652,10 @@ async fn test_txset_request_and_response() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20601;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3443,8 +3727,8 @@ async fn test_txset_request_and_response() {
 #[tokio::test]
 async fn test_txset_fetch_no_peers() {
     let keypair = Keypair::generate_ed25519();
-    let (handle, mut events, _tx_events, overlay) =
-        create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, mut events, _admissions, overlay) =
+        create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20701;
     tokio::spawn(async move { overlay.run("127.0.0.1", listen_port).await });
@@ -3479,10 +3763,10 @@ async fn test_txset_multiple_concurrent_requests() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20801;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3548,10 +3832,10 @@ async fn test_scp_state_request_on_connection() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     // NB: unique per test — clashing listen ports break parallel runs: the
     // loser of the bind race isn't reachable and its test times out.
@@ -3615,10 +3899,10 @@ async fn test_quic_keepalive_survives_idle() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     // Use unique ports to avoid conflicts with other tests
     let listen_port = 23001;
@@ -3693,10 +3977,10 @@ async fn test_listen_on_configured_ip() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 21101;
 
@@ -3742,8 +4026,8 @@ async fn test_listen_ip_binding() {
     // Test that we can specify different IPs for run()
     // On most systems, 127.0.0.1 and 127.0.0.2 are both valid loopback addresses
     let keypair = Keypair::generate_ed25519();
-    let (handle, _events, _tx_events, overlay) =
-        create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, _events, _admissions, overlay) =
+        create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 21201;
 
@@ -3770,10 +4054,10 @@ async fn test_scp_broadcast_does_not_block_event_loop() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let port1 = 21301;
     let port2 = 21302;
@@ -3824,10 +4108,10 @@ async fn test_concurrent_scp_and_txset_writes_to_same_peer() {
     let keypair2 = Keypair::generate_ed25519();
     let peer2_id = PeerId::from_public_key(&keypair2.public());
 
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 21001;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3924,10 +4208,10 @@ async fn test_pending_txset_cleanup_on_disconnect() {
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     // Start both overlays (ports must not collide with test_20_node_full_mesh 22000-22019)
     let listen_port1 = 22501;
@@ -4040,10 +4324,10 @@ async fn test_inv_getdata_tx_propagation() {
     let keypair2 = Keypair::generate_ed25519();
 
     // Create overlays with INV/GETDATA enabled
-    let (handle1, _events1, tx_events1, overlay1) =
-        create_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, mut tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, admissions1, overlay1) =
+        create_test_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, mut admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
 
@@ -4085,9 +4369,9 @@ async fn test_inv_getdata_tx_propagation() {
 
     while tokio::time::Instant::now() < deadline && !tx_received {
         tokio::select! {
-            Some(event) = tx_events2.recv() => {
-                if let OverlayEvent::TxReceived { tx, from } = event {
-                    if tx.bytes() == tx_msg.bytes() && from == peer1_id {
+            Some(event) = admissions2.recv() => {
+                if let CoreCommand::SubmitTx { tx, .. } = event {
+                    if tx.bytes() == tx_msg.bytes() {
                         tx_received = true;
                     }
                 }
@@ -4102,7 +4386,7 @@ async fn test_inv_getdata_tx_propagation() {
     );
 
     // Suppress warning
-    drop(tx_events1);
+    drop(admissions1);
 
     handle1.shutdown().await;
     handle2.shutdown().await;
@@ -4127,10 +4411,10 @@ async fn test_getdata_retry_chunked_across_multiple_messages() {
     let keypair2 = Keypair::generate_ed25519();
 
     let metrics1 = Arc::new(OverlayMetrics::new());
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1.clone(), Arc::clone(&metrics1)).unwrap();
-    let (handle2, _events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1.clone(), Arc::clone(&metrics1)).unwrap();
+    let (handle2, _events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
     // Reach into node2's shared state to stage the retry round directly.
@@ -4232,12 +4516,12 @@ async fn test_inv_getdata_three_node_relay() {
     let keypair3 = Keypair::generate_ed25519();
 
     // Create overlays with INV/GETDATA enabled (controlled topology)
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, mut tx_events2, overlay2) =
-        create_overlay(keypair2.clone(), Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle3, _events3, mut tx_events3, overlay3) =
-        create_overlay(keypair3, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, mut admissions2, overlay2) =
+        create_test_overlay(keypair2.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle3, _events3, mut admissions3, overlay3) =
+        create_test_overlay(keypair3, Arc::new(OverlayMetrics::new())).unwrap();
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
     let peer2_id = PeerId::from_public_key(&keypair2.public());
@@ -4290,14 +4574,13 @@ async fn test_inv_getdata_three_node_relay() {
     let mut node2_received = false;
     while tokio::time::Instant::now() < deadline && !node2_received {
         tokio::select! {
-            Some(event) = tx_events2.recv() => {
-                if let OverlayEvent::TxReceived { tx, from } = event {
+            Some(event) = admissions2.recv() => {
+                if let CoreCommand::SubmitTx { tx, .. } = event {
                     eprintln!(
-                        "Node2 received TX from {}: {:02x?}",
-                        from,
+                        "Node2 received TX: {:02x?}",
                         &tx.bytes()[..tx.bytes().len().min(8)]
                     );
-                    if tx.bytes() == tx_msg.bytes() && from == peer1_id {
+                    if tx.bytes() == tx_msg.bytes() {
                         node2_received = true;
                     }
                 }
@@ -4314,15 +4597,14 @@ async fn test_inv_getdata_three_node_relay() {
 
     while tokio::time::Instant::now() < deadline && !tx_received {
         tokio::select! {
-            Some(event) = tx_events3.recv() => {
-                if let OverlayEvent::TxReceived { tx, from } = event {
+            Some(event) = admissions3.recv() => {
+                if let CoreCommand::SubmitTx { tx, .. } = event {
                     eprintln!(
-                        "Node3 received TX from {}: {:02x?}",
-                        from,
+                        "Node3 received TX: {:02x?}",
                         &tx.bytes()[..tx.bytes().len().min(8)]
                     );
                     // Node3 must receive TX from Node2 (relay), not Node1 (no direct connection)
-                    if tx.bytes() == tx_msg.bytes() && from == peer2_id {
+                    if tx.bytes() == tx_msg.bytes() {
                         tx_received = true;
                     }
                 }
@@ -4359,12 +4641,12 @@ async fn test_scp_relay_three_nodes() {
     let keypair2 = Keypair::generate_ed25519();
     let keypair3 = Keypair::generate_ed25519();
 
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2.clone(), Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle3, mut events3, _tx_events3, overlay3) =
-        create_overlay(keypair3, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle3, mut events3, _admissions3, overlay3) =
+        create_test_overlay(keypair3, Arc::new(OverlayMetrics::new())).unwrap();
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
     let peer2_id = PeerId::from_public_key(&keypair2.public());
@@ -4472,10 +4754,10 @@ async fn test_scp_relay_no_echo_to_sender() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _admissions1, overlay1) =
+        create_test_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _admissions2, overlay2) =
+        create_test_overlay(keypair2.clone(), Arc::new(OverlayMetrics::new())).unwrap();
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
 
@@ -4571,8 +4853,8 @@ async fn test_20_node_full_mesh() {
     for i in 0..N {
         let keypair = Keypair::generate_ed25519();
         let m = Arc::new(OverlayMetrics::new());
-        let (handle, _events, _tx_events, overlay) =
-            create_overlay(keypair, Arc::clone(&m)).unwrap();
+        let (handle, _events, _admissions, overlay) =
+            create_test_overlay(keypair, Arc::clone(&m)).unwrap();
 
         let port = BASE_PORT + i as u16;
         tasks.push(tokio::spawn(async move {
@@ -4665,8 +4947,10 @@ async fn test_simultaneous_dial_dedup() {
 
     let m1 = Arc::new(OverlayMetrics::new());
     let m2 = Arc::new(OverlayMetrics::new());
-    let (handle1, _events1, _tx1, overlay1) = create_overlay(keypair1, Arc::clone(&m1)).unwrap();
-    let (handle2, mut events2, _tx2, overlay2) = create_overlay(keypair2, Arc::clone(&m2)).unwrap();
+    let (handle1, _events1, _tx1, overlay1) =
+        create_test_overlay(keypair1, Arc::clone(&m1)).unwrap();
+    let (handle2, mut events2, _tx2, overlay2) =
+        create_test_overlay(keypair2, Arc::clone(&m2)).unwrap();
 
     let port1 = 23100;
     let port2 = 23101;
@@ -4736,9 +5020,10 @@ async fn test_dial_peer_skips_when_connected() {
     let peer_id2 = keypair2.public().to_peer_id();
 
     let m1 = Arc::new(OverlayMetrics::new());
-    let (handle1, _events1, _tx1, overlay1) = create_overlay(keypair1, Arc::clone(&m1)).unwrap();
+    let (handle1, _events1, _tx1, overlay1) =
+        create_test_overlay(keypair1, Arc::clone(&m1)).unwrap();
     let (handle2, _events2, _tx2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let port1 = 23200;
     let port2 = 23201;
@@ -4785,9 +5070,9 @@ async fn test_peer_connected_event_emitted() {
     let keypair2 = Keypair::generate_ed25519();
 
     let (handle1, mut events1, _tx1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        create_test_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
     let (handle2, _events2, _tx2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        create_test_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let port1 = 23300;
     let port2 = 23301;
@@ -4862,8 +5147,8 @@ async fn test_20_node_mesh_with_dedup() {
     for i in 0..N {
         let keypair = Keypair::generate_ed25519();
         let m = Arc::new(OverlayMetrics::new());
-        let (handle, events, _tx_events, overlay) =
-            create_overlay(keypair, Arc::clone(&m)).unwrap();
+        let (handle, events, _admissions, overlay) =
+            create_test_overlay(keypair, Arc::clone(&m)).unwrap();
 
         let port = BASE_PORT + i as u16;
         tasks.push(tokio::spawn(async move {

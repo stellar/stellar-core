@@ -51,7 +51,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 │  ┌───────────────────────────────────▼──────────────────────────┐│
 │  │                       Main event loop                        ││
 │  │  • Reads IPC messages from Core                              ││
-│  │  • Consumes libp2p events (SCP / TxSet / peer / TX)          ││
+│  │  • Consumes libp2p events (SCP / TxSet / peer)               ││
 │  │  • Drives reconnect timer                                    ││
 │  └──────────┬──────────────────────────────────┬────────────────┘│
 │             │                                  │                 │
@@ -59,7 +59,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 │  │  Mempool + flood    │          │  libp2p Swarm (QUIC)       │ │
 │  │  (integrated.rs,    │          │                            │ │
 │  │   flood/)           │          │  Behaviours:               │ │
-│  │                     │          │  • libp2p-stream (3 protos)│ │
+│  │                     │          │  • libp2p-stream (routes)  │ │
 │  │  • Fee-ordered pool │          │  • Identify (informational)│ │
 │  │  • INV batching     │          │                            │ │
 │  │  • GETDATA tracking │          │  Transport: QUIC over UDP  │ │
@@ -69,7 +69,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 │                           ┌───────────────┼───────────────┐      │
 │                           ▼               ▼               ▼      │
 │                      [Peer 1]        [Peer 2]        [Peer N]    │
-│                      SCP stream      SCP stream      SCP stream  │
+│                      Ctl stream      Ctl stream      Ctl stream  │
 │                      TX stream       TX stream       TX stream   │
 │                      TxSet stream    TxSet stream    TxSet str.  │
 └──────────────────────────────────────────────────────────────────┘
@@ -80,11 +80,13 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 - **Transport**: QUIC over UDP, via libp2p. TLS 1.3, 0-RTT reconnects,
   per-stream flow control. Listen port = `peer_port + 1000`. See
   [transport.md](rust-overlay/transport.md).
-- **Stream independence**: SCP, TX, and TxSet each get their own libp2p
-  stream (`/stellar/scp/1.0.0`, `/stellar/tx/1.0.0`,
-  `/stellar/txset/1.0.0`). A multi-MB TxSet write cannot stall a
-  500-byte SCP envelope. This is the single biggest design win over the
-  legacy single-TCP-stream overlay.
+- **Stream routing and priority**: control traffic (SCP and tx-set requests)
+  uses `/stellar/control/1.0.0` at highest send priority; tx-set responses use
+  `/stellar/txset/1.0.0` next; TX flooding uses `/stellar/tx/1.0.0` last.
+  Legacy peers remain supported. Writes run outside the dispatcher, with
+  bounded bulk-send admission. Streams still share bandwidth and connection
+  flow control; priority is not a bandwidth reservation. See
+  [transport.md](rust-overlay/transport.md).
 - **Peer membership is Core-driven**. There is no peer-discovery
   protocol — no Kademlia, no peer exchange, no gossip. The overlay
   connects to addresses Core sends via `SetPeerConfig` and accepts any
@@ -100,11 +102,13 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 - **Mempool lives in the overlay**. Fee-ordered, capacity 100,000,
   300-second max age. Core queries it for nomination via `GetTopTxs`.
   See [mempool.md](rust-overlay/mempool.md).
-- **Backpressure asymmetry**. SCP and TxSet events to Core are on an
-  unbounded channel and never drop. TX events are on a bounded channel
-  (10,000) and may drop under load — TXs are re-fetchable via the same
-  INV/GETDATA protocol, so this is acceptable. See
-  [ipc.md](rust-overlay/ipc.md#channel-discipline).
+- **Bounded network TX admission**. Readers enqueue directly into the same
+  mempool FIFO as Core submissions, removals, and queries. A shared semaphore
+  bounds queued plus active network insertions at 10,000. Refused admissions
+  remain retryable; controls need no admission permit. SCP, TxSet, and peer
+  events use an unbounded App channel. See
+  [ordered admission](rust-overlay/mempool.md#tx-received-over-the-network) and
+  [IPC channel discipline](rust-overlay/ipc.md#channel-discipline).
 
 ## What changed vs. the legacy C++ overlay
 
@@ -112,7 +116,7 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 |-----------------------------|-------------------------------------------|-------------------------------------------------------|
 | Process boundary            | In-process with consensus                 | Separate process, IPC over Unix socket                |
 | Transport                   | TCP + custom auth                         | QUIC (TLS 1.3 + multiplexing) via libp2p              |
-| Stream isolation            | Single TCP connection per peer            | Three logical streams per peer over one QUIC conn    |
+| Stream isolation            | Single TCP connection per peer            | Prioritized routes with legacy compatibility    |
 | Memory-safety class         | C++                                       | Safe Rust                                             |
 | TX flooding                 | Pull-based (existing INV/GETDATA scheme)  | Pull-based (INV/GETDATA), reimplemented              |
 | SCP flooding                | Push-based                                | Push-based                                            |
@@ -121,27 +125,23 @@ dedicated doc under [`docs/rust-overlay/`](rust-overlay/):
 
 ## Configuration
 
-TOML, parsed at startup (`config.rs`):
+TOML, parsed at startup (`config.rs`). Unknown fields are rejected.
 
-| Field               | Type          | Default                       | Description                                         |
-|---------------------|---------------|-------------------------------|-----------------------------------------------------|
-| `core_socket`       | `PathBuf`     | `/tmp/stellar-overlay.sock`   | IPC socket path                                     |
-| `listen_addr`       | `SocketAddr`  | `0.0.0.0:11625`               | Legacy peer-port placeholder                        |
-| `libp2p_listen_ip`  | `String`      | `0.0.0.0`                     | QUIC bind interface                                 |
-| `peer_port`         | `u16`         | `11625`                       | Base port. QUIC listens on `peer_port + 1000`       |
-| `target_outbound_peers` | `usize`   | `8`                           | **Defined but unused**                              |
-| `max_inbound_peers` | `usize`       | `64`                          | **Defined but unused**                              |
-| `preferred_peers`   | `Vec<SocketAddr>` | `[]`                       | Static preferred peers (see note below)             |
-| `known_peers`       | `Vec<SocketAddr>` | `[]`                       | Static known peers (see note below)                 |
-| `tx_push_peer_count`| `usize`       | `8`                           | **Defined but unused** in network code              |
-| `max_mempool_size`  | `usize`       | `100_000`                     | **Defined but unused** — mempool is hardcoded       |
-| `http_addr`         | `Option<SocketAddr>` | `127.0.0.1:11626`      | HTTP server (TX submission, status)                 |
-| `log_level`         | `String`      | `info`                        | `tracing` log level                                 |
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `core_socket` | `PathBuf` | `/tmp/stellar-overlay.sock` | IPC socket path |
+| `libp2p_listen_ip` | `String` | `0.0.0.0` | QUIC bind interface |
+| `peer_port` | `u16` | `11625` | Base port; QUIC listens on `peer_port + 1000` |
+| `log_level` | `String` | `info` | `tracing` log level |
 
-> **About `known_peers` / `preferred_peers` in the file**: peer
-> membership at runtime is set by Core via the `SetPeerConfig` IPC
-> message, *not* by the values in this file. The static fields here are
-> kept for tooling and tests but are not the source of truth.
+Core supplies peer membership through the `SetPeerConfig` IPC message.
+The overlay performance behavior is unconditional: concurrent sends, control
+and tx-set priorities, 4 MiB UDP receive-buffer requests, demand-driven Core
+set delivery, shared tx-set payloads, and ordered bounded network admission
+have no feature switches. See [transport](rust-overlay/transport.md) for the
+mandatory OS buffer allowance. Early nomination preparation also runs
+automatically for eligible validators; its ledger, time, and capacity checks
+preserve proposal validity and refresh underfilled snapshots.
 
 ## Code structure
 

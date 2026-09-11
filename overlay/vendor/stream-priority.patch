@@ -1,0 +1,321 @@
+--- a/libp2p-core/src/either.rs
++++ b/libp2p-core/src/either.rs
+@@ -38,6 +38,20 @@
+     type Substream = future::Either<A::Substream, B::Substream>;
+     type Error = Either<A::Error, B::Error>;
+ 
++    fn set_substream_priority(stream: &Self::Substream, priority: i32) -> std::io::Result<()> {
++        match stream {
++            future::Either::Left(stream) => A::set_substream_priority(stream, priority),
++            future::Either::Right(stream) => B::set_substream_priority(stream, priority),
++        }
++    }
++
++    fn substream_priority(stream: &Self::Substream) -> std::io::Result<i32> {
++        match stream {
++            future::Either::Left(stream) => A::substream_priority(stream),
++            future::Either::Right(stream) => B::substream_priority(stream),
++        }
++    }
++
+     fn poll_inbound(
+         self: Pin<&mut Self>,
+         cx: &mut Context<'_>,
+--- a/libp2p-core/src/muxing/boxed.rs
++++ b/libp2p-core/src/muxing/boxed.rs
+@@ -22,7 +22,7 @@
+ /// Abstract type for asynchronous reading and writing.
+ ///
+ /// A [`SubstreamBox`] erases the concrete type it is given and only retains its `AsyncRead`
+-/// and `AsyncWrite` capabilities.
++/// and `AsyncWrite` capabilities, plus optional transport send priority.
+ pub struct SubstreamBox(Pin<Box<dyn AsyncReadWrite + Send>>);
+ 
+ #[pin_project]
+@@ -50,7 +50,9 @@
+         self.project()
+             .inner
+             .poll_inbound(cx)
+-            .map_ok(SubstreamBox::new)
++            .map_ok(|s| {
++                SubstreamBox::with_priority(s, T::set_substream_priority, T::substream_priority)
++            })
+             .map_err(into_io_error)
+     }
+ 
+@@ -61,7 +63,9 @@
+         self.project()
+             .inner
+             .poll_outbound(cx)
+-            .map_ok(SubstreamBox::new)
++            .map_ok(|s| {
++                SubstreamBox::with_priority(s, T::set_substream_priority, T::substream_priority)
++            })
+             .map_err(into_io_error)
+     }
+ 
+@@ -111,6 +115,14 @@
+     type Substream = SubstreamBox;
+     type Error = io::Error;
+ 
++    fn set_substream_priority(stream: &Self::Substream, priority: i32) -> io::Result<()> {
++        stream.set_priority(priority)
++    }
++
++    fn substream_priority(stream: &Self::Substream) -> io::Result<i32> {
++        stream.priority()
++    }
++
+     fn poll_inbound(
+         self: Pin<&mut Self>,
+         cx: &mut Context<'_>,
+@@ -141,7 +153,29 @@
+ impl SubstreamBox {
+     /// Construct a new [`SubstreamBox`] from something that implements [`AsyncRead`] and [`AsyncWrite`].
+     pub fn new<S: AsyncRead + AsyncWrite + Send + 'static>(stream: S) -> Self {
+-        Self(Box::pin(stream))
++        Self::with_priority(
++            stream,
++            |_, _| Err(io::ErrorKind::Unsupported.into()),
++            |_| Err(io::ErrorKind::Unsupported.into()),
++        )
++    }
++
++    fn with_priority<S: AsyncRead + AsyncWrite + Send + 'static>(
++        stream: S,
++        set: fn(&S, i32) -> io::Result<()>,
++        get: fn(&S) -> io::Result<i32>,
++    ) -> Self {
++        Self(Box::pin(WithPriority { stream, set, get }))
++    }
++
++    /// Set the underlying transport's send priority, if supported.
++    pub fn set_priority(&self, priority: i32) -> io::Result<()> {
++        self.0.as_ref().get_ref().set_priority(priority)
++    }
++
++    /// Read the underlying transport's send priority, if supported.
++    pub fn priority(&self) -> io::Result<i32> {
++        self.0.as_ref().get_ref().priority()
+     }
+ }
+ 
+@@ -157,15 +191,77 @@
+     ///
+     /// Used to make the [`Debug`] implementation of [`SubstreamBox`] more useful.
+     fn type_name(&self) -> &'static str;
+-}
+-
+-impl<S> AsyncReadWrite for S
++    fn set_priority(&self, priority: i32) -> io::Result<()>;
++    fn priority(&self) -> io::Result<i32>;
++}
++
++#[pin_project]
++struct WithPriority<S> {
++    #[pin]
++    stream: S,
++    set: fn(&S, i32) -> io::Result<()>,
++    get: fn(&S) -> io::Result<i32>,
++}
++
++impl<S> AsyncReadWrite for WithPriority<S>
+ where
+     S: AsyncRead + AsyncWrite,
+ {
+     fn type_name(&self) -> &'static str {
+         std::any::type_name::<S>()
+     }
++
++    fn set_priority(&self, priority: i32) -> io::Result<()> {
++        (self.set)(&self.stream, priority)
++    }
++
++    fn priority(&self) -> io::Result<i32> {
++        (self.get)(&self.stream)
++    }
++}
++
++impl<S: AsyncRead> AsyncRead for WithPriority<S> {
++    fn poll_read(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        buf: &mut [u8],
++    ) -> Poll<io::Result<usize>> {
++        self.project().stream.poll_read(cx, buf)
++    }
++
++    fn poll_read_vectored(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        bufs: &mut [IoSliceMut<'_>],
++    ) -> Poll<io::Result<usize>> {
++        self.project().stream.poll_read_vectored(cx, bufs)
++    }
++}
++
++impl<S: AsyncWrite> AsyncWrite for WithPriority<S> {
++    fn poll_write(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        buf: &[u8],
++    ) -> Poll<io::Result<usize>> {
++        self.project().stream.poll_write(cx, buf)
++    }
++
++    fn poll_write_vectored(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        bufs: &[IoSlice<'_>],
++    ) -> Poll<io::Result<usize>> {
++        self.project().stream.poll_write_vectored(cx, bufs)
++    }
++
++    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
++        self.project().stream.poll_flush(cx)
++    }
++
++    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
++        self.project().stream.poll_close(cx)
++    }
+ }
+ 
+ impl AsyncRead for SubstreamBox {
+--- a/libp2p-core/src/muxing.rs
++++ b/libp2p-core/src/muxing.rs
+@@ -71,6 +71,24 @@
+ 
+     /// Error type of the muxer
+     type Error: std::error::Error;
++
++    /// Set the transport's send priority for a substream, if supported.
++    /// Higher values take precedence over lower values. This does not change
++    /// connection-level congestion control or reserve bandwidth.
++    fn set_substream_priority(_stream: &Self::Substream, _priority: i32) -> std::io::Result<()>
++    where
++        Self: Sized,
++    {
++        Err(std::io::ErrorKind::Unsupported.into())
++    }
++
++    /// Read the transport's send priority for a substream, if supported.
++    fn substream_priority(_stream: &Self::Substream) -> std::io::Result<i32>
++    where
++        Self: Sized,
++    {
++        Err(std::io::ErrorKind::Unsupported.into())
++    }
+ 
+     /// Poll for new inbound substreams.
+     ///
+--- a/libp2p-swarm/src/stream.rs
++++ b/libp2p-swarm/src/stream.rs
+@@ -33,6 +33,23 @@
+ }
+ 
+ impl Stream {
++    /// Set the underlying transport's send priority. Higher values take
++    /// precedence. Returns `Unsupported` when the transport has no priority API.
++    pub fn set_priority(&self, priority: i32) -> std::io::Result<()> {
++        self.stream
++            .get_ref()
++            .ok_or(std::io::ErrorKind::NotConnected)?
++            .set_priority(priority)
++    }
++
++    /// Read the underlying transport's send priority, if supported.
++    pub fn priority(&self) -> std::io::Result<i32> {
++        self.stream
++            .get_ref()
++            .ok_or(std::io::ErrorKind::NotConnected)?
++            .priority()
++    }
++
+     pub(crate) fn new(stream: Negotiated<SubstreamBox>, counter: ActiveStreamCounter) -> Self {
+         Self {
+             stream,
+--- a/libp2p-quic/src/connection/stream.rs
++++ b/libp2p-quic/src/connection/stream.rs
+@@ -37,6 +37,20 @@
+ }
+ 
+ impl Stream {
++    /// Set the QUIC send priority; larger values are transmitted first.
++    pub fn set_priority(&self, priority: i32) -> io::Result<()> {
++        self.send
++            .set_priority(priority)
++            .map_err(|e| io::Error::new(io::ErrorKind::BrokenPipe, e))
++    }
++
++    /// Read the QUIC send priority.
++    pub fn priority(&self) -> io::Result<i32> {
++        self.send
++            .priority()
++            .map_err(|e| io::Error::new(io::ErrorKind::BrokenPipe, e))
++    }
++
+     pub(super) fn new(send: quinn::SendStream, recv: quinn::RecvStream) -> Self {
+         Self {
+             send,
+--- a/libp2p-quic/src/connection.rs
++++ b/libp2p-quic/src/connection.rs
+@@ -68,6 +68,14 @@
+     type Substream = Stream;
+     type Error = Error;
+ 
++    fn set_substream_priority(stream: &Self::Substream, priority: i32) -> std::io::Result<()> {
++        stream.set_priority(priority)
++    }
++
++    fn substream_priority(stream: &Self::Substream) -> std::io::Result<i32> {
++        stream.priority()
++    }
++
+     fn poll_inbound(
+         self: Pin<&mut Self>,
+         cx: &mut Context<'_>,
+--- a/multistream-select/src/length_delimited.rs
++++ b/multistream-select/src/length_delimited.rs
+@@ -303,6 +303,10 @@
+ }
+ 
+ impl<R> LengthDelimitedReader<R> {
++    pub(crate) fn get_ref(&self) -> &R {
++        &self.inner.inner
++    }
++
+     /// Destroys the `LengthDelimitedReader` and returns the underlying I/O stream.
+     ///
+     /// This method is guaranteed not to drop any data read from or not yet
+--- a/multistream-select/src/negotiated.rs
++++ b/multistream-select/src/negotiated.rs
+@@ -85,6 +85,16 @@
+ }
+ 
+ impl<TInner> Negotiated<TInner> {
++    /// Borrow the underlying stream without consuming pending negotiation data.
++    /// Returns `None` after a failed negotiation has invalidated the stream.
++    pub fn get_ref(&self) -> Option<&TInner> {
++        match &self.state {
++            State::Completed { io } => Some(io),
++            State::Expecting { io, .. } => Some(io.get_ref()),
++            State::Invalid => None,
++        }
++    }
++
+     /// Creates a `Negotiated` in state [`State::Completed`].
+     pub(crate) fn completed(io: TInner) -> Self {
+         Negotiated {
+--- a/multistream-select/src/protocol.rs
++++ b/multistream-select/src/protocol.rs
+@@ -331,6 +331,10 @@
+ }
+ 
+ impl<R> MessageReader<R> {
++    pub(crate) fn get_ref(&self) -> &R {
++        self.inner.get_ref()
++    }
++
+     /// Drops the `MessageReader` resource, yielding the underlying I/O stream
+     /// together with the remaining write buffer containing the protocol
+     /// negotiation frame data that has not yet been written to the I/O stream.

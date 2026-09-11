@@ -1601,6 +1601,8 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     // through overlay validation so network resource limits are exercised.
     bool isPregeneratedTx = (mode == LoadGenMode::PAY_PREGENERATED) ||
                             (isMixedPregenMode(mode) && !txf->isSoroban());
+    // recvTransaction hands the transaction to the overlay (mempool + flood)
+    // itself; broadcasting it again here would submit every tx twice.
     auto addResult = mApp.getHerder().recvTransaction(
         txf, true, /*force=*/false, /*isLoadgenTx=*/isPregeneratedTx);
     if (addResult != TxSubmitStatus::TX_STATUS_PENDING)
@@ -1610,10 +1612,6 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
                                    : xdrToCerealString(txf->getEnvelope(),
                                                        "TransactionEnvelope"));
         txm.mTxnRejected.Mark();
-    }
-    else
-    {
-        mApp.getOverlayManager().broadcastMessage(msg, txf->getFullHash());
     }
 
     return addResult;

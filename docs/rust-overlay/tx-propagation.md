@@ -8,9 +8,10 @@ for much lower bandwidth: in steady state a TX announcement costs ~40
 bytes per peer instead of the full TX bytes-per-peer.
 
 All three message types share **one** QUIC stream per peer
-(`/stellar/tx/1.0.0`), distinguished by a one-byte type prefix. SCP and
-TxSet have their own streams (see [transport.md](transport.md)), so
-heavy TX traffic cannot stall consensus.
+(`/stellar/tx/1.0.0`), distinguished by the `StellarMessage` XDR union arm.
+Control and tx-set data use separate, higher-priority streams (see
+[transport.md](transport.md)). Stream locks are independent, while connection
+flow control, congestion control, and bandwidth remain shared.
 
 ## Wire format
 
@@ -98,21 +99,21 @@ When a node receives a GETDATA:
 
 When a node receives a `TX` message (a response to its own GETDATA):
 
-1. **Dedup**: check `tx_seen`. If already have it, count as
-   `flood_duplicate_recv` and skip.
-2. **Measure latency**: remove from `pending_getdata`, compute
-   `pull_latency = now - first_sent_at`.
-3. **Buffer**: store in `tx_buffer` so we can serve future GETDATAs.
-4. **Forward to Core**: `try_send` `TxReceived` on the **bounded** TX
-   event channel (capacity 10,000, `libp2p_overlay.rs:46,398`). If the
-   channel is full, the event is **dropped** — `tx_dropped_count` is
-   incremented and a warning is logged every 1,000 drops. The TX is
-   still buffered locally and will be served to other peers via
-   GETDATA; only the upcall to Core is dropped.
-5. **Relay**: announce to all peers that don't already know about this
-   TX. Same INV-batching path as Phase 1, but with two filters: skip
-   the peer we got it from, and skip any peer recorded in `inv_tracker`
-   as having already announced this hash to us (they have it).
+1. **Dedup and admit**: under the existing `tx_seen` lock, skip known hashes
+   or call `try_submit_network_tx` without awaiting. This enqueues admission
+   directly into the same mempool command FIFO used by Core removals.
+2. **Mark seen only on success**. Admission is bounded at 10,000 queued plus
+   active network insertions. If full or closed, drop this attempt, update the
+   drop metrics, and return without marking the hash seen or clearing the
+   pending GETDATA. A later response can be retried.
+3. **Measure latency**: remove from `pending_getdata` and record pull latency.
+4. **Buffer**: store in `tx_buffer` to serve future GETDATAs.
+5. **Relay**: use INV batching to announce to peers that have not advertised
+   the hash, excluding the peer that supplied the response.
+
+There is no separate App TX event queue or per-transaction upcall to Core.
+See [ordered admission](mempool.md#tx-received-over-the-network) for removal ordering and capacity
+lifetime.
 
 ## Timeout and retry
 
@@ -126,20 +127,14 @@ Driven by the 50 ms housekeeping task
 
 ## Backpressure
 
-Only the **TX → Core** event channel is bounded. SCP and TxSet events
-use an unbounded channel and are never dropped.
+Network admission uses a shared semaphore to bound queued and active inserts.
+The network reader never waits for capacity. Removal and query commands need
+no admission permit; they retain FIFO ordering behind already-admitted TXs.
+Local Core submissions retain their existing unbounded enqueue policy.
 
-If Core can't keep up draining the TX channel:
-
-- `try_send` fails → the `TxReceived` event is dropped (not queued).
-- The TX remains in the overlay's `tx_buffer`, so other peers' GETDATAs
-  are still answered.
-- The TX is also still tracked in `tx_seen`, so duplicate INVs from
-  other peers are still deduped.
-
-This is by design: under TX-spam load, consensus continues to flow on
-its own stream and the overlay degrades the *core upcall* gracefully
-rather than back-pressuring the network layer.
+Refused admissions do not enter `tx_seen` or the relay buffer on that attempt.
+Pending GETDATA retry remains available. SCP, TxSet, and peer events use the
+separate unbounded App event channel and do not share the TX admission limit.
 
 ## State summary
 
@@ -151,7 +146,7 @@ rather than back-pressuring the network layer.
 | `inv_tracker`          | `RwLock<InvTracker>`                       | 100,000  | Peer→TX advertisement tracking + RR    |
 | `pending_getdata`      | `RwLock<PendingRequests>`                  | —        | GETDATA timeout/retry state            |
 
-Plus the bounded TX event channel: 10,000 events, drops on overflow.
+Network admissions share 10,000 permits held through mempool insertion.
 
 ## Lifecycle: TX X appears on the network
 
@@ -172,12 +167,12 @@ Node A: receives GETDATA {X} from B
   → looks up tx_buffer[X] → sends TX(data) to B
 
 Node B: receives TX response
-  → dedup (new) → buffer → forward to Core
+  → dedup (new) → enqueue mempool admission → mark seen → buffer
   → RELAY: INV {X} to {C, D}
   (skips A: A is in inv_tracker as the source)
 
 Node C: receives TX from A + INV from B
-  → TX arrives first → dedup (new) → buffer → forward to Core
+  → TX arrives first → dedup (new) → enqueue mempool admission → mark seen → buffer
   → RELAY: INV {X} to {D} (skips A and B)
   → INV from B arrives → already in tx_seen → skip
 

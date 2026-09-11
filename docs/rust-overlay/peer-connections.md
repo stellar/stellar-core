@@ -59,10 +59,9 @@ Steps performed:
    [DNS resolution](#dns-resolution).
 4. **Schedule a retry task** for any addresses where DNS failed.
 
-Note: `target_outbound_peers` and `max_inbound_peers` are defined in
-`config.rs` but are **not enforced anywhere in the network code**. The
-overlay attempts to connect to every address Core sends and accepts all
-inbound connections.
+The overlay attempts to connect to every address Core sends and accepts all
+inbound connections. There are no overlay configuration fields for inbound
+or outbound peer-count limits.
 
 ## DNS resolution
 
@@ -159,8 +158,8 @@ informational only.
   and is no longer in `Cargo.toml` or the source tree.
 - **No peer-exchange / gossip.** Peers do not learn about other peers from
   each other.
-- **No outbound connection limit.** `target_outbound_peers` is unused.
-- **No inbound connection limit.** `max_inbound_peers` is unused.
+- **No outbound connection limit.** All Core-configured addresses are dialed.
+- **No inbound connection limit.** Incoming peers are accepted without a count limit.
 - **No banlist or DoS scoring.** Misbehaving peers are not throttled or
   evicted by the overlay (this lives in Core for the legacy overlay; not
   yet ported here).

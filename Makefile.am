@@ -82,8 +82,9 @@ RUST_PROFILE_DIR=release
 endif
 
 RUST_OVERLAY_BINARY=$(RUST_OVERLAY_TARGET)/$(RUST_PROFILE_DIR)/stellar-overlay
+RUST_OVERLAY_VENDOR_FILES=$(shell find $(RUST_OVERLAY_DIR)/vendor -type f)
 
-$(RUST_OVERLAY_BINARY): $(wildcard $(RUST_OVERLAY_DIR)/src/*.rs) $(wildcard $(RUST_OVERLAY_DIR)/src/**/*.rs) $(RUST_OVERLAY_DIR)/Cargo.toml
+$(RUST_OVERLAY_BINARY): $(wildcard $(RUST_OVERLAY_DIR)/src/*.rs) $(wildcard $(RUST_OVERLAY_DIR)/src/**/*.rs) $(RUST_OVERLAY_DIR)/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock $(RUST_OVERLAY_VENDOR_FILES)
 	@echo "Building Rust overlay ($(RUST_BUILD_PROFILE))..."
 	cd $(RUST_OVERLAY_DIR) && $(CARGO) build $(RUST_PROFILE_FLAG)
 
@@ -107,7 +108,7 @@ check-local: check-rust
 endif # USE_RUST_OVERLAY
 
 EXTRA_DIST = stellar-core.supp test/testnet/multitail.conf	\
-	test/testnet/run-test.sh README.md make-mks
+	test/testnet/run-test.sh README.md make-mks overlay/vendor
 
 @VALGRIND_CHECK_RULES@
 VALGRIND_FLAGS = --num-callers=30 --trace-children=yes \

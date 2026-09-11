@@ -3285,13 +3285,20 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
     Config cfg2 = getTestConfig(2);
     Config cfg3 = getTestConfig(3);
 
-    // Real-time simulation: 1s ledgers and 8-ledger checkpoints instead of
+    // Real-time simulation: 2s ledgers and 8-ledger checkpoints instead of
     // 5s ledgers and 64-ledger checkpoints. The checkpoint slot is only
     // retained separately when it falls outside the MAX_SLOTS_TO_REMEMBER
     // window, so keep that window smaller than the checkpoint frequency.
+    // Ledgers are slowed to 2s (from the 1s accelerated default) because the
+    // main node keeps closing ledgers while the out of sync nodes below
+    // connect and process its SCP state; once it gets two ledgers past the
+    // next checkpoint boundary, the buffered checkpoint is superseded. On a
+    // loaded CI runner the out of sync nodes need over a second per slot,
+    // so 1s ledgers leave no margin.
     for (auto* cfg : {&cfg1, &cfg2, &cfg3})
     {
         cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg->ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 2;
         cfg->MAX_SLOTS_TO_REMEMBER = 4;
     }
 
@@ -3322,17 +3329,50 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
             simulation->getExpectedLedgerCloseTime(),
         false);
 
-    // An out of sync node should buffer every ledger from the checkpoint up to
-    // the main node's latest. The main node applies ledgers asynchronously
-    // after externalizing them and the out of sync node hears about them
-    // asynchronously, so this only holds at moments where the two line up.
-    auto hasBufferedCheckpointToLcl = [&](LedgerApplyManagerImpl const& lam) {
-        auto const& buffered = lam.getBufferedLedgers();
-        return !buffered.empty() &&
-               buffered.begin()->first == firstCheckpoint &&
-               buffered.crbegin()->first ==
-                   mainNode->getLedgerManager().getLastClosedLedgerNum();
+    // The checkpoint slot is only sent as a detached slot once the main node
+    // is more than MAX_SLOTS_TO_REMEMBER ledgers past it. The out of sync
+    // sections crank one more ledger so this holds when their nodes connect,
+    // regardless of how long connecting takes.
+    auto const detachedCheckpointLedger = firstCheckpoint + halfCheckpoint + 1;
+    auto crankUntilCheckpointDetached = [&]() {
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(detachedCheckpointLedger,
+                                                       1);
+            },
+            4 * simulation->getExpectedLedgerCloseTime(), false);
     };
+
+    // An out of sync node should learn the checkpoint ledger and the main
+    // node's retained window from the SCP state it is sent, buffer all of it
+    // and start catchup. The main node keeps closing ledgers meanwhile, so
+    // the top of the buffer is a moving target, and once the main node gets
+    // two ledgers past the next checkpoint boundary the buffered checkpoint
+    // is trimmed in favour of the newer one. Latch what is observed while
+    // cranking instead of requiring it all to hold at one sampled instant.
+    struct Observed
+    {
+        bool bufferedCheckpointToLcl{false};
+        bool catchupInitialized{false};
+    };
+    auto observe = [&](LedgerApplyManagerImpl const& lam, uint32_t lclAtStart,
+                       Observed& o) {
+        auto const& buffered = lam.getBufferedLedgers();
+        if (!buffered.empty() && buffered.begin()->first == firstCheckpoint &&
+            buffered.crbegin()->first >= lclAtStart)
+        {
+            o.bufferedCheckpointToLcl = true;
+        }
+        if (lam.isCatchupInitialized())
+        {
+            o.catchupInitialized = true;
+        }
+        return o.bufferedCheckpointToLcl && o.catchupInitialized;
+    };
+    // Connecting over QUIC, receiving the SCP state, fetching the tx sets and
+    // externalizing each slot takes a few seconds here and well over that on
+    // a loaded CI runner; the predicate returns as soon as it is satisfied.
+    auto const outOfSyncTimeout = std::chrono::seconds(30);
 
     SECTION("GC old checkpoints")
     {
@@ -3365,6 +3405,10 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
 
     SECTION("Out of sync node receives checkpoint")
     {
+        crankUntilCheckpointDetached();
+        auto const lclAtStart =
+            mainNode->getLedgerManager().getLastClosedLedgerNum();
+
         // Start out of sync node
         auto outOfSync = simulation->addNode(v1SecretKey, qSet, &cfg2);
         simulation->addPendingConnection(v0NodeID, v1NodeID);
@@ -3374,17 +3418,20 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
 
         // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
+        Observed observed;
         simulation->crankUntil(
-            [&]() {
-                return lam.isCatchupInitialized() &&
-                       hasBufferedCheckpointToLcl(lam);
-            },
-            2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
-        REQUIRE(hasBufferedCheckpointToLcl(lam));
+            [&]() { return observe(lam, lclAtStart, observed); },
+            outOfSyncTimeout, false);
+        REQUIRE(observed.bufferedCheckpointToLcl);
+        REQUIRE(observed.catchupInitialized);
     }
 
     SECTION("Two out of sync nodes receive checkpoint")
     {
+        crankUntilCheckpointDetached();
+        auto const lclAtStart =
+            mainNode->getLedgerManager().getLastClosedLedgerNum();
+
         // Start two out of sync nodes
         auto outOfSync1 = simulation->addNode(v1SecretKey, qSet, &cfg2);
         auto outOfSync2 = simulation->addNode(v2SecretKey, qSet, &cfg3);
@@ -3398,19 +3445,135 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
             outOfSync2->getLedgerApplyManager());
 
-        // Crank until outOfSync node has received checkpoint ledger and started
-        // catchup
+        // Crank until both outOfSync nodes have received the checkpoint
+        // ledger and started catchup
+        Observed observed1, observed2;
         simulation->crankUntil(
             [&]() {
-                return cm1.isCatchupInitialized() &&
-                       cm2.isCatchupInitialized() &&
-                       hasBufferedCheckpointToLcl(cm1) &&
-                       hasBufferedCheckpointToLcl(cm2);
+                // Evaluate both so each latches independently
+                bool done1 = observe(cm1, lclAtStart, observed1);
+                bool done2 = observe(cm2, lclAtStart, observed2);
+                return done1 && done2;
             },
-            2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
-        REQUIRE(hasBufferedCheckpointToLcl(cm1));
-        REQUIRE(hasBufferedCheckpointToLcl(cm2));
+            outOfSyncTimeout, false);
+        REQUIRE(observed1.bufferedCheckpointToLcl);
+        REQUIRE(observed1.catchupInitialized);
+        REQUIRE(observed2.bufferedCheckpointToLcl);
+        REQUIRE(observed2.catchupInitialized);
     }
+}
+
+// A node that is out of sync learns the network state from a peer's SCP
+// state, which carries the most recent slots plus the earlier checkpoint slot
+// with nothing in between (see HerderImpl::getSCPStateForPeer). Each slot is
+// handed to SCP as soon as its tx set is available, so the checkpoint slot can
+// become ready before the recent ones. The node then externalizes the
+// checkpoint slot and tracks it; it must still go on to the recent slots
+// rather than wait for a successor to the checkpoint slot that no one has.
+TEST_CASE(
+    "out of sync node processes SCP state past a detached checkpoint slot",
+    "[herder][catchup]")
+{
+    auto validator = SecretKey::pseudoRandomForTesting();
+
+    // A watcher that trusts only `validator`. FORCE_SCP is off so the node
+    // stays out of sync and learns everything from the envelopes below, and
+    // catchup is off so buffered ledgers remain buffered.
+    Config cfg = getTestConfig(0);
+    // 8-ledger checkpoints
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+    // Test configs default to manual close, under which the herder discards
+    // every SCP envelope
+    cfg.MANUAL_CLOSE = false;
+    cfg.FORCE_SCP = false;
+    cfg.NODE_IS_VALIDATOR = false;
+    cfg.MODE_DOES_CATCHUP = false;
+    cfg.QUORUM_SET.threshold = 1;
+    cfg.QUORUM_SET.validators.clear();
+    cfg.QUORUM_SET.validators.push_back(validator.getPublicKey());
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lam =
+        static_cast<LedgerApplyManagerImpl&>(app->getLedgerApplyManager());
+    REQUIRE(!herder.isTracking());
+
+    // What a peer's SCP state contains: the checkpoint slot, a gap, and the
+    // slots in its retained window
+    uint32_t const checkpointSlot =
+        HistoryManager::firstLedgerAfterCheckpointContaining(1, cfg);
+    std::vector<uint32_t> const recentSlots = {
+        checkpointSlot + 2, checkpointSlot + 3, checkpointSlot + 4,
+        checkpointSlot + 5};
+    uint32_t const latestSlot = recentSlots.back();
+
+    SCPQuorumSet const& qSet = cfg.QUORUM_SET;
+    auto const qSetHash = xdrSha256(qSet);
+    auto const txSet = TxSetXDRFrame::makeEmpty(
+        app->getLedgerManager().getLastClosedLedgerHeader());
+    auto const now = VirtualClock::to_time_t(clock.system_now());
+
+    auto makeExternalize = [&](uint32_t slot) {
+        // Close times increase with the slot. They must be after the LCL's
+        // close time and no further than MAX_TIME_SLIP_SECONDS ahead of the
+        // clock, which for a virtual clock starts at zero.
+        uint64_t const closeTime = now + slot;
+        StellarValue sv = herder.makeStellarValue(
+            txSet->getContentsHash(), closeTime, emptyUpgradeSteps, validator);
+        SCPEnvelope envelope;
+        envelope.statement.nodeID = validator.getPublicKey();
+        envelope.statement.slotIndex = slot;
+        envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
+        auto& ext = envelope.statement.pledges.externalize();
+        ext.commit.counter = 1;
+        ext.commit.value = xdr::xdr_to_opaque(sv);
+        ext.nH = 1;
+        ext.commitQuorumSetHash = qSetHash;
+        herder.signEnvelope(validator, envelope);
+        return envelope;
+    };
+    // Supplying the qset and tx set makes the envelope ready at once, which
+    // is when the herder hands the slot to SCP
+    auto receive = [&](uint32_t slot) {
+        REQUIRE(herder.recvSCPEnvelope(makeExternalize(slot), qSet, txSet) ==
+                Herder::ENVELOPE_STATUS_READY);
+    };
+    auto bufferedLedgers = [&]() {
+        std::vector<uint32_t> seqs;
+        for (auto const& kv : lam.getBufferedLedgers())
+        {
+            seqs.push_back(kv.first);
+        }
+        return seqs;
+    };
+
+    SECTION("checkpoint slot becomes ready first")
+    {
+        receive(checkpointSlot);
+        REQUIRE(herder.isTracking());
+        REQUIRE(herder.trackingConsensusLedgerIndex() == checkpointSlot);
+        REQUIRE(bufferedLedgers() == std::vector<uint32_t>{checkpointSlot});
+        for (auto slot : recentSlots)
+        {
+            receive(slot);
+        }
+    }
+
+    SECTION("recent slots become ready first")
+    {
+        for (auto slot : recentSlots)
+        {
+            receive(slot);
+        }
+        REQUIRE(herder.trackingConsensusLedgerIndex() == latestSlot);
+        receive(checkpointSlot);
+    }
+
+    REQUIRE(herder.trackingConsensusLedgerIndex() == latestSlot);
+    std::vector<uint32_t> expected{checkpointSlot};
+    expected.insert(expected.end(), recentSlots.begin(), recentSlots.end());
+    REQUIRE(bufferedLedgers() == expected);
 }
 
 TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
@@ -5933,4 +6096,391 @@ TEST_CASE("trigger timer switches anchor at protocol 28 upgrade",
         auto const result = runSimulation(true);
         REQUIRE(result.postUpgrade + cadenceMargin > result.preUpgrade);
     }
+}
+
+namespace stellar
+{
+class EarlyNominationTestAccess
+{
+  public:
+    static TxSetXDRFrameConstPtr
+    prepared(HerderImpl& herder)
+    {
+        return herder.mPreparedTxSet ? herder.mPreparedTxSet->txSet : nullptr;
+    }
+
+    static uint64_t
+    closeTime(HerderImpl& herder)
+    {
+        return herder.mPreparedTxSet->closeTime;
+    }
+
+    static bool
+    scheduled(HerderImpl& herder)
+    {
+        return herder.mPrepareTxSetTimer.seq() != 0;
+    }
+
+    static void
+    schedule(HerderImpl& herder)
+    {
+        herder.setupTriggerNextLedger();
+    }
+};
+}
+
+TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
+{
+    auto const soroban = GENERATE(false, true);
+    VirtualClock clock;
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = false;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
+    // Require another node to externalize, so this test can inspect the value
+    // we nominate without immediately closing it and scheduling another slot.
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    if (soroban)
+    {
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& config) {
+            config.mLedgerMaxTxCount = 1;
+        });
+    }
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    // The Soroban upgrade helper closes ledgers at its fixed test date.
+    clock.setCurrentVirtualTime(
+        VirtualClock::from_time_t(lcl.header.scpValue.closeTime + 1000));
+    auto const seq = lcl.header.ledgerSeq + 1;
+    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+
+    std::vector<TransactionEnvelope> mempool;
+    auto alice = txtest::getGenesisAccount(*app, 0);
+    auto bob = txtest::getGenesisAccount(*app, 1);
+    auto makeTx = [&](TestAccount& from, TestAccount& to) {
+        SorobanResources resources;
+        resources.instructions = 1'000'000;
+        resources.diskReadBytes = 1000;
+        resources.writeBytes = 1000;
+        return soroban
+                   ? createUploadWasmTx(*app, from, 100,
+                                        DEFAULT_TEST_RESOURCE_FEE, resources)
+                   : from.tx({payment(to, 100)});
+    };
+    auto tx = makeTx(alice, bob);
+    auto const expectedCloseTime = VirtualClock::to_time_t(
+        clock.system_now() +
+        app->getLedgerManager().getExpectedLedgerCloseTime());
+    setMinTime(tx, expectedCloseTime);
+    setMaxTime(tx, expectedCloseTime);
+    setFullFee(tx, tx->getFullFee() + 900);
+    getSignatures(tx).clear();
+    tx->addSignature(alice);
+    auto extra = makeTx(bob, alice);
+    mempool = {tx->getEnvelope(), extra->getEnvelope()};
+    size_t pulls = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        ++pulls;
+        return mempool;
+    };
+    // Exercise the real post-close hook, including its heartbeat reset after
+    // advancing the fixture clock past the upgrade helper's close time.
+    herder.lastClosedLedgerIncreased(true, nullptr, false);
+    auto const trigger = herder.getTriggerTimer().expiry_time();
+    REQUIRE(trigger > clock.now());
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return EarlyNominationTestAccess::prepared(herder) != nullptr;
+        },
+        std::chrono::seconds(1));
+    REQUIRE(clock.now() < trigger);
+    REQUIRE(pulls == 1);
+    auto prepared = EarlyNominationTestAccess::prepared(herder);
+    auto const preparedCloseTime = EarlyNominationTestAccess::closeTime(herder);
+    REQUIRE(prepared);
+    REQUIRE(prepared->sizeTxTotal() == 1);
+    REQUIRE(preparedCloseTime == expectedCloseTime);
+    REQUIRE(herder.getSCP().getNominationLeaders(seq).empty());
+    REQUIRE(herder.getSCP().getLatestMessagesSend(seq).empty());
+    auto known = herder.getTxSet(prepared->getContentsHash());
+    REQUIRE(std::get<TxSetXDRFrameConstPtr>(known) == nullptr);
+
+    SECTION("trigger reuses exactly the validated set and close time")
+    {
+        // Even if processing runs late, the set must retain the close time
+        // used to validate time bounds, not acquire the new wall-clock time.
+        clock.setCurrentVirtualTime(trigger + std::chrono::seconds(1));
+        testutil::crankUntil(
+            app,
+            [&]() {
+                return !herder.getSCP().getNominationLeaders(seq).empty();
+            },
+            std::chrono::seconds(1));
+        REQUIRE(pulls == 1);
+        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        REQUIRE(std::get<TxSetXDRFrameConstPtr>(
+                    herder.getTxSet(prepared->getContentsHash())) == prepared);
+        // The value can be checked independently of the production cache.
+        auto applicable = prepared->prepareForApply(*app, lcl.header);
+        REQUIRE(applicable);
+        auto offset = preparedCloseTime - lcl.header.scpValue.closeTime;
+        REQUIRE(applicable->checkValid(*app, offset, offset));
+        REQUIRE(!applicable->checkValid(*app, offset + 1, offset + 1));
+        testutil::crankUntil(
+            app,
+            [&]() {
+                return !herder.getSCP().getLatestMessagesSend(seq).empty();
+            },
+            std::chrono::seconds(1));
+        auto messages = herder.getSCP().getLatestMessagesSend(seq);
+        REQUIRE(!messages.empty());
+        auto const& votes = messages.front().statement.pledges.nominate().votes;
+        REQUIRE(votes.size() == 1);
+        StellarValue value;
+        xdr::xdr_from_opaque(votes.front(), value);
+        REQUIRE(value.txSetHash == prepared->getContentsHash());
+        REQUIRE(value.closeTime == preparedCloseTime);
+        REQUIRE(pulls == 1);
+    }
+    SECTION("clock regression rejects the prepared future close time")
+    {
+        clock.setSystemTimeOffset(-std::chrono::minutes(2));
+        // The fallback builds with today's valid close time, and must not
+        // claim that our time-bound transaction is valid for that time.
+        herder.triggerNextLedger(seq, true);
+        REQUIRE(pulls == 2);
+        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        REQUIRE(std::get<TxSetXDRFrameConstPtr>(
+                    herder.getTxSet(prepared->getContentsHash())) == nullptr);
+    }
+    SECTION("externalizing another value discards the unused proposal")
+    {
+        herder.externalizeValue(TxSetXDRFrame::makeEmpty(lcl), seq,
+                                preparedCloseTime, {}, cfg.NODE_SEED);
+        REQUIRE(EarlyNominationTestAccess::prepared(herder) != prepared);
+        auto const pullsAfterClose = pulls;
+        // A stale timer/caller cannot nominate the old slot or pull again.
+        herder.triggerNextLedger(seq, true);
+        REQUIRE(pulls == pullsAfterClose);
+    }
+    SECTION("loss of sync discards preparation")
+    {
+        herder.lostSync();
+        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        herder.triggerNextLedger(seq, true);
+        REQUIRE(pulls == 1);
+    }
+    SECTION("shutdown cancels preparation")
+    {
+        herder.shutdown();
+        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+    }
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
+TEST_CASE("only the first two nomination leaders prepare early",
+          "[herder][early-nomination]")
+{
+    // A fixed, unanimous quorum gives all three nodes the same weights and
+    // leader ordering. Exercise each member as the local node, rather than
+    // hoping random peers cover every role for one fixed local priority.
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qset;
+    qset.threshold = 3;
+    for (int i = 0; i < 3; ++i)
+    {
+        keys.push_back(SecretKey::fromSeed(
+            sha256(fmt::format("early-nomination-node-{}", i))));
+        qset.validators.push_back(keys.back().getPublicKey());
+    }
+
+    std::set<int> checkedRoles;
+    std::optional<Value> previous;
+    std::optional<std::set<NodeID>> expectedFirst;
+    std::optional<std::set<NodeID>> expectedFirstTwo;
+    for (int i = 0; i < 3; ++i)
+    {
+        VirtualClock clock;
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+        auto cfg = getTestConfig(i);
+        cfg.HTTP_PORT = 0;
+        cfg.MANUAL_CLOSE = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+        cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+        cfg.NODE_SEED = keys[i];
+        cfg.QUORUM_SET = qset;
+        auto app = createTestApplication(clock, cfg);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getSCP();
+        auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const seq = lcl.header.ledgerSeq + 1;
+        auto const value = xdr::xdr_to_opaque(lcl.header.scpValue);
+        if (!previous)
+        {
+            previous = value;
+        }
+        REQUIRE(value == *previous);
+        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        size_t pulls = 0;
+        herder.mGetTopTransactionsForTesting = [&](size_t) {
+            ++pulls;
+            return std::vector<TransactionEnvelope>{};
+        };
+        auto first = scp.predictNominationLeaders(seq, value, 1);
+        auto firstTwo = scp.predictNominationLeaders(seq, value, 2);
+        REQUIRE(first.size() == 1);
+        REQUIRE(firstTwo.size() == 2);
+        if (!expectedFirst)
+        {
+            expectedFirst = first;
+            expectedFirstTwo = firstTwo;
+        }
+        REQUIRE(first == *expectedFirst);
+        REQUIRE(firstTwo == *expectedFirstTwo);
+        int role = first.count(scp.getLocalNodeID())      ? 0
+                   : firstTwo.count(scp.getLocalNodeID()) ? 1
+                                                          : 2;
+        REQUIRE(checkedRoles.insert(role).second);
+        CAPTURE(role);
+        EarlyNominationTestAccess::schedule(herder);
+        REQUIRE(EarlyNominationTestAccess::scheduled(herder) == (role < 2));
+        bool done = false;
+        VirtualTimer stop(clock);
+        stop.expires_from_now(std::chrono::milliseconds(1));
+        stop.async_wait([&]() { done = true; }, &VirtualTimer::onFailureNoop);
+        testutil::crankUntil(
+            app, [&]() { return done; }, std::chrono::seconds(1));
+        REQUIRE(done);
+        REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
+        REQUIRE(pulls == (role < 2 ? 1 : 0));
+        REQUIRE(bool(EarlyNominationTestAccess::prepared(herder)) ==
+                (role < 2));
+        REQUIRE(scp.getNominationLeaders(seq).empty());
+        REQUIRE(scp.getLatestMessagesSend(seq).empty());
+        herder.mGetTopTransactionsForTesting = nullptr;
+    }
+    REQUIRE(checkedRoles == std::set<int>{0, 1, 2});
+}
+
+TEST_CASE("early underfilled proposals refresh at the trigger",
+          "[herder][early-nomination]")
+{
+    auto const invalidFirst = GENERATE(false, true);
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = false;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 2;
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const seq = lcl.header.ledgerSeq + 1;
+    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+    auto alice = txtest::getGenesisAccount(*app, 0);
+    auto bob = txtest::getGenesisAccount(*app, 1);
+    auto tx = alice.tx({payment(bob, 100)});
+    auto extra = bob.tx({payment(alice, 100)});
+    auto bad = txtest::getGenesisAccount(*app, 2).tx({payment(alice, 100)});
+    getSignatures(bad).clear();
+    std::vector<TransactionEnvelope> mempool;
+    if (invalidFirst)
+    {
+        // More candidates than capacity, but they cannot fill the ledger.
+        mempool = {bad->getEnvelope(), bad->getEnvelope(), bad->getEnvelope()};
+    }
+    size_t pulls = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        ++pulls;
+        return mempool;
+    };
+    EarlyNominationTestAccess::schedule(herder);
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return EarlyNominationTestAccess::prepared(herder) != nullptr;
+        },
+        std::chrono::seconds(1));
+    REQUIRE(pulls == 1);
+    REQUIRE(EarlyNominationTestAccess::prepared(herder)->sizeTxTotal() == 0);
+    // Transactions arrive while we are waiting for the normal trigger.
+    mempool = {tx->getEnvelope(), extra->getEnvelope()};
+    clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
+    testutil::crankUntil(
+        app,
+        [&]() { return !herder.getSCP().getNominationLeaders(seq).empty(); },
+        std::chrono::seconds(1));
+    REQUIRE(pulls == 2);
+    // Check the actual set cached for nomination, independently of benchmark
+    // instrumentation. Both newly arrived transactions must be present.
+    auto expected =
+        makeTxSetFromTransactions(TxFrameList{tx, extra}, *app, 0, 0).first;
+    REQUIRE(expected->sizeTxTotal() == 2);
+    auto nominated = std::get<TxSetXDRFrameConstPtr>(
+        herder.getTxSet(expected->getContentsHash()));
+    REQUIRE(nominated);
+    REQUIRE(nominated->sizeTxTotal() == 2);
+    REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
+TEST_CASE("early preparation respects manual and immediately due triggers",
+          "[herder][early-nomination]")
+{
+    auto const manual = GENERATE(false, true);
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = manual;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto const seq = app->getLedgerManager().getLastClosedLedgerNum() + 1;
+    size_t pulls = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        ++pulls;
+        return std::vector<TransactionEnvelope>{};
+    };
+    if (manual)
+    {
+        REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
+        REQUIRE(herder.getTriggerTimer().seq() == 0);
+        herder.triggerNextLedger(seq, true);
+    }
+    else
+    {
+        // No previous prepare timestamp: the normal fallback triggers now.
+        REQUIRE(herder.getTriggerTimer().expiry_time() == clock.now());
+        testutil::crankUntil(
+            app,
+            [&]() {
+                return !herder.getSCP().getNominationLeaders(seq).empty();
+            },
+            std::chrono::seconds(1));
+    }
+    REQUIRE(pulls == 1);
+    REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+    REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
+    REQUIRE(!herder.getSCP().getNominationLeaders(seq).empty());
+    herder.mGetTopTransactionsForTesting = nullptr;
 }

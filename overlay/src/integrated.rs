@@ -7,17 +7,24 @@
 
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, OwnedSemaphorePermit, RwLock, Semaphore};
 use tracing::{debug, info};
 
 use crate::flood::Mempool;
 use crate::wire::ValidatedTx;
 
-/// Commands from Core to Overlay
-#[derive(Debug, Clone)]
+/// Bound network admissions waiting for or undergoing mempool insertion.
+const MAX_NETWORK_ADMISSIONS: usize = 10_000;
+
+/// One ordered stream for Core commands and network TX admissions.
+#[derive(Debug)]
 pub enum CoreCommand {
-    /// Submit a validated transaction for flooding
-    SubmitTx(Arc<ValidatedTx>),
+    /// Insert a transaction. Network admission owns capacity until processed;
+    /// local Core submissions retain their existing unbounded enqueue policy.
+    SubmitTx {
+        tx: Arc<ValidatedTx>,
+        admission: Option<OwnedSemaphorePermit>,
+    },
 
     /// Request top N transactions by fee
     GetTopTxs {
@@ -25,7 +32,7 @@ pub enum CoreCommand {
         reply: mpsc::Sender<Vec<Arc<ValidatedTx>>>,
     },
 
-    /// Remove transactions from mempool (after ledger close)
+    /// Remove discarded candidates or finalized transactions.
     RemoveTxsFromMempool {
         tx_hashes: Vec<[u8; 32]>,
         reply: Option<mpsc::Sender<()>>,
@@ -65,7 +72,7 @@ impl Overlay {
     /// Handle a command from Core.
     async fn handle_core_command(&self, cmd: CoreCommand) {
         match cmd {
-            CoreCommand::SubmitTx(tx) => {
+            CoreCommand::SubmitTx { tx, admission } => {
                 debug!(
                     "[SubmitTx] TX: hash={:02x?}, size={}, fee={}, ops={}",
                     &tx.hash()[..4],
@@ -75,6 +82,7 @@ impl Overlay {
                 );
                 let mut mempool = self.mempool.write().await;
                 mempool.insert(tx);
+                drop(admission);
             }
 
             CoreCommand::GetTopTxs { count, reply } => {
@@ -103,6 +111,7 @@ impl Overlay {
                     "Removed {} (requested) + {} (expired) TXs from mempool",
                     count, expired
                 );
+                drop(mempool);
                 // Signal completion if caller is waiting
                 if let Some(tx) = reply {
                     let _ = tx.send(()).await;
@@ -121,17 +130,49 @@ impl Overlay {
 #[derive(Clone)]
 pub struct OverlayHandle {
     cmd_tx: mpsc::UnboundedSender<CoreCommand>,
+    network_admissions: Arc<Semaphore>,
 }
 
 impl OverlayHandle {
-    /// Create a new handle.
+    /// Create one handle per manager, then clone it to share admission capacity.
     pub fn new(cmd_tx: mpsc::UnboundedSender<CoreCommand>) -> Self {
-        Self { cmd_tx }
+        Self::with_admission_capacity(cmd_tx, MAX_NETWORK_ADMISSIONS)
+    }
+
+    pub(crate) fn with_admission_capacity(
+        cmd_tx: mpsc::UnboundedSender<CoreCommand>,
+        capacity: usize,
+    ) -> Self {
+        Self {
+            cmd_tx,
+            network_admissions: Arc::new(Semaphore::new(capacity)),
+        }
     }
 
     /// Submit a validated transaction.
     pub fn submit_tx(&self, tx: Arc<ValidatedTx>) {
-        let _ = self.cmd_tx.send(CoreCommand::SubmitTx(tx));
+        let _ = self.cmd_tx.send(CoreCommand::SubmitTx {
+            tx,
+            admission: None,
+        });
+    }
+
+    /// Admit directly to the same FIFO as removal, without an intermediate
+    /// queue, task, or await. Clones share the network admission bound. Control
+    /// commands can still enqueue when that bound is full.
+    ///
+    /// Returns false if full or closed. Failure and shutdown release capacity
+    /// by dropping the command's permit; the caller may retry the TX later.
+    pub fn try_submit_network_tx(&self, tx: Arc<ValidatedTx>) -> bool {
+        let Ok(admission) = self.network_admissions.clone().try_acquire_owned() else {
+            return false;
+        };
+        self.cmd_tx
+            .send(CoreCommand::SubmitTx {
+                tx,
+                admission: Some(admission),
+            })
+            .is_ok()
     }
 
     /// Get top transactions by fee.
@@ -165,6 +206,91 @@ impl OverlayHandle {
 mod tests {
     use super::*;
     use crate::xdr::tests::valid_transaction_xdr;
+    use futures::poll;
+
+    fn transaction(sequence: i64) -> Arc<ValidatedTx> {
+        ValidatedTx::from_core_trusted(valid_transaction_xdr(100, sequence, 1), 100, 1).unwrap()
+    }
+
+    #[tokio::test]
+    async fn bounded_admissions_share_fifo_with_removal_and_queries() {
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let handle = OverlayHandle::with_admission_capacity(cmd_tx, 2);
+        let peer = handle.clone();
+        let first = transaction(1);
+        let second = transaction(2);
+        let third = transaction(3);
+        assert!(handle.try_submit_network_tx(first.clone()));
+        assert!(peer.try_submit_network_tx(second.clone()));
+        assert!(!peer.try_submit_network_tx(third.clone()));
+
+        // Enqueue controls while network capacity is exhausted and the actor
+        // has not even started. Both use the same FIFO without a TX permit.
+        let removal = handle.remove_txs_sync(vec![*first.hash()]);
+        tokio::pin!(removal);
+        assert!(poll!(removal.as_mut()).is_pending());
+        let query = handle.get_top_txs(10);
+        tokio::pin!(query);
+        assert!(poll!(query.as_mut()).is_pending());
+        let task = tokio::spawn(Overlay::new(cmd_rx).run());
+        removal.await;
+        let top = query.await.unwrap();
+        assert_eq!(top.len(), 1);
+        assert_eq!(top[0].hash(), second.hash());
+        assert!(handle.try_submit_network_tx(third));
+        assert_eq!(handle.get_top_txs(10).await.unwrap().len(), 2);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn admission_capacity_is_held_through_insertion_and_duplicate_handling() {
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let handle = OverlayHandle::with_admission_capacity(cmd_tx, 1);
+        let mut overlay = Overlay::new(cmd_rx);
+        let tx = transaction(1);
+
+        // Exercise both an insertion and a live duplicate rejection.
+        for _ in 0..2 {
+            assert!(handle.try_submit_network_tx(tx.clone()));
+            let command = overlay.core_commands.recv().await.unwrap();
+            let guard = overlay.mempool.read().await;
+            let insertion = overlay.handle_core_command(command);
+            tokio::pin!(insertion);
+            assert!(poll!(insertion.as_mut()).is_pending());
+            assert!(
+                !handle.try_submit_network_tx(tx.clone()),
+                "dequeue must not release capacity"
+            );
+            drop(guard);
+            insertion.await;
+            assert_eq!(handle.network_admissions.available_permits(), 1);
+            assert_eq!(overlay.mempool.read().await.len(), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn cancellation_and_shutdown_release_admission_capacity() {
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let handle = OverlayHandle::with_admission_capacity(cmd_tx, 1);
+        let mut overlay = Overlay::new(cmd_rx);
+        let tx = transaction(1);
+        assert!(handle.try_submit_network_tx(tx.clone()));
+        let command = overlay.core_commands.recv().await.unwrap();
+        let guard = overlay.mempool.read().await;
+        {
+            let insertion = overlay.handle_core_command(command);
+            tokio::pin!(insertion);
+            assert!(poll!(insertion.as_mut()).is_pending());
+            assert_eq!(handle.network_admissions.available_permits(), 0);
+            // Dropping an in-progress insertion must release its permit.
+        }
+        drop(guard);
+        assert!(handle.try_submit_network_tx(tx.clone()));
+        drop(overlay); // Drops queued admissions as well.
+        assert_eq!(handle.network_admissions.available_permits(), 1);
+        assert!(!handle.try_submit_network_tx(tx)); // Closed FIFO, permit returned.
+        assert_eq!(handle.network_admissions.available_permits(), 1);
+    }
 
     #[tokio::test]
     async fn test_submit_tx_adds_to_mempool() {

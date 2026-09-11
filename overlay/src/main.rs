@@ -371,8 +371,8 @@ fn collect_local_addrs(libp2p_port: u16) -> Arc<RwLock<HashSet<SocketAddr>>> {
     local_addrs
 }
 
-fn get_cached_tx_set_xdr(tx_set_cache: &TxSetCache, hash: &Hash256) -> Option<Vec<u8>> {
-    tx_set_cache.get(hash).map(|cached| cached.xdr.clone())
+fn get_cached_tx_set_xdr<'a>(tx_set_cache: &'a TxSetCache, hash: &Hash256) -> Option<&'a [u8]> {
+    tx_set_cache.get(hash).map(|cached| cached.xdr.as_slice())
 }
 
 fn cache_tx_set_xdr(
@@ -383,7 +383,7 @@ fn cache_tx_set_xdr(
 ) {
     tx_set_cache.insert(CachedTxSet {
         hash,
-        xdr,
+        xdr: Arc::new(xdr),
         ledger_seq: current_ledger_seq,
     });
 }
@@ -394,14 +394,15 @@ struct App {
     overlay_handle: OverlayHandle,
     /// Cache for built TX sets
     tx_set_cache: TxSetCache,
+    /// Missing sets requested by Core, with the newest slot needing each set.
+    /// Prefetches stay in the cache until Core establishes this demand.
+    pending_core_tx_sets: HashMap<Hash256, u32>,
     /// Current ledger sequence
     current_ledger_seq: u32,
     /// libp2p overlay handle (QUIC-based SCP + TX)
     libp2p_handle: LibP2pOverlayHandle,
     /// libp2p overlay events (SCP, TxSet - critical, unbounded)
     libp2p_events: mpsc::UnboundedReceiver<LibP2pOverlayEvent>,
-    /// libp2p TX events (bounded, may drop under backpressure)
-    tx_events: mpsc::Receiver<LibP2pOverlayEvent>,
     /// Pending SCP state requests: maps request_id to requesting peer
     /// When Core responds with ScpStateResponse containing request_id, we look up the peer
     pending_scp_state_requests: Arc<RwLock<HashMap<u64, PeerId>>>,
@@ -459,21 +460,19 @@ impl App {
         // Create libp2p QUIC overlay for SCP + TX + TxSet (unified, independent streams)
         let libp2p_keypair = Libp2pKeypair::generate_ed25519();
         let metrics = Arc::new(OverlayMetrics::new());
-        let (libp2p_handle, libp2p_event_rx, tx_event_rx, libp2p_overlay) =
-            create_overlay(libp2p_keypair, Arc::clone(&metrics))
+        let (libp2p_handle, libp2p_event_rx, mut libp2p_overlay) =
+            create_overlay(libp2p_keypair, Arc::clone(&metrics), overlay_handle.clone())
                 .map_err(|e| format!("Failed to create libp2p overlay: {}", e))?;
 
         // Use peer_port + 1000 for libp2p QUIC to avoid collision with legacy TCP
         let libp2p_port = config.peer_port + 1000;
-        let libp2p_listen_ip = config.libp2p_listen_ip.clone();
+        libp2p_overlay.listen(&config.libp2p_listen_ip, libp2p_port)?;
 
         // Compute local addresses for self-dial detection (instant + async DNS in background)
         let local_addrs = collect_local_addrs(libp2p_port);
 
         // Spawn libp2p overlay task
-        tokio::spawn(async move {
-            libp2p_overlay.run(&libp2p_listen_ip, libp2p_port).await;
-        });
+        tokio::spawn(libp2p_overlay.run_event_loop());
 
         info!(
             "Started libp2p QUIC overlay on {}:{} (SCP + TX + TxSet streams)",
@@ -484,10 +483,10 @@ impl App {
             core_ipc,
             overlay_handle,
             tx_set_cache: TxSetCache::new(100),
+            pending_core_tx_sets: HashMap::new(),
             current_ledger_seq: 0,
             libp2p_handle,
             libp2p_events: libp2p_event_rx,
-            tx_events: tx_event_rx,
             pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
             next_scp_request_id: Arc::new(AtomicU64::new(1)),
             local_addrs,
@@ -532,11 +531,6 @@ impl App {
 
                 // Receive events from libp2p QUIC overlay (SCP + TxSet - critical)
                 Some(event) = self.libp2p_events.recv() => {
-                    self.handle_libp2p_event(event).await;
-                }
-
-                // Receive TX events from libp2p (bounded channel, may drop under backpressure)
-                Some(event) = self.tx_events.recv() => {
                     self.handle_libp2p_event(event).await;
                 }
 
@@ -721,14 +715,6 @@ impl App {
                     );
                 }
             }
-            LibP2pOverlayEvent::TxReceived { tx, from } => {
-                debug!(
-                    "Received TX via QUIC from {}: {} bytes",
-                    from,
-                    tx.bytes().len()
-                );
-                self.overlay_handle.submit_tx(tx);
-            }
             LibP2pOverlayEvent::TxSetReceived {
                 hash,
                 data,
@@ -752,22 +738,10 @@ impl App {
                     &mut self.tx_set_cache,
                     slot.unwrap_or(self.current_ledger_seq + 1),
                     hash,
-                    data.clone(),
+                    data,
                 );
 
-                // Always push TX set to Core (Core handles dedup)
-                info!(
-                    "TXSET_TO_CORE: Pushing TxSet {:02x?}... ({} bytes) to Core",
-                    &hash[..4],
-                    data.len()
-                );
-                if let Err(e) = self
-                    .core_ipc
-                    .sender
-                    .send_tx_set_available(hash, data.clone())
-                {
-                    error!("Failed to push TX set to Core: {}", e);
-                }
+                self.send_requested_tx_set(&hash);
             }
             LibP2pOverlayEvent::TxSetRequested { hash, from } => {
                 info!("Peer {} requesting TxSet {:02x?}...", from, &hash[..4]);
@@ -940,6 +914,32 @@ impl App {
         }
     }
 
+    /// Core rejects sets it has not requested. Keep proactive network fetches
+    /// cached, and deliver only after RequestTxSet. Both event orderings run
+    /// on this App task, so a request racing a prefetch cannot lose its reply.
+    fn send_requested_tx_set(&mut self, hash: &Hash256) {
+        if !self.pending_core_tx_sets.contains_key(hash) {
+            return;
+        }
+        let Some(data) = get_cached_tx_set_xdr(&self.tx_set_cache, hash) else {
+            return;
+        };
+        let bytes = data.len();
+        match self.core_ipc.sender.send_tx_set_available(*hash, data) {
+            Ok(()) => {
+                // This is not a permanent delivered/seen marker. A fresh
+                // explicit request must still work after Core evicts a set.
+                self.pending_core_tx_sets.remove(hash);
+                info!(
+                    "TXSET_TO_CORE: Sending requested TxSet {:02x?}... ({} bytes) to Core",
+                    &hash[..4],
+                    bytes
+                );
+            }
+            Err(e) => error!("Failed to send requested TX set to Core: {}", e),
+        }
+    }
+
     /// Handle a message from Core. Returns false to signal shutdown.
     async fn handle_core_message(&mut self, msg: Message) -> bool {
         match msg.msg_type {
@@ -1015,16 +1015,20 @@ impl App {
                 hash.copy_from_slice(&msg.payload[0..32]);
                 let slot = u32::from_le_bytes(msg.payload[32..36].try_into().unwrap());
 
+                self.pending_core_tx_sets
+                    .entry(hash)
+                    .and_modify(|needed_slot| *needed_slot = (*needed_slot).max(slot))
+                    .or_insert(slot);
+
                 // First check local cache
-                if let Some(xdr) = get_cached_tx_set_xdr(&self.tx_set_cache, &hash) {
+
+                if let Some(cached) = self.tx_set_cache.get(&hash) {
                     info!(
                         "TXSET_FROM_CACHE: Sending TX set {:02x?}... ({} bytes) from local cache",
                         &hash[..4],
-                        xdr.len()
+                        cached.xdr.len()
                     );
-                    if let Err(e) = self.core_ipc.sender.send_tx_set_available(hash, xdr) {
-                        error!("Failed to send TX set: {}", e);
-                    }
+                    self.send_requested_tx_set(&hash);
                 } else {
                     // Not in local cache - request from peers. Spawn so the main
                     // loop never awaits on the bounded libp2p cmd channel.
@@ -1072,6 +1076,8 @@ impl App {
                 );
 
                 cache_tx_set_xdr(&mut self.tx_set_cache, slot, hash, tx_set_xdr.to_vec());
+
+                self.send_requested_tx_set(&hash);
             }
 
             MessageType::SubmitTx => {
@@ -1141,6 +1147,8 @@ impl App {
                     // Evict old TX sets from cache
                     self.tx_set_cache
                         .evict_before(ledger_seq.saturating_sub(12));
+                    self.pending_core_tx_sets
+                        .retain(|_, slot| *slot >= ledger_seq.saturating_sub(12));
                 }
             }
 
@@ -1493,6 +1501,22 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn create_test_overlay(
+        keypair: Libp2pKeypair,
+        metrics: Arc<OverlayMetrics>,
+    ) -> Result<
+        (
+            LibP2pOverlayHandle,
+            mpsc::UnboundedReceiver<LibP2pOverlayEvent>,
+            stellar_overlay::libp2p_overlay::StellarOverlay,
+        ),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        tokio::spawn(Overlay::new(cmd_rx).run());
+        create_overlay(keypair, metrics, OverlayHandle::new(cmd_tx))
+    }
+
     use stellar_xdr::curr::{Limits, ScpEnvelope, WriteXdr};
 
     fn test_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
@@ -1613,8 +1637,8 @@ mod tests {
             .insert("127.0.0.1:12625".parse().unwrap());
 
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("127.0.0.1:11625", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1627,8 +1651,8 @@ mod tests {
     async fn test_resolve_and_dial_dns_failure_returns_addr() {
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("unresolvable.invalid", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1642,8 +1666,8 @@ mod tests {
         // A valid IP:port that is NOT in local_addrs should return Dialed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("10.255.255.1:11625", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1657,8 +1681,8 @@ mod tests {
         // "localhost" should resolve via DNS and return Dialed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("localhost", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1682,8 +1706,8 @@ mod tests {
         // Empty unresolved list should not spawn anything
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         // This should return immediately without spawning a task
         spawn_peer_retry_task(
@@ -1702,8 +1726,8 @@ mod tests {
         // We put it in the "unresolved" list as if initial resolution failed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Use tokio::time::pause() so the test doesn't actually sleep 2+ seconds
         tokio::time::pause();
@@ -1731,8 +1755,8 @@ mod tests {
         // (no max attempts). We verify it survives multiple retry cycles.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         tokio::time::pause();
 
@@ -1767,20 +1791,23 @@ mod tests {
         let kp2 = Libp2pKeypair::generate_ed25519();
         let kp3 = Libp2pKeypair::generate_ed25519();
 
-        let (handle1, _events1, _tx1, overlay1) =
-            create_overlay(kp1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx2, overlay2) =
-            create_overlay(kp2, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle3, mut events3, _tx3, overlay3) =
-            create_overlay(kp3, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, mut overlay1) =
+            create_test_overlay(kp1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, mut overlay2) =
+            create_test_overlay(kp2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle3, mut events3, mut overlay3) =
+            create_test_overlay(kp3, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Start all three on different ports
         let port1: u16 = 18501;
         let port2: u16 = 18502;
         let port3: u16 = 18503;
-        tokio::spawn(async move { overlay1.run("127.0.0.1", port1).await });
-        tokio::spawn(async move { overlay2.run("127.0.0.1", port2).await });
-        tokio::spawn(async move { overlay3.run("127.0.0.1", port3).await });
+        overlay1.listen("127.0.0.1", port1).unwrap();
+        tokio::spawn(overlay1.run_event_loop());
+        overlay2.listen("127.0.0.1", port2).unwrap();
+        tokio::spawn(overlay2.run_event_loop());
+        overlay3.listen("127.0.0.1", port3).unwrap();
+        tokio::spawn(overlay3.run_event_loop());
         tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Node1 resolves and dials all peers using a mix of IP and DNS formats.
@@ -1853,8 +1880,8 @@ mod tests {
         // After the first 4 retries (2+4+8+16=30s), each additional retry is 30s.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) =
-            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _evt_rx, _overlay) =
+            create_test_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         tokio::time::pause();
 
@@ -1906,6 +1933,15 @@ mod tests {
     /// The libp2p overlay object is dropped (not run), so cache-miss fetches
     /// just log a warning — these tests only exercise the cache paths.
     fn test_app() -> (App, StdUnixStream) {
+        let (app, core, _network) = test_app_with_network();
+        (app, core)
+    }
+
+    fn test_app_with_network() -> (
+        App,
+        StdUnixStream,
+        stellar_overlay::libp2p_overlay::StellarOverlay,
+    ) {
         let (overlay_side, core_side) = StdUnixStream::pair().unwrap();
         let core_ipc = CoreIpc::from_stream(overlay_side).unwrap();
 
@@ -1917,17 +1953,21 @@ mod tests {
         let overlay_handle = OverlayHandle::new(cmd_tx);
 
         let metrics = Arc::new(OverlayMetrics::new());
-        let (libp2p_handle, libp2p_events, tx_events, _overlay) =
-            create_overlay(Libp2pKeypair::generate_ed25519(), Arc::clone(&metrics)).unwrap();
+        let (libp2p_handle, libp2p_events, network) = create_overlay(
+            Libp2pKeypair::generate_ed25519(),
+            Arc::clone(&metrics),
+            overlay_handle.clone(),
+        )
+        .unwrap();
 
         let app = App {
             core_ipc,
             overlay_handle,
             tx_set_cache: TxSetCache::new(100),
+            pending_core_tx_sets: HashMap::new(),
             current_ledger_seq: 0,
             libp2p_handle,
             libp2p_events,
-            tx_events,
             pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
             next_scp_request_id: Arc::new(AtomicU64::new(1)),
             local_addrs: Arc::new(RwLock::new(HashSet::new())),
@@ -1940,7 +1980,7 @@ mod tests {
             peer_hostnames: Arc::new(RwLock::new(HashMap::new())),
             metrics,
         };
-        (app, core_side)
+        (app, core_side, network)
     }
 
     /// A minimal valid GeneralizedTransactionSet whose content hash matches,
@@ -1956,6 +1996,102 @@ mod tests {
         (hash, bytes)
     }
 
+    fn test_mempool_tx(seq: i64) -> Arc<ValidatedTx> {
+        use stellar_xdr::curr::{
+            Operation, SequenceNumber, Transaction, TransactionEnvelope, TransactionV1Envelope,
+        };
+        let envelope = TransactionEnvelope::Tx(TransactionV1Envelope {
+            tx: Transaction {
+                fee: 100,
+                seq_num: SequenceNumber(seq),
+                operations: vec![Operation::default()].try_into().unwrap(),
+                ..Transaction::default()
+            },
+            signatures: Default::default(),
+        });
+        ValidatedTx::from_core_trusted(envelope.to_xdr(Limits::none()).unwrap(), 100, 1).unwrap()
+    }
+
+    fn remove_tx_message(tx_set_hash: Hash256, tx_hash: Hash256) -> Message {
+        let mut payload = tx_set_hash.to_vec();
+        payload.extend_from_slice(&1u32.to_le_bytes());
+        payload.extend_from_slice(&tx_hash);
+        Message::new(MessageType::TxSetExternalized, payload)
+    }
+
+    #[tokio::test]
+    async fn externalization_removes_queued_admission_without_remembering_hashes() {
+        let (mut app, _core) = test_app();
+        let tx = test_mempool_tx(1);
+        assert!(app.overlay_handle.try_submit_network_tx(tx.clone()));
+        app.handle_core_message(remove_tx_message([1; 32], *tx.hash()))
+            .await;
+        assert!(app.overlay_handle.get_top_txs(10).await.unwrap().is_empty());
+
+        // Truly later admissions are deliberately allowed; no finalized hash
+        // history remains. Ledger-state validity is still checked by Core.
+        assert!(app.overlay_handle.try_submit_network_tx(tx.clone()));
+        let top = app.overlay_handle.get_top_txs(10).await.unwrap();
+        assert_eq!(top.len(), 1);
+        assert_eq!(top[0].hash(), tx.hash());
+    }
+
+    #[tokio::test]
+    async fn discarded_transaction_can_be_resubmitted() {
+        let (mut app, _core) = test_app();
+        let tx = test_mempool_tx(1);
+        app.overlay_handle.submit_tx(tx.clone());
+        assert_eq!(app.overlay_handle.get_top_txs(10).await.unwrap().len(), 1);
+
+        // OverlayIPC::removeTransactions uses a zero set hash for candidates
+        // discarded by the builder, rather than finalized transactions.
+        app.handle_core_message(remove_tx_message([0; 32], *tx.hash()))
+            .await;
+        assert!(app.overlay_handle.get_top_txs(10).await.unwrap().is_empty());
+        app.overlay_handle.submit_tx(tx.clone());
+        let top = app.overlay_handle.get_top_txs(10).await.unwrap();
+        assert_eq!(top.len(), 1);
+        assert_eq!(top[0].hash(), tx.hash());
+    }
+
+    #[tokio::test]
+    async fn peer_responses_share_cached_storage_and_survive_eviction() {
+        // Keep the network dispatcher alive but unpolled: responses remain
+        // queued or awaiting dispatch, as when the transport is delayed.
+        let (mut app, _core, network) = test_app_with_network();
+        let (hash, data) = test_txset_xdr(7);
+        cache_tx_set_xdr(&mut app.tx_set_cache, 1, hash, data.clone());
+        let cached = Arc::downgrade(&app.tx_set_cache.get(&hash).unwrap().xdr);
+        for _ in 0..29 {
+            app.handle_libp2p_event(LibP2pOverlayEvent::TxSetRequested {
+                hash,
+                from: PeerId::random(),
+            })
+            .await;
+        }
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while cached.strong_count() != 30 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("each queued peer response must share the cached allocation");
+
+        app.tx_set_cache.evict_before(2);
+        assert!(app.tx_set_cache.get(&hash).is_none());
+        assert_eq!(cached.strong_count(), 29);
+        assert_eq!(cached.upgrade().unwrap().as_slice(), data.as_slice());
+        drop(network);
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while cached.strong_count() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("shutdown releases queued payloads and wakes waiting sends");
+        assert!(cached.upgrade().is_none());
+    }
+
     fn request_tx_set_payload(hash: &[u8; 32], slot: u32) -> Vec<u8> {
         let mut payload = hash.to_vec();
         payload.extend_from_slice(&slot.to_le_bytes());
@@ -1966,6 +2102,229 @@ mod tests {
         let mut payload = seq.to_le_bytes().to_vec();
         payload.extend_from_slice(&[0u8; 32]);
         payload
+    }
+
+    fn assert_no_core_txset(core: &mut StdUnixStream) {
+        core.set_read_timeout(Some(Duration::from_millis(100)))
+            .unwrap();
+        let error = MessageCodec::read(core).expect_err("unexpected IPC delivery");
+        assert!(matches!(
+            error.kind(),
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+        ));
+    }
+
+    fn assert_core_txset(core: &mut StdUnixStream, hash: &Hash256, data: &[u8]) {
+        core.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        let response = MessageCodec::read(core).unwrap();
+        assert_eq!(response.msg_type, MessageType::TxSetAvailable);
+        assert_eq!(&response.payload[..32], hash);
+        assert_eq!(&response.payload[32..], data);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn prefetched_txset_waits_for_core_request() {
+        let (mut app, mut core) = test_app();
+        let (hash, data) = test_txset_xdr(31);
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: data.clone(),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+        assert_eq!(
+            app.tx_set_cache.get(&hash).unwrap().xdr.as_slice(),
+            data.as_slice()
+        );
+
+        assert_no_core_txset(&mut core);
+
+        // A later explicit request must receive the cached set. There must
+        // be no permanent 'already delivered' marker preventing a re-fetch.
+        for _ in 0..2 {
+            app.handle_core_message(Message::new(
+                MessageType::RequestTxSet,
+                request_tx_set_payload(&hash, 100),
+            ))
+            .await;
+            assert_core_txset(&mut core, &hash, &data);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pending_core_txset_delivers_once_despite_duplicate_arrivals() {
+        let (mut app, mut core) = test_app();
+        let (hash, data) = test_txset_xdr(32);
+        for slot in [100, 101, 99] {
+            app.handle_core_message(Message::new(
+                MessageType::RequestTxSet,
+                request_tx_set_payload(&hash, slot),
+            ))
+            .await;
+        }
+        assert_eq!(app.pending_core_tx_sets.get(&hash), Some(&101));
+
+        let (other, other_data) = test_txset_xdr(33);
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash: other,
+            data: other_data,
+            from: PeerId::random(),
+            slot: Some(101),
+        })
+        .await;
+        assert_no_core_txset(&mut core);
+        assert!(app.pending_core_tx_sets.contains_key(&hash));
+
+        for arrival in 0..2 {
+            app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+                hash,
+                data: data.clone(),
+                from: PeerId::random(),
+                slot: Some(101),
+            })
+            .await;
+            if arrival == 0 {
+                assert_core_txset(&mut core, &hash, &data);
+                assert!(!app.pending_core_tx_sets.contains_key(&hash));
+            } else {
+                assert_no_core_txset(&mut core);
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn locally_cached_txset_satisfies_pending_core_request() {
+        let (mut app, mut core) = test_app();
+        let (hash, data) = test_txset_xdr(34);
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hash, 100),
+        ))
+        .await;
+        let mut payload = request_tx_set_payload(&hash, 100);
+        payload.extend_from_slice(&data);
+        app.handle_core_message(Message::new(MessageType::CacheTxSet, payload))
+            .await;
+        assert_core_txset(&mut core, &hash, &data);
+        assert!(!app.pending_core_tx_sets.contains_key(&hash));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn evicted_prefetch_can_be_requested_and_fetched_again() {
+        let (mut app, mut core) = test_app();
+        app.tx_set_cache = TxSetCache::new(1);
+        let (hash, data) = test_txset_xdr(35);
+        let (other, other_data) = test_txset_xdr(36);
+        for (h, bytes) in [(hash, data.clone()), (other, other_data)] {
+            app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+                hash: h,
+                data: bytes,
+                from: PeerId::random(),
+                slot: Some(100),
+            })
+            .await;
+        }
+        assert!(app.tx_set_cache.get(&hash).is_none());
+        assert_no_core_txset(&mut core);
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hash, 100),
+        ))
+        .await;
+        assert!(app.pending_core_tx_sets.contains_key(&hash));
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: data.clone(),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+        assert_core_txset(&mut core, &hash, &data);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pending_core_txsets_expire_with_the_retained_slot_window() {
+        let (mut app, mut core) = test_app();
+        let (old, data) = test_txset_xdr(37);
+        let (future, _) = test_txset_xdr(38);
+        for (hash, slot) in [(old, 100), (future, 120), (future, 99)] {
+            app.handle_core_message(Message::new(
+                MessageType::RequestTxSet,
+                request_tx_set_payload(&hash, slot),
+            ))
+            .await;
+        }
+        app.handle_core_message(Message::new(
+            MessageType::LedgerClosed,
+            ledger_closed_payload(112),
+        ))
+        .await;
+        assert_eq!(app.pending_core_tx_sets.get(&old), Some(&100));
+        app.handle_core_message(Message::new(
+            MessageType::LedgerClosed,
+            ledger_closed_payload(113),
+        ))
+        .await;
+        assert!(!app.pending_core_tx_sets.contains_key(&old));
+        assert_eq!(app.pending_core_tx_sets.get(&future), Some(&120));
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash: old,
+            data: data.clone(),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+        assert_no_core_txset(&mut core);
+        // Expiry is not a permanent seen marker. A new explicit demand is
+        // still answered, even if its slot is older than our current view.
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&old, 100),
+        ))
+        .await;
+        assert_core_txset(&mut core, &old, &data);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn failed_core_enqueue_does_not_complete_the_pending_request() {
+        let (mut app, core) = test_app();
+        let (hash, data) = test_txset_xdr(39);
+        drop(core);
+        // Cause the real socket writer to observe the closed connection and
+        // drop its queue receiver before exercising delivery failure.
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if app
+                    .core_ipc
+                    .sender
+                    .send_tx_set_available(hash, &[])
+                    .is_err()
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .unwrap();
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hash, 100),
+        ))
+        .await;
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: data.clone(),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+        assert!(app.pending_core_tx_sets.contains_key(&hash));
+        assert_eq!(
+            app.tx_set_cache.get(&hash).unwrap().xdr.as_slice(),
+            data.as_slice()
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -2058,10 +2417,7 @@ mod tests {
         })
         .await;
 
-        // Receiving the set pushes it straight to Core; drain that message.
-        core.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
-        let pushed = MessageCodec::read(&mut core).unwrap();
-        assert_eq!(pushed.msg_type, MessageType::TxSetAvailable);
+        // An unrequested prefetch stays in Rust until Core asks for it.
 
         // Ledger 99 closes (evicts sets stamped before 87); the entry was
         // stamped with the requested slot 100 and must survive.
@@ -2080,6 +2436,7 @@ mod tests {
             ))
             .await
         );
+        core.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
         let resp = MessageCodec::read(&mut core).unwrap();
         assert_eq!(resp.msg_type, MessageType::TxSetAvailable);
         assert_eq!(&resp.payload[0..32], &hash[..]);

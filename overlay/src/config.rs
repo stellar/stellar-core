@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 /// Overlay configuration.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Path to Core IPC socket
     pub core_socket: PathBuf,
@@ -66,6 +66,19 @@ impl std::error::Error for ConfigError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn performance_settings_cannot_be_overridden() {
+        for setting in [
+            "udp_receive_buffer_bytes = 0",
+            "udp_receive_buffer_bytes = 65536",
+            "udp_receive_buffer_force = false",
+            "udp_receive_buffer_force = true",
+        ] {
+            let error = Config::from_str(setting).unwrap_err();
+            assert!(error.to_string().contains("unknown field"));
+        }
+    }
 
     #[test]
     fn test_default_config() {

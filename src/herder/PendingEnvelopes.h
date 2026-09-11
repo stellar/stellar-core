@@ -210,6 +210,9 @@ class PendingEnvelopes
 
     std::vector<uint64> readySlots();
 
+    // whether any envelope for `slotIndex` has been received, in any state
+    bool hasEnvelopesForSlot(uint64 slotIndex) const;
+
     Json::Value getJsonInfo(size_t limit);
 
     TxSetResult getTxSet(Hash const& hash);
