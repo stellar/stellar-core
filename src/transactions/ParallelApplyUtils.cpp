@@ -8,14 +8,18 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
+#include "transactions/OperationFrame.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrameBase.h"
+#include "transactions/TransactionUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
 #include <fmt/core.h>
 #include <fmt/std.h>
 #include <thread>
+#include <unordered_map>
 
 namespace
 {
@@ -174,7 +178,20 @@ updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
     }
 }
 
+void
+commitPreParallelApplyWrites(AppConnector& app, AbstractLedgerTxn& ltx,
+                             std::vector<TxBundle const*> const& txBundles)
+{
+    ZoneScoped;
+    for (auto const* txBundle : txBundles)
+    {
+        txBundle->getTx()->preParallelApplyWrite(
+            app, ltx, txBundle->getEffects().getMeta(),
+            txBundle->getResPayload());
+    }
 }
+
+} // namespace
 
 namespace stellar
 {
@@ -319,14 +336,13 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     // had their sequence numbers bumped and fees charged. preParallelApply will
     // update sequence numbers so it needs to be called before we check
     // LedgerTxn.
-    preParallelApplyAndCollectModifiedClassicEntries(app, ltx, stages);
+    preApplyAndCollectModifiedClassicEntries(app, ltx, stages);
 }
 
 void
-GlobalParallelApplyLedgerState::
-    preParallelApplyAndCollectModifiedClassicEntries(
-        AppConnector& app, AbstractLedgerTxn& ltx,
-        std::vector<ApplyStage> const& stages)
+GlobalParallelApplyLedgerState::preApplyAndCollectModifiedClassicEntries(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::vector<ApplyStage> const& stages)
 {
     auto fetchInMemoryClassicEntries =
         [&](xdr::xvector<LedgerKey> const& keys) {
@@ -353,34 +369,99 @@ GlobalParallelApplyLedgerState::
             }
         };
 
-    // First call preParallelApply on all transactions,
-    // and then load from footprints. This order is important
-    // because preParallelApply modifies the fee source accounts
-    // and those accounts could show up in the footprint
-    // of a different transaction.
+    std::vector<TxBundle const*> txBundles;
     for (auto const& stage : stages)
     {
         for (auto const& txBundle : stage)
         {
-            // Make sure to call preParallelApply on all txs because this will
-            // modify the fee source accounts sequence numbers.
-            txBundle.getTx()->preParallelApply(
-                app, ltx, txBundle.getEffects().getMeta(),
-                txBundle.getResPayload(), mSorobanConfig);
+            txBundles.emplace_back(&txBundle);
         }
     }
 
-    for (auto const& stage : stages)
+    // Pre-apply all the transactions before loading the footprint entries. This
+    // order is important because the pre-apply modifies the source accounts,
+    // and those accounts could show up in the footprint of a transaction
+    // applied by a different thread, thus breaking the invariant that
+    // transactions are independent of each other across threads.
+    //
+    // The pre-apply process is done in two phases: a parallel read-only phase
+    // where the transactions are validated, and a serial write phase where the
+    // writes are committed to the ledger.
+    //
+    // This phase separatation hinges on the fact that the validation outcome
+    // of any Soroban transaction can't be influenced by the pre-apply writes
+    // performed by another Soroban transaction. Specifically, pre-apply writes
+    // only include:
+    // - The source account sequence number bumps - this is fine because we
+    //   have only a single transaction per source account per ledger
+    // - The removal of one-time pre-authorized tx signers - this is also fine
+    //   because any given transaction in a ledger is unique, and increasing the
+    //   sub-entry count of a source/sponsor account is not relevant at that
+    //   point, as the fees have already been successfully charged.
+
+    auto header =
+        std::make_shared<LedgerHeader const>(ltx.loadHeader().current());
+    readOnlyParallelPreApply(app, txBundles, header, ltx);
+    commitPreParallelApplyWrites(app, ltx, txBundles);
+
+    for (auto const& txBundle : txBundles)
     {
-        for (auto const& txBundle : stage)
-        {
-            auto const& footprint =
-                txBundle.getTx()->sorobanResources().footprint;
-
-            fetchInMemoryClassicEntries(footprint.readWrite);
-            fetchInMemoryClassicEntries(footprint.readOnly);
-        }
+        auto const& footprint = txBundle->getTx()->sorobanResources().footprint;
+        fetchInMemoryClassicEntries(footprint.readWrite);
+        fetchInMemoryClassicEntries(footprint.readOnly);
     }
+}
+
+void
+GlobalParallelApplyLedgerState::readOnlyParallelPreApply(
+    AppConnector& app, std::vector<TxBundle const*> const& txBundles,
+    std::shared_ptr<LedgerHeader const> header, AbstractLedgerTxn& ltx)
+{
+    ZoneScoped;
+    if (txBundles.empty())
+    {
+        return;
+    }
+
+    // Run pre-apply for [begin, end) transaction indices.
+    auto runRange = [&](size_t begin, size_t end) {
+        // NB: mLCLApplyView is not thread-safe, so we need to copy it into a
+        // thread-local view.
+        CheckValidLedgerViewWrapper ledgerView(
+            std::make_unique<SorobanPreApplyLedgerView>(header, ltx,
+                                                        mLCLApplyView));
+        for (size_t i = begin; i < end; ++i)
+        {
+            auto const* txBundle = txBundles[i];
+            txBundle->getTx()->preParallelApplyReadOnly(
+                app, ledgerView, txBundle->getEffects().getMeta(),
+                txBundle->getResPayload(), mSorobanConfig);
+        }
+    };
+
+    size_t taskCount = app.getBatchExecutor().preferredTaskCount();
+    if (taskCount <= 1)
+    {
+        runRange(0, txBundles.size());
+        return;
+    }
+
+    std::vector<std::function<int()>> tasks;
+    tasks.reserve(taskCount);
+    size_t begin = 0;
+    size_t baseChunk = txBundles.size() / taskCount;
+    size_t remainder = txBundles.size() % taskCount;
+    for (size_t i = 0; i < taskCount; ++i)
+    {
+        size_t end = begin + baseChunk + (i < remainder ? 1 : 0);
+        tasks.emplace_back([runRange, begin, end]() {
+            runRange(begin, end);
+            return 0;
+        });
+        begin = end;
+    }
+    releaseAssert(begin == txBundles.size());
+    app.getBatchExecutor().executeBatch(std::move(tasks));
 }
 
 void

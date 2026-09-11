@@ -16,6 +16,7 @@ namespace stellar
 {
 
 class Application;
+class LedgerManager;
 class TransactionFrame;
 class CheckValidLedgerViewWrapper;
 class ApplyLedgerView;
@@ -80,6 +81,9 @@ class AbstractLedgerView
   public:
     virtual ~AbstractLedgerView() = default;
     virtual LedgerHeaderWrapper getLedgerHeader() const = 0;
+    // Returns the pointer to Soroban network config snapshot associated with
+    // this view, or nullptr when the view doesn't carry one.
+    virtual SorobanNetworkConfig const* getSorobanNetworkConfig() const = 0;
     virtual LedgerEntryWrapper getAccount(AccountID const& account) const = 0;
     virtual LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                           TransactionFrame const& tx) const = 0;
@@ -101,11 +105,26 @@ class LedgerTxnReadOnly : public AbstractLedgerView
     // LedgerTxnReadOnly guarantees that LedgerTxn, LedgerTxnHeader and
     // LedgerTxnEntry referenced all remain valid.
     AbstractLedgerTxn& mLedgerTxn;
+#ifdef BUILD_TESTS
+    SorobanNetworkConfig const* mSorobanConfig{nullptr};
+#endif
 
   public:
-    LedgerTxnReadOnly(AbstractLedgerTxn& ltx);
+    explicit LedgerTxnReadOnly(AbstractLedgerTxn& ltx);
+#ifdef BUILD_TESTS
+    // Optionally takes an externally provided Soroban config, which will be
+    // exposed from `getSorobanNetworkConfig`. This is necessary for some tests
+    // that use LTX-backed ledger views.
+    // Only tests should do that. Also, we could load the config directly from
+    // LTX unconditionally, but that would slow down the tests unnecessarily
+    // as most of the time `LedgerTxnReadOnly` is used in the contexts that
+    // don't require the config.
+    LedgerTxnReadOnly(AbstractLedgerTxn& ltx,
+                      SorobanNetworkConfig const* sorobanConfig);
+#endif
     ~LedgerTxnReadOnly() override;
     LedgerHeaderWrapper getLedgerHeader() const override;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const override;
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                   TransactionFrame const& tx) const override;
@@ -138,6 +157,7 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
 
     ImmutableLedgerData const& getState() const;
     LedgerHeaderWrapper getLedgerHeader() const override;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const override;
     uint32_t getLedgerSeq() const;
 
     // === AbstractLedgerView overrides ===
@@ -205,6 +225,7 @@ class ApplyLedgerView : private ImmutableLedgerView,
     using ImmutableLedgerView::getAccount;
     using ImmutableLedgerView::getLedgerHeader;
     using ImmutableLedgerView::getLedgerSeq;
+    using ImmutableLedgerView::getSorobanNetworkConfig;
     using ImmutableLedgerView::getState;
     using ImmutableLedgerView::load;
     using ImmutableLedgerView::loadArchiveEntry;
@@ -217,6 +238,40 @@ class ApplyLedgerView : private ImmutableLedgerView,
     using ImmutableLedgerView::scanCurrentLiveEntriesOfType;
     using ImmutableLedgerView::scanForEviction;
     using ImmutableLedgerView::scanLiveEntriesOfType;
+};
+
+// An ledger view used by the read-only phase of the Soroban pre-apply.
+//
+// It's a thin wrapper around the LTX representing the current ledger state,
+// and the LCL view, which allows the pre-apply phase to observe the changes
+// that happened in the classic phase.
+//
+// Lookups are first attempted in the LTX *newest version* only (which is thread
+// safe as long as we don't mutate the LTX), and only then in the LCL view.
+class SorobanPreApplyLedgerView : public AbstractLedgerView
+{
+  public:
+    SorobanPreApplyLedgerView(std::shared_ptr<LedgerHeader const> header,
+                              AbstractLedgerTxn& ltx,
+                              ApplyLedgerView const& lclView);
+
+    LedgerHeaderWrapper getLedgerHeader() const override;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const override;
+    LedgerEntryWrapper getAccount(AccountID const& account) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx,
+                                  AccountID const& accountID) const override;
+    LedgerEntryWrapper load(LedgerKey const& key) const override;
+    void executeWithMaybeInnerSnapshot(
+        std::function<void(CheckValidLedgerViewWrapper const&)> f)
+        const override;
+
+  private:
+    std::shared_ptr<LedgerHeader const> mHeader;
+    AbstractLedgerTxn& mLtx;
+    ApplyLedgerView mLclView;
 };
 
 // A helper class to create and query read-only snapshots
@@ -232,9 +287,18 @@ class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
     std::unique_ptr<LedgerTxn> mLegacyLedgerTxn;
 
   public:
-    CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx);
+    explicit CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx);
+#ifdef BUILD_TESTS
+    // Optionally takes a LedgerManager to provide the Soroban network config
+    // for tests.
+    // This is necessary for the tests that call `checkValid` on transactions.
+    CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx,
+                                LedgerManager const& lm);
+#endif
     CheckValidLedgerViewWrapper(Application& app);
     explicit CheckValidLedgerViewWrapper(ImmutableLedgerView const& ledgerView);
+    explicit CheckValidLedgerViewWrapper(
+        std::unique_ptr<AbstractLedgerView const> getter);
 #ifdef BUILD_TESTS
     // Set by overlay-only mode call sites so commonValid skips the seqnum
     // equality check: on-disk seqnums are frozen at genesis while
@@ -257,6 +321,7 @@ class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
         return mGetter->getAccount(header, tx, AccountID);
     }
     LedgerEntryWrapper load(LedgerKey const& key) const;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const;
 
     // Execute a function with a nested snapshot, if supported. This is needed
     // to support the replay of old buggy protocols (<8), see

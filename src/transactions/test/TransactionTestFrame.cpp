@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/test/TransactionTestFrame.h"
+#include "main/AppConnector.h"
 #include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureUtils.h"
@@ -86,7 +87,7 @@ TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
     LedgerTxn ltx(ltxOuter);
-    auto ledgerView = CheckValidLedgerViewWrapper(ltx);
+    auto ledgerView = CheckValidLedgerViewWrapper(ltx, app.getLedgerManager());
     auto diagnostics = DiagnosticEventManager::createDisabled();
     mTransactionTxResult = mTransactionFrame->checkValid(
         app, ledgerView, current, lowerBoundCloseTimeOffset,
@@ -364,13 +365,21 @@ TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 }
 
 void
-TransactionTestFrame::preParallelApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& resPayload,
+TransactionTestFrame::preParallelApplyReadOnly(
+    AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& resPayload,
     SorobanNetworkConfig const& sorobanConfig) const
 {
-    mTransactionFrame->preParallelApply(app, ltx, meta, resPayload,
-                                        sorobanConfig);
+    mTransactionFrame->preParallelApplyReadOnly(app, ls, meta, resPayload,
+                                                sorobanConfig);
+}
+
+void
+TransactionTestFrame::preParallelApplyWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase const& txResult) const
+{
+    mTransactionFrame->preParallelApplyWrite(app, ltx, meta, txResult);
 }
 
 std::optional<ParallelTxSuccessVal>

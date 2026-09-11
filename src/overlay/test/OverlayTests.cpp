@@ -3590,7 +3590,7 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         // checkValid now sees the cache already populated: both tx-level
         // and op-level signed-payload lookups are pure cache hits.
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ls = CheckValidLedgerViewWrapper(ltx);
+        auto ls = CheckValidLedgerViewWrapper(ltx, app->getLedgerManager());
         auto diagnostics = DiagnosticEventManager::createDisabled();
         auto result =
             payTx->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics);
@@ -3651,7 +3651,8 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(!isValid);
 
         // Verify it fails with bad auth, not other reasons
-        auto ledgerView = CheckValidLedgerViewWrapper(ltx);
+        auto ledgerView =
+            CheckValidLedgerViewWrapper(ltx, app->getLedgerManager());
         auto diagnostics = DiagnosticEventManager::createDisabled();
         auto result = paymentTx->checkValid(app->getAppConnector(), ledgerView,
                                             0, 0, 0, diagnostics);

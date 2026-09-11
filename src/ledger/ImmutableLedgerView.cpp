@@ -97,6 +97,14 @@ LedgerTxnReadOnly::LedgerTxnReadOnly(AbstractLedgerTxn& ltx) : mLedgerTxn(ltx)
 {
 }
 
+#ifdef BUILD_TESTS
+LedgerTxnReadOnly::LedgerTxnReadOnly(AbstractLedgerTxn& ltx,
+                                     SorobanNetworkConfig const* sorobanConfig)
+    : mLedgerTxn(ltx), mSorobanConfig(sorobanConfig)
+{
+}
+#endif
+
 LedgerTxnReadOnly::~LedgerTxnReadOnly()
 {
 }
@@ -105,6 +113,20 @@ LedgerHeaderWrapper
 LedgerTxnReadOnly::getLedgerHeader() const
 {
     return LedgerHeaderWrapper(mLedgerTxn.loadHeader());
+}
+
+SorobanNetworkConfig const*
+LedgerTxnReadOnly::getSorobanNetworkConfig() const
+{
+#ifdef BUILD_TESTS
+    return mSorobanConfig;
+#else
+    // Soroban config is only expected to be used for transaction validation,
+    // and in production transactions are never validated against a
+    // LedgerTxnReadOnly.
+    throw std::runtime_error(
+        "LedgerTxnReadOnly doesn't have a Soroban network config");
+#endif
 }
 
 LedgerEntryWrapper
@@ -162,6 +184,17 @@ CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx)
 {
 }
 
+#ifdef BUILD_TESTS
+CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
+    AbstractLedgerTxn& ltx, LedgerManager const& lm)
+    : mGetter(std::make_unique<LedgerTxnReadOnly>(
+          ltx, lm.hasLastClosedSorobanNetworkConfig()
+                   ? &lm.getLastClosedSorobanNetworkConfig()
+                   : nullptr))
+{
+}
+#endif
+
 CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(Application& app)
 {
     releaseAssert(threadIsMain());
@@ -172,7 +205,11 @@ CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(Application& app)
         mLegacyLedgerTxn = std::make_unique<LedgerTxn>(
             app.getLedgerTxnRoot(), /* shouldUpdateLastModified*/ false,
             TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        mGetter = std::make_unique<LedgerTxnReadOnly>(*mLegacyLedgerTxn);
+        auto const& lm = app.getLedgerManager();
+        mGetter = std::make_unique<LedgerTxnReadOnly>(
+            *mLegacyLedgerTxn, lm.hasLastClosedSorobanNetworkConfig()
+                                   ? &lm.getLastClosedSorobanNetworkConfig()
+                                   : nullptr);
     }
     else
 #endif
@@ -188,10 +225,22 @@ CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
 {
 }
 
+CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
+    std::unique_ptr<AbstractLedgerView const> getter)
+    : mGetter(std::move(getter))
+{
+}
+
 LedgerHeaderWrapper
 CheckValidLedgerViewWrapper::getLedgerHeader() const
 {
     return mGetter->getLedgerHeader();
+}
+
+SorobanNetworkConfig const*
+CheckValidLedgerViewWrapper::getSorobanNetworkConfig() const
+{
+    return mGetter->getSorobanNetworkConfig();
 }
 
 LedgerEntryWrapper
@@ -314,6 +363,12 @@ ImmutableLedgerView::getLedgerHeader() const
         mState, &mState->getLastClosedLedgerHeader().header));
 }
 
+SorobanNetworkConfig const*
+ImmutableLedgerView::getSorobanNetworkConfig() const
+{
+    return mState->hasSorobanConfig() ? &mState->getSorobanConfig() : nullptr;
+}
+
 uint32_t
 ImmutableLedgerView::getLedgerSeq() const
 {
@@ -354,6 +409,76 @@ ImmutableLedgerView::executeWithMaybeInnerSnapshot(
     throw std::runtime_error(
         "ImmutableLedgerView::executeWithMaybeInnerSnapshot is illegal: "
         "ImmutableLedgerView has no nested snapshots");
+}
+SorobanPreApplyLedgerView::SorobanPreApplyLedgerView(
+    std::shared_ptr<LedgerHeader const> header, AbstractLedgerTxn& ltx,
+    ApplyLedgerView const& lclView)
+    : mHeader(std::move(header)), mLtx(ltx), mLclView(lclView)
+{
+}
+
+LedgerHeaderWrapper
+SorobanPreApplyLedgerView::getLedgerHeader() const
+{
+    return LedgerHeaderWrapper(mHeader);
+}
+
+SorobanNetworkConfig const*
+SorobanPreApplyLedgerView::getSorobanNetworkConfig() const
+{
+    return mLclView.getSorobanNetworkConfig();
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(AccountID const& account) const
+{
+    return load(accountKey(account));
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(LedgerHeaderWrapper const& header,
+                                      TransactionFrame const& tx) const
+{
+    return getAccount(tx.getSourceID());
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(LedgerHeaderWrapper const& header,
+                                      TransactionFrame const& tx,
+                                      AccountID const& accountID) const
+{
+    return getAccount(accountID);
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::load(LedgerKey const& key) const
+{
+    auto entryPair = mLtx.getNewestVersionBelowRoot(key);
+    if (entryPair.first)
+    {
+        // Modified in this ledger, so the ltx has the authoritative version.
+        // A null entry means it has been deleted.
+        if (!entryPair.second)
+        {
+            return LedgerEntryWrapper(nullptr);
+        }
+        // Alias the entry owned by the ltx instead of copying it: the aliasing
+        // constructor shares ownership with the InternalLedgerEntry while
+        // pointing at the LedgerEntry nested inside it.
+        return LedgerEntryWrapper(std::shared_ptr<LedgerEntry const>(
+            entryPair.second, &entryPair.second->ledgerEntry()));
+    }
+    // Not modified in this ledger, so the last closed ledger snapshot is
+    // up to date.
+    return LedgerEntryWrapper(mLclView.loadLiveEntry(key));
+}
+
+void
+SorobanPreApplyLedgerView::executeWithMaybeInnerSnapshot(
+    std::function<void(CheckValidLedgerViewWrapper const& ledgerView)> f) const
+{
+    throw std::runtime_error("SorobanPreApplyLedgerView::"
+                             "executeWithMaybeInnerSnapshot is not supported");
 }
 
 // === Live BucketList wrapper methods ===

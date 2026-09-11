@@ -17,6 +17,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/UnorderedSet.h"
 
 using namespace stellar;
@@ -1311,6 +1312,309 @@ TEST_CASE("parallel soroban application results are independent of transaction "
     testConfig.extendTxCount = 100;
     testConfig.testScenarioCount = 3;
     runTestCase(testConfig);
+}
+
+struct PreApplyScenarioResult
+{
+    TransactionResultSet mResults;
+    LedgerCloseMeta mMeta;
+    std::vector<std::pair<LedgerKey, std::optional<LedgerEntry>>> mEntries;
+};
+
+// Builds and applies a single ledger with classic phase that mutates a pool of
+// accounts (creating, merging, sequence bumping and paying them) and with a
+// Soroban phase then uses those same accounts as transaction sources,
+// operation sources, and native SAC transfer destinations.
+//
+// `multiplier` defines the size of the test scenario, and `preApplyTaskCount`
+// defines the number of worker threads that the pre-apply phase should use.
+//
+// The scenario is parametrized by the `seed` and `multiplier`, and it's
+// expected that that no matter the `preApplyTaskCount`, the final ledger state
+// is identical for the same seed.
+PreApplyScenarioResult
+runPreApplyScenario(int64_t seed, int multiplier, size_t preApplyTaskCount)
+{
+    // Number of accounts with the respective classic phase treatment.
+    int const MERGED_COUNT = multiplier;
+    int const BUMPED_COUNT = multiplier;
+    int const CREATED_COUNT = multiplier;
+    int const NORMAL_COUNT = 2 * multiplier;
+
+    // Number of clusters to use during the apply phase itself - setting it to
+    // non-1 just to make coverage more realistic.
+    int const APPLY_CLUSTER_COUNT = 4;
+
+    std::mt19937 rng(seed);
+
+    Config cfg = getTestConfig();
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = multiplier * 3;
+
+    SorobanTest test(cfg, true, [&](SorobanNetworkConfig& sorobanCfg) {
+        sorobanCfg.mLedgerMaxDependentTxClusters = APPLY_CLUSTER_COUNT;
+        sorobanCfg.mLedgerMaxTxCount = multiplier * 5;
+    });
+    test.getApp().getBatchExecutor().setPreferredTaskCountForTesting(
+        preApplyTaskCount);
+
+    auto& root = test.getRoot();
+    int64_t accountBalance =
+        test.getApp().getLedgerManager().getLastMinBalance(20);
+
+    int sorobanTxCount = MERGED_COUNT + BUMPED_COUNT + NORMAL_COUNT;
+
+    std::vector<TestAccount> classicSources;
+    std::vector<TestAccount> mergedAccounts;
+    std::vector<TestAccount> bumpedAccounts;
+    std::vector<TestAccount> normalAccounts;
+    std::vector<SecretKey> createdKeys;
+    for (int i = 0; i < MERGED_COUNT + BUMPED_COUNT + CREATED_COUNT; ++i)
+    {
+        classicSources.push_back(root.create(fmt::format("classicSource{}", i),
+                                             accountBalance * 10));
+    }
+    for (int i = 0; i < MERGED_COUNT; ++i)
+    {
+        mergedAccounts.push_back(
+            root.create(fmt::format("merged{}", i), accountBalance));
+    }
+    for (int i = 0; i < BUMPED_COUNT; ++i)
+    {
+        bumpedAccounts.push_back(
+            root.create(fmt::format("bumped{}", i), accountBalance));
+    }
+    for (int i = 0; i < NORMAL_COUNT; ++i)
+    {
+        normalAccounts.push_back(
+            root.create(fmt::format("normal{}", i), accountBalance));
+    }
+    for (int i = 0; i < CREATED_COUNT; ++i)
+    {
+        createdKeys.push_back(getAccount(fmt::format("created{}", i)));
+    }
+    auto feeBumper = root.create("feeBumper", accountBalance * 1000);
+
+    AssetContractTestClient sac(test, txtest::makeNativeAsset());
+
+    // Destinations for the Soroban transfers: the accounts that the classic
+    // phase modifies as classic transaction sources, plus the accounts it
+    // creates. Each destination is used at most once.
+    std::vector<AccountID> destinations;
+    for (auto const& acc : classicSources)
+    {
+        destinations.push_back(acc.getPublicKey());
+    }
+    for (auto const& key : createdKeys)
+    {
+        destinations.push_back(key.getPublicKey());
+    }
+    stellar::shuffle(destinations.begin(), destinations.end(), rng);
+    REQUIRE(destinations.size() >= static_cast<size_t>(sorobanTxCount));
+
+    // Classic phase setup
+    std::vector<TransactionFrameBasePtr> txs;
+    for (int i = 0; i < MERGED_COUNT; ++i)
+    {
+        // Merge via an operation source so that the merged account itself
+        // stays free to source a Soroban transaction.
+        auto mergeOp = accountMerge(root.getPublicKey());
+        mergeOp.sourceAccount.activate() =
+            toMuxedAccount(mergedAccounts[i].getPublicKey());
+        auto tx = classicSources[i].tx({mergeOp});
+        tx->addSignature(mergedAccounts[i].getSecretKey());
+        txs.push_back(tx);
+    }
+    for (int i = 0; i < BUMPED_COUNT; ++i)
+    {
+        auto bumpOp =
+            bumpSequence(bumpedAccounts[i].getLastSequenceNumber() + 1000);
+        bumpOp.sourceAccount.activate() =
+            toMuxedAccount(bumpedAccounts[i].getPublicKey());
+        auto tx = classicSources[MERGED_COUNT + i].tx({bumpOp});
+        tx->addSignature(bumpedAccounts[i].getSecretKey());
+        txs.push_back(tx);
+    }
+    for (int i = 0; i < CREATED_COUNT; ++i)
+    {
+        txs.push_back(classicSources[MERGED_COUNT + BUMPED_COUNT + i].tx(
+            {createAccount(createdKeys[i].getPublicKey(), accountBalance)}));
+    }
+    auto classicTxCount = txs.size();
+
+    // Soroban phase: native SAC transfers out of every account category.
+    std::vector<TestAccount*> sorobanSources;
+    for (auto& acc : mergedAccounts)
+    {
+        sorobanSources.push_back(&acc);
+    }
+    for (auto& acc : bumpedAccounts)
+    {
+        sorobanSources.push_back(&acc);
+    }
+    for (auto& acc : normalAccounts)
+    {
+        sorobanSources.push_back(&acc);
+    }
+
+    // Manually validate that the footprints of the Soroban transactions
+    // are disjoint: these only mutate the SAC transfer source and destination,
+    // and thus it's sufficient to check that the source and destination
+    // account sets are disjoint (every source and destination is used just
+    // once per transaction).
+    {
+        UnorderedSet<AccountID> sourceIDs;
+        for (auto const* acc : sorobanSources)
+        {
+            sourceIDs.insert(acc->getPublicKey());
+        }
+        for (auto const& dest : destinations)
+        {
+            REQUIRE(sourceIDs.count(dest) == 0);
+        }
+    }
+
+    stellar::uniform_int_distribution<int> feeBumpDist(0, 3);
+    stellar::uniform_int_distribution<int64_t> amountDist(1, 10000);
+    for (int i = 0; i < sorobanTxCount; ++i)
+    {
+        TransactionFrameBasePtr tx = sac.getTransferTx(
+            *sorobanSources[i], makeAccountAddress(destinations[i]),
+            amountDist(rng));
+        // Fee bump some transactions that we expect to succeed.
+        if (i >= MERGED_COUNT + BUMPED_COUNT && feeBumpDist(rng) == 0)
+        {
+            tx = feeBump(test.getApp(), feeBumper, tx, 100'000);
+        }
+        txs.push_back(tx);
+    }
+
+    // Validate every transaction manually, as we skip validation due to fixed
+    // Soroban apply order.
+    {
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto diag = DiagnosticEventManager::createDisabled();
+        for (auto const& tx : txs)
+        {
+            REQUIRE(tx->checkValid(test.getApp().getAppConnector(), ledgerView,
+                                   0, 0, 0, diag)
+                        ->isSuccess());
+        }
+    }
+
+    // A single stage with a fixed number of clusters. Note, that the indices
+    // are relative to the Soroban phase, not to the full transaction list.
+    ParallelSorobanOrder sorobanApplyOrder(
+        1, std::vector<std::vector<uint32_t>>(APPLY_CLUSTER_COUNT));
+    for (int i = 0; i < sorobanTxCount; ++i)
+    {
+        sorobanApplyOrder[0][i % APPLY_CLUSTER_COUNT].push_back(i);
+    }
+
+    PreApplyScenarioResult res;
+    res.mResults = closeLedger(test.getApp(), txs, sorobanApplyOrder);
+    REQUIRE(res.mResults.results.size() == txs.size());
+    res.mMeta = test.getLastLcm().getXDR();
+
+    // Make sure the scenario actually exercises what it is supposed to: the
+    // classic phase has to succeed, and the Soroban phase has to observe its
+    // effects on the accounts it removed and sequence bumped.
+    {
+        auto resultFor = [&res](TransactionFrameBasePtr const& tx) {
+            auto const& results = res.mResults.results;
+            auto it = std::find_if(results.begin(), results.end(),
+                                   [&tx](TransactionResultPair const& pair) {
+                                       return pair.transactionHash ==
+                                              tx->getContentsHash();
+                                   });
+            REQUIRE(it != results.end());
+            return it->result;
+        };
+        for (int i = 0; i < classicTxCount; ++i)
+        {
+            INFO("classic tx " << i);
+            REQUIRE(isSuccessResult(resultFor(txs[i])));
+        }
+        for (int i = 0; i < sorobanTxCount; ++i)
+        {
+            INFO("soroban tx " << i);
+            auto result = resultFor(txs[classicTxCount + i]);
+            auto code = result.result.code();
+            if (i < MERGED_COUNT)
+            {
+                REQUIRE(code == txNO_ACCOUNT);
+            }
+            else if (i < MERGED_COUNT + BUMPED_COUNT)
+            {
+                REQUIRE(code == txBAD_SEQ);
+            }
+            else
+            {
+                REQUIRE(isSuccessResult(result));
+            }
+        }
+    }
+
+    // Snapshot every account the scenario could have touched.
+    std::vector<AccountID> observedAccounts;
+    auto addAccounts = [&observedAccounts](auto const& accounts) {
+        for (auto const& acc : accounts)
+        {
+            observedAccounts.push_back(acc.getPublicKey());
+        }
+    };
+    addAccounts(classicSources);
+    addAccounts(mergedAccounts);
+    addAccounts(bumpedAccounts);
+    addAccounts(normalAccounts);
+    addAccounts(createdKeys);
+    observedAccounts.push_back(feeBumper.getPublicKey());
+    observedAccounts.push_back(root.getPublicKey());
+
+    auto ledgerView =
+        test.getApp().getLedgerManager().copyImmutableLedgerView();
+    for (auto const& accountID : observedAccounts)
+    {
+        auto key = accountKey(accountID);
+        std::optional<LedgerEntry> entry;
+        if (auto e = ledgerView.load(key))
+        {
+            entry = e.current();
+        }
+        res.mEntries.emplace_back(key, entry);
+    }
+    return res;
+}
+
+TEST_CASE("Soroban pre-apply results are independent of the worker count",
+          "[soroban][preapply][acceptance]")
+{
+    int const SEED_COUNT = 5;
+    int const SCENARIOS[] = {1, 5, 20, 100};
+    int const MAX_WORKER_COUNT = 8;
+
+    for (int runIdx = 0; runIdx < SEED_COUNT; ++runIdx)
+    {
+        int64_t seed = Catch::rng()();
+        CAPTURE(seed);
+        for (int scenario : SCENARIOS)
+        {
+            CAPTURE(scenario);
+            auto baseResult = runPreApplyScenario(seed, scenario, 1);
+            for (int workerCount = 2; workerCount <= MAX_WORKER_COUNT;
+                 ++workerCount)
+            {
+                CAPTURE(workerCount);
+                auto runResult =
+                    runPreApplyScenario(seed, scenario, workerCount);
+                REQUIRE(runResult.mResults == baseResult.mResults);
+                REQUIRE(runResult.mMeta == baseResult.mMeta);
+                REQUIRE(runResult.mEntries == baseResult.mEntries);
+            }
+        }
+    }
 }
 
 } // namespace
