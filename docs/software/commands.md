@@ -23,8 +23,8 @@ Command options can only by placed after command.
     synthetic transactions. By default the benchmark is isolated to mostly just
     executing the transactions and thus it omits a lot of the supporting
     mechanisms (such as overlay, SCP, mempool etc). It may also measure tx-set
-    validation and consensus processing via `APPLY_LOAD_TIMING_PHASES` (see
-    below). This command will generate enough
+    construction, validation and consensus processing via
+    `APPLY_LOAD_TIMING_PHASES` (see below). This command will generate enough
     transactions to fill up a synthetic transaction queue (it's just a list of
     transactions with the same limits as the real queue), and then create a
     transaction set off of that to apply. This can also be used to record the
@@ -42,15 +42,22 @@ Command options can only by placed after command.
     - `"apply"`: the default apply-only benchmark. Its close helper still calls
       `checkValid`, but that happens before the recorded ledger-close timer and
       leaves the caches warm, as consensus validation would on a live node.
-    - `"txset-validation-and-apply"`: simulates a non-leader receiving the tx
-      set over the wire, validating it through local consensus (with the node
-      as its own single-validator quorum), and then applying it. It reports
-      validation, ledger close, and end-to-end time in addition to the
-      apply-only output. It does not simulate network transport, peer fetching,
-      or multi-node timing. Leader-side tx-set creation and signing happen
-      before the measured span. The signature verification cache is cleared
-      before validation, then retained so apply sees the warm cache produced by
-      validation.
+    - `"txset-validation-and-apply"`: times tx-set construction, decoding,
+      validation and application through local consensus with a
+      single-validator quorum. Construction
+      uses a synthetic candidate backlog of at least 2x ledger capacity to
+      exercise trimming, surge pricing and parallel partitioning as a busy
+      validator would. The queue size multipliers
+      (`SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING` and
+      `TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING`) control this backlog;
+      both default to 2 and must be at least 2 for enabled transaction types.
+      Raise them to increase the backlog without raising ledger limits. They
+      scale model and classic transaction counts; in `ledger-limits` mode the
+      Soroban multiplier scales the candidate resource budget in both timing
+      paths. Construction measures the builder itself,
+      the output reports construction, validation, and ledger close
+      timings. Network transport, peer fetching, tx queue submission, and
+      multi-node timing are not simulated.
     `"txset-validation-and-apply"` is not supported with
     `APPLY_LOAD_MODE="max-sac-tps"`; that search targets apply-only close time.
   * Load generation is configured in the Core config file. The relevant settings
