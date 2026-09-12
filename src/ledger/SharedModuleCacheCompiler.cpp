@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "rust/RustBridge.h"
 #include "util/Logging.h"
+#include "util/TcmallocConfig.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <chrono>
 #include <cstddef>
@@ -139,6 +140,8 @@ SharedModuleCacheCompiler::start()
 {
     mStarted = std::chrono::steady_clock::now();
 
+    mHeapSizeAtStart = getMallocBytesInUse();
+
     LOG_INFO(DEFAULT_LOG,
              "Launching 1 loading and {} compiling background threads",
              mNumThreads - 1);
@@ -204,13 +207,20 @@ SharedModuleCacheCompiler::wait()
     auto end = std::chrono::steady_clock::now();
     LOG_INFO(
         DEFAULT_LOG,
-        "Compiled {} contracts ({} bytes of Wasm) in {}ms real time, {}ms "
+        "Compiled {} contracts ({} of Wasm) in {}ms real time, {}ms "
         "CPU time",
-        mContractsCompiled, mBytesCompiled,
+        mContractsCompiled, formatSize(mBytesCompiled),
         std::chrono::duration_cast<std::chrono::milliseconds>(end - mStarted)
             .count(),
         std::chrono::duration_cast<std::chrono::milliseconds>(mTotalCompileTime)
             .count());
+    mHeapSizeAtEnd = getMallocBytesInUse();
+    int64_t heapDiff = static_cast<int64_t>(mHeapSizeAtEnd) -
+                       static_cast<int64_t>(mHeapSizeAtStart);
+    LOG_INFO(DEFAULT_LOG,
+             "Heap changed from {} to {} during compilation ({} difference)",
+             formatSize(mHeapSizeAtStart), formatSize(mHeapSizeAtEnd),
+             formatSize(heapDiff));
     return mModuleCache->shallow_clone();
 }
 
@@ -219,6 +229,14 @@ SharedModuleCacheCompiler::getBytesCompiled()
 {
     std::unique_lock lock(mMutex);
     return mBytesCompiled * mLedgerVersions.size();
+}
+
+int64_t
+SharedModuleCacheCompiler::getBytesAllocatedDuringCompilation()
+{
+    std::unique_lock lock(mMutex);
+    return static_cast<int64_t>(mHeapSizeAtEnd) -
+           static_cast<int64_t>(mHeapSizeAtStart);
 }
 
 std::chrono::nanoseconds
