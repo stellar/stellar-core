@@ -81,19 +81,18 @@ storeInDatabase(Database& db, LedgerHeader const& header, SessionWrapper& sess)
         "VALUES "
         "(:h,        :ph,      :blh,            :seq,     :ct,       :data)",
         sess);
-    auto& st = prep.statement();
-    st.exchange(soci::use(hash));
-    st.exchange(soci::use(prevHash));
-    st.exchange(soci::use(bucketListHash));
-    st.exchange(soci::use(header.ledgerSeq));
-    st.exchange(soci::use(header.scpValue.closeTime));
-    st.exchange(soci::use(headerEncoded));
-    st.define_and_bind();
+    prep.exchange(soci::use(hash));
+    prep.exchange(soci::use(prevHash));
+    prep.exchange(soci::use(bucketListHash));
+    prep.exchange(soci::use(header.ledgerSeq));
+    prep.exchange(soci::use(header.scpValue.closeTime));
+    prep.exchange(soci::use(headerEncoded));
+    prep.define_and_bind();
     {
         ZoneNamedN(insertLedgerHeadersZone, "insert ledgerheaders", true);
-        st.execute(true);
+        prep.execute(true);
     }
-    if (st.get_affected_rows() != 1)
+    if (prep.get_affected_rows() != 1)
     {
         throw std::runtime_error("Could not update data in SQL");
     }
@@ -134,15 +133,14 @@ getHeaderDataForHash(Database& db, Hash const& hash)
     auto prep = db.getPreparedStatement("SELECT data FROM ledgerheaders "
                                         "WHERE ledgerhash = :h",
                                         db.getSession());
-    auto& st = prep.statement();
-    st.exchange(soci::into(headerEncoded));
-    st.exchange(soci::use(hash_s));
-    st.define_and_bind();
+    prep.exchange(soci::into(headerEncoded));
+    prep.exchange(soci::use(hash_s));
+    prep.define_and_bind();
     {
         ZoneNamedN(selectLedgerHeadersZone, "select ledgerheaders", true);
-        st.execute(true);
+        prep.execute(true);
     }
-    if (st.got_data())
+    if (prep.got_data())
     {
         auto lh = decodeFromData(headerEncoded);
         auto ledgerHash = xdrSha256(lh);

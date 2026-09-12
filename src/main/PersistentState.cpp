@@ -62,10 +62,9 @@ PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete)
             fmt::format("DELETE FROM {} WHERE statename = :n;", kSlotTableName),
             mApp.getDatabase().getMiscSession());
 
-        auto& st = prep.statement();
-        st.exchange(soci::use(name));
-        st.define_and_bind();
-        st.execute(true);
+        prep.exchange(soci::use(name));
+        prep.define_and_bind();
+        prep.execute(true);
     }
     tx.commit();
 }
@@ -138,11 +137,10 @@ PersistentState::hasTxSet(Hash const& txSetHash)
     auto prep = db.getPreparedStatement(
         "SELECT COUNT(*) FROM slotstate WHERE statename = :n;",
         db.getMiscSession());
-    auto& st = prep.statement();
-    st.exchange(soci::into(res));
-    st.exchange(soci::use(entry));
-    st.define_and_bind();
-    st.execute(true);
+    prep.exchange(soci::into(res));
+    prep.exchange(soci::use(entry));
+    prep.define_and_bind();
+    prep.execute(true);
 
     return res > 0;
 }
@@ -289,16 +287,15 @@ PersistentState::updateDb(std::string const& entry, std::string const& value,
                     tableName),
         sess);
 
-    auto& st = prep.statement();
-    st.exchange(soci::use(value));
-    st.exchange(soci::use(entry));
-    st.define_and_bind();
+    prep.exchange(soci::use(value));
+    prep.exchange(soci::use(entry));
+    prep.define_and_bind();
     {
         ZoneNamedN(updateStoreStateZone, "update storestate", true);
-        st.execute(true);
+        prep.execute(true);
     }
 
-    if (st.get_affected_rows() != 1 &&
+    if (prep.get_affected_rows() != 1 &&
         getFromDb(entry, sess, tableName).empty())
     {
         ZoneNamedN(insertStoreStateZone, "insert storestate", true);
@@ -306,12 +303,11 @@ PersistentState::updateDb(std::string const& entry, std::string const& value,
             fmt::format("INSERT INTO {} (statename, state) VALUES (:n, :v);",
                         tableName),
             sess);
-        auto& st2 = prep2.statement();
-        st2.exchange(soci::use(entry));
-        st2.exchange(soci::use(value));
-        st2.define_and_bind();
-        st2.execute(true);
-        if (st2.get_affected_rows() != 1)
+        prep2.exchange(soci::use(entry));
+        prep2.exchange(soci::use(value));
+        prep2.define_and_bind();
+        prep2.execute(true);
+        if (prep2.get_affected_rows() != 1)
         {
             throw std::runtime_error("Could not insert data in SQL");
         }
@@ -334,26 +330,25 @@ PersistentState::getTxSetsForAllSlots()
                     kSlotTableName);
     auto& db = mApp.getDatabase();
     auto prep = db.getPreparedStatement(statementStr, db.getMiscSession());
-    auto& st = prep.statement();
-    st.exchange(soci::into(key));
-    st.exchange(soci::into(val));
-    st.exchange(soci::use(pattern));
-    st.define_and_bind();
+    prep.exchange(soci::into(key));
+    prep.exchange(soci::into(val));
+    prep.exchange(soci::use(pattern));
+    prep.define_and_bind();
     {
         ZoneNamedN(selectStoreStateZone, "select storestate", true);
-        st.execute(true);
+        prep.execute(true);
     }
 
     Hash hash;
     size_t len = binToHex(hash).size();
 
-    while (st.got_data())
+    while (prep.got_data())
     {
         result.emplace(
             hexToBin256(key.substr(
                 miscMapping[kTxSet - kLastEntryMain - 1].size(), len)),
             val);
-        st.fetch();
+        prep.fetch();
     }
 
     return result;
@@ -373,23 +368,22 @@ PersistentState::getTxSetHashesForAllSlots()
         "SELECT statename FROM slotstate WHERE statename LIKE :n;";
     auto& db = mApp.getDatabase();
     auto prep = db.getPreparedStatement(statementStr, db.getMiscSession());
-    auto& st = prep.statement();
-    st.exchange(soci::into(val));
-    st.exchange(soci::use(pattern));
-    st.define_and_bind();
+    prep.exchange(soci::into(val));
+    prep.exchange(soci::use(pattern));
+    prep.define_and_bind();
     {
         ZoneNamedN(selectSlotStateZone, "select slotstate", true);
-        st.execute(true);
+        prep.execute(true);
     }
 
     size_t offset = miscMapping[kTxSet - kLastEntryMain - 1].size();
     Hash hash;
     size_t len = binToHex(hash).size();
 
-    while (st.got_data())
+    while (prep.got_data())
     {
         result.insert(hexToBin256(val.substr(offset, len)));
-        st.fetch();
+        prep.fetch();
     }
 
     return result;
@@ -408,16 +402,15 @@ PersistentState::getFromDb(std::string const& entry, SessionWrapper& sess,
     auto prep = db.getPreparedStatement(
         fmt::format("SELECT state FROM {} WHERE statename = :n;", tableName),
         sess);
-    auto& st = prep.statement();
-    st.exchange(soci::into(res));
-    st.exchange(soci::use(entry));
-    st.define_and_bind();
+    prep.exchange(soci::into(res));
+    prep.exchange(soci::use(entry));
+    prep.define_and_bind();
     {
         ZoneNamedN(selectStoreStateZone, "select storestate", true);
-        st.execute(true);
+        prep.execute(true);
     }
 
-    if (!st.got_data())
+    if (!prep.got_data())
     {
         res.clear();
     }

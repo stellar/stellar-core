@@ -46,10 +46,9 @@ BanManagerImpl::banNode(NodeID nodeID)
         auto prep = mApp.getDatabase().getPreparedStatement(
             "INSERT INTO ban (nodeid) VALUES(:n)",
             mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
-        st.exchange(soci::use(nodeIDString));
-        st.define_and_bind();
-        st.execute(true);
+        prep.exchange(soci::use(nodeIDString));
+        prep.define_and_bind();
+        prep.execute(true);
     }
 }
 
@@ -64,10 +63,9 @@ BanManagerImpl::unbanNode(NodeID nodeID)
         auto prep = mApp.getDatabase().getPreparedStatement(
             "DELETE FROM ban WHERE nodeid = :n;",
             mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
-        st.exchange(soci::use(nodeIDString));
-        st.define_and_bind();
-        st.execute(true);
+        prep.exchange(soci::use(nodeIDString));
+        prep.define_and_bind();
+        prep.execute(true);
     }
 }
 
@@ -82,11 +80,10 @@ BanManagerImpl::isBanned(NodeID nodeID)
             "SELECT count(*) FROM ban WHERE nodeid = :n",
             mApp.getDatabase().getMiscSession());
         uint32_t count;
-        auto& st = prep.statement();
-        st.exchange(soci::into(count));
-        st.exchange(soci::use(nodeIDString));
-        st.define_and_bind();
-        st.execute(true);
+        prep.exchange(soci::into(count));
+        prep.exchange(soci::use(nodeIDString));
+        prep.define_and_bind();
+        prep.execute(true);
         return count == 1;
     }
 }
@@ -101,14 +98,13 @@ BanManagerImpl::getBans()
         ZoneNamedN(selectBanZone, "select ban", true);
         auto prep = mApp.getDatabase().getPreparedStatement(
             "SELECT nodeid FROM ban", mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
-        st.exchange(soci::into(nodeIDString));
-        st.define_and_bind();
-        st.execute(true);
-        while (st.got_data())
+        prep.exchange(soci::into(nodeIDString));
+        prep.define_and_bind();
+        prep.execute(true);
+        while (prep.got_data())
         {
             result.push_back(nodeIDString);
-            st.fetch();
+            prep.fetch();
         }
     }
     return result;
