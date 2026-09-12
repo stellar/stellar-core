@@ -5,6 +5,7 @@
 #pragma once
 
 #include "test/TestUtils.h"
+#include "test/test.h"
 #include "xdr/Stellar-ledger.h"
 
 namespace stellar
@@ -85,6 +86,10 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
         std::vector<LedgerKey> const& deadEntries,
         bool alsoAddActualEntries = false)
     {
+        // Entries injected straight into the bucket list appear in the ledger
+        // without any transaction producing them, so the resulting meta is
+        // not a faithful record of how the state came to be.
+        taintLcmCapture("injects ledger entries directly into the bucket list");
         mUseTestEntries = true;
         mAlsoAddActualEntries = alsoAddActualEntries;
         mTestInitEntries = initEntries;
@@ -97,6 +102,9 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
         std::vector<LedgerEntry> const& archiveEntries,
         std::vector<LedgerKey> const& restoredEntries)
     {
+        // As above: injected archive state has no transaction behind it, so
+        // the meta does not record how that state came to be.
+        taintLcmCapture("injects ledger entries directly into the bucket list");
         mUseTestEntries = true;
         mTestArchiveEntries = archiveEntries;
         mTestRestoredEntries = restoredEntries;

@@ -8972,7 +8972,11 @@ TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
 
     REQUIRE(counter.count() > stopPoint);
 
-    // Capture meta for use with --capture-lcm
+    // Capture meta for use with --capture-lcm. Note that the LCM capture
+    // eligibility rules currently exclude this test (multi-node simulation
+    // plus randomized nomination), so no golden data is produced today; if
+    // the simulation is ever made deterministic the vector comes back for
+    // free.
     txtest::captureLastClosedLedgerLcm(*app);
 }
 

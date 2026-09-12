@@ -381,7 +381,8 @@ bool isSuccessResult(TransactionResult const& res);
 TestAccount getGenesisAccount(Application& app, uint32_t accountIndex);
 
 // Accumulated LedgerCloseMeta from closeLedger/closeLedgerOn calls.
-// Only accumulates when --capture-lcm is passed on the test command line.
+// Only accumulates when --capture-lcm or --check-lcm is passed on the test
+// command line.
 // Note: LCM capture does not cover BucketTestUtils::closeLedger or direct
 // externalizeValue calls (e.g. genesis ledger from app->start()).
 std::vector<LedgerCloseMeta> const& getAccumulatedLcm();
