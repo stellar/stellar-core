@@ -49,6 +49,7 @@
 #include "simulation/ApplyLoad.h"
 #include "test/TestUtils.h"
 #include "test/fuzz/FuzzTargetRegistry.h"
+#include "test/fuzz/ScopedCatchResultCapture.h"
 #include "test/test.h"
 #endif
 
@@ -1799,6 +1800,7 @@ runFuzz(CommandLineArgs const& args)
             if (actual > 0)
             {
                 data.resize(actual);
+                ScopedCatchResultCapture catchCapture;
                 target->run(data.data(), data.size());
             }
 

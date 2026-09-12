@@ -350,6 +350,7 @@ pub(crate) mod p28 {
     }
 }
 
+#[cfg(not(feature = "fastdev"))]
 #[path = "."]
 pub(crate) mod p27 {
     pub(crate) extern crate soroban_env_host_p27;
