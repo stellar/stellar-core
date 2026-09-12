@@ -7,6 +7,7 @@
 #include "lib/util/finally.h"
 #include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
+#include "util/StackThread.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -15,12 +16,12 @@
 #include <exception>
 #include <functional>
 #include <mutex>
-#include <thread>
 #include <type_traits>
 #include <vector>
 
 namespace stellar
 {
+inline constexpr size_t WORKER_STACK_BYTES = 1 << 23; // 8 MiB
 
 // Executes batches of CPU-bound tasks in parallel on a pool of worker threads.
 //
@@ -77,7 +78,7 @@ class BatchExecutor : private NonMovableOrCopyable
     // with std::condition_variable.
     std::mutex mMutex;
     std::condition_variable mCondition;
-    std::vector<std::thread> mWorkers;
+    std::vector<StackThread> mWorkers;
     // All allowed logical CPUs in pinning-preference order.
     std::vector<unsigned> mPinCpuOrder;
     // Number of distinct physical cores found in the allowed logical CPUs.

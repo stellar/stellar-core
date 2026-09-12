@@ -771,6 +771,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\Scheduler.cpp" />
     <ClCompile Include="..\..\src\util\SecretManager.cpp" />
     <ClCompile Include="..\..\src\util\SimpleTimer.cpp" />
+    <ClCompile Include="..\..\src\util\StackThread.cpp" />
     <ClCompile Include="..\..\src\util\test\BinaryFuseTests.cpp" />
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />
@@ -1197,6 +1198,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\Scheduler.h" />
     <ClInclude Include="..\..\src\util\SecretManager.h" />
     <ClInclude Include="..\..\src\util\SimpleTimer.h" />
+    <ClInclude Include="..\..\src\util\StackThread.h" />
     <ClInclude Include="..\..\src\util\TxResource.h" />
     <ClInclude Include="..\..\src\util\UnorderedMap.h" />
     <ClInclude Include="..\..\src\util\UnorderedSet.h" />
