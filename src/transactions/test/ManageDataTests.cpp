@@ -101,22 +101,18 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
     });
 
     for_versions({3}, *app, [&] {
-        REQUIRE_THROWS_AS(gateway.manageData(t1, &value), ex_txINTERNAL_ERROR);
-        REQUIRE_THROWS_AS(gateway.manageData(t2, &value), ex_txINTERNAL_ERROR);
-        // try to add too much data
-        REQUIRE_THROWS_AS(gateway.manageData(t3, &value), ex_txINTERNAL_ERROR);
-
-        // modify an existing data entry
-        REQUIRE_THROWS_AS(gateway.manageData(t1, &value2), ex_txINTERNAL_ERROR);
-
-        // clear an existing data entry
-        REQUIRE_THROWS_AS(gateway.manageData(t1, nullptr), ex_txINTERNAL_ERROR);
-
-        // can now add test3 since test was removed
-        REQUIRE_THROWS_AS(gateway.manageData(t3, &value), ex_txINTERNAL_ERROR);
-
-        // fail to remove data entry that isn't present
-        REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr), ex_txINTERNAL_ERROR);
+        auto manageDataFails = [&](std::string const& name, DataValue* v) {
+            auto tx = gateway.tx({txtest::manageData(name, v)});
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txINTERNAL_ERROR);
+        };
+        manageDataFails(t1, &value);
+        manageDataFails(t2, &value);
+        manageDataFails(t3, &value);
+        manageDataFails(t1, &value2);
+        manageDataFails(t1, nullptr);
+        manageDataFails(t3, &value);
+        manageDataFails(t4, nullptr);
     });
 
     SECTION("create data with native selling liabilities")

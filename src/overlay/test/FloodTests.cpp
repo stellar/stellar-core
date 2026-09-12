@@ -64,7 +64,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             for (int i = 0; i < nbTx; i++)
             {
                 sources.emplace_back(
-                    TestAccount{*app0, SecretKey::pseudoRandomForTesting(), 0});
+                    TestAccount{*app0, SecretKey::pseudoRandomForTesting()});
                 gen.data.account().accountID = sources.back();
 
                 // need to create on all nodes

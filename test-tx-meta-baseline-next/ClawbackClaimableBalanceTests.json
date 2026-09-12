@@ -39,19 +39,12 @@
 	"clawbackClaimableBalance|protocol version 0" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
 	"clawbackClaimableBalance|protocol version 1" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
 	"clawbackClaimableBalance|protocol version 10" : [ "KqfGayD0LHQ=", "n1pDiWshv5I=" ],
-	"clawbackClaimableBalance|protocol version 10|pre V17 errors" : [ "haqfRWrd2z4=" ],
 	"clawbackClaimableBalance|protocol version 11" : [ "KqfGayD0LHQ=", "n1pDiWshv5I=" ],
-	"clawbackClaimableBalance|protocol version 11|pre V17 errors" : [ "haqfRWrd2z4=" ],
 	"clawbackClaimableBalance|protocol version 12" : [ "KqfGayD0LHQ=", "n1pDiWshv5I=" ],
-	"clawbackClaimableBalance|protocol version 12|pre V17 errors" : [ "haqfRWrd2z4=" ],
 	"clawbackClaimableBalance|protocol version 13" : [ "KqfGayD0LHQ=", "n1pDiWshv5I=" ],
-	"clawbackClaimableBalance|protocol version 13|pre V17 errors" : [ "haqfRWrd2z4=" ],
 	"clawbackClaimableBalance|protocol version 14" : [ "KqfGayD0LHQ=", "n1pDiWshv5I=" ],
-	"clawbackClaimableBalance|protocol version 14|pre V17 errors" : [ "haqfRWrd2z4=" ],
 	"clawbackClaimableBalance|protocol version 15" : [ "KqfGayD0LHQ=", "n1pDiWshv5I=" ],
-	"clawbackClaimableBalance|protocol version 15|pre V17 errors" : [ "haqfRWrd2z4=" ],
 	"clawbackClaimableBalance|protocol version 16" : [ "KqfGayD0LHQ=", "n1pDiWshv5I=" ],
-	"clawbackClaimableBalance|protocol version 16|pre V17 errors" : [ "haqfRWrd2z4=" ],
 	"clawbackClaimableBalance|protocol version 17" : 
 	[
 		"KqfGayD0LHQ=",
@@ -295,7 +288,6 @@
 		"UbktlWrjLHQ="
 	],
 	"clawbackClaimableBalance|protocol version 19|successful alphanum12 clawback" : [ "dgeLTpw7rGY=", "q+Jb5ET0nZ0=", "diqxiLXArvA=", "5e/8eYCNF00=" ],
-	"clawbackClaimableBalance|protocol version 1|pre V17 errors" : [ "/lfj8xIFS8I=" ],
 	"clawbackClaimableBalance|protocol version 2" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
 	"clawbackClaimableBalance|protocol version 20" : 
 	[
@@ -1107,19 +1099,11 @@
 		"No/KX4ID5Ks="
 	],
 	"clawbackClaimableBalance|protocol version 29|successful alphanum12 clawback" : [ "DNl3tkm3rDc=", "TFgVfPNhpzI=", "j6W8kM2P3Uo=", "oXVyUyVQNyc=" ],
-	"clawbackClaimableBalance|protocol version 2|pre V17 errors" : [ "/lfj8xIFS8I=" ],
 	"clawbackClaimableBalance|protocol version 3" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
-	"clawbackClaimableBalance|protocol version 3|pre V17 errors" : [ "/lfj8xIFS8I=" ],
 	"clawbackClaimableBalance|protocol version 4" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
-	"clawbackClaimableBalance|protocol version 4|pre V17 errors" : [ "/lfj8xIFS8I=" ],
 	"clawbackClaimableBalance|protocol version 5" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
-	"clawbackClaimableBalance|protocol version 5|pre V17 errors" : [ "/lfj8xIFS8I=" ],
 	"clawbackClaimableBalance|protocol version 6" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
-	"clawbackClaimableBalance|protocol version 6|pre V17 errors" : [ "/lfj8xIFS8I=" ],
 	"clawbackClaimableBalance|protocol version 7" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
-	"clawbackClaimableBalance|protocol version 7|pre V17 errors" : [ "/lfj8xIFS8I=" ],
 	"clawbackClaimableBalance|protocol version 8" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
-	"clawbackClaimableBalance|protocol version 8|pre V17 errors" : [ "/lfj8xIFS8I=" ],
-	"clawbackClaimableBalance|protocol version 9" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ],
-	"clawbackClaimableBalance|protocol version 9|pre V17 errors" : [ "/lfj8xIFS8I=" ]
+	"clawbackClaimableBalance|protocol version 9" : [ "5KGCodU10M4=", "8+8sE8mGx6k=" ]
 }

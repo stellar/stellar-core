@@ -3615,7 +3615,7 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         // 1. Transaction to remove the signer (sequence N+1)
         // 2. Transaction signed by the signer that will be removed (sequence
         // N+2)
-        auto currentSeq = testAccount.loadSequenceNumber();
+        auto currentSeq = testAccount.getLastSequenceNumber();
 
         auto removeSignerTx = testAccount.tx({txtest::setOptions(
             txtest::setSigner(txtest::makeSigner(additionalSignerSk, 0)))});

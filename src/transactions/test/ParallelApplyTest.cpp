@@ -1211,13 +1211,16 @@ runTest(int64_t seed, std::vector<std::pair<int, int>> const& scenarios,
         compareResults(false, stageCount == 1, baseResult, runResult,
                        hotArchiveEntryCreatedLedger);
     }
-    if (!autoRestore)
+    auto preParallelSorobanProtocol =
+        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) - 1;
+    if (!autoRestore && isSorobanProtocolLinked(
+                            getTestConfig(), static_cast<ProtocolVersion>(
+                                                 preParallelSorobanProtocol)))
     {
         INFO("pre-parallel-soroban protocol");
         auto preParallelSorobanResult = applyTestTransactions(
-            testConfig,
-            static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) - 1,
-            seed, autoRestore, 1, 1, randomWasms, hotArchiveEntryCreatedLedger);
+            testConfig, preParallelSorobanProtocol, seed, autoRestore, 1, 1,
+            randomWasms, hotArchiveEntryCreatedLedger);
         compareResults(true, true, preParallelSorobanResult, baseResult,
                        hotArchiveEntryCreatedLedger);
     }

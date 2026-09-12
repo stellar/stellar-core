@@ -1245,9 +1245,6 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                                               0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
                     REVOKE_SPONSORSHIP_MALFORMED);
-
-            // This lambda can be used in a loop, so reset the seqnum
-            a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
         };
 
         SECTION("invalid offer and data keys")

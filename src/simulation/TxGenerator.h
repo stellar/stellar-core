@@ -110,6 +110,28 @@ struct ApplyLoadTxProfile
     uint32_t dataEntrySizeBytes = 0;
 };
 
+// Test account that assigns sequence numbers based on the internally cached
+// value instead of fetching them from ledger.
+// While this may simplify creation of multiple transactions per account at
+// once, it's generally misleading for the unit tests, so it should only be
+// used in load generation machinery.
+class CachedTestAccount : public TestAccount
+{
+  public:
+    CachedTestAccount(Application& app, SecretKey sk, SequenceNumber sn = 0);
+
+    SequenceNumber getLastSequenceNumber() override;
+    SequenceNumber nextSequenceNumber() override;
+    SequenceNumber loadSequenceNumber();
+    void setSequenceNumber(SequenceNumber sn);
+
+  private:
+    void maybeLoadSequenceNumber();
+
+    SequenceNumber mSn;
+};
+using CachedTestAccountPtr = std::shared_ptr<CachedTestAccount>;
+
 class TxGenerator
 {
   public:
@@ -160,13 +182,12 @@ class TxGenerator
         uint32_t numTokens = 0;
     };
 
-    using TestAccountPtr = std::shared_ptr<TestAccount>;
     TxGenerator(Application& app, uint32_t prePopulatedArchivedEntries = 0);
 
-    bool loadAccount(TestAccount& account);
-    bool loadAccount(TestAccountPtr account);
+    bool loadAccount(CachedTestAccount& account);
+    bool loadAccount(CachedTestAccountPtr account);
 
-    TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
+    CachedTestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
 
     std::vector<Operation> createAccounts(uint64_t start, uint64_t count,
                                           uint32_t ledgerNum,
@@ -176,7 +197,8 @@ class TxGenerator
     // between the base fee required for `ops` and `maxGeneratedFeeRate` (if
     // present).
     TransactionFrameBaseConstPtr
-    createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
+    createTransactionFramePtr(CachedTestAccountPtr from,
+                              std::vector<Operation> ops,
                               std::optional<uint32_t> maxGeneratedFeeRate);
 
     // Create transaction frame from `from` with `ops` and a generated fee
@@ -187,61 +209,62 @@ class TxGenerator
     // and that padding rounds up to the nearest multiple of four (since we are
     // using XDR).
     TransactionFrameBaseConstPtr
-    createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
+    createTransactionFramePtr(CachedTestAccountPtr from,
+                              std::vector<Operation> ops,
                               std::optional<uint32_t> maxGeneratedFeeRate,
                               std::optional<uint32_t> byteCount,
                               std::optional<Memo> memo = std::nullopt);
 
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
                        std::optional<uint32_t> byteCount,
                        std::optional<uint32_t> maxGeneratedFeeRate,
                        std::optional<Memo> memo = std::nullopt);
 
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(
         uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
         LedgerKey const& contractCodeLedgerKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               LedgerKey const& codeKey,
                               uint64_t contractOverheadBytes,
                               uint256 const& salt,
                               std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     createSACTransaction(uint32_t ledgerNum, std::optional<uint64_t> accountId,
                          Asset const& asset,
                          std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  TxGenerator::ContractInstance const& instance,
                                  uint64_t contractOverheadBytes,
                                  std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransactionV2(uint32_t ledgerNum, uint64_t accountId,
                                    ContractInstance const& instance,
                                    ApplyLoadTxProfile const& txProfile,
                                    uint64_t dataEntryCount,
                                    std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
                      SCAddress const& toAddress,
                      ContractInstance const& instance, uint64_t amount,
                      std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     invokeTokenTransfer(uint32_t ledgerNum, uint64_t fromAccountId,
                         uint64_t toAccountId, ContractInstance const& instance,
                         uint64_t amount,
                         std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     invokeBatchTransfer(uint32_t ledgerNum, uint64_t fromAccountId,
                         ContractInstance const& batchTransferInstance,
                         ContractInstance const& sacInstance,
@@ -250,24 +273,24 @@ class TxGenerator
     // Build a Soroswap router swap_exact_tokens_for_tokens transaction for
     // the given pair and direction. `state` supplies the router/pair/SAC keys
     // and assets; `swapAForB` picks the direction.
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSoroswapSwap(uint32_t ledgerNum, uint64_t fromAccountId,
                        SoroswapState const& state, size_t pairIndex,
                        bool swapAForB,
                        std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
         uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
         LedgerKey const& codeKey, LedgerKey const& instanceKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  uint32_t inclusionFee);
 
     int generateFee(std::optional<uint32_t> maxGeneratedFeeRate, size_t opsCnt);
 
-    std::pair<TestAccountPtr, TestAccountPtr>
+    std::pair<CachedTestAccountPtr, CachedTestAccountPtr>
     pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
                     uint64_t sourceAccountId);
 
@@ -278,27 +301,27 @@ class TxGenerator
     SCBytes getConfigUpgradeSetFromLoadConfig(
         SorobanUpgradeConfig const& upgradeCfg) const;
 
-    std::map<uint64_t, TestAccountPtr> const& getAccounts();
+    std::map<uint64_t, CachedTestAccountPtr> const& getAccounts();
 
     medida::Counter const& getApplySorobanSuccess();
     medida::Counter const& getApplySorobanFailure();
 
     void reset();
 
-    TestAccountPtr getAccount(uint64_t accountId) const;
-    void addAccount(uint64_t accountId, TestAccountPtr account);
+    CachedTestAccountPtr getAccount(uint64_t accountId) const;
+    void addAccount(uint64_t accountId, CachedTestAccountPtr account);
 
   private:
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
 
     void updateMinBalance();
     bool isLive(LedgerKey const& lk, uint32_t ledgerNum) const;
-    void maybeLoadAccountSequenceNumber(TestAccountPtr const& account);
+    void maybeLoadAccountSequenceNumber(CachedTestAccountPtr const& account);
 
     Application& mApp;
 
     // Accounts cache
-    std::map<uint64_t, TestAccountPtr> mAccounts;
+    std::map<uint64_t, CachedTestAccountPtr> mAccounts;
 
     int64 mMinBalance;
 

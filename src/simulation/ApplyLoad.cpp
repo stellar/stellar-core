@@ -848,8 +848,8 @@ ApplyLoad::setup()
 
     for (uint32_t i = 0; i < mNumAccounts; ++i)
     {
-        auto acc =
-            std::make_shared<TestAccount>(txtest::getGenesisAccount(mApp, i));
+        auto acc = std::make_shared<CachedTestAccount>(
+            mApp, txtest::getGenesisAccount(mApp, i).getSecretKey());
         releaseAssert(mTxGenerator.loadAccount(acc));
         mTxGenerator.addAccount(i, acc);
     }

@@ -320,9 +320,9 @@ TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
             for_versions_to(7, *app, [&] {
                 auto tx = a.tx(
                     {payment(b, 1000), accountMerge(*root), payment(c, 1000)});
-                validateTxResults(
-                    tx, *app, {baseFee * 3, txSUCCESS},
-                    expectedResult(baseFee * 3, 3, txINTERNAL_ERROR));
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINTERNAL_ERROR);
+                REQUIRE(r.results.at(0).result.feeCharged == baseFee * 3);
             });
             for_versions_from(8, *app, [&] {
                 auto tx = a.tx(

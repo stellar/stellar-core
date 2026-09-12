@@ -468,7 +468,7 @@
 	"manage buy offer failure modes|protocol version 0" : [ "pSsR7xl1ZzY=", "OaXP621I0jI=", "pSsR7xl1ZzY=", "OaXP621I0jI=" ],
 	"manage buy offer failure modes|protocol version 1" : [ "pSsR7xl1ZzY=", "OaXP621I0jI=", "pSsR7xl1ZzY=", "OaXP621I0jI=" ],
 	"manage buy offer failure modes|protocol version 10" : [ "S1Ssa9DXLPU=", "DByKJ9fR/LQ=", "S1Ssa9DXLPU=", "DByKJ9fR/LQ=" ],
-	"manage buy offer failure modes|protocol version 10|not supported before version 11" : [ "fAmGE9r/yLU=", "G4p9z4btnq4=" ],
+	"manage buy offer failure modes|protocol version 10|not supported before version 11" : [ "fAmGE9r/yLU=" ],
 	"manage buy offer failure modes|protocol version 11" : [ "S1Ssa9DXLPU=", "DByKJ9fR/LQ=", "S1Ssa9DXLPU=", "DByKJ9fR/LQ=" ],
 	"manage buy offer failure modes|protocol version 11|negative offerID" : [ "EiELMVKqjjk=" ],
 	"manage buy offer failure modes|protocol version 12" : [ "S1Ssa9DXLPU=", "DByKJ9fR/LQ=", "S1Ssa9DXLPU=", "DByKJ9fR/LQ=" ],
@@ -478,30 +478,18 @@
 	"manage buy offer failure modes|protocol version 14" : [ "S1Ssa9DXLPU=", "DByKJ9fR/LQ=", "S1Ssa9DXLPU=", "DByKJ9fR/LQ=" ],
 	"manage buy offer failure modes|protocol version 14|negative offerID" : [ "EiELMVKqjjk=" ],
 	"manage buy offer failure modes|protocol version 15" : [ "S1Ssa9DXLPU=", "DByKJ9fR/LQ=", "S1Ssa9DXLPU=", "DByKJ9fR/LQ=" ],
-	"manage buy offer failure modes|protocol version 15|negative offerID" : [ "EiELMVKqjjk=" ],
 	"manage buy offer failure modes|protocol version 16" : [ "S1Ssa9DXLPU=", "DByKJ9fR/LQ=", "S1Ssa9DXLPU=", "DByKJ9fR/LQ=" ],
-	"manage buy offer failure modes|protocol version 16|negative offerID" : [ "EiELMVKqjjk=" ],
 	"manage buy offer failure modes|protocol version 17" : [ "S1Ssa9DXLPU=", "DByKJ9fR/LQ=", "S1Ssa9DXLPU=", "DByKJ9fR/LQ=" ],
-	"manage buy offer failure modes|protocol version 17|negative offerID" : [ "EiELMVKqjjk=" ],
 	"manage buy offer failure modes|protocol version 18" : [ "S1Ssa9DXLPU=", "DByKJ9fR/LQ=", "S1Ssa9DXLPU=", "DByKJ9fR/LQ=" ],
-	"manage buy offer failure modes|protocol version 18|negative offerID" : [ "EiELMVKqjjk=" ],
 	"manage buy offer failure modes|protocol version 19" : [ "NKNcX4DjYng=", "T+IeLTijUbo=", "NKNcX4DjYng=", "T+IeLTijUbo=" ],
-	"manage buy offer failure modes|protocol version 19|negative offerID" : [ "ELdDEpcNC24=" ],
 	"manage buy offer failure modes|protocol version 2" : [ "pSsR7xl1ZzY=", "OaXP621I0jI=", "pSsR7xl1ZzY=", "OaXP621I0jI=" ],
 	"manage buy offer failure modes|protocol version 20" : [ "9dXbtfL8fWA=", "hhLRGp7Bj1U=", "9dXbtfL8fWA=", "hhLRGp7Bj1U=" ],
-	"manage buy offer failure modes|protocol version 20|negative offerID" : [ "yPMAWpGp2E0=" ],
 	"manage buy offer failure modes|protocol version 21" : [ "9dXbtfL8fWA=", "hhLRGp7Bj1U=", "9dXbtfL8fWA=", "hhLRGp7Bj1U=" ],
-	"manage buy offer failure modes|protocol version 21|negative offerID" : [ "yPMAWpGp2E0=" ],
 	"manage buy offer failure modes|protocol version 22" : [ "9dXbtfL8fWA=", "hhLRGp7Bj1U=", "9dXbtfL8fWA=", "hhLRGp7Bj1U=" ],
-	"manage buy offer failure modes|protocol version 22|negative offerID" : [ "yPMAWpGp2E0=" ],
 	"manage buy offer failure modes|protocol version 23" : [ "Pyr/d+8r+pY=", "w17SUKYtbWc=", "Pyr/d+8r+pY=", "w17SUKYtbWc=" ],
-	"manage buy offer failure modes|protocol version 23|negative offerID" : [ "yvKt/HIfveM=" ],
 	"manage buy offer failure modes|protocol version 24" : [ "Pyr/d+8r+pY=", "w17SUKYtbWc=", "Pyr/d+8r+pY=", "w17SUKYtbWc=" ],
-	"manage buy offer failure modes|protocol version 24|negative offerID" : [ "yvKt/HIfveM=" ],
 	"manage buy offer failure modes|protocol version 25" : [ "Pyr/d+8r+pY=", "w17SUKYtbWc=", "Pyr/d+8r+pY=", "w17SUKYtbWc=" ],
-	"manage buy offer failure modes|protocol version 25|negative offerID" : [ "yvKt/HIfveM=" ],
 	"manage buy offer failure modes|protocol version 26" : [ "Pyr/d+8r+pY=", "w17SUKYtbWc=", "Pyr/d+8r+pY=", "w17SUKYtbWc=" ],
-	"manage buy offer failure modes|protocol version 26|negative offerID" : [ "yvKt/HIfveM=" ],
 	"manage buy offer failure modes|protocol version 27" : 
 	[
 		"Pyr/d+8r+pY=",
@@ -572,13 +560,13 @@
 		"/aP5f7hCJD4=",
 		"1fMM5Je5E6k="
 	],
-	"manage buy offer failure modes|protocol version 27|check valid|buying and selling same asset" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
-	"manage buy offer failure modes|protocol version 27|check valid|buying asset not valid" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
-	"manage buy offer failure modes|protocol version 27|check valid|delete and create" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
-	"manage buy offer failure modes|protocol version 27|check valid|negative amount" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
-	"manage buy offer failure modes|protocol version 27|check valid|non-positive price denominator" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=", "6QIwXhkL2Fk=" ],
-	"manage buy offer failure modes|protocol version 27|check valid|non-positive price numerator" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=", "6QIwXhkL2Fk=" ],
-	"manage buy offer failure modes|protocol version 27|check valid|selling asset not valid" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
+	"manage buy offer failure modes|protocol version 27|check valid|buying and selling same asset" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 27|check valid|buying asset not valid" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 27|check valid|delete and create" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 27|check valid|negative amount" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 27|check valid|non-positive price denominator" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 27|check valid|non-positive price numerator" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 27|check valid|selling asset not valid" : [ "Hcw5dsgGZ0A=" ],
 	"manage buy offer failure modes|protocol version 27|compute offer exchange parameters|buying liabilities" : 
 	[
 		"kCwJyL3CZLk=",
@@ -615,7 +603,6 @@
 		"lwCFYyQS0B8=",
 		"WvKSEatXFxI="
 	],
-	"manage buy offer failure modes|protocol version 27|negative offerID" : [ "yvKt/HIfveM=" ],
 	"manage buy offer failure modes|protocol version 27|offer must exist and be owned by source account to modify or delete" : 
 	[
 		"FMXW3IlI1Zo=",
@@ -703,13 +690,13 @@
 		"/aP5f7hCJD4=",
 		"1fMM5Je5E6k="
 	],
-	"manage buy offer failure modes|protocol version 28|check valid|buying and selling same asset" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
-	"manage buy offer failure modes|protocol version 28|check valid|buying asset not valid" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
-	"manage buy offer failure modes|protocol version 28|check valid|delete and create" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
-	"manage buy offer failure modes|protocol version 28|check valid|negative amount" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
-	"manage buy offer failure modes|protocol version 28|check valid|non-positive price denominator" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=", "6QIwXhkL2Fk=" ],
-	"manage buy offer failure modes|protocol version 28|check valid|non-positive price numerator" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=", "6QIwXhkL2Fk=" ],
-	"manage buy offer failure modes|protocol version 28|check valid|selling asset not valid" : [ "Hcw5dsgGZ0A=", "wZkRuwud5Os=" ],
+	"manage buy offer failure modes|protocol version 28|check valid|buying and selling same asset" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 28|check valid|buying asset not valid" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 28|check valid|delete and create" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 28|check valid|negative amount" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 28|check valid|non-positive price denominator" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 28|check valid|non-positive price numerator" : [ "Hcw5dsgGZ0A=" ],
+	"manage buy offer failure modes|protocol version 28|check valid|selling asset not valid" : [ "Hcw5dsgGZ0A=" ],
 	"manage buy offer failure modes|protocol version 28|compute offer exchange parameters|buying liabilities" : 
 	[
 		"kCwJyL3CZLk=",
@@ -746,7 +733,6 @@
 		"lwCFYyQS0B8=",
 		"WvKSEatXFxI="
 	],
-	"manage buy offer failure modes|protocol version 28|negative offerID" : [ "yvKt/HIfveM=" ],
 	"manage buy offer failure modes|protocol version 28|offer must exist and be owned by source account to modify or delete" : 
 	[
 		"FMXW3IlI1Zo=",
