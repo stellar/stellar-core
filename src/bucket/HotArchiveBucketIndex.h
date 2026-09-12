@@ -83,6 +83,9 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
     {
     }
 
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getRangeForType(LedgerEntryType type) const;
+
     std::pair<IndexReturnT, IterT> scan(IterT start, LedgerKey const& k) const;
 
     BucketEntryCounters const&

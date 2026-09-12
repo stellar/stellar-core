@@ -201,6 +201,19 @@ template <class BucketT> class SearchableBucketListSnapshot
     // Access to underlying data (for copying/refreshing)
     std::shared_ptr<BucketListSnapshotData<BucketT> const> const&
     getSnapshotData() const;
+
+    // Iterate over the visible, non-shadowed entries of a given type, i.e., the
+    // newest entry for each key if it isn't tombstoned. Calls callback for
+    // these entries, stopping early if callback returns Loop::COMPLETE. For the
+    // live bucket list, this will be the current values (LIVEENTRY or
+    // INITENTRY) for all keys of the given type that aren't dead (DEADENTRY).
+    // For the hot archive bucket list, this will be the latest version of all
+    // keys of the given type that are still archived (HOT_ARCHIVE_ARCHIVED) and
+    // haven't been restored (HOT_ARCHIVE_LIVE).
+    void scanForCurrentEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(LedgerEntry const&, LedgerKey const&)> callback)
+        const;
 };
 
 // Live bucket list snapshot with additional query methods
@@ -240,13 +253,6 @@ class SearchableLiveBucketListSnapshot
     void scanForEntriesOfType(
         LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
-
-    // Iterate over all live entries of a given type. Note that this handles
-    // shadowing and only returns the latest live entry for each key.
-    void scanForLiveEntriesOfType(
-        LedgerEntryType type,
-        std::function<void(LedgerEntry const&, LedgerKey const&)> callback)
-        const;
 
     friend class ImmutableLedgerData;
     friend class ImmutableLedgerView;

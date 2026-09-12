@@ -187,6 +187,12 @@ class BucketBase : public NonMovableOrCopyable
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
+    // Returns [lowerBound, upperBound) of file offsets for all entries of the
+    // given type in the bucket, or std::nullopt if no entries of this type
+    // exist.
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getRangeForType(LedgerEntryType type) const;
+
 #ifdef BUILD_TESTS
     IndexT const&
     getIndexForTesting() const
