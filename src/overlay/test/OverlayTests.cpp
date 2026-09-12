@@ -2028,15 +2028,15 @@ TEST_CASE("GET_SCP_STATE rate limiting", "[overlay]")
     // Bump up close time and max slots to remember to production levels. These
     // must be large enough that crankSome calls between requests don't cause a
     // window reset.
-    cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
-    cfg2.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
+    cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5000;
+    cfg2.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5000;
     cfg1.MAX_SLOTS_TO_REMEMBER = 12;
     cfg2.MAX_SLOTS_TO_REMEMBER = 12;
 
     // The window size + 1 second. Minimum time required to ensure the rate
     // limit window resets.
     std::chrono::seconds const WINDOW_CLEAR_DURATION(
-        cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING *
+        cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING / 1000 *
             cfg1.MAX_SLOTS_TO_REMEMBER +
         1);
 
@@ -2092,6 +2092,52 @@ TEST_CASE("GET_SCP_STATE rate limiting", "[overlay]")
     // Peers should still be connected
     REQUIRE(sender->isConnectedForTesting());
     REQUIRE(receiver->isConnectedForTesting());
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
+TEST_CASE("query rate limit window under sub-second close times", "[overlay]")
+{
+    VirtualClock clock;
+    Config cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    // Make the raw query window (close time * slots to remember) shorter than
+    // one second. It must round up to a one-second window; truncating instead
+    // would produce a zero-length window with a zero query allowance,
+    // rejecting every query.
+    for (auto* cfg : {&cfg1, &cfg2})
+    {
+        cfg->ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 100;
+        cfg->MAX_SLOTS_TO_REMEMBER = 4;
+    }
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    testutil::crankSome(clock);
+    auto peer = conn.getAcceptor();
+    REQUIRE(peer->isAuthenticatedForTesting());
+
+    // The rounded-up 1s window admits QUERY_RESPONSE_MULTIPLIER (see Peer.cpp)
+    // queries per window
+    uint32_t constexpr EXPECTED_QUERIES_PER_WINDOW = 5;
+
+    Peer::QueryInfo queryInfo;
+    for (uint32_t i = 0; i < EXPECTED_QUERIES_PER_WINDOW; i++)
+    {
+        REQUIRE(peer->processQueryForTesting(queryInfo));
+        queryInfo.mNumQueries++;
+    }
+    // The next query in the same window exceeds the allowance
+    REQUIRE(!peer->processQueryForTesting(queryInfo));
+
+    // Advancing past the rounded-up window resets the allowance
+    testutil::crankFor(clock, std::chrono::seconds(2));
+    REQUIRE(peer->processQueryForTesting(queryInfo));
+    REQUIRE(queryInfo.mNumQueries == 0);
 
     testutil::shutdownWorkScheduler(*app2);
     testutil::shutdownWorkScheduler(*app1);

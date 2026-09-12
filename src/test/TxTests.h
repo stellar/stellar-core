@@ -7,6 +7,7 @@
 #include "crypto/SecretKey.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/test/TransactionTestFrame.h"
 #include <optional>
@@ -106,11 +107,31 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
               ParallelSorobanOrder const& parallelSorobanOrder = {});
 
+// A sub-second consensus close time is only valid once the protocol uses
+// millisecond close times.
+TransactionResultSet
+closeLedgerOn(Application& app, uint32 ledgerSeq, ConsensusTime closeTime,
+              std::vector<TransactionFrameBasePtr> const& txs = {},
+              bool strictOrder = false,
+              xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
+              ParallelSorobanOrder const& parallelSorobanOrder = {});
+
 TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 
 TransactionResultSet closeLedgerOn(Application& app, uint32 ledgerSeq,
-                                   time_t closeTime,
+                                   TimePoint closeTime,
                                    TxSetXDRFrameConstPtr txSet);
+TransactionResultSet closeLedgerOn(Application& app, uint32 ledgerSeq,
+                                   ConsensusTime closeTime,
+                                   TxSetXDRFrameConstPtr txSet);
+
+// Returns the requested whole-second close time, offset by a random number
+// of milliseconds within that second if the protocol supports ms close times.
+ConsensusTime withMsCloseTime(Application& app, TimePoint closeTimeSec);
+
+// A consensus close time `milliseconds` (in [0, 999]) into the whole second
+// `timePoint`. Non-zero `milliseconds` require an MS_CLOSE_TIME build.
+ConsensusTime makeConsensusTime(TimePoint timePoint, uint32_t milliseconds = 0);
 
 TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,

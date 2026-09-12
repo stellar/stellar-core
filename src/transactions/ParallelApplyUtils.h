@@ -7,6 +7,7 @@
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerEntryScope.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/ParallelApplyStage.h"
@@ -25,11 +26,11 @@ class ParallelLedgerInfo
 
   public:
     ParallelLedgerInfo(uint32_t version, uint32_t seq, uint32_t reserve,
-                       TimePoint time, Hash const& id)
+                       ApplyTime applyTime, Hash const& id)
         : ledgerVersion(version)
         , ledgerSeq(seq)
         , baseReserve(reserve)
-        , closeTime(time)
+        , mApplyTime(applyTime)
         , networkID(id)
     {
     }
@@ -49,10 +50,10 @@ class ParallelLedgerInfo
     {
         return baseReserve;
     }
-    TimePoint
-    getCloseTime() const
+    ApplyTime
+    getApplyTime() const
     {
-        return closeTime;
+        return mApplyTime;
     }
     Hash
     getNetworkID() const
@@ -64,7 +65,7 @@ class ParallelLedgerInfo
     uint32_t ledgerVersion;
     uint32_t ledgerSeq;
     uint32_t baseReserve;
-    TimePoint closeTime;
+    ApplyTime mApplyTime;
     Hash networkID;
 };
 

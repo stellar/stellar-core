@@ -3,6 +3,7 @@
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "herder/Upgrades.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -64,12 +65,24 @@ stellarValueToString(Config const& c, StellarValue const& sv)
         res << " EMPTY_TXSET@"
             << c.toShortString(sv.ext.proposedValue().lcValueSignature.nodeID);
         break;
+#ifdef MS_CLOSE_TIME
+    case STELLAR_VALUE_SIGNED_MS:
+        res << " SIGNED_MS@"
+            << c.toShortString(sv.ext.signedMsValue().lcValueSignature.nodeID);
+        break;
+    case STELLAR_VALUE_EMPTY_TX_SET_MS:
+        res << " EMPTY_TXSET_MS@"
+            << c.toShortString(
+                   sv.ext.proposedMsValue().lcValueSignature.nodeID);
+        break;
+#endif // MS_CLOSE_TIME
     default:
         res << " UNKNOWN";
         break;
     }
-    res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
-        << ", upgrades: [";
+    res << " txH: " << hexAbbrev(sv.txSetHash)
+        << ", ct: " << getConsensusTime(sv).toString();
+    res << ", upgrades: [";
     for (auto const& upgrade : sv.upgrades)
     {
         if (upgrade.empty())

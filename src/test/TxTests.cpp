@@ -28,6 +28,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
@@ -584,24 +585,34 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               xdr::xvector<UpgradeType, 6> const& upgrades,
               ParallelSorobanOrder const& parallelSorobanOrder)
 {
+    return closeLedgerOn(
+        app, ledgerSeq,
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(closeTime)), txs,
+        strictOrder, upgrades, parallelSorobanOrder);
+}
+
+TransactionResultSet
+closeLedgerOn(Application& app, uint32 ledgerSeq, ConsensusTime closeTime,
+              std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder,
+              xdr::xvector<UpgradeType, 6> const& upgrades,
+              ParallelSorobanOrder const& parallelSorobanOrder)
+{
     // Ensure that parallelSorobanOrder is only used with strictOrder
     releaseAssert((parallelSorobanOrder.empty() || strictOrder));
 
     // Ensure we're not trying to close a ledger that's already closed
     releaseAssert(ledgerSeq > app.getLedgerManager().getLastClosedLedgerNum());
 
-    auto lastCloseTime = app.getLedgerManager()
-                             .getLastClosedLedgerHeader()
-                             .header.scpValue.closeTime;
-    if (closeTime < lastCloseTime)
-    {
-        closeTime = lastCloseTime;
-    }
+    // Make sure the close time is never less than the lcl close time
+    closeTime =
+        std::max(closeTime, getConsensusTime(app.getLedgerManager()
+                                                 .getLastClosedLedgerHeader()
+                                                 .header.scpValue));
 
     std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr> txSet;
     if (strictOrder)
     {
-        txSet = makeTxSetFromTransactions(txs, app, 0, 0, true,
+        txSet = makeTxSetFromTransactions(txs, app, ApplyTimeOffset{}, true,
                                           parallelSorobanOrder);
     }
     else
@@ -609,7 +620,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         if (std::none_of(txs.begin(), txs.end(),
                          [&](auto const& tx) { return tx->isSoroban(); }))
         {
-            txSet = makeTxSetFromTransactions(txs, app, 0, 0);
+            txSet = makeTxSetFromTransactions(txs, app, ApplyTimeOffset{});
         }
         else
         {
@@ -626,7 +637,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
             {
                 phases.emplace_back(soroban);
             }
-            txSet = makeTxSetFromTransactions(phases, app, 0, 0);
+            txSet = makeTxSetFromTransactions(phases, app, ApplyTimeOffset{});
         }
     }
     if (!strictOrder)
@@ -651,15 +662,24 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
 TransactionResultSet
 closeLedger(Application& app, TxSetXDRFrameConstPtr txSet)
 {
-    auto lastCloseTime = app.getLedgerManager()
-                             .getLastClosedLedgerHeader()
-                             .header.scpValue.closeTime;
+    auto lastCloseTime = getConsensusTime(
+        app.getLedgerManager().getLastClosedLedgerHeader().header.scpValue);
     auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
     return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txSet);
 }
 
 TransactionResultSet
-closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
+              TxSetXDRFrameConstPtr txSet)
+{
+    return closeLedgerOn(
+        app, ledgerSeq,
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(closeTime)),
+        txSet);
+}
+
+TransactionResultSet
+closeLedgerOn(Application& app, uint32 ledgerSeq, ConsensusTime closeTime,
               TxSetXDRFrameConstPtr txSet)
 {
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
@@ -673,6 +693,42 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     captureLastClosedLedgerLcm(app);
 
     return z1;
+}
+
+ConsensusTime
+makeConsensusTime(TimePoint timePoint, uint32_t milliseconds)
+{
+    releaseAssert(milliseconds < 1000);
+    auto const wholeSecond =
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(timePoint));
+#ifdef MS_CLOSE_TIME
+    if (milliseconds != 0)
+    {
+        auto const base = wholeSecond.milliseconds();
+        return ConsensusTime::fromMilliseconds(base > UINT64_MAX - milliseconds
+                                                   ? UINT64_MAX
+                                                   : base + milliseconds);
+    }
+#else
+    // Sub-second close times do not exist in builds without MS_CLOSE_TIME
+    releaseAssert(milliseconds == 0);
+#endif // MS_CLOSE_TIME
+    return wholeSecond;
+}
+
+ConsensusTime
+withMsCloseTime(Application& app, TimePoint closeTimeSec)
+{
+#ifdef MS_CLOSE_TIME
+    if (protocolHasMsCloseTime(app.getLedgerManager()
+                                   .getLastClosedLedgerHeader()
+                                   .header.ledgerVersion))
+    {
+        // A random offset within the same whole second
+        return makeConsensusTime(closeTimeSec, rand_uniform<uint32_t>(0, 999));
+    }
+#endif // MS_CLOSE_TIME
+    return makeConsensusTime(closeTimeSec);
 }
 
 SecretKey
@@ -1989,8 +2045,10 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto txSet = TxSetXDRFrame::makeEmpty(lcl);
     auto lastCloseTime = lcl.header.scpValue.closeTime;
-    app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
-                                     lastCloseTime, upgrades);
+    app.getHerder().externalizeValue(
+        txSet, lcl.header.ledgerSeq + 1,
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(lastCloseTime)),
+        upgrades);
 
     captureLastClosedLedgerLcm(app);
 

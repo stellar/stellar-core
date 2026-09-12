@@ -4,6 +4,7 @@
 
 #include "transactions/ClaimClaimableBalanceOpFrame.h"
 #include "crypto/SHA.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -65,7 +66,7 @@ ClaimClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 static bool
-validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
+validatePredicate(ClaimPredicate const& pred, ApplyTime closeTime)
 {
     switch (pred.type())
     {
@@ -89,7 +90,7 @@ validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
     case CLAIM_PREDICATE_NOT:
         return !validatePredicate(*pred.notPredicate(), closeTime);
     case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
-        return static_cast<uint64_t>(pred.absBefore()) > closeTime;
+        return static_cast<uint64_t>(pred.absBefore()) > closeTime.timePoint();
     default:
         throw std::runtime_error("Invalid ClaimPredicate");
     }
@@ -134,7 +135,7 @@ ClaimClaimableBalanceOpFrame::doApply(
     auto header = ltx.loadHeader();
     if (it == claimableBalance.claimants.end() ||
         !validatePredicate(it->v0().predicate,
-                           header.current().scpValue.closeTime))
+                           getApplyTime(header.current().scpValue)))
     {
         innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM);
         return false;

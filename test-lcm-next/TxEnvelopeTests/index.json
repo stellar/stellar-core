@@ -1,7 +1,11 @@
 {
    "33b31b8901ef27e4" : "txset_-_correct_apply_order",
+   "45cd8cecfd8fbec7" : "transaction_time_bounds_under_sub-second_ledgers-tx_valid_from_the_next_second_stays_too_early_in_a_same-second_ledger",
+   "5a5798ba7b39a55c" : "soroban_transaction_validation-protocol_version_29-footprint_limit-read-only_key_over_size_limit",
+   "5dd8350657e154c9" : "soroban_transaction_validation-protocol_version_29-footprint_limit-read-write_key_over_size_limit",
    "8a618c6bf87583c8" : "soroban_transaction_validation-protocol_version_26-footprint_limit-read-only_key_over_size_limit",
    "ab82fe7cbed50696" : "soroban_transaction_validation-protocol_version_28-footprint_limit-read-only_key_over_size_limit",
    "c5e8f50805e3d276" : "soroban_transaction_validation-protocol_version_26-footprint_limit-read-write_key_over_size_limit",
-   "ed0dbfc79ec4422d" : "soroban_transaction_validation-protocol_version_28-footprint_limit-read-write_key_over_size_limit"
+   "ed0dbfc79ec4422d" : "soroban_transaction_validation-protocol_version_28-footprint_limit-read-write_key_over_size_limit",
+   "ee2a2e4ea842c835" : "transaction_time_bounds_under_sub-second_ledgers-tx_expiring_at_the_current_second_applies_in_a_same-second_ledger"
 }

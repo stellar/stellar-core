@@ -9,10 +9,12 @@
 #include "scp/SCP.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "xdr/Stellar-ledger.h"
 
 using namespace stellar;
+using namespace stellar::txtest;
 
 static void
 testQuorumTracker()
@@ -111,7 +113,8 @@ testQuorumTracker()
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto txSet = TxSetXDRFrame::makeEmpty(lcl);
         StellarValue sv = herder->makeStellarValue(
-            txSet->getContentsHash(), lcl.header.scpValue.closeTime + i,
+            txSet->getContentsHash(),
+            makeConsensusTime(lcl.header.scpValue.closeTime + i),
             emptyUpgradeSteps, valSigner);
         auto v = xdr::xdr_to_opaque(sv);
         return ValuesTxSet{v, txSet};

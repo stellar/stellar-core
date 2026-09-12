@@ -18,6 +18,7 @@
 #include "herder/TxSetFrame.h"
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "main/Application.h"
@@ -1043,7 +1044,7 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                        xdr::xvector<UpgradeType, 6> const& upgrades,
                        bool recordUtilization)
 {
-    auto txSet = makeTxSetFromTransactions(txs, mApp, 0, 0);
+    auto txSet = makeTxSetFromTransactions(txs, mApp, ApplyTimeOffset{});
 
     if (recordUtilization)
     {
@@ -1051,9 +1052,10 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                                                     .getLastClosedLedgerHeader()
                                                     .header.ledgerVersion);
     }
-    auto sv =
-        mApp.getHerder().makeStellarValue(txSet.first->getContentsHash(), 1,
-                                          upgrades, mApp.getConfig().NODE_SEED);
+    auto sv = mApp.getHerder().makeStellarValue(
+        txSet.first->getContentsHash(),
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(1)), upgrades,
+        mApp.getConfig().NODE_SEED);
 
     stellar::txtest::closeLedger(mApp, txs, /* strictOrder */ false, upgrades);
 }
@@ -1066,8 +1068,13 @@ ApplyLoad::closeLedgerViaConsensus(
     auto& herder = mApp.getHerder();
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
 
-    uint64_t const closeTime = lcl.header.scpValue.closeTime + 1;
-    auto txSet = makeTxSetFromTransactions(txs, mApp, 1, 1);
+    auto const closeTime =
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion);
+    // Mirror the validation path: the tx set is built for the apply time
+    // implied by the close time we are about to nominate.
+    auto const closeTimeOffset =
+        closeTime.toApplyTime() - getApplyTime(lcl.header.scpValue);
+    auto txSet = makeTxSetFromTransactions(txs, mApp, closeTimeOffset);
 
     if (recordUtilization)
     {
