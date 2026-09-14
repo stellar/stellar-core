@@ -10,7 +10,6 @@ use std::fmt;
 use stellar_xdr::curr as xdr;
 use xdr::{
     Limits, MessageType, ReadXdr, ScpBallot, ScpEnvelope, ScpStatementPledges, StellarMessage,
-    StellarValue,
 };
 
 #[derive(Debug)]
@@ -140,12 +139,46 @@ fn collect_ballot_hash(hashes: &mut Vec<[u8; 32]>, ballot: &ScpBallot) {
 }
 
 fn collect_stellar_value_hash(hashes: &mut Vec<[u8; 32]>, value: &[u8]) {
-    let Ok(stellar_value) = StellarValue::from_xdr(value, Limits::none()) else {
+    let Ok(StellarValueTxSetHash(Some(hash))) =
+        StellarValueTxSetHash::from_xdr(value, Limits::none())
+    else {
         return;
     };
-    let hash: [u8; 32] = stellar_value.tx_set_hash.into();
     if !hashes.contains(&hash) {
         hashes.push(hash);
+    }
+}
+
+// The overlay's envelope codec predates the millisecond StellarValue arms.
+// Decode their small common layout using its existing bounded XDR primitives,
+// keeping full-consumption/padding checks. Core still validates the value and
+// its signature. Layout: src/protocol-curr/xdr/Stellar-ledger.x.
+struct StellarValueTxSetHash(Option<[u8; 32]>);
+
+impl ReadXdr for StellarValueTxSetHash {
+    fn read_xdr<R: std::io::Read>(r: &mut xdr::Limited<R>) -> Result<Self, xdr::Error> {
+        let hash = xdr::Hash::read_xdr(r)?;
+        let close_time = u64::read_xdr(r)?;
+        let _upgrades = xdr::VecM::<xdr::UpgradeType, 6>::read_xdr(r)?;
+        let kind = i32::read_xdr(r)?;
+        if !matches!(kind, 0..=4) {
+            return Err(xdr::Error::Invalid);
+        }
+        if matches!(kind, 3 | 4) && u64::read_xdr(r)? / 1000 != close_time {
+            return Err(xdr::Error::Invalid);
+        }
+        let empty = matches!(kind, 2 | 4);
+        if empty {
+            let _proposed_hash = xdr::Hash::read_xdr(r)?;
+            let _previous_hash = xdr::Hash::read_xdr(r)?;
+            let _previous_version = u32::read_xdr(r)?;
+        }
+        if kind != 0 {
+            let _signature = xdr::LedgerCloseValueSignature::read_xdr(r)?;
+        }
+        // Empty values are synthesized by Core; their zero tx-set hash
+        // must never become a network fetch.
+        Ok(Self((!empty).then_some(hash.into())))
     }
 }
 
@@ -154,7 +187,7 @@ pub(crate) mod tests {
     use super::*;
     use xdr::{
         DecoratedSignature, GeneralizedTransactionSet, Hash, Limits, Operation, ScpNomination,
-        ScpStatementPledges, SequenceNumber, StellarValueExt, TimePoint, Transaction,
+        ScpStatementPledges, SequenceNumber, StellarValue, StellarValueExt, TimePoint, Transaction,
         TransactionEnvelope, TransactionV1Envelope, Uint256, Value, VecM, WriteXdr,
     };
 
@@ -267,5 +300,74 @@ pub(crate) mod tests {
 
         let hashes = extract_txset_hashes_from_envelope(&envelope);
         assert_eq!(hashes, vec![expected_hash]);
+    }
+
+    fn extended_value(kind: i32) -> Vec<u8> {
+        let base = StellarValue {
+            tx_set_hash: Hash([0x42; 32]),
+            close_time: TimePoint(1_704_067_200),
+            upgrades: VecM::default(),
+            ext: StellarValueExt::Basic,
+        };
+        let mut bytes = base.to_xdr(Limits::none()).unwrap();
+        bytes.truncate(bytes.len() - 4);
+        bytes.extend(kind.to_be_bytes());
+        if matches!(kind, 3 | 4) {
+            bytes.extend(1_704_067_200_123u64.to_be_bytes());
+        }
+        if matches!(kind, 2 | 4) {
+            bytes.extend([0x11; 32]);
+            bytes.extend([0x22; 32]);
+            bytes.extend(28u32.to_be_bytes());
+        }
+        if kind != 0 {
+            bytes.extend(
+                xdr::LedgerCloseValueSignature::default()
+                    .to_xdr(Limits::none())
+                    .unwrap(),
+            );
+        }
+        bytes
+    }
+
+    #[test]
+    fn extracts_millisecond_values_and_skips_synthetic_empty_sets() {
+        for kind in 0..=4 {
+            let value = extended_value(kind);
+            let decoded = StellarValueTxSetHash::from_xdr(&value, Limits::none()).unwrap();
+            let expected = (!matches!(kind, 2 | 4)).then_some([0x42; 32]);
+            assert_eq!(decoded.0, expected);
+
+            let value = Value::try_from(value).unwrap();
+            let mut envelope = ScpEnvelope::default();
+            envelope.statement.pledges = ScpStatementPledges::Nominate(ScpNomination {
+                quorum_set_hash: Hash([0; 32]),
+                votes: VecM::try_from(vec![value.clone()]).unwrap(),
+                accepted: VecM::try_from(vec![value]).unwrap(),
+            });
+            assert_eq!(
+                extract_txset_hashes_from_envelope(&envelope),
+                expected.into_iter().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn millisecond_value_decoder_rejects_malformed_values() {
+        for kind in 0..=4 {
+            let bytes = extended_value(kind);
+            for end in 0..bytes.len() {
+                assert!(StellarValueTxSetHash::from_xdr(&bytes[..end], Limits::none()).is_err());
+            }
+            let mut trailing = bytes.clone();
+            trailing.push(0);
+            assert!(StellarValueTxSetHash::from_xdr(trailing, Limits::none()).is_err());
+        }
+        let mut mismatch = extended_value(3);
+        mismatch[48..56].copy_from_slice(&1u64.to_be_bytes());
+        assert!(StellarValueTxSetHash::from_xdr(mismatch, Limits::none()).is_err());
+        let mut unknown = extended_value(0);
+        unknown[44..48].copy_from_slice(&5i32.to_be_bytes());
+        assert!(StellarValueTxSetHash::from_xdr(unknown, Limits::none()).is_err());
     }
 }

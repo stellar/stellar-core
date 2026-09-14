@@ -201,6 +201,7 @@
 	],
 	"overlay validation handles ed25519 signed payload signers|protocol version 29|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
 	"overlay validation handles ed25519 signed payload signers|protocol version 29|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
+	"transaction time bounds under sub-second ledgers" : [ "DXfbo737FZ8=", "DXfbo737FZ8=" ],
 	"txenvelope|protocol version 0|alternative signatures" : 
 	[
 		"49rU55h6rBs=",

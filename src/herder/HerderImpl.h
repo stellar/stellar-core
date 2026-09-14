@@ -10,6 +10,7 @@
 #include "herder/PendingEnvelopes.h"
 #include "herder/QuorumIntersectionChecker.h"
 #include "herder/Upgrades.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "overlay/NetworkConstants.h"
 #include "util/Timer.h"
 #include "util/UnorderedMap.h"
@@ -42,7 +43,7 @@ class HerderImpl : public Herder
     struct ConsensusData
     {
         uint64_t mConsensusIndex{0};
-        TimePoint mConsensusCloseTime{0};
+        ConsensusTime mConsensusCloseTime;
     };
 
     void setTrackingSCPState(uint64_t index, StellarValue const& value,
@@ -52,7 +53,7 @@ class HerderImpl : public Herder
     // in fully booted state
     uint32 trackingConsensusLedgerIndex() const override;
 
-    TimePoint trackingConsensusCloseTime() const;
+    ConsensusTime trackingConsensusCloseTime() const;
 
     // the ledger index that we expect to externalize next
     uint32
@@ -119,7 +120,7 @@ class HerderImpl : public Herder
                                    StellarMessage const& txset) override;
 
     void externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
-                          uint64_t closeTime,
+                          ConsensusTime closeTime,
                           xdr::xvector<UpgradeType, 6> const& upgrades,
                           std::optional<SecretKey> skToSignValue) override;
 
@@ -216,7 +217,7 @@ class HerderImpl : public Herder
     QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const override;
 
     virtual StellarValue
-    makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
+    makeStellarValue(Hash const& txSetHash, ConsensusTime closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) override;
 
@@ -246,8 +247,9 @@ class HerderImpl : public Herder
     // Given a candidate close time, determine an offset needed to make it
     // valid (at current system time). Returns 0 if ct is already valid
     std::chrono::milliseconds
-    ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset =
-                                      std::chrono::milliseconds::zero());
+    ctValidityOffset(ConsensusTime closeTime,
+                     std::chrono::milliseconds maxCtOffset =
+                         std::chrono::milliseconds::zero());
 
     void setupTriggerNextLedger();
 
@@ -255,15 +257,15 @@ class HerderImpl : public Herder
     {
         Hash previousLedgerHash;
         uint32_t ledgerSeq;
-        uint64_t closeTime;
+        ConsensusTime closeTime;
         TxSetXDRFrameConstPtr txSet;
         ApplicableTxSetFrameConstPtr applicableTxSet;
         std::vector<Hash> invalidTxHashes;
         bool capacityLimited;
     };
     std::optional<PreparedTxSet> mPreparedTxSet;
-    PreparedTxSet buildTxSet(uint32_t ledgerSeq, uint64_t closeTime);
-    void prepareTxSet(uint32_t ledgerSeq, uint64_t closeTime);
+    PreparedTxSet buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
+    void prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
     void discardPreparedTxSet();
 
     // Compute the trigger-timer anchor point using the local node's
@@ -321,7 +323,7 @@ class HerderImpl : public Herder
 
     // Map SCP slots to local time of nomination and the time slot was
     // externalized by the network
-    std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>
+    std::map<uint32_t, std::pair<ConsensusTime, std::optional<ConsensusTime>>>
         mDriftCTSlidingWindow;
 
     // saves upgrade parameters
