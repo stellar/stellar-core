@@ -6535,6 +6535,13 @@ namespace stellar
 class EarlyNominationTestAccess
 {
   public:
+    static VirtualClock::time_point
+    triggerAnchor(HerderImpl& herder, uint64_t slot)
+    {
+        return herder.triggerAnchorFromConsensusCloseTime(
+            slot, herder.mApp.getClock().now(), std::chrono::seconds(2));
+    }
+
     static TxSetXDRFrameConstPtr
     prepared(HerderImpl& herder)
     {
@@ -6559,6 +6566,195 @@ class EarlyNominationTestAccess
         herder.setupTriggerNextLedger();
     }
 };
+}
+
+TEST_CASE("trigger fallback credits elapsed time through nomination",
+          "[herder][trigger-construction]")
+{
+    using namespace std::chrono;
+    struct Scenario
+    {
+        int buildMs;
+        int ballotMs;
+        int closeMs;
+        int clockOffsetMs;
+        bool recordTrigger;
+        int expectedWaitMs;
+        int expectedFallbacks;
+    };
+    auto scenario =
+        GENERATE(Scenario{350, 1900, 2100, 0, true, 0, 0},
+                 Scenario{350, 1900, 2100, 4000, true, 1800, 1},
+                 Scenario{350, 1900, 2100, -4000, true, 1800, 1},
+                 Scenario{350, 1900, 4100, 0, true, 0, 1},
+                 Scenario{350, 1900, 2100, 0, false, 1800, 1},
+                 Scenario{350, 1500, 1700, 0, true, 300, 0},
+                 // A slow first round need not execute a timeout callback
+                 // before entering ballot. Its elapsed time is still real.
+                 Scenario{100, 2000, 2250, 0, true, 0, 0},
+                 // Followers need no construction, but still wait on peers.
+                 Scenario{0, 2250, 2450, 0, true, 0, 0},
+                 // Delayed timer callbacks must not hide elapsed time.
+                 Scenario{100, 6500, 6700, 0, true, 0, 0},
+                 // Long nomination does not excuse arbitrary clock drift.
+                 Scenario{100, 6500, 6700, 10000, true, 1800, 1},
+                 Scenario{100, 6500, 6700, -10000, true, 1800, 1});
+    CAPTURE(scenario.buildMs, scenario.closeMs, scenario.clockOffsetMs,
+            scenario.recordTrigger);
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& driver = herder.getHerderSCPDriver();
+    auto const slot = app->getLedgerManager().getLastClosedLedgerNum();
+    auto const ct = VirtualClock::to_time_t(clock.system_now()) + 1000;
+    auto const origin = VirtualClock::from_time_t(ct);
+    clock.setCurrentVirtualTime(origin);
+    StellarValue value;
+    value.closeTime = ct;
+    herder.setTrackingSCPState(slot, value, true);
+    if (scenario.recordTrigger)
+    {
+        driver.recordNominationTrigger(slot);
+    }
+    clock.setCurrentVirtualTime(origin + milliseconds(scenario.buildMs));
+    driver.recordSCPEvent(slot, true);
+    clock.setCurrentVirtualTime(origin + milliseconds(scenario.ballotMs));
+    driver.recordSCPEvent(slot, false);
+    clock.setCurrentVirtualTime(origin + milliseconds(scenario.closeMs));
+    clock.setSystemTimeOffset(milliseconds(scenario.clockOffsetMs));
+    REQUIRE(driver.getNominationTimeouts(slot).value() == 0);
+    REQUIRE(driver.getTriggerToBallotDuration(slot) ==
+            milliseconds(scenario.recordTrigger ? scenario.ballotMs : 0));
+    REQUIRE(driver.getTriggerToBallotDuration(slot + 1) ==
+            milliseconds::zero());
+    auto metrics = app->getMetrics().GetAllMetrics();
+    auto const& fallback = dynamic_cast<medida::Meter const&>(
+        *metrics.at({"scp", "trigger", "prepare-start-fallback"}));
+    auto const before = fallback.count();
+    auto deadline = std::max(
+        clock.now(),
+        EarlyNominationTestAccess::triggerAnchor(herder, slot) + seconds(2));
+    REQUIRE(duration_cast<milliseconds>(deadline - clock.now()).count() ==
+            scenario.expectedWaitMs);
+    REQUIRE(fallback.count() - before == scenario.expectedFallbacks);
+}
+
+TEST_CASE("trigger work is recorded by the proposal path",
+          "[herder][trigger-construction]")
+{
+    using namespace std::chrono;
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& driver = herder.getHerderSCPDriver();
+    auto const slot = app->getLedgerManager().getLastClosedLedgerNum() + 1;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        // A wall-clock adjustment must not change the measured construction
+        // duration or replace it with a negative interval.
+        clock.setCurrentVirtualTime(clock.now() + milliseconds(400));
+        clock.setSystemTimeOffset(seconds(-1));
+        return std::vector<TransactionEnvelope>{};
+    };
+    herder.triggerNextLedger(slot, true);
+    // Until ballot starts there is no completed interval to credit.
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds::zero());
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(100));
+    driver.recordSCPEvent(slot, false);
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(500));
+    clock.setCurrentVirtualTime(clock.now() + seconds(1));
+    driver.recordNominationTrigger(slot);
+    driver.recordSCPEvent(slot, true);
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(500));
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
+TEST_CASE("trigger work excludes time after entering ballot",
+          "[herder][trigger-construction]")
+{
+    using namespace std::chrono;
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+    auto app = createTestApplication(clock, cfg);
+    auto& driver =
+        static_cast<HerderImpl&>(app->getHerder()).getHerderSCPDriver();
+    uint64_t const slot = 100;
+    driver.recordNominationTrigger(slot);
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(100));
+    driver.recordSCPEvent(slot, false);
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(300));
+    driver.recordSCPEvent(slot, true);
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(100));
+    driver.recordSCPEvent(slot + 1, false);
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(100));
+    driver.recordNominationTrigger(slot + 1);
+    driver.recordSCPEvent(slot + 1, true);
+    REQUIRE(driver.getTriggerToBallotDuration(slot + 1) ==
+            milliseconds::zero());
+}
+
+TEST_CASE("trigger allowance is independent of timeout callback ordering",
+          "[herder][trigger-construction]")
+{
+    using namespace std::chrono;
+    auto const ballotBeforeTimeout = GENERATE(false, true);
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& driver = herder.getHerderSCPDriver();
+    auto const slot = herder.nextConsensusLedgerIndex();
+    auto const ct = VirtualClock::to_time_t(clock.system_now()) + 1;
+    auto const origin = VirtualClock::from_time_t(ct);
+    clock.setCurrentVirtualTime(origin);
+    driver.recordNominationTrigger(slot);
+    clock.setCurrentVirtualTime(origin + milliseconds(100));
+    driver.recordSCPEvent(slot, true);
+    bool timerFired = false;
+    driver.setupTimer(slot, Slot::NOMINATION_TIMER, seconds(2),
+                      [&] { timerFired = true; });
+
+    // Both events become runnable while the main thread is occupied. Entering
+    // ballot before dispatching the expired timer suppresses its timeout count.
+    clock.setCurrentVirtualTime(origin + milliseconds(2500));
+    if (ballotBeforeTimeout)
+    {
+        driver.recordSCPEvent(slot, false);
+    }
+    for (int i = 0; i < 100 && !timerFired; ++i)
+    {
+        clock.crank(false);
+    }
+    REQUIRE(timerFired);
+    REQUIRE(clock.system_now() == origin + milliseconds(2500));
+    if (!ballotBeforeTimeout)
+    {
+        driver.recordSCPEvent(slot, false);
+    }
+    REQUIRE(driver.getNominationTimeouts(slot) ==
+            (ballotBeforeTimeout ? 0 : 1));
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(2500));
+
+    StellarValue value;
+    value.closeTime = ct;
+    herder.setTrackingSCPState(slot, value, true);
+    clock.setCurrentVirtualTime(origin + milliseconds(2700));
+    REQUIRE(EarlyNominationTestAccess::triggerAnchor(herder, slot) +
+                seconds(2) <=
+            clock.now());
 }
 
 TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")

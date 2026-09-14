@@ -1523,6 +1523,16 @@ HerderSCPDriver::getExternalizeLag(NodeID const& id) const
 }
 
 void
+HerderSCPDriver::recordNominationTrigger(uint64_t slotIndex)
+{
+    auto& timing = mSCPExecutionTimes[slotIndex];
+    if (!timing.mTriggerStart && !timing.mNominationStart)
+    {
+        timing.mTriggerStart = mApp.getClock().now();
+    }
+}
+
+void
 HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
 {
 
@@ -1531,8 +1541,10 @@ HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
 
     if (isNomination)
     {
-        timing.mNominationStart =
-            std::make_optional<VirtualClock::time_point>(start);
+        if (!timing.mNominationStart)
+        {
+            timing.mNominationStart = start;
+        }
     }
     else
     {
@@ -2040,6 +2052,25 @@ HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
         return it->second.mNominationTimeoutCount;
     }
     return std::nullopt;
+}
+
+std::chrono::milliseconds
+HerderSCPDriver::getTriggerToBallotDuration(uint64_t slotIndex) const
+{
+    auto it = mSCPExecutionTimes.find(slotIndex);
+    if (it != mSCPExecutionTimes.end())
+    {
+        auto const& timing = it->second;
+        if (timing.mTriggerStart && timing.mPrepareStart &&
+            *timing.mPrepareStart > *timing.mTriggerStart)
+        {
+            // Stop at ballot even if a local proposal is still being built.
+            // Ballot and apply are already covered by the fallback anchor.
+            return std::chrono::duration_cast<std::chrono::milliseconds>(
+                *timing.mPrepareStart - *timing.mTriggerStart);
+        }
+    }
+    return std::chrono::milliseconds::zero();
 }
 
 void
