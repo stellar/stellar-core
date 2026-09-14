@@ -318,9 +318,9 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
             HistoryArchiveState tempHas;
             tempHas.currentLedger = lh.ledgerSeq;
             auto& bm = mApp.getBucketManager();
-            auto tempState = ImmutableLedgerData::createAndMaybeLoadConfig(
+            auto tempState = std::make_shared<ImmutableLedgerData>(
                 bm.getLiveBucketList(), bm.getHotArchiveBucketList(), tempLcl,
-                tempHas, mApp.getMetrics());
+                tempHas, std::nullopt, mApp.getMetrics());
             finalSorobanConfig = tempState->getSorobanConfig();
         }
 

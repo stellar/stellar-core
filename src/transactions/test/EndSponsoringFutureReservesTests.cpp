@@ -40,9 +40,9 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
                 app->getNetworkID(), *root,
                 {root->op(endSponsoringFutureReserves())}, {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
 
             REQUIRE(getOperationResultCode(tx, 0) == opNOT_SUPPORTED);
         });

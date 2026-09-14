@@ -493,6 +493,13 @@ class LedgerManagerImpl : public LedgerManager
     // have to actually be closed.
     void loadLastKnownLedgerInternal(bool skipBuildingFullState);
 
+#ifndef BUILD_TESTS
+    ImmutableLedgerView copyImmutableLedgerView() const;
+#else
+  public:
+    ImmutableLedgerView copyImmutableLedgerView() const override;
+#endif
+
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
@@ -613,10 +620,15 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetrics& getSorobanMetrics() override;
-    ImmutableLedgerView copyImmutableLedgerView() const override;
+    void scanLiveEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(BucketEntry const&)> callback) const override;
+
+  public:
+    std::unique_ptr<AbstractLedgerView const> getLCLView() const override;
     ApplyLedgerView copyApplyLedgerView() const override;
-    void maybeUpdateImmutableLedgerView(
-        ImmutableLedgerView& ledgerView) const override;
+    void syncWithLCLView(
+        std::unique_ptr<AbstractLedgerView const>& ledgerView) const override;
 #ifdef BUILD_TESTS
     void updateCanonicalStateForTesting(LedgerHeader const& header) override;
 #endif

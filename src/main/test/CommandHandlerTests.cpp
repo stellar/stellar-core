@@ -513,9 +513,9 @@ TEST_CASE("manualclose", "[commandhandler]")
             txFrame->addSignature(*root);
 
             {
-                LedgerTxn checkLtx(app->getLedgerTxnRoot());
                 auto valid = txFrame->checkValidForTesting(
-                    app->getAppConnector(), checkLtx, 0, 0, 0);
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(valid);
             }
 

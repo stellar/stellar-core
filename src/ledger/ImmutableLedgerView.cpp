@@ -93,29 +93,50 @@ LedgerHeaderWrapper::current() const
     }
 }
 
-LedgerTxnReadOnly::LedgerTxnReadOnly(AbstractLedgerTxn& ltx) : mLedgerTxn(ltx)
+LedgerTxnView::LedgerTxnView(AbstractLedgerTxn& ltx,
+                             SorobanNetworkConfig const* sorobanConfig)
+    : mLedgerTxn(ltx), mSorobanConfig(sorobanConfig)
 {
+    if (protocolVersionStartsFrom(
+            mLedgerTxn.loadHeader().current().ledgerVersion,
+            SOROBAN_PROTOCOL_VERSION))
+    {
+        releaseAssertOrThrow(sorobanConfig != nullptr);
+    }
 }
 
-LedgerTxnReadOnly::~LedgerTxnReadOnly()
+LedgerTxnView::LedgerTxnView(AbstractLedgerTxn& ltx) : mLedgerTxn(ltx)
 {
+    if (protocolVersionStartsFrom(
+            mLedgerTxn.loadHeader().current().ledgerVersion,
+            SOROBAN_PROTOCOL_VERSION))
+    {
+        mLoadedConfig = SorobanNetworkConfig::loadFromLedger(mLedgerTxn);
+        mSorobanConfig = &*mLoadedConfig;
+    }
 }
 
 LedgerHeaderWrapper
-LedgerTxnReadOnly::getLedgerHeader() const
+LedgerTxnView::getLedgerHeader() const
 {
     return LedgerHeaderWrapper(mLedgerTxn.loadHeader());
 }
 
+SorobanNetworkConfig const*
+LedgerTxnView::getSorobanNetworkConfig() const
+{
+    return mSorobanConfig;
+}
+
 LedgerEntryWrapper
-LedgerTxnReadOnly::getAccount(AccountID const& account) const
+LedgerTxnView::getAccount(AccountID const& account) const
 {
     return LedgerEntryWrapper(loadAccountWithoutRecord(mLedgerTxn, account));
 }
 
 LedgerEntryWrapper
-LedgerTxnReadOnly::getAccount(LedgerHeaderWrapper const& header,
-                              TransactionFrame const& tx) const
+LedgerTxnView::getAccount(LedgerHeaderWrapper const& header,
+                          TransactionFrame const& tx) const
 {
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_8))
@@ -123,100 +144,27 @@ LedgerTxnReadOnly::getAccount(LedgerHeaderWrapper const& header,
         return LedgerEntryWrapper(
             tx.loadSourceAccount(mLedgerTxn, header.getLedgerTxnHeader()));
     }
-
     return getAccount(tx.getSourceID());
 }
 
 LedgerEntryWrapper
-LedgerTxnReadOnly::getAccount(LedgerHeaderWrapper const& header,
-                              TransactionFrame const& tx,
-                              AccountID const& account) const
+LedgerTxnView::getAccount(LedgerHeaderWrapper const& header,
+                          TransactionFrame const& tx,
+                          AccountID const& accountID) const
 {
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_8))
     {
         return LedgerEntryWrapper(
-            tx.loadAccount(mLedgerTxn, header.getLedgerTxnHeader(), account));
+            tx.loadAccount(mLedgerTxn, header.getLedgerTxnHeader(), accountID));
     }
-
-    return getAccount(account);
+    return getAccount(accountID);
 }
 
 LedgerEntryWrapper
-LedgerTxnReadOnly::load(LedgerKey const& key) const
+LedgerTxnView::load(LedgerKey const& key) const
 {
     return LedgerEntryWrapper(mLedgerTxn.loadWithoutRecord(key));
-}
-
-void
-LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
-    std::function<void(CheckValidLedgerViewWrapper const& ledgerView)> f) const
-{
-    LedgerTxn inner(mLedgerTxn);
-    CheckValidLedgerViewWrapper ledgerView(inner);
-    return f(ledgerView);
-}
-
-CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx)
-    : mGetter(std::make_unique<LedgerTxnReadOnly>(ltx))
-{
-}
-
-CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(Application& app)
-{
-    releaseAssert(threadIsMain());
-#ifdef BUILD_TESTS
-    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        // Legacy read-only SQL transaction
-        mLegacyLedgerTxn = std::make_unique<LedgerTxn>(
-            app.getLedgerTxnRoot(), /* shouldUpdateLastModified*/ false,
-            TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        mGetter = std::make_unique<LedgerTxnReadOnly>(*mLegacyLedgerTxn);
-    }
-    else
-#endif
-    {
-        mGetter = std::make_unique<ImmutableLedgerView>(
-            app.getLedgerManager().copyImmutableLedgerView());
-    }
-}
-
-CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
-    ImmutableLedgerView const& ledgerView)
-    : mGetter(std::make_unique<ImmutableLedgerView>(ledgerView))
-{
-}
-
-CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
-    std::unique_ptr<AbstractLedgerView const> getter)
-    : mGetter(std::move(getter))
-{
-}
-
-LedgerHeaderWrapper
-CheckValidLedgerViewWrapper::getLedgerHeader() const
-{
-    return mGetter->getLedgerHeader();
-}
-
-LedgerEntryWrapper
-CheckValidLedgerViewWrapper::getAccount(AccountID const& account) const
-{
-    return mGetter->getAccount(account);
-}
-
-LedgerEntryWrapper
-CheckValidLedgerViewWrapper::load(LedgerKey const& key) const
-{
-    return mGetter->load(key);
-}
-
-void
-CheckValidLedgerViewWrapper::executeWithMaybeInnerSnapshot(
-    std::function<void(CheckValidLedgerViewWrapper const& ledgerView)> f) const
-{
-    return mGetter->executeWithMaybeInnerSnapshot(f);
 }
 
 void
@@ -241,10 +189,22 @@ ImmutableLedgerData::ImmutableLedgerData(
           std::make_shared<BucketSnapshotMetrics<LiveBucket>>(metrics))
     , mHotArchiveSnapshotMetrics(
           std::make_shared<BucketSnapshotMetrics<HotArchiveBucket>>(metrics))
-    , mSorobanConfig(std::move(sorobanConfig))
     , mLastClosedLedgerHeader(lcl)
     , mLastClosedHistoryArchiveState(has)
+    , mSorobanConfig(std::move(sorobanConfig))
 {
+    if (!mSorobanConfig.has_value() &&
+        protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        SearchableLiveBucketListSnapshot liveSnapshot(
+            metrics, mLiveSnapshotMetrics, mLiveBucketData);
+        mSorobanConfig.emplace(SorobanNetworkConfig::loadFromLedger(
+            lcl.header.ledgerVersion, [&liveSnapshot](LedgerKey const& key) {
+                return LedgerEntryWrapper(liveSnapshot.load(key));
+            }));
+    }
+
     checkInvariant();
 }
 
@@ -272,28 +232,6 @@ ImmutableLedgerData::getLastClosedHistoryArchiveState() const
     return mLastClosedHistoryArchiveState;
 }
 
-ImmutableLedgerDataPtr
-ImmutableLedgerData::createAndMaybeLoadConfig(
-    LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
-    LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
-    MetricsRegistry& metrics)
-{
-    std::optional<SorobanNetworkConfig> sorobanConfig;
-    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        // Bootstrap: build a lightweight temporary state just to load config
-        // from the current live bucket list.
-        auto tempState = std::make_shared<ImmutableLedgerData>(
-            liveBL, hotArchiveBL, lcl, has, /*sorobanConfig*/ std::nullopt,
-            metrics);
-        ImmutableLedgerView tempView(tempState, metrics);
-        sorobanConfig = SorobanNetworkConfig::loadFromLedger(tempView);
-    }
-    return std::make_shared<ImmutableLedgerData>(
-        liveBL, hotArchiveBL, lcl, has, std::move(sorobanConfig), metrics);
-}
-
 ImmutableLedgerView::ImmutableLedgerView(ImmutableLedgerDataPtr state,
                                          MetricsRegistry& metrics)
     : mState(state)
@@ -318,6 +256,12 @@ ImmutableLedgerView::getLedgerHeader() const
     // Avoid copying the header by aliasing the lifetime to mState shared_ptr
     return LedgerHeaderWrapper(std::shared_ptr<LedgerHeader const>(
         mState, &mState->getLastClosedLedgerHeader().header));
+}
+
+SorobanNetworkConfig const*
+ImmutableLedgerView::getSorobanNetworkConfig() const
+{
+    return mState->hasSorobanConfig() ? &mState->getSorobanConfig() : nullptr;
 }
 
 uint32_t
@@ -352,16 +296,6 @@ ImmutableLedgerView::load(LedgerKey const& key) const
 {
     return LedgerEntryWrapper(loadLiveEntry(key));
 }
-
-void
-ImmutableLedgerView::executeWithMaybeInnerSnapshot(
-    std::function<void(CheckValidLedgerViewWrapper const& ledgerView)> f) const
-{
-    throw std::runtime_error(
-        "ImmutableLedgerView::executeWithMaybeInnerSnapshot is illegal: "
-        "ImmutableLedgerView has no nested snapshots");
-}
-
 SorobanPreApplyLedgerView::SorobanPreApplyLedgerView(
     std::shared_ptr<LedgerHeader const> header,
     UpdatedEntryGetter getUpdatedEntry, ApplyLedgerView const& lclView)
@@ -376,6 +310,12 @@ LedgerHeaderWrapper
 SorobanPreApplyLedgerView::getLedgerHeader() const
 {
     return LedgerHeaderWrapper(mHeader);
+}
+
+SorobanNetworkConfig const*
+SorobanPreApplyLedgerView::getSorobanNetworkConfig() const
+{
+    return mLclView.getSorobanNetworkConfig();
 }
 
 LedgerEntryWrapper
@@ -412,14 +352,6 @@ SorobanPreApplyLedgerView::load(LedgerKey const& key) const
     // Not modified in this ledger, so the last closed ledger snapshot is
     // up to date.
     return LedgerEntryWrapper(mLclView.loadLiveEntry(key));
-}
-
-void
-SorobanPreApplyLedgerView::executeWithMaybeInnerSnapshot(
-    std::function<void(CheckValidLedgerViewWrapper const& ledgerView)> f) const
-{
-    throw std::runtime_error("SorobanPreApplyLedgerView::"
-                             "executeWithMaybeInnerSnapshot is not supported");
 }
 
 // === Live BucketList wrapper methods ===

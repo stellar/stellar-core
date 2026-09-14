@@ -455,7 +455,8 @@ InMemorySorobanState::initializeStateFromSnapshot(
     auto ledgerVersion = lclHeader.ledgerVersion;
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(applyView);
+        auto const* sorobanConfig = applyView.getSorobanNetworkConfig();
+        releaseAssertOrThrow(sorobanConfig);
         auto contractDataHandler = [this](LedgerEntry const& le,
                                           LedgerKey const&) {
             createContractDataEntry(le);
@@ -465,10 +466,10 @@ InMemorySorobanState::initializeStateFromSnapshot(
             createTTL(le);
         };
 
-        auto contractCodeHandler = [this, &sorobanConfig,
+        auto contractCodeHandler = [this, sorobanConfig,
                                     ledgerVersion](LedgerEntry const& le,
                                                    LedgerKey const&) {
-            createContractCodeEntry(le, sorobanConfig, ledgerVersion);
+            createContractCodeEntry(le, *sorobanConfig, ledgerVersion);
         };
 
         applyView.scanCurrentLiveEntriesOfType(CONTRACT_DATA,

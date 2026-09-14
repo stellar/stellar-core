@@ -18,7 +18,6 @@ namespace stellar
 
 class Application;
 class TransactionFrame;
-class CheckValidLedgerViewWrapper;
 class ApplyLedgerView;
 class ImmutableLedgerData;
 class EvictionStatistics;
@@ -81,6 +80,9 @@ class AbstractLedgerView
   public:
     virtual ~AbstractLedgerView() = default;
     virtual LedgerHeaderWrapper getLedgerHeader() const = 0;
+    // Returns the pointer to Soroban network config snapshot associated with
+    // this view, or nullptr when the view doesn't carry one.
+    virtual SorobanNetworkConfig const* getSorobanNetworkConfig() const = 0;
     virtual LedgerEntryWrapper getAccount(AccountID const& account) const = 0;
     virtual LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                           TransactionFrame const& tx) const = 0;
@@ -88,35 +90,37 @@ class AbstractLedgerView
                                           TransactionFrame const& tx,
                                           AccountID const& AccountID) const = 0;
     virtual LedgerEntryWrapper load(LedgerKey const& key) const = 0;
-    // Execute a function with a nested snapshot, if supported. This is needed
-    // to support the replay of old buggy protocols (<8), see
-    // `TransactionFrame::loadSourceAccount`
-    virtual void executeWithMaybeInnerSnapshot(
-        std::function<void(CheckValidLedgerViewWrapper const&)> f) const = 0;
 };
 
-// A concrete implementation of read-only SQL snapshot wrapper
-class LedgerTxnReadOnly : public AbstractLedgerView
+// A read-only view backed by a ledger transaction.
+//
+// This should only serve as an adapter for the rare cases where LTX has to
+// be passed to a function that expects an `AbstractLedgerView`. Prefer using
+// other view types, or work with the `LedgerTxn` directly.
+class LedgerTxnView : public AbstractLedgerView, public NonMovableOrCopyable
 {
-    // Callers are expected to manage `AbstractLedgerTxn` themselves.
-    // LedgerTxnReadOnly guarantees that LedgerTxn, LedgerTxnHeader and
-    // LedgerTxnEntry referenced all remain valid.
+    std::optional<SorobanNetworkConfig> mLoadedConfig;
     AbstractLedgerTxn& mLedgerTxn;
+    SorobanNetworkConfig const* mSorobanConfig{nullptr};
 
   public:
-    LedgerTxnReadOnly(AbstractLedgerTxn& ltx);
-    ~LedgerTxnReadOnly() override;
+    explicit LedgerTxnView(AbstractLedgerTxn& ltx);
+    // Takes an externally provided Soroban config (nullptr before the Soroban
+    // protocol version) instead of loading it from ltx.
+    // This only exists as optimization to avoid re-loading the config when many
+    // short-term views are created (e.g. for transaction/operation processing).
+    LedgerTxnView(AbstractLedgerTxn& ltx,
+                  SorobanNetworkConfig const* sorobanConfig);
+    ~LedgerTxnView() override = default;
     LedgerHeaderWrapper getLedgerHeader() const override;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const override;
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                   TransactionFrame const& tx) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                   TransactionFrame const& tx,
-                                  AccountID const& AccountID) const override;
+                                  AccountID const& accountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
-    void executeWithMaybeInnerSnapshot(
-        std::function<void(CheckValidLedgerViewWrapper const&)> f)
-        const override;
 };
 
 // A copyable value type that provides searchable access to a
@@ -139,6 +143,7 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
 
     ImmutableLedgerData const& getState() const;
     LedgerHeaderWrapper getLedgerHeader() const override;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const override;
     uint32_t getLedgerSeq() const;
 
     // === AbstractLedgerView overrides ===
@@ -149,9 +154,6 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
                                   TransactionFrame const& tx,
                                   AccountID const& AccountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
-    void executeWithMaybeInnerSnapshot(
-        std::function<void(CheckValidLedgerViewWrapper const&)> f)
-        const override;
 
     // === Live BucketList methods ===
     std::shared_ptr<LedgerEntry const> loadLiveEntry(LedgerKey const& k) const;
@@ -202,10 +204,10 @@ class ApplyLedgerView : private ImmutableLedgerView,
     explicit ApplyLedgerView(ImmutableLedgerDataPtr state,
                              MetricsRegistry& metrics);
 
-    using ImmutableLedgerView::executeWithMaybeInnerSnapshot;
     using ImmutableLedgerView::getAccount;
     using ImmutableLedgerView::getLedgerHeader;
     using ImmutableLedgerView::getLedgerSeq;
+    using ImmutableLedgerView::getSorobanNetworkConfig;
     using ImmutableLedgerView::getState;
     using ImmutableLedgerView::load;
     using ImmutableLedgerView::loadArchiveEntry;
@@ -248,6 +250,7 @@ class SorobanPreApplyLedgerView : public AbstractLedgerView
                               ApplyLedgerView const& lclView);
 
     LedgerHeaderWrapper getLedgerHeader() const override;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const override;
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                   TransactionFrame const& tx) const override;
@@ -255,62 +258,11 @@ class SorobanPreApplyLedgerView : public AbstractLedgerView
                                   TransactionFrame const& tx,
                                   AccountID const& accountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
-    void executeWithMaybeInnerSnapshot(
-        std::function<void(CheckValidLedgerViewWrapper const&)> f)
-        const override;
 
   private:
     std::shared_ptr<LedgerHeader const> mHeader;
     UpdatedEntryGetter mGetUpdatedEntry;
     ApplyLedgerView mLclView;
-};
-
-// A helper class to create and query read-only snapshots
-// Automatically decides whether to create a BucketList (recommended), or SQL
-// snapshot (deprecated, but currently supported)
-// NOTE: CheckValidLedgerViewWrapper is meant to be short-lived, and should not
-// be persisted across _different_ ledgers, as the state under the hood might
-// change. Users are expected to construct a new CheckValidLedgerViewWrapper
-// each time they want to query ledger state.
-class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
-{
-    std::unique_ptr<AbstractLedgerView const> mGetter;
-    std::unique_ptr<LedgerTxn> mLegacyLedgerTxn;
-
-  public:
-    CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx);
-    CheckValidLedgerViewWrapper(Application& app);
-    explicit CheckValidLedgerViewWrapper(ImmutableLedgerView const& ledgerView);
-    explicit CheckValidLedgerViewWrapper(
-        std::unique_ptr<AbstractLedgerView const> getter);
-#ifdef BUILD_TESTS
-    // Set by overlay-only mode call sites so commonValid skips the seqnum
-    // equality check: on-disk seqnums are frozen at genesis while
-    // LoadGenerator keeps advancing its local counters, so every tx after the
-    // first would otherwise fail isBadSeq.
-    bool mSkipSeqNumCheck{false};
-#endif
-    LedgerHeaderWrapper getLedgerHeader() const;
-    LedgerEntryWrapper getAccount(AccountID const& account) const;
-    LedgerEntryWrapper
-    getAccount(LedgerHeaderWrapper const& header,
-               TransactionFrame const& tx) const
-    {
-        return mGetter->getAccount(header, tx);
-    }
-    LedgerEntryWrapper
-    getAccount(LedgerHeaderWrapper const& header, TransactionFrame const& tx,
-               AccountID const& AccountID) const
-    {
-        return mGetter->getAccount(header, tx, AccountID);
-    }
-    LedgerEntryWrapper load(LedgerKey const& key) const;
-
-    // Execute a function with a nested snapshot, if supported. This is needed
-    // to support the replay of old buggy protocols (<8), see
-    // `TransactionFrame::loadSourceAccount`
-    void executeWithMaybeInnerSnapshot(
-        std::function<void(CheckValidLedgerViewWrapper const&)> f) const;
 };
 
 // Immutable wrapper for a complete ledger state snapshot.
@@ -347,9 +299,9 @@ class ImmutableLedgerData : public NonMovableOrCopyable
     std::shared_ptr<BucketSnapshotMetrics<HotArchiveBucket> const> const
         mHotArchiveSnapshotMetrics;
 
-    std::optional<SorobanNetworkConfig const> const mSorobanConfig;
     LedgerHeaderHistoryEntry const mLastClosedLedgerHeader;
     HistoryArchiveState const mLastClosedHistoryArchiveState;
+    std::optional<SorobanNetworkConfig const> mSorobanConfig;
 
     void checkInvariant() const;
 
@@ -357,21 +309,14 @@ class ImmutableLedgerData : public NonMovableOrCopyable
 
   public:
     // Construct a new immutable ledger state snapshot.
-    // sorobanConfig is nullopt for pre-Soroban protocol versions, or when
-    // building the empty initial state at startup.
+    // sorobanConfig may be nullopt, in which case the configuration is loaded
+    // from the live bucket list whenever the protocol version supports Soroban.
     ImmutableLedgerData(LiveBucketList const& liveBL,
                         HotArchiveBucketList const& hotArchiveBL,
                         LedgerHeaderHistoryEntry const& lcl,
                         HistoryArchiveState const& has,
                         std::optional<SorobanNetworkConfig> sorobanConfig,
                         MetricsRegistry& metrics);
-
-    // Factory: constructs a ImmutableLedgerData, auto-loading the
-    // SorobanNetworkConfig from the bucket list when the protocol requires it.
-    static ImmutableLedgerDataPtr createAndMaybeLoadConfig(
-        LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
-        LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
-        MetricsRegistry& metrics);
 
     SorobanNetworkConfig const& getSorobanConfig() const;
     bool hasSorobanConfig() const;

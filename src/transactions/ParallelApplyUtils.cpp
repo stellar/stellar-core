@@ -450,15 +450,14 @@ GlobalParallelApplyLedgerState::readOnlyParallelPreApply(
         [&](size_t begin, size_t end, size_t) {
             // NB: mLCLApplyView is not thread-safe, so we need to copy it into
             // a thread-local view.
-            CheckValidLedgerViewWrapper ledgerView(
-                std::make_unique<SorobanPreApplyLedgerView>(
-                    header, getUpdatedEntry, mLCLApplyView));
+            SorobanPreApplyLedgerView ledgerView(header, getUpdatedEntry,
+                                                 mLCLApplyView);
             for (size_t i = begin; i < end; ++i)
             {
                 auto const* txBundle = txBundles[i];
                 txBundle->getTx()->preParallelApplyReadOnly(
                     app, ledgerView, txBundle->getEffects().getMeta(),
-                    txBundle->getResPayload(), mSorobanConfig);
+                    txBundle->getResPayload());
             }
         });
 }

@@ -10,12 +10,13 @@
 #include "util/TxResource.h"
 #include <cstdint>
 #include <deque>
+#include <functional>
 
 namespace stellar
 {
 
-class AbstractLedgerView;
 class Application;
+class LedgerEntryWrapper;
 
 // Defines the minimum values allowed for the network configuration
 // settings during upgrades. An upgrade that does not follow the minimums
@@ -260,8 +261,13 @@ struct TestOverrideSorobanNetworkConfig
 class SorobanNetworkConfig
 {
   public:
-    // Static factory function to create a SorobanNetworkConfig from ledger
-    static SorobanNetworkConfig loadFromLedger(AbstractLedgerView const& snap);
+    using LedgerEntryReader =
+        std::function<LedgerEntryWrapper(LedgerKey const&)>;
+
+    // Static factory function to create a SorobanNetworkConfig from ledger.
+    static SorobanNetworkConfig
+    loadFromLedger(uint32_t protocolVersion,
+                   LedgerEntryReader const& loadEntry);
     static SorobanNetworkConfig loadFromLedger(AbstractLedgerTxn& ltx);
 
 #ifdef BUILD_TESTS
@@ -479,25 +485,26 @@ class SorobanNetworkConfig
   private:
     SorobanNetworkConfig() = default;
 
-    void loadMaxContractSize(AbstractLedgerView const& ls);
-    void loadMaxContractDataKeySize(AbstractLedgerView const& ls);
-    void loadMaxContractDataEntrySize(AbstractLedgerView const& ls);
-    void loadComputeSettings(AbstractLedgerView const& ls);
-    void loadLedgerAccessSettings(AbstractLedgerView const& ls);
-    void loadHistoricalSettings(AbstractLedgerView const& ls);
-    void loadContractEventsSettings(AbstractLedgerView const& ls);
-    void loadBandwidthSettings(AbstractLedgerView const& ls);
-    void loadCpuCostParams(AbstractLedgerView const& ls);
-    void loadMemCostParams(AbstractLedgerView const& ls);
-    void loadStateArchivalSettings(AbstractLedgerView const& ls);
-    void loadExecutionLanesSettings(AbstractLedgerView const& ls);
-    void loadLiveSorobanStateSizeWindow(AbstractLedgerView const& ls);
-    void loadEvictionIterator(AbstractLedgerView const& ls);
-    void loadParallelComputeConfig(AbstractLedgerView const& ls);
-    void loadLedgerCostExtConfig(AbstractLedgerView const& ls);
-    void loadSCPTimingConfig(AbstractLedgerView const& ls);
-    void loadFrozenLedgerKeys(AbstractLedgerView const& ls);
-    void loadFreezeBypassTxs(AbstractLedgerView const& ls);
+    void loadMaxContractSize(LedgerEntryReader const& loadEntry);
+    void loadMaxContractDataKeySize(LedgerEntryReader const& loadEntry);
+    void loadMaxContractDataEntrySize(LedgerEntryReader const& loadEntry);
+    void loadComputeSettings(LedgerEntryReader const& loadEntry);
+    void loadLedgerAccessSettings(uint32_t protocolVersion,
+                                  LedgerEntryReader const& loadEntry);
+    void loadHistoricalSettings(LedgerEntryReader const& loadEntry);
+    void loadContractEventsSettings(LedgerEntryReader const& loadEntry);
+    void loadBandwidthSettings(LedgerEntryReader const& loadEntry);
+    void loadCpuCostParams(LedgerEntryReader const& loadEntry);
+    void loadMemCostParams(LedgerEntryReader const& loadEntry);
+    void loadStateArchivalSettings(LedgerEntryReader const& loadEntry);
+    void loadExecutionLanesSettings(LedgerEntryReader const& loadEntry);
+    void loadLiveSorobanStateSizeWindow(LedgerEntryReader const& loadEntry);
+    void loadEvictionIterator(LedgerEntryReader const& loadEntry);
+    void loadParallelComputeConfig(LedgerEntryReader const& loadEntry);
+    void loadLedgerCostExtConfig(LedgerEntryReader const& loadEntry);
+    void loadSCPTimingConfig(LedgerEntryReader const& loadEntry);
+    void loadFrozenLedgerKeys(LedgerEntryReader const& loadEntry);
+    void loadFreezeBypassTxs(LedgerEntryReader const& loadEntry);
     void computeRentWriteFee(uint32_t protocolVersion);
 
 #ifdef BUILD_TESTS
