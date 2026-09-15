@@ -248,7 +248,7 @@ LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
     {
         if (it->second <= lcl)
         {
-            mAccountsAvailable.insert(it->first);
+            mAccountsAvailable.push_back(it->first);
             it = mAccountsExternalized.erase(it);
         }
         else
@@ -414,12 +414,13 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
 
     if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
     {
+        mAccountsAvailable.reserve(cfg.nAccounts);
         // For upgrade modes, use root account (represented by special ID)
         uint32_t accounts = cfg.nAccounts;
         if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
             cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
         {
-            mAccountsAvailable.insert(TxGenerator::ROOT_ACCOUNT_ID);
+            mAccountsAvailable.push_back(TxGenerator::ROOT_ACCOUNT_ID);
             if (accounts)
             {
                 accounts--;
@@ -429,7 +430,7 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         // Mark all accounts "available" as source accounts
         for (auto i = 0u; i < accounts; i++)
         {
-            mAccountsAvailable.insert(i + cfg.offset);
+            mAccountsAvailable.push_back(i + cfg.offset);
         }
 
         if (cfg.modeInvokes())
@@ -1026,10 +1027,9 @@ LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
 
     auto sourceAccountIdx =
         rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
-    auto it = mAccountsAvailable.begin();
-    std::advance(it, sourceAccountIdx);
-    sourceAccountId = *it;
-    mAccountsAvailable.erase(it);
+    sourceAccountId = mAccountsAvailable[sourceAccountIdx];
+    mAccountsAvailable[sourceAccountIdx] = mAccountsAvailable.back();
+    mAccountsAvailable.pop_back();
     releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
 
     return sourceAccountId;
@@ -1428,11 +1428,12 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
 
         // The first setup phase has fully applied, so its source accounts are
         // safe to reuse for the instance-creation phase.
-        mAccountsAvailable.insert(mAccountsInUse.begin(), mAccountsInUse.end());
+        mAccountsAvailable.insert(mAccountsAvailable.end(),
+                                  mAccountsInUse.begin(), mAccountsInUse.end());
         mAccountsInUse.clear();
         for (auto const& kv : mAccountsExternalized)
         {
-            mAccountsAvailable.insert(kv.first);
+            mAccountsAvailable.push_back(kv.first);
         }
         mAccountsExternalized.clear();
 
