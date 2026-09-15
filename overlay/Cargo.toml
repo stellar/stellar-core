@@ -29,6 +29,9 @@ libp2p = { version = "0.54", features = ["tokio", "macros", "identify", "quic"] 
 libp2p-stream = "0.2.0-alpha"
 futures = "0.3"
 
+# TX set response compression
+zstd = { version = "0.13.3", default-features = false }
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

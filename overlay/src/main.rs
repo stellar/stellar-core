@@ -383,7 +383,7 @@ fn cache_tx_set_xdr(
 ) {
     tx_set_cache.insert(CachedTxSet {
         hash,
-        xdr: Arc::new(xdr),
+        xdr: Arc::new(xdr.into()),
         ledger_seq: current_ledger_seq,
     });
 }

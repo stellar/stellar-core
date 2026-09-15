@@ -26,7 +26,7 @@ async fn dispatcher_with_blocked_write(command: &str) {
     match command {
         "txset" => {
             let (hash, data) = test_txset_xdr(1);
-            handle.send_txset(hash, data, peer).await;
+            handle.send_txset(hash, Arc::new(data.into()), peer).await;
         }
         "fetch" => handle.fetch_txset([1; 32], 1).await,
         // Awaiting a direct send must preserve ordering within an SCP-state
@@ -94,6 +94,10 @@ impl TestNode {
     }
 
     async fn start_with_control(accept_control: bool) -> Self {
+        Self::start_with_protocols(accept_control, true).await
+    }
+
+    async fn start_with_protocols(accept_control: bool, accept_compressed: bool) -> Self {
         let (handle, events, admissions, mut overlay) =
             create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new()))
                 .unwrap();
@@ -116,7 +120,8 @@ impl TestNode {
         })
         .await
         .expect("listener did not start");
-        let task = tokio::spawn(overlay.run_event_loop_with_control(accept_control));
+        let task =
+            tokio::spawn(overlay.run_event_loop_with_control(accept_control, accept_compressed));
         Self {
             handle,
             events,
@@ -167,6 +172,111 @@ impl Drop for TestNode {
     fn drop(&mut self) {
         self.task.abort();
     }
+}
+
+#[tokio::test]
+async fn txset_encoding_negotiates_with_legacy_peers_and_after_reopening() {
+    for (control, compressed) in [(true, true), (true, false), (false, false)] {
+        let mut sender = TestNode::start().await;
+        let mut receiver = TestNode::start_with_protocols(control, compressed).await;
+        sender.connect(&receiver).await;
+        let streams = sender.streams_to(receiver.peer).await;
+        let (hash, xdr) = large_txset();
+        let shared = Arc::new(TxSetData::from(xdr.clone()));
+        for reopen in [false, true] {
+            if reopen {
+                streams.txset.lock().await.take();
+            }
+            let bytes = send_peer_frames(
+                &sender.state,
+                receiver.peer,
+                StreamType::TxSet,
+                PeerFrames::TxSet(&shared),
+            )
+            .await
+            .unwrap();
+            if compressed {
+                assert!(
+                    bytes < xdr.len() / 2,
+                    "large responses must use compressed bytes"
+                );
+            } else {
+                assert_eq!(bytes, xdr.len() + 4);
+            }
+            {
+                let guard = streams.txset.lock().await;
+                let outbound = guard.as_ref().unwrap();
+                assert_eq!(
+                    outbound.protocol,
+                    if compressed {
+                        COMPRESSED_TXSET_PROTOCOL
+                    } else {
+                        TXSET_PROTOCOL
+                    }
+                );
+                assert_eq!(outbound.stream.priority().unwrap(), 1);
+            }
+            tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    if let OverlayEvent::TxSetReceived {
+                        hash: got, data, ..
+                    } = receiver.events.recv().await.unwrap()
+                    {
+                        assert_eq!(got, hash);
+                        assert_eq!(data, xdr);
+                        break;
+                    }
+                }
+            })
+            .await
+            .expect("negotiated response was not delivered intact");
+        }
+        sender.stop().await;
+        receiver.stop().await;
+    }
+}
+
+#[tokio::test]
+async fn malformed_compressed_txsets_are_dropped_without_losing_next_frame() {
+    let mut sender = TestNode::start().await;
+    let mut receiver = TestNode::start().await;
+    sender.connect(&receiver).await;
+    // Well-formed compression is insufficient: XDR must also strict-decode.
+    let malformed = Arc::new(TxSetData::from(vec![0xff; 1000]));
+    send_peer_frames(
+        &sender.state,
+        receiver.peer,
+        StreamType::TxSet,
+        PeerFrames::TxSet(&malformed),
+    )
+    .await
+    .unwrap();
+    let (hash, xdr) = test_txset_xdr(19);
+    // The uncompressed representation on the new protocol is also accepted.
+    let raw = [
+        ((xdr.len() as u32) | (1 << 31)).to_be_bytes().as_slice(),
+        &xdr,
+    ]
+    .concat();
+    send_to_peer_stream(&sender.state, receiver.peer, StreamType::TxSet, &raw)
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let OverlayEvent::TxSetReceived {
+                hash: got, data, ..
+            } = receiver.events.recv().await.unwrap()
+            {
+                assert_eq!(got, hash, "malformed XDR was forwarded");
+                assert_eq!(data, xdr);
+                break;
+            }
+        }
+    })
+    .await
+    .expect("a bad compressed frame prevented the next response");
+    sender.stop().await;
+    receiver.stop().await;
 }
 
 #[tokio::test]
@@ -409,7 +519,7 @@ async fn blocked_peer_does_not_delay_other_txsets_or_scp_delivery() {
     let (hash, data) = large_txset();
     sender
         .handle
-        .send_txset(hash, data.clone(), slow.peer)
+        .send_txset(hash, Arc::new(data.clone().into()), slow.peer)
         .await;
 
     // Also exercise reopening: this write can complete only if the dispatcher
@@ -418,12 +528,16 @@ async fn blocked_peer_does_not_delay_other_txsets_or_scp_delivery() {
     healthy_streams.txset.lock().await.take();
     sender
         .handle
-        .send_txset(hash, data.clone(), healthy.peer)
+        .send_txset(hash, Arc::new(data.clone().into()), healthy.peer)
         .await;
     let (second_hash, second_data) = test_txset_xdr(2);
     sender
         .handle
-        .send_txset(second_hash, second_data.clone(), healthy.peer)
+        .send_txset(
+            second_hash,
+            Arc::new(second_data.clone().into()),
+            healthy.peer,
+        )
         .await;
     let scp = test_scp_envelope_xdr(1234);
     sender.handle.broadcast_scp(scp.clone()).await;
@@ -494,7 +608,11 @@ async fn txset_fetch_reaches_peer_while_response_to_same_peer_is_blocked() {
     let (response_hash, response_data) = test_txset_xdr(1);
     sender
         .handle
-        .send_txset(response_hash, response_data.clone(), receiver.peer)
+        .send_txset(
+            response_hash,
+            Arc::new(response_data.clone().into()),
+            receiver.peer,
+        )
         .await;
     // Use the pre-opened stream, reuse it for another frame, then exercise
     // reopening. All three requests must arrive while the response is blocked.
@@ -567,11 +685,11 @@ async fn quic_transport_priorities_are_applied_to_each_route_and_reopening() {
     streams.txset.lock().await.take();
     let (hash, data) = test_txset_xdr(1);
     // Await the actual write, rather than command enqueue, to observe reopening.
-    send_to_peer_stream(
+    send_peer_frames(
         &sender.state,
         receiver.peer,
         StreamType::TxSet,
-        &crate::xdr::frame_tx_set(&data),
+        PeerFrames::TxSet(&Arc::new(data.clone().into())),
     )
     .await
     .unwrap();
@@ -658,7 +776,7 @@ async fn legacy_peer_receives_scp_and_fetches_on_its_supported_routes() {
     send_to_peer_stream(
         &legacy.state,
         sender.peer,
-        StreamType::TxSet,
+        StreamType::LegacyTxSetRequest,
         &crate::xdr::frame_get_tx_set(hash),
     )
     .await
@@ -699,8 +817,10 @@ async fn bulk_send_admission_is_bounded(byte_limit: bool) {
     handle.txset_send_slots = Arc::new(Semaphore::new(slots));
     handle.txset_send_bytes = Arc::new(Semaphore::new(bytes));
     let mut task = tokio::spawn(async move { overlay.run("127.0.0.1", 0).await });
-    handle.send_txset(hash, data.clone(), peer).await;
-    let waiting = handle.send_txset(hash, data, peer);
+    handle
+        .send_txset(hash, Arc::new(data.clone().into()), peer)
+        .await;
+    let waiting = handle.send_txset(hash, Arc::new(data.into()), peer);
     tokio::pin!(waiting);
     assert!(futures::poll!(&mut waiting).is_pending());
     tokio::time::timeout(Duration::from_secs(1), handle.ping())
@@ -739,7 +859,9 @@ async fn failed_txset_send_releases_admission() {
         create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
     let mut task = tokio::spawn(async move { overlay.run("127.0.0.1", 0).await });
     let (hash, data) = test_txset_xdr(1);
-    handle.send_txset(hash, data, PeerId::random()).await;
+    handle
+        .send_txset(hash, Arc::new(data.into()), PeerId::random())
+        .await;
     tokio::time::timeout(Duration::from_secs(1), async {
         let _all = Arc::clone(&handle.txset_send_slots)
             .acquire_many_owned(MAX_OUTSTANDING_TXSET_SENDS as u32)
@@ -812,7 +934,7 @@ async fn queued_peer_sends_share_payload_and_release_it_on_drop() {
     let (handle, _events, _admissions, mut overlay) =
         create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
     let (hash, data) = test_txset_xdr(1);
-    let data = Arc::new(data);
+    let data = Arc::new(TxSetData::from(data));
     let retained = Arc::downgrade(&data);
     for _ in 0..29 {
         handle

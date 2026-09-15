@@ -1,5 +1,6 @@
 //! TX set cache for peer request/response handling.
 
+use super::TxSetData;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -11,9 +12,9 @@ pub type Hash256 = [u8; 32];
 pub struct CachedTxSet {
     /// The TX set hash (SHA256 of XDR)
     pub hash: Hash256,
-    /// Immutable XDR shared by the cache and pending peer responses. Keep the
-    /// Vec allocation when caching; fanout clones only the Arc.
-    pub xdr: Arc<Vec<u8>>,
+    /// Immutable XDR and lazily encoded response shared by the cache and
+    /// pending peer responses. Fanout clones only the Arc.
+    pub xdr: Arc<TxSetData>,
     /// Ledger sequence this was built for
     pub ledger_seq: u32,
 }
@@ -85,7 +86,7 @@ mod tests {
 
         let tx_set = CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![1, 2, 3].into(),
+            xdr: Arc::new(vec![1, 2, 3].into()),
             ledger_seq: 100,
         };
 
@@ -105,12 +106,12 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![].into(),
+            xdr: Arc::new(vec![].into()),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: vec![].into(),
+            xdr: Arc::new(vec![].into()),
             ledger_seq: 200,
         });
 
@@ -126,12 +127,12 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![].into(),
+            xdr: Arc::new(vec![].into()),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: vec![].into(),
+            xdr: Arc::new(vec![].into()),
             ledger_seq: 101,
         });
 
@@ -140,7 +141,7 @@ mod tests {
         // Insert 3rd - should evict one
         cache.insert(CachedTxSet {
             hash: [3u8; 32],
-            xdr: vec![].into(),
+            xdr: Arc::new(vec![].into()),
             ledger_seq: 102,
         });
 
@@ -165,14 +166,14 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![1, 2, 3].into(),
+            xdr: Arc::new(vec![1, 2, 3].into()),
             ledger_seq: 100,
         });
 
         // Insert with same hash but different data
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![4, 5, 6].into(),
+            xdr: Arc::new(vec![4, 5, 6].into()),
             ledger_seq: 200,
         });
 
@@ -188,7 +189,7 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![1, 2, 3].into(),
+            xdr: Arc::new(vec![1, 2, 3].into()),
             ledger_seq: 100,
         });
         assert_eq!(cache.len(), 1, "Cache is full");
@@ -197,7 +198,7 @@ mod tests {
         // not evict the entry or shrink the cache below capacity.
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![4, 5, 6].into(),
+            xdr: Arc::new(vec![4, 5, 6].into()),
             ledger_seq: 102,
         });
 
@@ -216,12 +217,12 @@ mod tests {
         // Insert, then overwrite the same hash with a newer ledger_seq.
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![1, 2, 3].into(),
+            xdr: Arc::new(vec![1, 2, 3].into()),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: vec![4, 5, 6].into(),
+            xdr: Arc::new(vec![4, 5, 6].into()),
             ledger_seq: 200,
         });
 
@@ -239,12 +240,12 @@ mod tests {
         // cache exactly at capacity (not one over).
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: vec![].into(),
+            xdr: Arc::new(vec![].into()),
             ledger_seq: 300,
         });
         cache.insert(CachedTxSet {
             hash: [3u8; 32],
-            xdr: vec![].into(),
+            xdr: Arc::new(vec![].into()),
             ledger_seq: 400,
         });
 
