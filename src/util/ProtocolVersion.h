@@ -80,4 +80,7 @@ constexpr ProtocolVersion TX_ED25519_VERIFY_BUDGET_PROTOCOL_VERSION =
 constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
     ProtocolVersion::V_28;
 
+constexpr ProtocolVersion LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION =
+    ProtocolVersion::V_29;
+
 } // namespace stellar

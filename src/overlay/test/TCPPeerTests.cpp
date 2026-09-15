@@ -4,10 +4,15 @@
 
 #include "crypto/Curve25519.h"
 #include "herder/Herder.h"
+#include "herder/LedgerCloseData.h"
+#include "herder/TxSetFrame.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/FlowControl.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMetrics.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/PeerDoor.h"
@@ -19,6 +24,7 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 #include <future>
 #include <thread>
@@ -336,6 +342,177 @@ TEST_CASE("TCPPeer rejects ordinary messages between HELLO and AUTH",
     REQUIRE_FALSE(peer->isAuthenticatedForTesting());
 }
 
+namespace
+{
+constexpr size_t ONE_MB = 1024 * 1024;
+
+// Wrap a transaction of the given size in a TX_SET
+std::shared_ptr<StellarMessage>
+makeTxSetMessage(uint32_t size)
+{
+    auto txSet = std::make_shared<StellarMessage>();
+    txSet->type(TX_SET);
+    txSet->txSet().previousLedgerHash = sha256("prev hash");
+    txSet->txSet().txs.push_back(makeStellarMessage(size)->transaction());
+    return txSet;
+}
+
+// Two TCP-connected nodes with SCP disabled. `sender` initiated the connection
+// to `receiver`.
+struct TcpPeerPair
+{
+    Simulation::pointer sim;
+    Application::pointer sender;
+    Application::pointer receiver;
+    // sender's view of receiver
+    Peer::pointer senderPeer;
+    // receiver's view of sender
+    Peer::pointer receiverPeer;
+};
+
+Config
+makeMessageCapTestConfig(int i, uint32_t genesisProtocol,
+                         bool backgroundOverlay)
+{
+    Config cfg = getTestConfig(i);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = genesisProtocol;
+    cfg.BACKGROUND_OVERLAY_PROCESSING = backgroundOverlay;
+    cfg.FORCE_SCP = false;
+    return cfg;
+}
+
+TcpPeerPair
+makeAuthenticatedTcpPair(uint32_t genesisProtocol, bool backgroundOverlay)
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto s = std::make_shared<Simulation>(
+        Simulation::OVER_TCP, networkID, [=](int i) {
+            return makeMessageCapTestConfig(i, genesisProtocol,
+                                            backgroundOverlay);
+        });
+
+    auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
+
+    // SCP is disabled, so the quorum set is never consulted
+    SCPQuorumSet qset;
+    qset.threshold = 1;
+    qset.validators.push_back(v10SecretKey.getPublicKey());
+    auto n0 = s->addNode(v10SecretKey, qset);
+    auto n1 = s->addNode(v11SecretKey, qset);
+
+    s->addPendingConnection(v10SecretKey.getPublicKey(),
+                            v11SecretKey.getPublicKey());
+    s->startAllNodes();
+    s->stopOverlayTick();
+
+    Peer::pointer p0;
+    Peer::pointer p1;
+    s->crankUntil(
+        [&]() {
+            p0 = n0->getOverlayManager().getConnectedPeer(
+                PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+            p1 = n1->getOverlayManager().getConnectedPeer(
+                PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+            return p0 && p1 && p0->isAuthenticatedForTesting() &&
+                   p1->isAuthenticatedForTesting();
+        },
+        std::chrono::seconds(30), false);
+    REQUIRE(p0);
+    REQUIRE(p1);
+    REQUIRE(p0->isAuthenticatedForTesting());
+    REQUIRE(p1->isAuthenticatedForTesting());
+
+    for (auto const& node : {n0, n1})
+    {
+        auto const lcl = node->getLedgerManager().getLastClosedLedgerHeader();
+        REQUIRE(lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ);
+        REQUIRE(lcl.header.ledgerVersion == genesisProtocol);
+        REQUIRE(node->getConfig().BACKGROUND_OVERLAY_PROCESSING ==
+                backgroundOverlay);
+    }
+
+    return TcpPeerPair{s, n0, n1, p0, p1};
+}
+
+// Send a transaction set `msg` from `fromPeer` and wait until `toApp` has
+// processed it.  Both ends of the connection must remain up afterwards.
+void
+sendAndExpectAccepted(Simulation& sim, Peer::pointer fromPeer,
+                      Application& toApp, Peer::pointer toPeer,
+                      std::shared_ptr<StellarMessage const> msg)
+{
+    auto const& recvTxSet =
+        toApp.getOverlayManager().getOverlayMetrics().mRecvTxSetTimer;
+    auto const before = recvTxSet.count();
+
+    fromPeer->sendAuthenticatedMessageForTesting(msg);
+    sim.crankUntil([&]() { return recvTxSet.count() > before; },
+                   std::chrono::seconds(60), false);
+
+    REQUIRE(recvTxSet.count() == before + 1);
+    REQUIRE(fromPeer->isConnectedForTesting());
+    REQUIRE(toPeer->isConnectedForTesting());
+}
+
+// Send a transaction set `msg` from `fromPeer` and expect `toApp` to drop the
+// connection because the frame exceeds its maximum incoming message size.
+void
+sendAndExpectSizeDrop(Simulation& sim, Peer::pointer fromPeer,
+                      Application& toApp, Peer::pointer toPeer,
+                      std::shared_ptr<StellarMessage const> msg)
+{
+    auto const& metrics = toApp.getOverlayManager().getOverlayMetrics();
+    auto const errorsBefore = metrics.mErrorRead.count();
+    auto const recvBefore = metrics.mRecvTxSetTimer.count();
+
+    fromPeer->sendAuthenticatedMessageForTesting(msg);
+    sim.crankUntil(
+        [&]() {
+            return !fromPeer->isConnectedForTesting() &&
+                   !toPeer->isConnectedForTesting();
+        },
+        std::chrono::seconds(60), false);
+
+    REQUIRE(!fromPeer->isConnectedForTesting());
+    REQUIRE(!toPeer->isConnectedForTesting());
+    REQUIRE(toPeer->getDropReason() == "error during read");
+    REQUIRE(metrics.mErrorRead.count() >= errorsBefore + 1);
+    REQUIRE(metrics.mRecvTxSetTimer.count() == recvBefore);
+}
+
+// Close exactly one ledger on `app` carrying a protocol version upgrade to
+// `newVersion`
+void
+closeLedgerWithProtocolUpgrade(Simulation& sim, Application& app,
+                               uint32_t newVersion)
+{
+    auto& lm = app.getLedgerManager();
+    auto const lcl = lm.getLastClosedLedgerHeader();
+
+    auto upgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade.newLedgerVersion() = newVersion;
+    xdr::xvector<UpgradeType, 6> upgrades;
+    upgrades.emplace_back(LedgerTestUtils::toUpgradeType(upgrade));
+
+    auto txSet = TxSetXDRFrame::makeEmpty(lcl);
+    auto sv = app.getHerder().makeStellarValue(
+        txSet->getContentsHash(), lcl.header.scpValue.closeTime + 1, upgrades,
+        app.getConfig().NODE_SEED);
+    lm.valueExternalized(LedgerCloseData(lcl.header.ledgerSeq + 1, txSet, sv),
+                         /* isLatestSlot */ true);
+
+    sim.crankUntil(
+        [&]() {
+            return lm.getLastClosedLedgerNum() == lcl.header.ledgerSeq + 1;
+        },
+        std::chrono::seconds(60), false);
+
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion == newVersion);
+    REQUIRE(!app.getHerder().isTracking());
+}
+} // namespace
+
 TEST_CASE("TCPPeer lifetime", "[overlay]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -513,17 +690,6 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
     msg->type(GET_TX_SET);
     msg->txSetHash() = Hash();
 
-    // Wrap a transaction of the given size in a TX_SET (not flow-controlled)
-    auto makeTxSetMessage = [](uint32_t wasmSize) {
-        auto txSet = std::make_shared<StellarMessage>();
-        txSet->type(TX_SET);
-        txSet->txSet().previousLedgerHash = sha256("not a tx batch");
-        txSet->txSet().txs.push_back(
-            makeStellarMessage(wasmSize)->transaction());
-        REQUIRE(!OverlayManager::isFloodMessage(*txSet));
-        return txSet;
-    };
-
     auto crankAndValidateDrop = [&](std::string const& dropReason,
                                     bool shouldSendError) {
         s->crankUntil(
@@ -547,8 +713,8 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
 
     SECTION("message size is over limit")
     {
-        auto bigMessage = makeTxSetMessage(MAX_MESSAGE_SIZE * 2);
-        REQUIRE(xdr::xdr_size(*bigMessage) > MAX_MESSAGE_SIZE);
+        auto bigMessage = makeTxSetMessage(PRE_P29_MAX_MESSAGE_SIZE * 2);
+        REQUIRE(xdr::xdr_size(*bigMessage) > PRE_P29_MAX_MESSAGE_SIZE);
 
         p0->sendAuthenticatedMessageForTesting(bigMessage);
         p0->sendAuthenticatedMessageForTesting(makeTxSetMessage(1000));
@@ -582,6 +748,108 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
             },
             "send");
         crankAndValidateDrop("received corrupt XDR", true);
+    }
+}
+
+TEST_CASE("TCPPeer message size cap keyed on protocol version", "[overlay]")
+{
+    auto const postVersion =
+        static_cast<uint32_t>(LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION);
+    auto const preVersion = postVersion - 1;
+
+    // Three messages that straddle the two caps
+    auto small = makeTxSetMessage(
+        static_cast<uint32_t>(POST_P29_MAX_MESSAGE_SIZE - ONE_MB));
+    auto mid = makeTxSetMessage(
+        static_cast<uint32_t>(POST_P29_MAX_MESSAGE_SIZE + ONE_MB));
+    auto big = makeTxSetMessage(
+        static_cast<uint32_t>(PRE_P29_MAX_MESSAGE_SIZE + ONE_MB));
+    REQUIRE(xdr::xdr_size(*small) < POST_P29_MAX_MESSAGE_SIZE);
+    REQUIRE(xdr::xdr_size(*mid) > POST_P29_MAX_MESSAGE_SIZE);
+    REQUIRE(xdr::xdr_size(*mid) < PRE_P29_MAX_MESSAGE_SIZE);
+    REQUIRE(xdr::xdr_size(*big) > PRE_P29_MAX_MESSAGE_SIZE);
+
+    SECTION("before LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION")
+    {
+        auto t = makeAuthenticatedTcpPair(preVersion,
+                                          /* backgroundOverlay */ true);
+        // Under the pre-upgrade cap
+        sendAndExpectAccepted(*t.sim, t.senderPeer, *t.receiver, t.receiverPeer,
+                              mid);
+        // Over it
+        sendAndExpectSizeDrop(*t.sim, t.senderPeer, *t.receiver, t.receiverPeer,
+                              big);
+    }
+    SECTION("from LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION")
+    {
+        auto t = makeAuthenticatedTcpPair(postVersion,
+                                          /* backgroundOverlay */ true);
+        // Under the lowered cap
+        sendAndExpectAccepted(*t.sim, t.senderPeer, *t.receiver, t.receiverPeer,
+                              small);
+        // Over it, although it would have been accepted before the upgrade
+        sendAndExpectSizeDrop(*t.sim, t.senderPeer, *t.receiver, t.receiverPeer,
+                              mid);
+    }
+}
+
+TEST_CASE("TCPPeer message size cap follows protocol upgrade mid-connection",
+          "[overlay]")
+{
+    auto const postVersion =
+        static_cast<uint32_t>(LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION);
+    auto const preVersion = postVersion - 1;
+
+    // Accepted before the upgrade, dropped after it
+    auto mid = makeTxSetMessage(
+        static_cast<uint32_t>(POST_P29_MAX_MESSAGE_SIZE + ONE_MB));
+    REQUIRE(xdr::xdr_size(*mid) > POST_P29_MAX_MESSAGE_SIZE);
+    REQUIRE(xdr::xdr_size(*mid) < PRE_P29_MAX_MESSAGE_SIZE);
+
+    auto runVariant = [&](bool backgroundOverlay) {
+        auto t = makeAuthenticatedTcpPair(preVersion, backgroundOverlay);
+
+        // Both nodes are at the pre-upgrade protocol
+        sendAndExpectAccepted(*t.sim, t.senderPeer, *t.receiver, t.receiverPeer,
+                              mid);
+
+        // Upgrade the receiving node
+        closeLedgerWithProtocolUpgrade(*t.sim, *t.receiver, postVersion);
+        auto const receiverLcl =
+            t.receiver->getLedgerManager().getLastClosedLedgerHeader();
+        auto const senderLcl =
+            t.sender->getLedgerManager().getLastClosedLedgerHeader();
+        REQUIRE(receiverLcl.header.ledgerSeq ==
+                LedgerManager::GENESIS_LEDGER_SEQ + 1);
+        REQUIRE(receiverLcl.header.ledgerVersion == postVersion);
+
+        // Sender stays at old version
+        REQUIRE(senderLcl.header.ledgerSeq ==
+                LedgerManager::GENESIS_LEDGER_SEQ);
+        REQUIRE(senderLcl.header.ledgerVersion == preVersion);
+
+        // The ledger close did not disturb the connection
+        REQUIRE(t.senderPeer->isConnectedForTesting());
+        REQUIRE(t.receiverPeer->isConnectedForTesting());
+
+        // The cap is per node: the sender is still at the pre-upgrade protocol
+        // and still accepts the message in the reverse direction
+        sendAndExpectAccepted(*t.sim, t.receiverPeer, *t.sender, t.senderPeer,
+                              mid);
+
+        // The receiver now enforces the lowered cap: the very same message that
+        // it accepted before the upgrade is dropped
+        sendAndExpectSizeDrop(*t.sim, t.senderPeer, *t.receiver, t.receiverPeer,
+                              mid);
+    };
+
+    SECTION("background overlay processing")
+    {
+        runVariant(true);
+    }
+    SECTION("overlay on main thread")
+    {
+        runVariant(false);
     }
 }
 

@@ -84,15 +84,16 @@ class FlowControlByteCapacity : public FlowControlCapacity
   public:
     // Subtle: when we issue a read, want to deduct the size of the read from
     // the capacity and stop when we "hit zero"; but we won't know how big the
-    // read is before we perform it. It could be anywhere up to MAX_MESSAGE_SIZE
-    // (plus 4 for the XDR header bytes) and so we treat that as an artificial
-    // floor for the capacity value -- a sort of "virtual zero point" -- and
-    // only allow reads when we have capacity _greater_ than that floor, such
-    // that we know any read won't underflow true 0 and wrap around. The other
-    // option would be to use a signed integer for capacity and tolerate
-    // negative capacities sometimes, which would be confusing/alarming in a
-    // different way. We decided this was nicer.
-    uint64_t static constexpr BYTE_CAPACITY_READ_FLOOR = MAX_MESSAGE_SIZE + 4;
+    // read is before we perform it. It could be anywhere up to
+    // PRE_P29_MAX_MESSAGE_SIZE (plus 4 for the XDR header bytes) and so we
+    // treat that as an artificial floor for the capacity value -- a sort of
+    // "virtual zero point" -- and only allow reads when we have capacity
+    // _greater_ than that floor, such that we know any read won't underflow
+    // true 0 and wrap around. The other option would be to use a signed integer
+    // for capacity and tolerate negative capacities sometimes, which would be
+    // confusing/alarming in a different way. We decided this was nicer.
+    uint64_t static constexpr BYTE_CAPACITY_READ_FLOOR =
+        PRE_P29_MAX_MESSAGE_SIZE + 4;
 
     FlowControlByteCapacity(Config const& cfg, NodeID const& nodeID,
                             uint32_t floodCapacity);

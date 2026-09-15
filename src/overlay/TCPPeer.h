@@ -95,6 +95,9 @@ class TCPPeer : public Peer
 
     void messageSender();
 
+    // Returns the maximum message size allowed by the current protocol version
+    size_t getMaxMessageSize() const;
+
     size_t getIncomingMsgLength();
     virtual void connected() override;
     void scheduleRead() override;
