@@ -588,6 +588,12 @@ AS_IF([test "x$enable_fastdev_unsafe_for_production" = "xyes"], [
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
+# Unconditional, unlike the next-protocol-gated CAP flags that preceded it: the
+# protocol-30 soroban host enables the stellar-xdr crate's cap_0087_ml_dsa
+# feature in every build, and startup checks that C++ and Rust agree on the set
+# of enabled XDR features.
+AM_CONDITIONAL(CAP_0087_ML_DSA, [true])
+
 AC_PATH_PROG(CARGO, cargo)
 if test x"$CARGO" = x; then
   AC_MSG_ERROR([cannot find cargo, needed for rust code])

@@ -2865,6 +2865,77 @@ TEST_CASE("upgrade to version 26 and check cost types", "[upgrades]")
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("upgrade to version 30 and check cost types", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(29));
+
+    LedgerKey cpuKey(CONFIG_SETTING);
+    cpuKey.configSetting().configSettingID =
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+    LedgerKey memKey(CONFIG_SETTING);
+    memKey.configSetting().configSettingID =
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+    // Before v30 the params stop at the last v26 cost type
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(ltx.load(cpuKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsCpuInsns()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
+        REQUIRE(ltx.load(memKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsMemBytes()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
+    }
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(30));
+
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        auto cpuLtxe = ltx.load(cpuKey);
+        auto const& cpuParams =
+            cpuLtxe.current().data.configSetting().contractCostParamsCpuInsns();
+        auto memLtxe = ltx.load(memKey);
+        auto const& memParams =
+            memLtxe.current().data.configSetting().contractCostParamsMemBytes();
+
+        REQUIRE(cpuParams.size() ==
+                static_cast<uint32>(ContractCostType::VerifyMlDsa87Sig) + 1);
+        REQUIRE(memParams.size() ==
+                static_cast<uint32>(ContractCostType::VerifyMlDsa87Sig) + 1);
+
+        REQUIRE(
+            cpuParams[static_cast<size_t>(ContractCostType::VerifyMlDsa44Sig)]
+                .constTerm == 693549);
+        REQUIRE(
+            cpuParams[static_cast<size_t>(ContractCostType::VerifyMlDsa44Sig)]
+                .linearTerm == 1755);
+        REQUIRE(cpuParams[static_cast<size_t>(
+                              ContractCostType::MlDsa87DecodeVerifyingKey)]
+                    .constTerm == 1310749);
+        REQUIRE(memParams[static_cast<size_t>(
+                              ContractCostType::MlDsa87DecodeVerifyingKey)]
+                    .constTerm == 73808);
+        REQUIRE(
+            memParams[static_cast<size_t>(ContractCostType::VerifyMlDsa87Sig)]
+                .constTerm == 0);
+    }
+}
+#endif
+
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be

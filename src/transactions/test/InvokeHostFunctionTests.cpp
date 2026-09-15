@@ -19,6 +19,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
@@ -39,6 +40,7 @@
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/MlDsaTestVectors.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Decoder.h"
@@ -6640,6 +6642,69 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("CAP-0087 ML-DSA signature verification", "[tx][soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg);
+
+    auto spec = SorobanInvocationSpec()
+                    .setInstructions(test.getNetworkCfg().txMaxInstructions())
+                    .setReadBytes(test.getNetworkCfg().txMaxDiskReadBytes())
+                    .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
+
+    auto check = [&](uint32_t paramSet, char const* pkHex, char const* msgHex,
+                     char const* sigHex, char const* ctxHex) {
+        TestContract& contract = test.deployWasmContract(
+            rust_bridge::get_ml_dsa_verify_wasm(paramSet), spec.getResources());
+
+        auto pk = hexToBin(pkHex);
+        auto msg = hexToBin(msgHex);
+        auto sig = hexToBin(sigHex);
+        auto ctx = hexToBin(ctxHex);
+
+        auto invoke = [&](std::vector<uint8_t> const& p,
+                          std::vector<uint8_t> const& s) {
+            return contract
+                .prepareInvocation("verify",
+                                   {makeBytesSCVal(p), makeBytesSCVal(msg),
+                                    makeBytesSCVal(s), makeBytesSCVal(ctx)},
+                                   spec)
+                .invoke();
+        };
+
+        REQUIRE(invoke(pk, sig));
+
+        auto badSig = sig;
+        badSig[0] ^= 0xff;
+        REQUIRE(!invoke(pk, badSig));
+
+        auto shortPk = pk;
+        shortPk.pop_back();
+        REQUIRE(!invoke(shortPk, sig));
+    };
+
+    SECTION("ML-DSA-44, empty context")
+    {
+        check(44, ML_DSA_44_NO_CTX_PK, ML_DSA_44_NO_CTX_MSG,
+              ML_DSA_44_NO_CTX_SIG, ML_DSA_44_NO_CTX_CTX);
+    }
+    SECTION("ML-DSA-44")
+    {
+        check(44, ML_DSA_44_PK, ML_DSA_44_MSG, ML_DSA_44_SIG, ML_DSA_44_CTX);
+    }
+    SECTION("ML-DSA-65")
+    {
+        check(65, ML_DSA_65_PK, ML_DSA_65_MSG, ML_DSA_65_SIG, ML_DSA_65_CTX);
+    }
+    SECTION("ML-DSA-87")
+    {
+        check(87, ML_DSA_87_PK, ML_DSA_87_MSG, ML_DSA_87_SIG, ML_DSA_87_CTX);
+    }
+}
+#endif
+
 TEST_CASE("Soroban delegated signer authentication", "[soroban]")
 {
     size_t const AUTH_CONTRACT_COUNT = 2;
@@ -7774,8 +7839,8 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // work-in-progress next host, in which case there _is_ a separate module
     // cache and the following line of code should be commented-out.
     //
-    // There is no work-in-progress next host right now: soroban_module_cache.rs
-    // directs protocol 29 to p28_cache, so 29 contributes no cache of its own.
+    // The p30 host serves both protocol 29 and (under "next") protocol 30, so
+    // 30 contributes no cache of its own.
     moduleCacheProtocolCount -= 1;
 #endif
     REQUIRE(app->getLedgerManager()
