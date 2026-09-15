@@ -153,6 +153,40 @@ pub(crate) fn get_invoke_contract_wasm() -> Result<RustBuf, Box<dyn std::error::
     })
 }
 
+pub(crate) fn get_ml_dsa_verify_wasm(
+    param_set: u32,
+) -> Result<RustBuf, Box<dyn std::error::Error>> {
+    use crate::soroban_proto_all::protocol_agnostic::make_error;
+    use soroban_synth_wasm::*;
+
+    let export = match param_set {
+        44 => "A",
+        65 => "B",
+        87 => "C",
+        _ => return Err(make_error("unknown ML-DSA parameter set")),
+    };
+
+    // ModEmitter::default() stamps protocol 20 and only the first env-meta
+    // section is read, so the protocol has to be set on a fresh emitter: the
+    // host refuses to link an import whose min_supported_protocol is above the
+    // protocol the contract declares.
+    let mut me = ModEmitter::new();
+    me.add_protocol_version_meta(30);
+    me.memory(1, None, false, false);
+    let hf = me.import_func("c", export, Arity(4));
+
+    let mut fe = me.func(Arity(4), 0);
+    for i in 0..4 {
+        let arg = fe.args[i].0;
+        fe.local_get(arg);
+    }
+    fe.call_func(hf);
+    fe.ret();
+    Ok(RustBuf {
+        data: fe.finish_and_export("verify").finish(),
+    })
+}
+
 pub(crate) fn get_random_wasm(
     size: usize,
     seed: u64,
