@@ -1375,6 +1375,15 @@ async fn send_to_peer_stream_parts(
     stream_type: StreamType,
     parts: &[&[u8]],
 ) -> io::Result<()> {
+    send_peer_frames(state, peer_id, stream_type, framed_io::Frames::One(parts)).await
+}
+
+async fn send_peer_frames(
+    state: &SharedState,
+    peer_id: PeerId,
+    stream_type: StreamType,
+    frames: framed_io::Frames<'_>,
+) -> io::Result<()> {
     // Retry up to 2 times (3 attempts total) for reliability
     const MAX_RETRIES: usize = 2;
 
@@ -1453,15 +1462,15 @@ async fn send_to_peer_stream_parts(
             // Never send a request to an old SCP reader: it would silently
             // discard it. Keep requests isolated from legacy response writes.
             drop(stream_guard);
-            return Box::pin(send_to_peer_stream_parts(
+            return Box::pin(send_peer_frames(
                 state,
                 peer_id,
                 StreamType::LegacyTxSetRequest,
-                parts,
+                frames,
             ))
             .await;
         }
-        match framed_io::write_frame_parts(&mut stream.stream, parts).await {
+        match frames.write(&mut stream.stream).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 // Clear the broken stream
@@ -1869,55 +1878,87 @@ async fn handle_getdata(
         getdata.hashes.len()
     );
 
-    for hash in getdata.hashes {
-        // Look up TX in our buffer
-        let tx = {
-            let mut buffer = state.tx_buffer.write().await;
-            buffer.get(&hash)
-        };
-
-        if let Some(tx) = tx {
+    let state = Arc::clone(state);
+    let peer = *peer_id;
+    tokio::spawn(async move {
+        // One job per demand, retaining only one bounded batch while a peer
+        // is backpressured. Every TX still has its own wire frame. Batching
+        // avoids one task, stream lock and short QUIC write per transaction.
+        const BATCH_BYTES: usize = 64 * 1024;
+        let mut batch = Vec::new();
+        let mut messages = 0;
+        for hash in getdata.hashes {
+            let tx = state.tx_buffer.write().await.get(&hash);
+            let Some(tx) = tx else {
+                state
+                    .metrics
+                    .flood_unfulfilled_unknown
+                    .fetch_add(1, Ordering::Relaxed);
+                trace!(
+                    "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
+                    &hash[..4],
+                    peer
+                );
+                continue;
+            };
             state
                 .metrics
                 .flood_fulfilled
                 .fetch_add(1, Ordering::Relaxed);
-            // Send TX response. Buffered bytes were validated on entry, so
-            // framing them (concat) yields valid wire XDR by construction.
             let encoded = tx.to_flood_frame();
+            if batch.len() + 4 + encoded.len() > BATCH_BYTES && !batch.is_empty() {
+                send_tx_response_batch(&state, peer, &batch, messages).await;
+                batch.clear();
+                messages = 0;
+            }
+            // A transaction larger than the batch budget retains the existing
+            // segmented write, without allocating a second copy of its bytes.
+            if 4 + encoded.len() > BATCH_BYTES {
+                let result = send_to_peer_stream(&state, peer, StreamType::Tx, &encoded).await;
+                record_tx_response_write(&state, peer, result, 1, encoded.len());
+                continue;
+            }
+            batch.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
+            batch.extend_from_slice(&encoded);
+            messages += 1;
+        }
+        if !batch.is_empty() {
+            send_tx_response_batch(&state, peer, &batch, messages).await;
+        }
+    });
+}
 
-            let state_clone = Arc::clone(state);
-            let peer_clone = *peer_id;
-            tokio::spawn(async move {
-                if let Err(e) =
-                    send_to_peer_stream(&state_clone, peer_clone, StreamType::Tx, &encoded).await
-                {
-                    state_clone
-                        .metrics
-                        .error_write
-                        .fetch_add(1, Ordering::Relaxed);
-                    warn!("Failed to send TX to {}: {}", peer_clone, e);
-                } else {
-                    state_clone
-                        .metrics
-                        .message_write
-                        .fetch_add(1, Ordering::Relaxed);
-                    state_clone
-                        .metrics
-                        .byte_write
-                        .fetch_add(encoded.len() as u64, Ordering::Relaxed);
-                    debug!("TX_SEND: Sent TX {:02x?}... to {}", &hash[..4], peer_clone);
-                }
-            });
-        } else {
+async fn send_tx_response_batch(state: &SharedState, peer: PeerId, batch: &[u8], messages: usize) {
+    let result =
+        send_peer_frames(state, peer, StreamType::Tx, framed_io::Frames::Batch(batch)).await;
+    record_tx_response_write(state, peer, result, messages, batch.len() - 4 * messages);
+}
+
+fn record_tx_response_write(
+    state: &SharedState,
+    peer: PeerId,
+    result: io::Result<()>,
+    messages: usize,
+    bytes: usize,
+) {
+    match result {
+        Ok(()) => {
             state
                 .metrics
-                .flood_unfulfilled_unknown
-                .fetch_add(1, Ordering::Relaxed);
-            trace!(
-                "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
-                &hash[..4],
-                peer_id
-            );
+                .message_write
+                .fetch_add(messages as u64, Ordering::Relaxed);
+            state
+                .metrics
+                .byte_write
+                .fetch_add(bytes as u64, Ordering::Relaxed);
+            debug!("TX_SEND: Sent {} TXs to {}", messages, peer);
+        }
+        Err(e) => {
+            state
+                .metrics
+                .error_write
+                .fetch_add(messages as u64, Ordering::Relaxed);
+            warn!("Failed to send {} TXs to {}: {}", messages, peer, e);
         }
     }
 }

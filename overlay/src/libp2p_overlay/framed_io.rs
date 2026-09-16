@@ -2,6 +2,26 @@
 use futures::{AsyncWrite, AsyncWriteExt};
 use std::io;
 
+/// Either one segmented frame or several complete length-prefixed frames.
+/// A batch preserves the wire boundaries of its individual messages.
+#[derive(Clone, Copy)]
+pub(super) enum Frames<'a> {
+    One(&'a [&'a [u8]]),
+    Batch(&'a [u8]),
+}
+
+impl Frames<'_> {
+    pub(super) async fn write<W: AsyncWrite + Unpin>(self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::One(parts) => write_frame_parts(writer, parts).await,
+            Self::Batch(bytes) => {
+                writer.write_all(bytes).await?;
+                writer.flush().await
+            }
+        }
+    }
+}
+
 /// Write a single length-prefixed frame without assembling a bulk copy.
 /// Callers sharing a stream must hold its lock over this entire future.
 pub(super) async fn write_frame_parts<W: AsyncWrite + Unpin>(

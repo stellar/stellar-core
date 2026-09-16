@@ -170,6 +170,135 @@ impl Drop for TestNode {
 }
 
 #[tokio::test]
+async fn getdata_batches_preserve_frames_and_leave_control_responsive() {
+    use stellar_xdr::curr::{
+        HostFunction, InvokeHostFunctionOp, Limits, Operation, OperationBody, ReadXdr,
+        TransactionEnvelope, WriteXdr,
+    };
+
+    let mut sender = TestNode::start().await;
+    let mut receiver = TestNode::start().await;
+    sender.connect(&receiver).await;
+
+    let mut transactions = Vec::new();
+    for sequence in 0..160 {
+        let bytes = crate::xdr::tests::valid_transaction_xdr(1000, sequence, 16);
+        transactions.push(ValidatedTx::from_core_trusted(bytes, 1000, 16).unwrap());
+    }
+    // A wire-valid upload larger than the batching budget exercises the
+    // standalone write between two batches. Ledger validation is unrelated
+    // to this transport test.
+    let mut envelope = TransactionEnvelope::from_xdr(
+        crate::xdr::tests::valid_transaction_xdr(1000, 200, 1),
+        Limits::none(),
+    )
+    .unwrap();
+    let TransactionEnvelope::Tx(v1) = &mut envelope else {
+        unreachable!()
+    };
+    v1.tx.operations = vec![Operation {
+        source_account: None,
+        body: OperationBody::InvokeHostFunction(InvokeHostFunctionOp {
+            host_function: HostFunction::UploadContractWasm(vec![0; 70_000].try_into().unwrap()),
+            auth: Default::default(),
+        }),
+    }]
+    .try_into()
+    .unwrap();
+    let large =
+        ValidatedTx::from_core_trusted(envelope.to_xdr(Limits::none()).unwrap(), 1000, 1).unwrap();
+    transactions.insert(80, large);
+    let mut demand = GetData::new();
+    demand.push([0xaa; 32]);
+    for tx in &transactions {
+        sender.state.tx_buffer.write().await.insert(Arc::clone(tx));
+        demand.push(*tx.hash());
+    }
+    demand.push([0xbb; 32]);
+
+    let streams = sender.streams_to(receiver.peer).await;
+    let blocked = streams.tx.lock().await;
+    for (encoded, _) in demand.encode_chunked().unwrap() {
+        send_to_peer_stream(&receiver.state, sender.peer, StreamType::Tx, &encoded)
+            .await
+            .unwrap();
+    }
+    // A second demand on the same incoming stream is a barrier: its misses
+    // prove the reader dispatched both requests while the first TX writer is
+    // still blocked. The original per-TX task path has already looked up all
+    // transactions by this point; a bounded response job retains only its next
+    // batch. Use unknown hashes so the barrier needs no response stream.
+    let mut barrier = GetData::new();
+    for byte in 0xc0..0xe0 {
+        barrier.push([byte; 32]);
+    }
+    for (encoded, _) in barrier.encode_chunked().unwrap() {
+        send_to_peer_stream(&receiver.state, sender.peer, StreamType::Tx, &encoded)
+            .await
+            .unwrap();
+    }
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while sender
+            .state
+            .metrics
+            .flood_unfulfilled_unknown
+            .load(Ordering::Relaxed)
+            < 32
+            || sender.state.metrics.flood_fulfilled.load(Ordering::Relaxed) == 0
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("GETDATA reader stopped progressing behind a blocked TX writer");
+    assert!(
+        sender.state.metrics.flood_fulfilled.load(Ordering::Relaxed) < transactions.len() as u64,
+        "blocked response retained every requested transaction"
+    );
+    let scp = test_scp_envelope_xdr(987);
+    sender.handle.broadcast_scp(scp.clone()).await;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(OverlayEvent::ScpReceived { envelope, .. }) = receiver.events.recv().await {
+                if envelope == scp {
+                    break;
+                }
+            }
+        }
+    })
+    .await
+    .expect("a blocked GETDATA response held up the control stream");
+    assert!(receiver._admissions.try_recv().is_err());
+    drop(blocked);
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        for expected in &transactions {
+            let Some(CoreCommand::SubmitTx { tx, .. }) = receiver._admissions.recv().await else {
+                panic!("expected transaction admission");
+            };
+            assert_eq!(tx.bytes(), expected.bytes());
+            assert_eq!(tx.hash(), expected.hash());
+        }
+    })
+    .await
+    .expect("batched, oversized, and trailing transactions must all arrive");
+    assert_eq!(
+        sender.state.metrics.flood_fulfilled.load(Ordering::Relaxed),
+        transactions.len() as u64
+    );
+    assert_eq!(
+        sender
+            .state
+            .metrics
+            .flood_unfulfilled_unknown
+            .load(Ordering::Relaxed),
+        34
+    );
+    sender.stop().await;
+    receiver.stop().await;
+}
+
+#[tokio::test]
 async fn scp_state_sends_preserve_slot_order_without_blocking_other_peers() {
     let mut sender = TestNode::start().await;
     let mut receiver = TestNode::start().await;
