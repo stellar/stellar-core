@@ -1387,6 +1387,11 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                 setting.contractEvents().txMaxContractEventsSizeBytes =
                     *upgradeCfg.txMaxContractEventsSizeBytes;
             }
+            if (upgradeCfg.feeContractEvents1KB.has_value())
+            {
+                setting.contractEvents().feeContractEvents1KB =
+                    *upgradeCfg.feeContractEvents1KB;
+            }
             break;
         case CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
             if (upgradeCfg.ledgerMaxTransactionsSizeBytes.has_value())

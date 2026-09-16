@@ -60,6 +60,7 @@ struct SorobanUpgradeConfig
 
     // Contract events settings.
     std::optional<uint32_t> txMaxContractEventsSizeBytes{};
+    std::optional<int64_t> feeContractEvents1KB{};
 
     // Bandwidth related data settings for contracts
     std::optional<uint32_t> ledgerMaxTransactionsSizeBytes{};

@@ -1674,6 +1674,7 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
 
     upgradeCfg.txMaxContractEventsSizeBytes =
         updatedConfig.txMaxContractEventsSizeBytes();
+    upgradeCfg.feeContractEvents1KB = updatedConfig.feeContractEventsSize1KB();
 
     upgradeCfg.ledgerMaxTransactionsSizeBytes =
         updatedConfig.ledgerMaxTransactionSizesBytes();

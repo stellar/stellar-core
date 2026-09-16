@@ -10,6 +10,7 @@
 #include "ledger/NetworkConfig.h"
 #include "util/NonCopyable.h"
 #include <functional>
+#include <optional>
 #include <variant>
 
 namespace stellar
@@ -219,6 +220,51 @@ class ApplyLedgerView : private ImmutableLedgerView,
     using ImmutableLedgerView::scanLiveEntriesOfType;
 };
 
+// A ledger view used by the read-only phase of the Soroban pre-apply.
+//
+// It's a thin wrapper around the entries updated so far in the current ledger,
+// and the LCL view, which allows the pre-apply phase to observe the changes
+// that happened in the classic phase.
+//
+// Lookups are first attempted among the updated entries, and only then in the
+// LCL view.
+class SorobanPreApplyLedgerView : public AbstractLedgerView
+{
+  public:
+    // A function for retrieving a ledger entry by key from an incomprehensive
+    // set of ledger entries (i.e. the entries that have been updated so far in
+    // the ledger).
+    // `nullopt` represents that the entry is not present in the updated set.
+    // When optional is non-nullopt, `nullptr` entry represents a deleted entry,
+    // and a non-null `shared_ptr` represents an existing updated entry.
+    using UpdatedEntryGetter =
+        std::function<std::optional<std::shared_ptr<LedgerEntry const>>(
+            LedgerKey const&)>;
+
+    // Creates a view from the provided LCL view and a getter for the entries
+    // that have been updated so far in the ledger.
+    SorobanPreApplyLedgerView(std::shared_ptr<LedgerHeader const> header,
+                              UpdatedEntryGetter getUpdatedEntry,
+                              ApplyLedgerView const& lclView);
+
+    LedgerHeaderWrapper getLedgerHeader() const override;
+    LedgerEntryWrapper getAccount(AccountID const& account) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx,
+                                  AccountID const& accountID) const override;
+    LedgerEntryWrapper load(LedgerKey const& key) const override;
+    void executeWithMaybeInnerSnapshot(
+        std::function<void(CheckValidLedgerViewWrapper const&)> f)
+        const override;
+
+  private:
+    std::shared_ptr<LedgerHeader const> mHeader;
+    UpdatedEntryGetter mGetUpdatedEntry;
+    ApplyLedgerView mLclView;
+};
+
 // A helper class to create and query read-only snapshots
 // Automatically decides whether to create a BucketList (recommended), or SQL
 // snapshot (deprecated, but currently supported)
@@ -235,6 +281,8 @@ class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
     CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx);
     CheckValidLedgerViewWrapper(Application& app);
     explicit CheckValidLedgerViewWrapper(ImmutableLedgerView const& ledgerView);
+    explicit CheckValidLedgerViewWrapper(
+        std::unique_ptr<AbstractLedgerView const> getter);
 #ifdef BUILD_TESTS
     // Set by overlay-only mode call sites so commonValid skips the seqnum
     // equality check: on-disk seqnums are frozen at genesis while
