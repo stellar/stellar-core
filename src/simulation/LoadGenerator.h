@@ -282,7 +282,10 @@ class LoadGenerator
     // Accounts whose transaction externalized in the given ledger; released
     // once that ledger is applied.
     std::unordered_map<uint64_t, uint32_t> mAccountsExternalized;
-    std::unordered_set<uint64_t> mAccountsAvailable;
+    // Accounts enter this pool only when initialized or released from one of
+    // the disjoint in-use/externalized collections. A dense vector allows
+    // uniform random selection and removal without walking the account pool.
+    std::vector<uint64_t> mAccountsAvailable;
     // First ledger at which load generation stalled because every account had
     // a pending transaction.
     std::optional<uint32_t> mNoAccountsAvailableSinceLedger;

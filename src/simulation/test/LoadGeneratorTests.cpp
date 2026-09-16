@@ -328,6 +328,30 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
             120 * simulation->getExpectedLedgerCloseTime(), false);
         REQUIRE(getSuccessfulTxCount() == nTxs);
     }
+    SECTION("recycle available accounts across ledgers and runs")
+    {
+        // More submissions than accounts requires returning applied accounts
+        // to the pool. Real application catches premature reuse through bad
+        // sequence numbers; a second run also exercises resetting the pool.
+        uint32_t const txsPerRun = 3 * nAccounts;
+        auto& completed =
+            app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+        auto& rejected =
+            app.getMetrics().NewMeter({"loadgen", "txn", "rejected"}, "txn");
+        for (uint32_t run = 0; run < 2; ++run)
+        {
+            auto before = getSuccessfulTxCount();
+            auto runsBefore = completed.count();
+            loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                LoadGenMode::PAY, nAccounts, txsPerRun,
+                /* txRate */ 100, /* offset */ nAccounts));
+            simulation->crankUntil(
+                [&]() { return completed.count() == runsBefore + 1; },
+                120 * simulation->getExpectedLedgerCloseTime(), false);
+            REQUIRE(getSuccessfulTxCount() - before == txsPerRun);
+            REQUIRE(rejected.count() == 0);
+        }
+    }
     SECTION("invalid loadgen parameters")
     {
         uint32 numAccounts = 100;
