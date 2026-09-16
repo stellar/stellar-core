@@ -157,11 +157,14 @@ class TransactionTestFrame : public TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& resPayload,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
+    void preParallelApplyReadOnly(
+        AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+        TransactionMetaBuilder& meta, MutableTransactionResultBase& resPayload,
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
+    void preParallelApplyWrite(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase const& txResult) const override;
 
     std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,

@@ -58,7 +58,8 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     auto tx1 = b1.tx({accountMerge(a1)});
     auto tx2 = a1.tx({a1.op(payment(*root, 112)), a1.op(payment(*root, 101))});
 
-    auto txSet = makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0).second;
+    auto txSet =
+        makeTxSetFromTransactions({tx1, tx2}, *app, ApplyTimeOffset{}).second;
 
     auto txs =
         txSet->getPhasesInApplyOrder()[static_cast<size_t>(TxSetPhase::CLASSIC)]
@@ -1945,7 +1946,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMinTime(txFrame, start + 1000);
                         setMaxTime(txFrame, start + 10000);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
 
                         REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
@@ -1960,7 +1962,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         getSignatures(txFrame).clear();
                         txFrame->addSignature(*root);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
                         REQUIRE(txFrame->getResultCode() == txSUCCESS);
                     }
@@ -1972,7 +1975,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMinTime(txFrame, 1000);
                         setMaxTime(txFrame, start);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
                         REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                     }
@@ -1985,7 +1989,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMaxTime(txFrame, 0);
 
                         TimePoint lastClose = getTestDate(1, 1, 2020);
-                        closeLedgerOn(*app, nextLedgerSeq, lastClose);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, lastClose));
 
                         TimePoint const nextOffset = 2;
                         auto const nextClose = lastClose + nextOffset;
@@ -2069,8 +2074,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                     VirtualClock::from_time_t(closeTime + 5));
                             }
 
-                            auto offset =
-                                getUpperBoundCloseTimeOffset(*app, closeTime);
+                            auto offset = getUpperBoundCloseTimeOffset(
+                                *app, ApplyTime::fromTimePoint(closeTime));
                             auto upperBoundCloseTime = closeTime + offset;
 
                             SECTION("success")
@@ -2518,7 +2523,7 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
         {
             // Normal checkValid should succeed — the payload signer is valid
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ls = CheckValidLedgerViewWrapper(ltx);
+            auto ls = CheckValidLedgerViewWrapper(ltx, app->getLedgerManager());
             auto diagnostics = DiagnosticEventManager::createDisabled();
             auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
                                          diagnostics);
@@ -2535,7 +2540,7 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
         SECTION("checkValidForOverlay accepts ed25519 signed payload signer")
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ls = CheckValidLedgerViewWrapper(ltx);
+            auto ls = CheckValidLedgerViewWrapper(ltx, app->getLedgerManager());
             auto diagnostics = DiagnosticEventManager::createDisabled();
             auto result = tx->checkValidForOverlay(app->getAppConnector(), ls,
                                                    0, 0, 0, diagnostics);
@@ -2551,7 +2556,8 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
             SECTION("checkValid accepts fee bump")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ls = CheckValidLedgerViewWrapper(ltx);
+                auto ls =
+                    CheckValidLedgerViewWrapper(ltx, app->getLedgerManager());
                 auto diagnostics = DiagnosticEventManager::createDisabled();
                 auto result = feeBumpTx->checkValid(app->getAppConnector(), ls,
                                                     0, 0, 0, diagnostics);
@@ -2561,7 +2567,8 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
             SECTION("checkValidForOverlay accepts fee bump")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ls = CheckValidLedgerViewWrapper(ltx);
+                auto ls =
+                    CheckValidLedgerViewWrapper(ltx, app->getLedgerManager());
                 auto diagnostics = DiagnosticEventManager::createDisabled();
                 auto result = feeBumpTx->checkValidForOverlay(
                     app->getAppConnector(), ls, 0, 0, 0, diagnostics);
@@ -3178,5 +3185,105 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
     SECTION("valid in protocol 23")
     {
         runTest(ProtocolVersion::V_23, true);
+    }
+}
+
+#ifdef MS_CLOSE_TIME
+TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+    auto root = app->getRoot();
+
+    // These test networks run the ms protocol from genesis
+    REQUIRE(protocolVersionStartsFrom(
+        lm.getLastClosedLedgerHeader().header.ledgerVersion,
+        MS_CLOSE_TIME_PROTOCOL_VERSION));
+
+    // Establish a known whole-second close time and a funded account
+    TimePoint const T =
+        lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
+    auto a1 = root->create("a1", lm.getLastMinBalance(3) + 100000);
+
+    auto reSign = [](TransactionTestFramePtr const& tx, TestAccount& acc) {
+        auto& sig = tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                        ? tx->getMutableEnvelope().v0().signatures
+                        : tx->getMutableEnvelope().v1().signatures;
+        sig.clear();
+        tx->addSignature(acc.getSecretKey());
+    };
+    auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
+
+    SECTION("tx expiring at the current second applies in a same-second "
+            "ledger")
+    {
+        auto tx = a1.tx({payment(*root, 1)});
+        setMaxTime(tx, T);
+        reSign(tx, a1);
+        auto r =
+            closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400), {tx});
+        checkTx(0, r, txSUCCESS);
+        auto const& lclValue = lm.getLastClosedLedgerHeader().header.scpValue;
+        REQUIRE(getConsensusTime(lclValue).milliseconds() == T * 1000 + 400);
+        REQUIRE(lclValue.closeTime == T);
+        REQUIRE(getConsensusTime(lclValue).milliseconds() == T * 1000 + 400);
+    }
+
+    SECTION("tx valid from the next second stays too early in a same-second "
+            "ledger")
+    {
+        auto tx = a1.tx({payment(*root, 1)});
+        setMinTime(tx, T + 1);
+        reSign(tx, a1);
+        auto r = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400), {tx},
+                               /*strictOrder=*/true);
+        checkTx(0, r, txTOO_EARLY);
+        // The same transaction applies once the next whole second is reached
+        auto r2 = closeLedgerOn(*app, nextSeq(), T + 1, {tx},
+                                /*strictOrder=*/true);
+        checkTx(0, r2, txSUCCESS);
+    }
+}
+#endif // MS_CLOSE_TIME
+
+TEST_CASE("getUpperBoundCloseTimeOffset under sub-second ledgers",
+          "[tx][envelope]")
+{
+    // Overlay v2 has no C++ transaction-queue admission. Check the helper's
+    // rounding and elapsed-time contract directly; the preceding test covers
+    // transaction validity through actual ledger application.
+    auto testWithCloseTimeMs = [](uint32_t closeTimeMs,
+                                  uint64_t expectedBuffer) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = closeTimeMs;
+        auto app = createTestApplication(clock, cfg);
+        TimePoint const time =
+            VirtualClock::to_time_t(clock.system_now()) + 1000;
+        auto const applyTime = ApplyTime::fromTimePoint(time);
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(time));
+        REQUIRE(getUpperBoundCloseTimeOffset(*app, applyTime) ==
+                expectedBuffer);
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(time + 7));
+        REQUIRE(getUpperBoundCloseTimeOffset(*app, applyTime) ==
+                expectedBuffer + 7);
+    };
+
+    SECTION("whole-second close times keep the legacy 2x buffer")
+    {
+        testWithCloseTimeMs(5000, 10);
+    }
+    SECTION("sub-second close times round the buffer up to a whole second")
+    {
+        // 2 * 400ms rounds up to 1s rather than truncating to 0, which would
+        // erase the admission-time expiry buffer entirely
+        testWithCloseTimeMs(400, 1);
+    }
+    SECTION("fractional-second close times round up, not down")
+    {
+        // 2 * 1300ms = 2600ms rounds up to 3s
+        testWithCloseTimeMs(1300, 3);
     }
 }

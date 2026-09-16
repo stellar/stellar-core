@@ -6,6 +6,7 @@
 
 #include "herder/SurgePricingUtils.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
 #include "util/NonCopyable.h"
@@ -108,6 +109,12 @@ using PerPhaseTransactionList = std::vector<TxFrameList>;
 // Not all the transactions will be included in the result: invalid
 // transactions are trimmed and optionally returned via `invalidTxs` and if
 // there are too many remaining transactions surge pricing is applied.
+// `closeTimeOffset` is how far ahead of the last closed ledger's apply time the
+// ledger this set is built for applies. Transaction time bounds are
+// whole-second quantities checked against that apply time (used as both the
+// lower and the upper bound, since the close time is known exactly), which is
+// why the offset is in apply-time units rather than derived from the consensus
+// close time.
 // The result is guaranteed to pass `checkValid` check with the same
 // arguments as in this method, so additional validation is not needed.
 //
@@ -116,8 +123,7 @@ using PerPhaseTransactionList = std::vector<TxFrameList>;
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     PerPhaseTransactionList const& txPhases, Application& app,
-    uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset
+    ApplyTimeOffset closeTimeOffset
 #ifdef BUILD_TESTS
     // Skips the tx set validation and preserves the pointers
     // to the passed-in transactions - use in conjunction with
@@ -130,7 +136,7 @@ makeTxSetFromTransactions(
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     PerPhaseTransactionList const& txPhases, Application& app,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    ApplyTimeOffset closeTimeOffset,
     PerPhaseTransactionList& invalidTxsPerPhase
 #ifdef BUILD_TESTS
     // Skips the tx set validation and preserves the pointers
@@ -145,14 +151,13 @@ makeTxSetFromTransactions(
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
-    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset, bool enforceTxsApplyOrder = false,
+    TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+    bool enforceTxsApplyOrder = false,
     txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
-    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
-    bool enforceTxsApplyOrder = false,
+    TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+    TxFrameList& invalidTxs, bool enforceTxsApplyOrder = false,
     txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
 #endif
 
@@ -374,7 +379,7 @@ class TxSetPhaseFrame
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
         PerPhaseTransactionList const& txPhases, Application& app,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        ApplyTimeOffset closeTimeOffset,
         PerPhaseTransactionList& invalidTxsPerPhase
 #ifdef BUILD_TESTS
         ,
@@ -385,9 +390,8 @@ class TxSetPhaseFrame
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
-        TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
-        bool enforceTxsApplyOrder,
+        TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+        TxFrameList& invalidTxs, bool enforceTxsApplyOrder,
         txtest::ParallelSorobanOrder const& parallelSorobanOrder);
 #endif
     TxSetPhaseFrame(TxSetPhase phase, TxFrameList const& txs,
@@ -546,7 +550,7 @@ class ApplicableTxSetFrame
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
         PerPhaseTransactionList const& txPhases, Application& app,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        ApplyTimeOffset closeTimeOffset,
         PerPhaseTransactionList& invalidTxsPerPhase
 #ifdef BUILD_TESTS
         ,
@@ -557,9 +561,8 @@ class ApplicableTxSetFrame
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
-        TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
-        bool enforceTxsApplyOrder,
+        TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+        TxFrameList& invalidTxs, bool enforceTxsApplyOrder,
         txtest::ParallelSorobanOrder const& parallelSorobanOrder);
 #endif
 

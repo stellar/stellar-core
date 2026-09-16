@@ -22,6 +22,7 @@
 #include <stdexcept>
 #include <xdrpp/xdrpp/printer.h>
 
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -40,14 +41,14 @@ namespace
 {
 CxxLedgerInfo
 getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
-              uint32_t ledgerSeq, uint32_t baseReserve, TimePoint closeTime,
+              uint32_t ledgerSeq, uint32_t baseReserve, ApplyTime applyTime,
               Hash const& networkID)
 {
     CxxLedgerInfo info{};
     info.base_reserve = baseReserve;
     info.protocol_version = ledgerVersion;
     info.sequence_number = ledgerSeq;
-    info.timestamp = closeTime;
+    info.timestamp = applyTime.timePoint();
     info.memory_limit = sorobanConfig.txMemoryLimit();
     info.min_persistent_entry_ttl =
         sorobanConfig.stateArchivalSettings().minPersistentTTL;
@@ -1138,7 +1139,7 @@ class InvokeHostFunctionPreV23ApplyHelper
         auto const& lh = hdr.current();
         return stellar::getLedgerInfo(
             mSorobanConfig, lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
-            lh.scpValue.closeTime, mApp.getNetworkID());
+            getApplyTime(lh.scpValue), mApp.getNetworkID());
     }
 
   public:
@@ -1322,7 +1323,7 @@ class InvokeHostFunctionParallelApplyHelper
         return stellar::getLedgerInfo(
             mSorobanConfig, mLedgerInfo.getLedgerVersion(),
             mLedgerInfo.getLedgerSeq(), mLedgerInfo.getBaseReserve(),
-            mLedgerInfo.getCloseTime(), mLedgerInfo.getNetworkID());
+            mLedgerInfo.getApplyTime(), mLedgerInfo.getNetworkID());
     }
 
   public:

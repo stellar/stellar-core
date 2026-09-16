@@ -536,9 +536,9 @@ modifySorobanNetworkConfig(Application& app,
     auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
     TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
 
-    app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
-                                     lclHeader.header.ledgerSeq + 1, closeTime,
-                                     {upgrade});
+    app.getHerder().externalizeValue(
+        TxSetXDRFrame::makeEmpty(lclHeader), lclHeader.header.ledgerSeq + 1,
+        txtest::makeConsensusTime(closeTime), {upgrade});
     app.getRoot()->loadSequenceNumber();
 
     txtest::captureLastClosedLedgerLcm(app);
