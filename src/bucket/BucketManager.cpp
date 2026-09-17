@@ -1024,9 +1024,9 @@ BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
 
 void
 BucketManager::addLiveBatch(Application& app, LedgerHeader header,
-                            std::vector<LedgerEntry> const& initEntries,
-                            std::vector<LedgerEntry> const& liveEntries,
-                            std::vector<LedgerKey> const& deadEntries)
+                            LedgerEntryRefs initEntries,
+                            LedgerEntryRefs liveEntries,
+                            LedgerKeyRefs deadEntries)
 {
     ZoneScoped;
 #ifdef BUILD_TESTS

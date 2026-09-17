@@ -7,6 +7,7 @@
 #include "bucket/BucketMergeMap.h"
 #include "history/HistoryArchive.h"
 #include "ledger/ImmutableLedgerView.h"
+#include "ledger/LedgerEntryRefs.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "util/ThreadAnnotations.h"
@@ -315,9 +316,8 @@ class BucketManager : NonMovableOrCopyable
     // `header` value should be taken from the ledger at which this batch is
     // being added.
     void addLiveBatch(Application& app, LedgerHeader header,
-                      std::vector<LedgerEntry> const& initEntries,
-                      std::vector<LedgerEntry> const& liveEntries,
-                      std::vector<LedgerKey> const& deadEntries);
+                      LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+                      LedgerKeyRefs deadEntries);
     void addHotArchiveBatch(Application& app, LedgerHeader header,
                             std::vector<LedgerEntry> const& archivedEntries,
                             std::vector<LedgerKey> const& restoredEntries);

@@ -890,7 +890,6 @@ template void BucketListBase<HotArchiveBucket>::addBatchInternal(
 
 template void BucketListBase<LiveBucket>::addBatchInternal(
     Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries);
+    LedgerEntryRefs const& initEntries, LedgerEntryRefs const& liveEntries,
+    LedgerKeyRefs const& deadEntries);
 }

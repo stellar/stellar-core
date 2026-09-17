@@ -7,6 +7,7 @@
 #include "bucket/BucketBase.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LiveBucketIndex.h"
+#include "ledger/LedgerEntryRefs.h"
 
 namespace medida
 {
@@ -83,10 +84,16 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
                                       uint32_t protocolVersion);
 
     static std::vector<BucketEntry>
+    convertToBucketEntry(bool useInit, LedgerEntryRefs initEntries,
+                         LedgerEntryRefs liveEntries,
+                         LedgerKeyRefs deadEntries);
+#ifdef BUILD_TESTS
+    static std::vector<BucketEntry>
     convertToBucketEntry(bool useInit,
                          std::vector<LedgerEntry> const& initEntries,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
+#endif
 
     template <typename InputSource>
     static void mergeCasesWithEqualKeys(
@@ -118,20 +125,25 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // be sorted, hashed, and adopted in the provided BucketManager.
     static std::shared_ptr<LiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
+          LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+          LedgerKeyRefs deadEntries, bool countMergeEvents,
+          asio::io_context& ctx, bool doFsync);
+#ifdef BUILD_TESTS
+    static std::shared_ptr<LiveBucket>
+    fresh(BucketManager& bucketManager, uint32_t protocolVersion,
           std::vector<LedgerEntry> const& initEntries,
           std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
+#endif
 
     // Create a fresh bucket that exists only in memory, without writing to
     // disk, calculating a hash, or indexing. This should only be used for
     // "level -1" snap buckets that are immediately merged into level 0.
     static std::shared_ptr<LiveBucket>
     freshInMemoryOnly(BucketManager& bucketManager, uint32_t protocolVersion,
-                      std::vector<LedgerEntry> const& initEntries,
-                      std::vector<LedgerEntry> const& liveEntries,
-                      std::vector<LedgerKey> const& deadEntries,
-                      bool countMergeEvents);
+                      LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+                      LedgerKeyRefs deadEntries, bool countMergeEvents);
 
     // Returns true if the given BucketEntry should be dropped in the bottom
     // level bucket (i.e. DEADENTRY)

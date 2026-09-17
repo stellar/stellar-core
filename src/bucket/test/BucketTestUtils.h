@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ledger/LedgerEntryRefs.h"
 #include "test/TestUtils.h"
 #include "xdr/Stellar-ledger.h"
 
@@ -12,6 +13,10 @@ namespace stellar
 namespace BucketTestUtils
 {
 
+void addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
+                                   LedgerEntryRefs initEntries,
+                                   LedgerEntryRefs liveEntries,
+                                   LedgerKeyRefs deadEntries);
 void addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
                                    std::vector<LedgerEntry> const& initEntries,
                                    std::vector<LedgerEntry> const& liveEntries,
@@ -124,5 +129,6 @@ class BucketTestApplication : public TestApplication
         return std::make_unique<LedgerManagerForBucketTests>(*this);
     }
 };
-}
-}
+
+} // namespace BucketTestUtils
+} // namespace stellar

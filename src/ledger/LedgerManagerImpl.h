@@ -237,9 +237,8 @@ class LedgerManagerImpl : public LedgerManager
         // Non-const mutating methods, must always be called from the applying
         // thread (either main or parallel apply thread).
         void updateInMemorySorobanState(
-            std::vector<LedgerEntry> const& initEntries,
-            std::vector<LedgerEntry> const& liveEntries,
-            std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+            LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+            LedgerKeyRefs deadEntries, LedgerHeader const& lh,
             std::optional<SorobanNetworkConfig const> const& sorobanConfig);
 
         // Note: These are const getters, but should still only be called in the
@@ -268,7 +267,7 @@ class LedgerManagerImpl : public LedgerManager
         // Adds all contracts in the provided set of LEs to the module cache.
         // This should be called as entries are added to the live bucketlist.
         void addAnyContractsToModuleCache(uint32_t ledgerVersion,
-                                          std::vector<LedgerEntry> const& le);
+                                          LedgerEntryRefs le);
 
         // Populates all live Soroban state into the cache from the provided
         // snapshot.
