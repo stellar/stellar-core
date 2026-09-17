@@ -7631,7 +7631,7 @@ TEST_CASE("module cache rebuild on incremental wasm uploads",
     REQUIRE(wasmsAreCached(*app, initialHashes));
 
     auto& metrics = app->getLedgerManager().getSorobanMetrics();
-    auto rebuildBytesAtStartup = metrics.mModuleCacheRebuildBytes.count();
+    auto rebuildBytesAtStartup = metrics.mModuleCacheRebuildWasmBytes.count();
     REQUIRE(rebuildBytesAtStartup > 0);
 
     auto uploader = app->getRoot();
@@ -7660,7 +7660,8 @@ TEST_CASE("module cache rebuild on incremental wasm uploads",
         // ledger close at apply start.
         closeLedger(*app);
 
-        if (metrics.mModuleCacheRebuildBytes.count() != rebuildBytesAtStartup)
+        if (metrics.mModuleCacheRebuildWasmBytes.count() !=
+            rebuildBytesAtStartup)
         {
             rebuilt = true;
             uploadedRawAtTrigger = uploadedRawBytes;
