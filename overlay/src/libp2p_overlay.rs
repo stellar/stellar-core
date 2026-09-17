@@ -2024,7 +2024,7 @@ fn handle_txset_request(state: &SharedState, peer_id: PeerId, hash: [u8; 32]) {
     }
 }
 
-/// Deliver strict-decoded XDR identically for both response encodings.
+/// Deliver verified XDR together with its original compressed encoding.
 async fn deliver_txset(state: &SharedState, peer_id: PeerId, txset_data: Arc<TxSetData>) {
     let hash = crate::xdr::sha256_hash(txset_data.as_slice());
 
