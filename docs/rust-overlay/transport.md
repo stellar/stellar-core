@@ -74,20 +74,15 @@ QUIC connection. Send priorities are set in Quinn, the QUIC implementation:
 | Protocol ID | Messages | Send priority |
 |-------------|----------|---------------|
 | `/stellar/control/1.0.0` | SCP envelopes, `GET_SCP_STATE`, `GET_TX_SET` | **2 — highest** |
-| `/stellar/txset/1.0.0` | Tx-set responses | **1** |
+| `/stellar/txset/zstd/2.0.0` | Compressed tx-set responses | **1** |
 | `/stellar/tx/1.0.0` | Transaction INV, GETDATA, TX | **0 — lowest** |
 
 SCP and tx-set requests share one FIFO stream; there is no separate priority
 between messages on that stream. `DONT_HAVE` handling is not implemented.
 
-Older peers remain supported. An explicit rejection of the control protocol
-causes the sender to negotiate `/stellar/scp/1.0.0` for SCP and SCP-state
-requests, at priority 2. Tx-set requests then use a separate stream with the
-legacy `/stellar/txset/1.0.0` protocol, also at priority 2. This fallback opens
-on demand and is reused, preserving request isolation from responses while
-using four outbound streams for old peers. Connection errors do not trigger
-protocol downgrade. Updated receivers continue accepting both legacy
-protocols, including tx-set requests on `/stellar/txset/1.0.0`.
+These routes are mandatory on this experimental branch. There is no fallback
+to the old SCP or transaction-set protocols. Transaction-set responses always
+use zstd; see [TX set fetching](txset-fetching.md) for framing and cache ownership.
 
 In addition, libp2p's `Identify` protocol runs as `/stellar/1.0.0`
 (`libp2p_overlay.rs:380`). It exchanges peer-id + listen addresses on
@@ -105,8 +100,7 @@ as independent tasks, so:
 - INV batches and TX response data flow on `/stellar/tx/1.0.0` only.
 - Between updated peers, tx-set fetch requests share the control stream with
   SCP, so a large response to the same peer cannot hold up a request behind
-  its frame or stream lock. With legacy peers, a separate request stream
-  preserves that isolation as described above.
+  its frame or stream lock.
 - Loss recovery on one stream does not require another stream to wait for
   that stream's missing bytes.
 

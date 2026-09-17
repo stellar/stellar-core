@@ -26,6 +26,7 @@ class Application;
 class TxSetXDRFrame;
 class ApplicableTxSetFrame;
 using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
+using TxSetReadyCallback = std::function<void(TxSetXDRFrameConstPtr const&)>;
 using ApplicableTxSetFrameConstPtr =
     std::unique_ptr<ApplicableTxSetFrame const>;
 
@@ -152,7 +153,8 @@ makeTxSetFromTransactions(
     txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
     bool disableTxValidationForLegacyScenario = false
 #endif
-);
+    ,
+    TxSetReadyCallback const& onTxSetReady = {});
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -405,7 +407,8 @@ class TxSetPhaseFrame
         txtest::ParallelSorobanOrder const& parallelSorobanOrder,
         bool disableTxValidationForLegacyScenario
 #endif
-    );
+        ,
+        TxSetReadyCallback const& onTxSetReady);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
@@ -579,7 +582,8 @@ class ApplicableTxSetFrame
         txtest::ParallelSorobanOrder const& parallelSorobanOrder,
         bool disableTxValidationForLegacyScenario
 #endif
-    );
+        ,
+        TxSetReadyCallback const& onTxSetReady);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(

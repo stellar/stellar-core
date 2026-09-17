@@ -843,7 +843,8 @@ makeTxSetFromTransactions(
     txtest::ParallelSorobanOrder const& parallelSorobanOrder,
     bool disableTxValidationForLegacyScenario
 #endif
-)
+    ,
+    TxSetReadyCallback const& onTxSetReady)
 {
     releaseAssert(threadIsMain());
     releaseAssert(!app.getLedgerManager().isApplying());
@@ -955,6 +956,14 @@ makeTxSetFromTransactions(
                               std::move(preliminaryApplicableTxSet));
     }
 #endif
+
+    // The final XDR is available now. Start proposal encoding while the
+    // roundtrip and final validity checks below run; only the local builder
+    // supplies this callback. The callback must not nominate the set.
+    if (onTxSetReady)
+    {
+        onTxSetReady(outputTxSet);
+    }
 
     ApplicableTxSetFrameConstPtr outputApplicableTxSet =
         outputTxSet->prepareForApply(app, lclHeader.header);
