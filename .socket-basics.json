@@ -1,0 +1,17 @@
+{
+  "workspace": ".",
+  "c_sast_enabled": true,
+  "cpp_sast_enabled": true,
+  "python_sast_enabled": true,
+  "rust_sast_enabled": true,
+  "cpp_disabled_rules": "cpp-unsafe-cast,cpp-exception-safety",
+  "python_disabled_rules": "python-sensitive-data-in-logs,python-bare-except,python-hardcoded-secret",
+  "rust_disabled_rules": "rust-sql-injection,rust-unsafe-usage,rust-panic-in-production,rust-memory-safety,rust-env-injection,rust-path-traversal,rust-serde-security,rust-integer-overflow,rust-command-injection",
+  "sast_ignore_overrides": "python-insecure-random:scripts/overlay_survey/simulation.py,python-weak-random:scripts/overlay_survey/simulation.py,c-format-string-vulnerability:src/main/main.cpp,c-format-string-vulnerability:src/util/Backtrace.cpp",
+  "secret_scanning_enabled": true,
+  "console_tabular_enabled": true,
+  "dockerfiles": ".devcontainer/Dockerfile,docker/Dockerfile,docker/Dockerfile.testing",
+  "socket_tier_1_enabled": false,
+  "trivy_vuln_enabled": false,
+  "trufflehog_exclude_dir": "build,.venv,venv,__pycache__,target,.git,__fixtures__,__mocks__,__snapshots__,__tests__,acceptance-test,acceptance-tests,acceptance_test,acceptance_tests,benches,browser-test,browser-tests,browser_test,browser_tests,e2e,e2e-test,e2e-tests,e2e_test,e2e_tests,example,examples,fixtures,functional-test,functional-tests,functional_test,functional_tests,integration-test,integration-tests,integration_test,integration_tests,integrationtest,integrationtests,mock,mock-dapp,mocks,perf-test,perf-tests,perf_test,perf_tests,performance-test,performance-tests,performance_test,performance_tests,regression-test,regression-tests,regression_test,regression_tests,smoke-test,smoke-tests,smoke_test,smoke_tests,spec,specs,test,test-data,test-fixtures,testFixtures,testdata,testfixtures,tests,unit-test,unit-tests,unit_test,unit_tests,*.test.js,*.test.jsx,*.test.ts,*.test.tsx,*.test.mjs,*.spec.js,*.spec.jsx,*.spec.ts,*.spec.tsx,*_test.go,*_test.py,*_test.rb,*_test.exs,test_*.py,*Test.java,*Tests.java,*Test.kt,*Tests.kt,*Test.scala,*Test.cs,*Tests.cs,tests.rs,test.rs,yarn.lock,package-lock.json,pnpm-lock.yaml,Cargo.lock,go.sum,poetry.lock,Gemfile.lock,composer.lock,lib,src/xdr,test-lcm,test-tx-meta-baseline,adding-tests,running-tests,serialize-tests,lib/libsodium,lib/xdrpp,lib/libmedida,lib/cereal,lib/asio,lib/fmt,lib/tracy,lib/spdlog,src/protocol-curr/xdr,src/rust/soroban/p21,src/rust/soroban/p22,src/rust/soroban/p23,src/rust/soroban/p24,src/rust/soroban/p25,src/rust/soroban/p26,src/rust/soroban/p27,src/rust/soroban/p28,lib/gperftools"
+}
