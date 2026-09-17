@@ -12,7 +12,7 @@ pub type Hash256 = [u8; 32];
 pub struct CachedTxSet {
     /// The TX set hash (SHA256 of XDR)
     pub hash: Hash256,
-    /// Immutable XDR and lazily encoded response shared by the cache and
+    /// Immutable XDR and prepared zstd response shared by the cache and
     /// pending peer responses. Fanout clones only the Arc.
     pub xdr: Arc<TxSetData>,
     /// Ledger sequence this was built for
@@ -86,7 +86,7 @@ mod tests {
 
         let tx_set = CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![1, 2, 3].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![1, 2, 3]).unwrap()),
             ledger_seq: 100,
         };
 
@@ -106,12 +106,12 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: Arc::new(vec![].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
             ledger_seq: 200,
         });
 
@@ -127,12 +127,12 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: Arc::new(vec![].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
             ledger_seq: 101,
         });
 
@@ -141,7 +141,7 @@ mod tests {
         // Insert 3rd - should evict one
         cache.insert(CachedTxSet {
             hash: [3u8; 32],
-            xdr: Arc::new(vec![].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
             ledger_seq: 102,
         });
 
@@ -166,14 +166,14 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![1, 2, 3].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![1, 2, 3]).unwrap()),
             ledger_seq: 100,
         });
 
         // Insert with same hash but different data
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![4, 5, 6].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![4, 5, 6]).unwrap()),
             ledger_seq: 200,
         });
 
@@ -189,7 +189,7 @@ mod tests {
 
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![1, 2, 3].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![1, 2, 3]).unwrap()),
             ledger_seq: 100,
         });
         assert_eq!(cache.len(), 1, "Cache is full");
@@ -198,7 +198,7 @@ mod tests {
         // not evict the entry or shrink the cache below capacity.
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![4, 5, 6].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![4, 5, 6]).unwrap()),
             ledger_seq: 102,
         });
 
@@ -217,12 +217,12 @@ mod tests {
         // Insert, then overwrite the same hash with a newer ledger_seq.
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![1, 2, 3].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![1, 2, 3]).unwrap()),
             ledger_seq: 100,
         });
         cache.insert(CachedTxSet {
             hash: [1u8; 32],
-            xdr: Arc::new(vec![4, 5, 6].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![4, 5, 6]).unwrap()),
             ledger_seq: 200,
         });
 
@@ -240,12 +240,12 @@ mod tests {
         // cache exactly at capacity (not one over).
         cache.insert(CachedTxSet {
             hash: [2u8; 32],
-            xdr: Arc::new(vec![].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
             ledger_seq: 300,
         });
         cache.insert(CachedTxSet {
             hash: [3u8; 32],
-            xdr: Arc::new(vec![].into()),
+            xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
             ledger_seq: 400,
         });
 

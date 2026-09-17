@@ -26,6 +26,7 @@ class Application;
 class TxSetXDRFrame;
 class ApplicableTxSetFrame;
 using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
+using TxSetReadyCallback = std::function<void(TxSetXDRFrameConstPtr const&)>;
 using ApplicableTxSetFrameConstPtr =
     std::unique_ptr<ApplicableTxSetFrame const>;
 
@@ -146,7 +147,8 @@ makeTxSetFromTransactions(
     bool skipValidation = false,
     txtest::ParallelSorobanOrder const& parallelSorobanOrder = {}
 #endif
-);
+    ,
+    TxSetReadyCallback const& onTxSetReady = {});
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -386,7 +388,8 @@ class TxSetPhaseFrame
         bool skipValidation,
         txtest::ParallelSorobanOrder const& parallelSorobanOrder
 #endif
-    );
+        ,
+        TxSetReadyCallback const& onTxSetReady);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
@@ -557,7 +560,8 @@ class ApplicableTxSetFrame
         bool skipValidation,
         txtest::ParallelSorobanOrder const& parallelSorobanOrder
 #endif
-    );
+        ,
+        TxSetReadyCallback const& onTxSetReady);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(

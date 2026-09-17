@@ -1780,7 +1780,23 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     invalidTxPhases.resize(txPhases.size());
 
     std::tie(proposedSet, applicableProposedSet) = makeTxSetFromTransactions(
-        txPhases, mApp, closeTimeOffset, invalidTxPhases);
+        txPhases, mApp, closeTimeOffset, invalidTxPhases
+#ifdef BUILD_TESTS
+        ,
+        false, {}
+#endif
+        ,
+        [&](TxSetXDRFrameConstPtr const& txSet) {
+            // Hand the final XDR to the overlay before the builder's remaining
+            // validation. Its eager compression runs concurrently in Rust.
+            if (txSet->isGeneralizedTxSet())
+            {
+                GeneralizedTransactionSet xdrTxSet;
+                txSet->toXDR(xdrTxSet);
+                overlayMgr.cacheTxSet(txSet->getContentsHash(),
+                                      xdr::xdr_to_opaque(xdrTxSet), ledgerSeq);
+            }
+        });
     CLOG_INFO(Herder, "Proposed TX set has {} transactions",
               proposedSet->sizeTxTotal());
 
@@ -1975,20 +1991,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // if we happen to build a txset that we were trying to download.
     mPendingEnvelopes.addTxSet(txSetHash, lcl.header.ledgerSeq + 1,
                                proposedSet);
-
-    // Cache the TX set in Rust overlay so it can serve it to other peers.
-    // When a peer receives an SCP message referencing this TX set hash,
-    // they'll request it via TX set fetching, and Rust needs the XDR.
-    // Note: Rust overlay only supports GeneralizedTransactionSet (protocol >=
-    // 20)
-    if (proposedSet->isGeneralizedTxSet())
-    {
-        GeneralizedTransactionSet xdrTxSet;
-        proposedSet->toXDR(xdrTxSet);
-        auto xdrBytes = xdr::xdr_to_opaque(xdrTxSet);
-        mApp.getOverlayManager().cacheTxSet(txSetHash, xdrBytes,
-                                            lcl.header.ledgerSeq + 1);
-    }
 
     lcl = mLedgerManager.getLastClosedLedgerHeader();
     // use the slot index from ledger manager here as our vote is based off

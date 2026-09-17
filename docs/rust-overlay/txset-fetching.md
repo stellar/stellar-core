@@ -6,15 +6,37 @@ it establishes demand with `RequestTxSet`.
 
 ## Wire formats and routes
 
-Network messages use a four-byte big-endian frame length followed by a
-`StellarMessage`. `GetTxSet` contains the 32-byte hash; `GeneralizedTxSet`
-contains the set XDR. The response hash is computed from the canonical bytes
-after strict decoding, without re-encoding the set.
+Requests use a four-byte big-endian frame length followed by a
+`StellarMessage::GetTxSet` containing the 32-byte hash. Responses require
+`/stellar/txset/zstd/2.0.0` and contain an outer four-byte big-endian frame
+length, a four-byte big-endian original XDR length, and exactly one zstd frame.
+There is no raw encoding or legacy protocol fallback on this experimental branch.
+
+The decoder bounds both encoded and original sizes, requires one complete zstd
+frame and an exact output length, and strict-parses `GeneralizedTransactionSet`.
+The response hash is computed from the recovered canonical XDR without
+re-encoding. The XDR limit remains 16 MiB minus four bytes; the encoded-frame
+limit also permits zstd's worst-case expansion for incompressible input.
 
 Requests share the highest-priority control route with SCP. Responses use the
-next-priority tx-set route. Legacy-only peers use separate request and response
-streams under the old tx-set protocol, while SCP uses its old protocol. All
-routes share QUIC connection limits. See [transport](transport.md).
+next-priority tx-set route. All routes share QUIC connection limits.
+See [transport](transport.md).
+
+## Encoding ownership
+
+Core sends `CacheTxSet` as soon as a locally constructed proposal's final XDR is
+available, before the builder's roundtrip and final validation. Rust eagerly
+compresses it at zstd level 1 on a blocking worker while Core continues those
+checks. App awaits the prepared representation before processing another IPC
+message or application event; the network dispatcher remains independent.
+Repeated local publication of an already cached hash reuses its encoding.
+
+A receiving overlay retains the original encoded allocation while decompressing
+and strict-parsing on a blocking worker. The cache shares an immutable
+`Arc<TxSetData>` containing both original XDR and encoded bytes. Peer responses
+borrow those encoded bytes directly, so relays never recompress received sets.
+Encoding is complete before cache insertion; sending has no lazy initialization
+or compression decision. Core continues receiving uncompressed XDR over IPC.
 
 ## Core requests and network prefetches
 
@@ -55,7 +77,7 @@ provide a timeout or automatic retry for a silent peer.
 ## Cache and externalization
 
 The cache holds up to 100 sets in App. Each entry contains its content hash,
-canonical XDR, and ledger sequence. Capacity eviction uses insertion order;
+canonical XDR, encoded response, and ledger sequence. Capacity eviction uses insertion order;
 updating an existing hash does not move it. `LedgerClosed` evicts entries older
 than `sequence - 12`, using saturating subtraction. Pending Core demand expires
 against the same retained-slot boundary.
