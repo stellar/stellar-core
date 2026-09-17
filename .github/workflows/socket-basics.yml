@@ -1,0 +1,48 @@
+# Socket Basics security scan for stellar-core.
+# Upstream: https://github.com/SocketDev/socket-basics
+# Scanner settings live in .socket-basics.json; SAST path exclusions live in
+# .semgrepignore.
+#
+# This workflow does SAST through OpenGrep, secret scanning through TruffleHog,
+# Dockerfile misconfiguration scanning through Trivy, and submits results to
+# Socket.dev
+
+name: Socket Basics security scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "32 14 * * 6"
+
+permissions:
+  contents: read
+
+jobs:
+  socket-basics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # Remove the GitHub token from the workspace after checkout, so it is
+          # not mounted into the Socket Basics container, which doesn't need it.
+          persist-credentials: false
+
+      - name: Run Socket Basics
+        env:
+          SOCKET_SECURITY_API_TOKEN: ${{ secrets.SOCKET_SECURITY_API_TOKEN }}
+          SOCKET_ORG: stellar
+        run: |
+          # Socket Basics is pinned by digest since rule tuning is calibrated
+          # to the exact ruleset contained in this image. Automatic updates
+          # could introduce new rules and a sudden increase in false
+          # positives, as these tools are generally noisy without tuning.
+          docker run --rm \
+            -v "$PWD:/github/workspace" \
+            -w /github/workspace \
+            -e SOCKET_SECURITY_API_TOKEN \
+            -e SOCKET_ORG \
+            -e GITHUB_REPOSITORY \
+            -e GITHUB_REF_NAME \
+            -e GITHUB_SHA \
+            ghcr.io/socketdev/socket-basics@sha256:d463bae84f21d0240d5e197acb81e95144a966a20ab7cd05cca3a70e1796a4bb \
+            --config .socket-basics.json
