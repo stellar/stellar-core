@@ -36,6 +36,9 @@
 		28,
 		29
 	],
+	"getUpperBoundCloseTimeOffset under sub-second ledgers|fractional-second close times round up, not down" : [ "EbIPrt4owbA=", "kAwIMT7FxME=", "+8eXWHGepSo=", "Pk+9/t2Sw1Q=" ],
+	"getUpperBoundCloseTimeOffset under sub-second ledgers|sub-second close times round the buffer up to a whole second" : [ "EbIPrt4owbA=", "kAwIMT7FxME=", "+8eXWHGepSo=", "Pk+9/t2Sw1Q=" ],
+	"getUpperBoundCloseTimeOffset under sub-second ledgers|whole-second close times keep the legacy 2x buffer" : [ "EbIPrt4owbA=", "kAwIMT7FxME=", "+8eXWHGepSo=", "Pk+9/t2Sw1Q=" ],
 	"overlay validation handles ed25519 signed payload signers|protocol version 19" : 
 	[
 		"bXrfFM/EOrA=",
@@ -201,6 +204,7 @@
 	],
 	"overlay validation handles ed25519 signed payload signers|protocol version 29|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
 	"overlay validation handles ed25519 signed payload signers|protocol version 29|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
+	"transaction time bounds under sub-second ledgers" : [ "DXfbo737FZ8=", "DXfbo737FZ8=" ],
 	"txenvelope|protocol version 0|alternative signatures" : 
 	[
 		"49rU55h6rBs=",

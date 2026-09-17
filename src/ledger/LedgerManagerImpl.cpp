@@ -1295,13 +1295,14 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
 uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
-    uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
-    if (ct == 0)
+    auto const closeTime =
+        getApplyTime(getLastClosedLedgerHeader().header.scpValue);
+    if (closeTime == ApplyTime{})
     {
         return 0;
     }
-    uint64_t now = mApp.timeNow();
-    return (now > ct) ? (now - ct) : 0;
+    TimePoint now = mApp.timeNow();
+    return (now > closeTime.timePoint()) ? (now - closeTime.timePoint()) : 0;
 }
 
 void
@@ -2644,7 +2645,7 @@ static ParallelLedgerInfo
 getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
 {
     return {lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
-            lh.scpValue.closeTime, app.getNetworkID()};
+            getApplyTime(lh.scpValue), app.getNetworkID()};
 }
 
 std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>

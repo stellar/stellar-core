@@ -16,6 +16,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/SecretManager.h"
 #include "util/UnorderedSet.h"
 
@@ -31,11 +32,8 @@
 
 namespace stellar
 {
-uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 28
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                                                       + 1
-#endif
-    ;
+uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION =
+    MAX_SUPPORTED_PROTOCOL_VERSION;
 
 bool gIsProductionNetwork = false;
 
@@ -2921,7 +2919,7 @@ Config::getExpectedLedgerCloseTimeTestingOverride() const
     if (ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
     {
         return std::chrono::milliseconds{
-            ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING * 1000};
+            ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING};
     }
 
     if (ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)

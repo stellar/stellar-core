@@ -10,6 +10,7 @@
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/PendingEnvelopes.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
@@ -35,15 +36,6 @@
 
 namespace stellar
 {
-
-namespace
-{
-bool
-isEmptyTxSetStellarValue(StellarValue const& sv)
-{
-    return sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET;
-}
-}
 
 uint32_t const TXSETVALID_CACHE_SIZE = 1000;
 
@@ -264,6 +256,13 @@ HerderSCPDriver::protocolAllowsEmptyTxSetValues() const
 }
 
 bool
+HerderSCPDriver::protocolUsesMsCloseTime() const
+{
+    return protocolHasMsCloseTime(
+        mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion);
+}
+
+bool
 HerderSCPDriver::isParallelTxSetDownloadEnabled() const
 {
     return mApp.getConfig().EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD &&
@@ -273,24 +272,30 @@ HerderSCPDriver::isParallelTxSetDownloadEnabled() const
 // value validation
 
 bool
-HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
+HerderSCPDriver::checkCloseTime(uint64_t slotIndex, ConsensusTime lastCloseTime,
                                 StellarValue const& b) const
 {
+    auto const closeTime = getConsensusTime(b);
+
     // Check closeTime (not too old)
-    if (b.closeTime <= lastCloseTime)
+    if (closeTime <= lastCloseTime)
     {
         CLOG_TRACE(Herder, "Close time too old for slot {}, got {} vs {}",
-                   slotIndex, b.closeTime, lastCloseTime);
+                   slotIndex, closeTime.toString(), lastCloseTime.toString());
         return false;
     }
 
     // Check closeTime (not too far in future)
-    uint64_t timeNow = mApp.timeNow();
-    if (b.closeTime > timeNow + Herder::MAX_TIME_SLIP_SECONDS.count())
+    auto const protocolVersion =
+        mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion;
+    auto const maxCloseTime = ConsensusTime::fromSystemTime(
+        mApp.getClock().system_now() + Herder::MAX_TIME_SLIP_SECONDS,
+        protocolVersion);
+    if (closeTime > maxCloseTime)
     {
         CLOG_TRACE(Herder,
                    "Close time too far in future for slot {}, got {} vs {}",
-                   slotIndex, b.closeTime, timeNow);
+                   slotIndex, closeTime.toString(), maxCloseTime.toString());
         return false;
     }
     return true;
@@ -303,14 +308,16 @@ HerderSCPDriver::validatePastOrFutureValue(
 {
     ZoneScoped;
     releaseAssert(slotIndex != lcl.header.ledgerSeq + 1);
+    auto const closeTime = getConsensusTime(b);
+    auto const lclCloseTime = getConsensusTime(lcl.header.scpValue);
     if (slotIndex == lcl.header.ledgerSeq)
     {
         // previous ledger
-        if (b.closeTime != lcl.header.scpValue.closeTime)
+        if (closeTime != lclCloseTime)
         {
-            CLOG_TRACE(Herder,
-                       "Got a bad close time for ledger {}, got {} vs {}",
-                       slotIndex, b.closeTime, lcl.header.scpValue.closeTime);
+            CLOG_TRACE(
+                Herder, "Got a bad close time for ledger {}, got {} vs {}",
+                slotIndex, closeTime.toString(), lclCloseTime.toString());
             return SCPDriver::kInvalidValue;
         }
         if (isEmptyTxSetStellarValue(b))
@@ -320,13 +327,13 @@ HerderSCPDriver::validatePastOrFutureValue(
                 return SCPDriver::kInvalidValue;
             }
 
-            auto const& ov = b.ext.proposedValue();
             // We can check previousLedgerHash because the LCL header
             // contains the hash of its parent. We cannot check
             // previousLedgerVersion because the LCL header only has
             // its own version, and a protocol upgrade on the LCL
             // could make it differ from its parent's version.
-            if (ov.previousLedgerHash != lcl.header.previousLedgerHash)
+            if (getProposedPreviousLedgerHash(b) !=
+                lcl.header.previousLedgerHash)
             {
                 CLOG_TRACE(Herder,
                            "Got a bad previousLedgerHash for empty-tx-set "
@@ -339,15 +346,15 @@ HerderSCPDriver::validatePastOrFutureValue(
     else if (slotIndex < lcl.header.ledgerSeq)
     {
         // basic sanity check on older value
-        if (b.closeTime >= lcl.header.scpValue.closeTime)
+        if (closeTime >= lclCloseTime)
         {
-            CLOG_TRACE(Herder,
-                       "Got a bad close time for ledger {}, got {} vs {}",
-                       slotIndex, b.closeTime, lcl.header.scpValue.closeTime);
+            CLOG_TRACE(
+                Herder, "Got a bad close time for ledger {}, got {} vs {}",
+                slotIndex, closeTime.toString(), lclCloseTime.toString());
             return SCPDriver::kInvalidValue;
         }
     }
-    else if (!checkCloseTime(slotIndex, lcl.header.scpValue.closeTime, b))
+    else if (!checkCloseTime(slotIndex, lclCloseTime, b))
     {
         // future messages must be valid compared to lastCloseTime
         return SCPDriver::kInvalidValue;
@@ -414,7 +421,8 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
     if (isCurrentLedger)
     {
         // The value is for LCL+1, perform all possible checks
-        if (!checkCloseTime(slotIndex, lcl.header.scpValue.closeTime, b))
+        if (!checkCloseTime(slotIndex, getConsensusTime(lcl.header.scpValue),
+                            b))
         {
             return SCPDriver::kInvalidValue;
         }
@@ -439,9 +447,8 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
                            slotIndex);
                 return SCPDriver::kInvalidValue;
             }
-            auto const& ov = b.ext.proposedValue();
-            if (ov.previousLedgerHash != lcl.hash ||
-                ov.previousLedgerVersion != lcl.header.ledgerVersion)
+            if (getProposedPreviousLedgerHash(b) != lcl.hash ||
+                getProposedPreviousLedgerVersion(b) != lcl.header.ledgerVersion)
             {
                 CLOG_DEBUG(Herder,
                            "HerderSCPDriver::validateValue i: {} empty-tx-set "
@@ -458,7 +465,8 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
         TxSetXDRFrameConstPtr txSet = std::get<TxSetXDRFrameConstPtr>(
             mPendingEnvelopes.getTxSet(txSetHash));
 
-        auto closeTimeOffset = b.closeTime - lcl.header.scpValue.closeTime;
+        auto closeTimeOffset =
+            getApplyTime(b) - getApplyTime(lcl.header.scpValue);
 
         if (!txSet)
         {
@@ -515,7 +523,8 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
 }
 
 bool
-HerderSCPDriver::deserializeAndValidateStellarValue(Value const& value,
+HerderSCPDriver::deserializeAndValidateStellarValue(uint64_t slotIndex,
+                                                    Value const& value,
                                                     StellarValue& sv) const
 {
     ZoneScoped;
@@ -529,22 +538,57 @@ HerderSCPDriver::deserializeAndValidateStellarValue(Value const& value,
         return false;
     }
 
-    bool const emptyTxSetsAllowed = protocolAllowsEmptyTxSetValues();
-    if (sv.ext.v() != STELLAR_VALUE_SIGNED)
+#ifdef MS_CLOSE_TIME
+    // An ms value's closeTime must agree with its closeTimeMs
+    if (!hasValidCloseTime(sv))
     {
-        if (!emptyTxSetsAllowed)
-        {
-            // Empty-tx-set values are not allowed, and the value is not a
-            // signed value, so it is invalid.
-            return false;
-        }
+        return false;
+    }
 
-        if (!isEmptyTxSetStellarValue(sv))
-        {
-            // The value is not a signed value or an empty-tx-set value, so it
-            // is invalid.
-            return false;
-        }
+    // Whether a slot uses whole-second or ms close times is decided by the
+    // protocol of the ledger before it (CAP-0088). We only know that protocol
+    // for certain for the next slot, LCL+1; for any other slot the network may
+    // have upgraded somewhere between our LCL and that slot, so we accept
+    // every format we cannot rule out:
+    //
+    //                  LCL before ms upgrade       LCL at/after ms upgrade
+    //   slot <= LCL    whole-second only           either (may predate it)
+    //   slot == LCL+1  whole-second only           ms only
+    //   slot >  LCL+1  either (may have upgraded)  ms only
+    //
+    // Prior to the upgrade, if we are behind, it's possible our peers our
+    // sending us valid future slots after an upgrade we have not yet applied.
+    // Similarly for past slots, it's possible these predate the upgrade that we
+    // have already applied.
+    auto const& lclHeader = mLedgerManager.getLastClosedLedgerHeader().header;
+    bool const lclProtocolHasMsCloseTime =
+        protocolHasMsCloseTime(lclHeader.ledgerVersion);
+    bool const slotAlreadyClosed = slotIndex <= lclHeader.ledgerSeq;
+    bool const slotBeyondNext = slotIndex > lclHeader.ledgerSeq + 1;
+    bool const valueHasMsCloseTime = isMsCloseTimeStellarValue(sv);
+
+    bool const msCloseTimeAllowed = lclProtocolHasMsCloseTime || slotBeyondNext;
+    bool const wholeSecondCloseTimeAllowed =
+        !lclProtocolHasMsCloseTime || slotAlreadyClosed;
+    bool const valueFormatAllowed =
+        valueHasMsCloseTime ? msCloseTimeAllowed : wholeSecondCloseTimeAllowed;
+    if (!valueFormatAllowed)
+    {
+        return false;
+    }
+#endif // MS_CLOSE_TIME
+
+    // Values must be signed or empty-tx-set values
+    bool const isSigned = isSignedStellarValue(sv);
+    bool const isEmpty = isEmptyTxSetStellarValue(sv);
+    if (!isSigned && !isEmpty)
+    {
+        return false;
+    }
+    // Empty-tx-set values are only valid once the protocol allows them
+    if (isEmpty && !protocolAllowsEmptyTxSetValues())
+    {
+        return false;
     }
 
     // Empty-tx-set values must have the empty-tx-set hash, and
@@ -599,7 +643,7 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
     releaseAssert(threadIsMain());
 
     StellarValue b;
-    if (!deserializeAndValidateStellarValue(value, b))
+    if (!deserializeAndValidateStellarValue(slotIndex, value, b))
     {
         mSCPMetrics.mValueInvalid.Mark();
         return SCPDriver::kInvalidValue;
@@ -637,7 +681,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
 {
     ZoneScoped;
     StellarValue b;
-    if (!deserializeAndValidateStellarValue(value, b))
+    if (!deserializeAndValidateStellarValue(slotIndex, value, b))
     {
         return nullptr;
     }
@@ -687,14 +731,28 @@ HerderSCPDriver::makeEmptyTxSetValueFromValue(Value const& v) const
 {
     ZoneScoped;
     StellarValue proposedValue = toStellarValueOrThrow(v);
-    releaseAssert(proposedValue.ext.v() == STELLAR_VALUE_SIGNED);
+    releaseAssert(isSignedStellarValue(proposedValue));
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
     StellarValue sv;
-    sv.ext.v(STELLAR_VALUE_EMPTY_TX_SET);
     sv.txSetHash = Herder::EMPTY_TX_SET_HASH;
     sv.closeTime = proposedValue.closeTime;
     sv.upgrades = proposedValue.upgrades;
+#ifdef MS_CLOSE_TIME
+    if (proposedValue.ext.v() == STELLAR_VALUE_SIGNED_MS)
+    {
+        sv.ext.v(STELLAR_VALUE_EMPTY_TX_SET_MS);
+        auto& ov = sv.ext.proposedMsValue();
+        ov.closeTimeMs = proposedValue.ext.signedMsValue().closeTimeMs;
+        ov.txSetHash = proposedValue.txSetHash;
+        ov.previousLedgerHash = lcl.hash;
+        ov.previousLedgerVersion = lcl.header.ledgerVersion;
+        ov.lcValueSignature =
+            proposedValue.ext.signedMsValue().lcValueSignature;
+        return xdr::xdr_to_opaque(sv);
+    }
+#endif // MS_CLOSE_TIME
+    sv.ext.v(STELLAR_VALUE_EMPTY_TX_SET);
     sv.ext.proposedValue().txSetHash = proposedValue.txSetHash;
     sv.ext.proposedValue().previousLedgerHash = lcl.hash;
     sv.ext.proposedValue().previousLedgerVersion = lcl.header.ledgerVersion;
@@ -1833,15 +1891,17 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
 void
 HerderSCPDriver::cacheValidTxSet(ApplicableTxSetFrame const& txSet,
                                  LedgerHeaderHistoryEntry const& lcl,
-                                 uint64_t closeTimeOffset) const
+                                 ApplyTimeOffset closeTimeOffset) const
 {
-    auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
-                                closeTimeOffset, closeTimeOffset};
+    auto key =
+        TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
+                         closeTimeOffset.seconds(), closeTimeOffset.seconds()};
     bool* pRes = mTxSetValidCache.maybeGet(key);
     if (pRes == nullptr)
     {
 #ifdef SCP_DEBUGGING
-        releaseAssert(txSet.checkValid(mApp, closeTimeOffset, closeTimeOffset));
+        releaseAssert(txSet.checkValid(mApp, closeTimeOffset.seconds(),
+                                       closeTimeOffset.seconds()));
 #endif
         mTxSetValidCache.put(key, true);
     }
@@ -1859,12 +1919,13 @@ HerderSCPDriver::cacheValidTxSet(ApplicableTxSetFrame const& txSet,
 bool
 HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
                                          LedgerHeaderHistoryEntry const& lcl,
-                                         uint64_t closeTimeOffset) const
+                                         ApplyTimeOffset closeTimeOffset) const
 {
     ZoneScoped;
 
-    auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
-                                closeTimeOffset, closeTimeOffset};
+    auto key =
+        TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
+                         closeTimeOffset.seconds(), closeTimeOffset.seconds()};
 
     bool* pRes = mTxSetValidCache.maybeGet(key);
     if (pRes == nullptr)
@@ -1893,8 +1954,8 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
         }
         else
         {
-            res = applicableTxSet->checkValid(mApp, closeTimeOffset,
-                                              closeTimeOffset);
+            res = applicableTxSet->checkValid(mApp, closeTimeOffset.seconds(),
+                                              closeTimeOffset.seconds());
         }
 
         mTxSetValidCache.put(key, res);
