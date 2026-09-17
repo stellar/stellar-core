@@ -6,23 +6,22 @@
 
 #include "herder/SurgePricingUtils.h"
 #include "herder/TxSetFrame.h"
-#include "ledger/NetworkConfig.h"
-#include "main/Config.h"
 
 namespace stellar
 {
+class Application;
+
 // Builds a sequence of parallel processing stages from the provided
 // transactions while respecting the limits defined by the network
 // configuration.
 // The number of stages and the number of clusters in each stage is determined
-// by the provided configurations (`cfg` and `sorobanCfg`).
+// by the node configuration and the last closed Soroban network configuration.
 // The resource limits in transactions are determined based on the input
 // `laneConfig`.
 // This doesn't support multi-lane surge pricing and thus it's expected
 // `laneConfig` to only have a configuration for a single surge pricing lane.
 TxStageFrameList buildSurgePricedParallelSorobanPhase(
-    TxFrameList const& txFrames, Config const& cfg,
-    SorobanNetworkConfig const& sorobanCfg,
+    Application& app, TxFrameList const& txFrames,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
     std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
 

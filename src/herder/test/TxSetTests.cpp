@@ -3269,7 +3269,7 @@ TEST_CASE("parallel tx set building benchmark",
 {
     int const MIN_STAGE_COUNT = 1;
     int const MAX_STAGE_COUNT = 4;
-    int const CLUSTER_COUNT = MAX_LEDGER_DEPENDENT_TX_CLUSTERS;
+    int const CLUSTER_COUNT = MAX_LEDGER_DEPENDENT_TX_CLUSTERS - 1;
     int const MEAN_INCLUDED_TX_COUNT = 5000;
     int const TX_COUNT_MEMPOOL_MULTIPLIER = 2;
 
@@ -3288,30 +3288,51 @@ TEST_CASE("parallel tx set building benchmark",
     int const MEAN_WRITE_BYTES_PER_TX = 500;
     int const MAX_WRITE_BYTES_PER_TX = 2000;
 
+    VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = MIN_STAGE_COUNT;
     cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = MAX_STAGE_COUNT;
+    // Set the limits override very high in order for the config upgrade below
+    // to pass.
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    auto app = createTestApplication(clock, cfg);
 
     // Only per-ledger limits matter for tx set building, as we don't perform
     // any validation.
-    auto sorobanCfg = SorobanNetworkConfig::emptyConfig();
-    sorobanCfg.mLedgerMaxTransactionsSizeBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_TX_SIZE;
-    sorobanCfg.mLedgerMaxInstructions =
-        static_cast<int64_t>(MEAN_INSTRUCTIONS_PER_TX) *
-        MEAN_INCLUDED_TX_COUNT / CLUSTER_COUNT;
-    sorobanCfg.mLedgerMaxDiskReadEntries =
-        MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX);
-    sorobanCfg.mLedgerMaxDiskReadBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX;
-    sorobanCfg.mLedgerMaxWriteLedgerEntries =
-        MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX;
-    sorobanCfg.mLedgerMaxWriteBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_WRITE_BYTES_PER_TX;
-    // This doesn't need to be a real limit for this test.
-    sorobanCfg.mLedgerMaxTxCount = MEAN_INCLUDED_TX_COUNT * 10;
-    sorobanCfg.mLedgerMaxDependentTxClusters = CLUSTER_COUNT;
+    modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& sorobanCfg) {
+        // The per-tx limits are only set to satisfy the config upgrade
+        // validity requirement of every ledger limit being at least as high as
+        // the respective per-tx limit.
+        sorobanCfg.mTxMaxSizeBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+        sorobanCfg.mTxMaxInstructions = MAX_INSTRUCTIONS_PER_TX;
+        sorobanCfg.mTxMaxDiskReadEntries = MAX_READS_PER_TX + MAX_WRITES_PER_TX;
+        sorobanCfg.mTxMaxFootprintEntries = sorobanCfg.mTxMaxDiskReadEntries;
+        sorobanCfg.mTxMaxDiskReadBytes = MAX_READ_BYTES_PER_TX;
+        sorobanCfg.mTxMaxWriteLedgerEntries = MAX_WRITES_PER_TX;
+        sorobanCfg.mTxMaxWriteBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
+        sorobanCfg.mLedgerMaxTransactionsSizeBytes =
+            MEAN_INCLUDED_TX_COUNT * MEAN_TX_SIZE;
+        sorobanCfg.mLedgerMaxInstructions =
+            static_cast<int64_t>(MEAN_INSTRUCTIONS_PER_TX) *
+            MEAN_INCLUDED_TX_COUNT / CLUSTER_COUNT;
+        sorobanCfg.mLedgerMaxDiskReadEntries =
+            MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX);
+        sorobanCfg.mLedgerMaxDiskReadBytes =
+            MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX;
+        sorobanCfg.mLedgerMaxWriteLedgerEntries =
+            MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX;
+        sorobanCfg.mLedgerMaxWriteBytes =
+            MEAN_INCLUDED_TX_COUNT * MEAN_WRITE_BYTES_PER_TX;
+        // This doesn't need to be a real limit for this test.
+        sorobanCfg.mLedgerMaxTxCount = MEAN_INCLUDED_TX_COUNT * 10;
+        sorobanCfg.mLedgerMaxDependentTxClusters = CLUSTER_COUNT;
+    });
+
+    auto const& sorobanCfg =
+        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
     auto limits = sorobanCfg.maxLedgerResources();
     limits.setVal(Resource::Type::INSTRUCTIONS,
                   std::numeric_limits<int64_t>::max());
@@ -3479,8 +3500,8 @@ TEST_CASE("parallel tx set building benchmark",
             std::vector<bool> hadTxNotFittingLane;
             auto start = std::chrono::steady_clock::now();
             auto stages = buildSurgePricedParallelSorobanPhase(
-                allTxs[iter], cfg, sorobanCfg, surgePricingLaneConfig,
-                hadTxNotFittingLane, ledgerVersion);
+                *app, allTxs[iter], surgePricingLaneConfig, hadTxNotFittingLane,
+                ledgerVersion);
             auto end = std::chrono::steady_clock::now();
             totalDuration +=
                 std::chrono::duration_cast<std::chrono::nanoseconds>(end -
