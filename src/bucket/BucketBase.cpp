@@ -426,6 +426,13 @@ BucketBase<BucketT, IndexT>::merge(
     return out.getBucket(bucketManager, &mk);
 }
 
+template <typename BucketT, typename IndexT>
+std::optional<std::pair<std::streamoff, std::streamoff>>
+BucketBase<BucketT, IndexT>::getRangeForType(LedgerEntryType type) const
+{
+    return getIndex().getRangeForType(type);
+}
+
 template void BucketBase<LiveBucket, LiveBucket::IndexT>::mergeInternal<
     MemoryMergeInput<LiveBucket>, std::function<void(BucketEntry const&)>,
     std::vector<BucketInputIterator<LiveBucket>>&, bool&>(

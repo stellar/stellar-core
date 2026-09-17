@@ -459,16 +459,19 @@ InMemorySorobanState::initializeStateFromSnapshot(
         auto contractDataHandler = [this](LedgerEntry const& le,
                                           LedgerKey const&) {
             createContractDataEntry(le);
+            return Loop::INCOMPLETE;
         };
 
         auto ttlHandler = [this](LedgerEntry const& le, LedgerKey const&) {
             createTTL(le);
+            return Loop::INCOMPLETE;
         };
 
         auto contractCodeHandler = [this, &sorobanConfig,
                                     ledgerVersion](LedgerEntry const& le,
                                                    LedgerKey const&) {
             createContractCodeEntry(le, sorobanConfig, ledgerVersion);
+            return Loop::INCOMPLETE;
         };
 
         applyView.scanCurrentLiveEntriesOfType(CONTRACT_DATA,

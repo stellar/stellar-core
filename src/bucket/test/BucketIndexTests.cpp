@@ -1607,9 +1607,9 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
-// Fixture for the scanForLiveEntriesOfType randomized test. Records the
-// live-entry set created by buildMultiVersionTest. Includes the genesis
-// root ACCOUNT but not genesis CONFIG_SETTINGs.
+// Fixture for the scanForCurrentEntriesOfType randomized test. Records the
+// live-entry set created by buildMultiVersionTest. Includes the genesis root
+// ACCOUNT but not genesis CONFIG_SETTINGs.
 class BucketIndexScanTest : public BucketIndexTest
 {
     UnorderedMap<LedgerKey, LedgerEntry> mAllEntries;
@@ -1654,7 +1654,7 @@ class BucketIndexScanTest : public BucketIndexTest
     }
 };
 
-TEST_CASE("scanForLiveEntriesOfType randomized testing",
+TEST_CASE("scanForCurrentEntriesOfType randomized testing",
           "[bucket][bucketindex]")
 {
     // Scan for each of the given types and check the result against the
@@ -1682,6 +1682,7 @@ TEST_CASE("scanForLiveEntriesOfType randomized testing",
 
                     // Each key should only be emitted once
                     REQUIRE(found.emplace(key, entry).second);
+                    return Loop::INCOMPLETE;
                 });
             REQUIRE(found == expected);
         }
@@ -1704,8 +1705,10 @@ TEST_CASE("scanForLiveEntriesOfType randomized testing",
             INFO(
                 "type = " << xdr::xdr_traits<LedgerEntryType>::enum_name(type));
             ledgerView.scanCurrentLiveEntriesOfType(
-                type,
-                [](LedgerEntry const&, LedgerKey const&) { REQUIRE(false); });
+                type, [](LedgerEntry const&, LedgerKey const&) {
+                    REQUIRE(false);
+                    return Loop::COMPLETE;
+                });
         }
     });
 
@@ -1721,7 +1724,7 @@ TEST_CASE("scanForLiveEntriesOfType randomized testing",
     });
 }
 
-TEST_CASE("scanForLiveEntriesOfType loser tree unit tests",
+TEST_CASE("scanForCurrentEntriesOfType loser tree unit tests",
           "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
@@ -1794,6 +1797,7 @@ TEST_CASE("scanForLiveEntriesOfType loser tree unit tests",
 
                     // Each key must be emitted exactly once
                     REQUIRE(found.emplace(key, entry).second);
+                    return Loop::INCOMPLETE;
                 });
             return found;
         };
@@ -1801,8 +1805,10 @@ TEST_CASE("scanForLiveEntriesOfType loser tree unit tests",
         auto requireNoCallback = [](ImmutableLedgerView const& view,
                                     LedgerEntryType type) {
             view.scanCurrentLiveEntriesOfType(
-                type,
-                [](LedgerEntry const&, LedgerKey const&) { REQUIRE(false); });
+                type, [](LedgerEntry const&, LedgerKey const&) {
+                    REQUIRE(false);
+                    return Loop::COMPLETE;
+                });
         };
 
         SECTION("k disjoint buckets")
