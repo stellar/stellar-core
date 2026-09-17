@@ -24,6 +24,15 @@ See [transport](transport.md).
 
 ## Encoding ownership
 
+Only nomination leaders construct local proposals. Followers start SCP with a
+lazy value supplier and vote for received leader proposals without pulling the
+mempool, building a private set, or compressing it. A node promoted by a
+nomination timeout builds only if SCP needs its own value; it rechecks ledger
+state and chooses a current close time then. Subsequent rounds reuse that value.
+First-round leaders may prepare before the trigger; later leaders do no
+speculative preparation. Nomination stops on externalization even for followers
+that never constructed a local value.
+
 Core sends `CacheTxSet` as soon as a locally constructed proposal's final XDR is
 available, before the builder's roundtrip and final validation. Rust eagerly
 compresses it at zstd level 1 on a blocking worker while Core continues those

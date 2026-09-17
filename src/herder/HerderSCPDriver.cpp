@@ -1253,7 +1253,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
             logQuorumInformationAndUpdateMetrics(slotIndex - 2);
         }
 
-        if (mCurrentValue)
+        if (mLedgerSeqNominating != 0)
         {
             // stop nomination
             // this may or may not be the ledger that is currently externalizing
@@ -1262,6 +1262,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
             // or we're going to trigger catchup from history
             mSCP.stopNomination(mLedgerSeqNominating);
             mCurrentValue.reset();
+            mLedgerSeqNominating = 0;
         }
 
         if (!mHerder.isTracking())
@@ -1337,24 +1338,37 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 }
 
 void
-HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
-                          TxSetXDRFrameConstPtr proposedSet,
+HerderSCPDriver::nominate(uint64_t slotIndex, NominationValueSupplier makeValue,
                           StellarValue const& previousValue)
 {
     ZoneScoped;
-    mCurrentValue = wrapStellarValue(value);
+    if (mLedgerSeqNominating != slotIndex)
+    {
+        mCurrentValue.reset();
+    }
     mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
-
-    auto valueHash = xdrSha256(mCurrentValue->getValue());
-    CLOG_DEBUG(Herder,
-               "HerderSCPDriver::triggerNextLedger txSet.size: {} "
-               "previousLedgerHash: {} value: {} slot: {}",
-               proposedSet->sizeTxTotal(),
-               hexAbbrev(proposedSet->previousLedgerHash()),
-               hexAbbrev(valueHash), slotIndex);
-
     auto prevValue = xdr::xdr_to_opaque(previousValue);
-    mSCP.nominate(slotIndex, mCurrentValue, prevValue);
+    mSCP.nominate(
+        slotIndex,
+        [this, slotIndex,
+         makeValue = std::move(makeValue)]() -> ValueWrapperPtr {
+            if (mLedgerSeqNominating != slotIndex)
+            {
+                return nullptr;
+            }
+            if (!mCurrentValue)
+            {
+                auto value = makeValue();
+                // Publishing the tx set may externalize a pending value.
+                if (mLedgerSeqNominating != slotIndex)
+                {
+                    return nullptr;
+                }
+                mCurrentValue = std::move(value);
+            }
+            return mCurrentValue;
+        },
+        prevValue);
 }
 
 SCPQuorumSetPtr

@@ -51,9 +51,9 @@ class SCP
     // invokes the appropriate methods
     EnvelopeState receiveEnvelope(SCPEnvelopeWrapperPtr envelope);
 
-    // Submit a value to consider for slotIndex
+    // Start nomination for slotIndex, constructing a local value only if needed
     // previousValue is the value from slotIndex-1
-    bool nominate(uint64 slotIndex, ValueWrapperPtr value,
+    bool nominate(uint64 slotIndex, NominationValueSupplier const& makeValue,
                   Value const& previousValue);
 
     // stops nomination for a slot

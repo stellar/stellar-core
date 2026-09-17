@@ -1036,8 +1036,13 @@ ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
     // Nomination through externalization and apply use production SCP paths.
     herder.getPendingEnvelopes().putTxSet(receivedTxSet->getContentsHash(),
                                           ledgerSeq, receivedTxSet);
-    herder.getHerderSCPDriver().nominate(ledgerSeq, nominatedValue,
-                                         receivedTxSet, lcl.header.scpValue);
+    auto& driver = herder.getHerderSCPDriver();
+    driver.nominate(
+        ledgerSeq,
+        [&driver, nominatedValue]() {
+            return driver.wrapStellarValue(nominatedValue);
+        },
+        lcl.header.scpValue);
 
     auto const deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(60);
