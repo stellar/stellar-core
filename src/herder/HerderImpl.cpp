@@ -1499,7 +1499,7 @@ HerderImpl::setupTriggerNextLedger()
         if (getSCP().isValidator())
         {
             auto leaders = getSCP().predictNominationLeaders(
-                nextIndex, xdr::xdr_to_opaque(lcl.header.scpValue), 2);
+                nextIndex, xdr::xdr_to_opaque(lcl.header.scpValue), 1);
             if (leaders.count(getSCP().getLocalNodeID()))
             {
                 // Validate against the close time we expect at the trigger,
@@ -1672,6 +1672,15 @@ HerderImpl::prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     {
         return;
     }
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (!getSCP().isValidator() ||
+        !getSCP()
+             .predictNominationLeaders(
+                 ledgerSeq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
+             .count(getSCP().getLocalNodeID()))
+    {
+        return;
+    }
     mPreparedTxSet = buildTxSet(ledgerSeq, closeTime);
     CLOG_INFO(Herder,
               "Prepared TX set for ledger {} before trigger: {} transactions, "
@@ -1686,6 +1695,15 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     auto const lcl = mLedgerManager.getLastClosedLedgerHeader();
     releaseAssert(ledgerSeq == lcl.header.ledgerSeq + 1);
     releaseAssert(closeTime > getConsensusTime(lcl.header.scpValue));
+    bool const activeLeader = getSCP().getNominationLeaders(ledgerSeq).count(
+        getSCP().getLocalNodeID());
+    releaseAssert(activeLeader ||
+                  getSCP()
+                      .predictNominationLeaders(
+                          ledgerSeq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
+                      .count(getSCP().getLocalNodeID()));
+    CLOG_INFO(Herder, "Building TX set as {} nomination leader for ledger {}",
+              activeLeader ? "active" : "first-round", ledgerSeq);
     auto const closeTimeOffset =
         closeTime.toApplyTime() - getApplyTime(lcl.header.scpValue);
     TxSetXDRFrameConstPtr proposedSet;
@@ -1936,6 +1954,46 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
+    if (!getSCP().isValidator())
+    {
+        CLOG_DEBUG(Herder, "Non-validating node, skipping nomination (SCP).");
+        return;
+    }
+
+    getHerderSCPDriver().recordSCPEvent(ledgerSeqToTrigger, true);
+    mHerderSCPDriver.nominate(
+        ledgerSeqToTrigger,
+        [this, ledgerSeqToTrigger, checkTrackingSCP]() {
+            return makeNominationValue(ledgerSeqToTrigger, checkTrackingSCP);
+        },
+        lcl.header.scpValue);
+}
+
+ValueWrapperPtr
+HerderImpl::makeNominationValue(uint32_t ledgerSeqToTrigger,
+                                bool checkTrackingSCP)
+{
+    // A follower can be promoted long after the trigger. Recheck the ledger
+    // state and select a fresh close time when SCP actually needs our value.
+    if ((!isTracking() && checkTrackingSCP) || !mLedgerManager.isSynced() ||
+        mLedgerManager.isApplying())
+    {
+        return nullptr;
+    }
+    auto lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (ledgerSeqToTrigger != lcl.header.ledgerSeq + 1)
+    {
+        return nullptr;
+    }
+    auto nextCloseTime = std::max(
+        ConsensusTime::fromSystemTime(mApp.getClock().system_now(),
+                                      lcl.header.ledgerVersion),
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion));
+    if (ctValidityOffset(nextCloseTime) != std::chrono::milliseconds::zero())
+    {
+        return nullptr;
+    }
+
     // Consume the private snapshot only for the ledger it was built against.
     // Keep its close time: changing it would invalidate time-bound transactions
     // and the cached validation result.
@@ -1973,7 +2031,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (!applicableProposedSet)
     {
         releaseAssert(!mApp.getConfig().FORCE_SCP);
-        return;
+        return nullptr;
     }
 
     txSetHash = proposedSet->getContentsHash();
@@ -2003,7 +2061,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // applying
     if (ledgerSeqToTrigger != slotIndex || mLedgerManager.isApplying())
     {
-        return;
+        return nullptr;
     }
 
     auto newUpgrades = emptyUpgradeSteps;
@@ -2033,15 +2091,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         }
     }
 
-    getHerderSCPDriver().recordSCPEvent(slotIndex, true);
-
-    // If we are not a validating node we stop here and don't start nomination
-    if (!getSCP().isValidator())
-    {
-        CLOG_DEBUG(Herder, "Non-validating node, skipping nomination (SCP).");
-        return;
-    }
-
 #ifdef BUILD_TESTS
     if (mApp.getConfig().TESTING_NOMINATE_RANDOM_VALUES &&
         getHerderSCPDriver().protocolAllowsEmptyTxSetValues())
@@ -2056,8 +2105,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
     StellarValue newProposedValue = makeStellarValue(
         txSetHash, nextCloseTime, newUpgrades, mApp.getConfig().NODE_SEED);
-    mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
-                              lcl.header.scpValue);
+    return mHerderSCPDriver.wrapStellarValue(newProposedValue);
 }
 
 void

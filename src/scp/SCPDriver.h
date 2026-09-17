@@ -44,6 +44,11 @@ class ValueWrapper : public NonMovableOrCopyable
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 typedef std::shared_ptr<ValueWrapper> ValueWrapperPtr;
 
+// Called only when the local node is a nomination leader and needs its own
+// value. May return nullptr if the application can no longer propose for the
+// slot. The callback must remain valid across nomination timeouts.
+using NominationValueSupplier = std::function<ValueWrapperPtr()>;
+
 class WrappedValuePtrComparator
 {
   public:

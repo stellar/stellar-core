@@ -567,8 +567,8 @@ NominationProtocol::stripUpgrades(ValueWrapperPtr& value) const
 
 // attempts to nominate a value for consensus
 bool
-NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
-                             bool timedout)
+NominationProtocol::nominate(NominationValueSupplier const& makeValue,
+                             Value const& previousValue, bool timedout)
 {
     ZoneScoped;
 
@@ -582,8 +582,7 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
         return false;
     }
 
-    CLOG_DEBUG(SCP, "NominationProtocol::nominate ({}) {}", mRoundNumber,
-               mSlot.getSCP().getValueString(value->getValue()));
+    CLOG_DEBUG(SCP, "NominationProtocol::nominate ({})", mRoundNumber);
 
     bool updated = false;
 
@@ -636,6 +635,7 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
             mSlot.getSCPDriver().getUpgradeNominationTimeoutLimit();
 
         bool shouldVoteForValue = false;
+        bool shouldStripUpgrades = false;
         // Add our value if we haven't added any votes yet.
         if (mVotes.empty())
         {
@@ -666,19 +666,34 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
             {
                 // All votes have upgrades, so strip upgrades from `value` and
                 // vote for it.
-                stripUpgrades(value);
+                shouldStripUpgrades = true;
                 shouldVoteForValue = true;
             }
         }
 
         if (shouldVoteForValue)
         {
-            auto ins = mVotes.insert(value);
-            if (ins.second)
+            auto value = makeValue();
+            // Making the value can make pending envelopes ready and reenter
+            // SCP, potentially externalizing this slot or creating a candidate.
+            // Do not vote or rearm its timer after nomination has stopped.
+            if (!mNominationStarted || !mCandidates.empty())
             {
-                updated = true;
-                mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
-                                                     value->getValue());
+                return false;
+            }
+            if (value)
+            {
+                if (shouldStripUpgrades)
+                {
+                    stripUpgrades(value);
+                }
+                auto ins = mVotes.insert(value);
+                if (ins.second)
+                {
+                    updated = true;
+                    mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
+                                                         value->getValue());
+                }
             }
         }
     }
@@ -686,8 +701,8 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
     std::shared_ptr<Slot> slot = mSlot.shared_from_this();
     mSlot.getSCPDriver().setupTimer(
         mSlot.getSlotIndex(), Slot::NOMINATION_TIMER, timeout,
-        [slot, value, previousValue]() {
-            slot->nominate(value, previousValue, true);
+        [slot, makeValue, previousValue]() {
+            slot->nominate(makeValue, previousValue, true);
         });
 
 #ifdef BUILD_TESTS
