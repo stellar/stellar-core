@@ -126,8 +126,11 @@ nominateAndClose(Application& app, TxSetXDRFrameConstPtr txSet,
     auto const ledgerSeq = lcl.header.ledgerSeq + 1;
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
                                           txSet);
-    herder.getHerderSCPDriver().nominate(ledgerSeq, value, txSet,
-                                         lcl.header.scpValue);
+    auto& driver = herder.getHerderSCPDriver();
+    driver.nominate(
+        ledgerSeq,
+        [&driver, value]() { return driver.wrapStellarValue(value); },
+        lcl.header.scpValue);
 
     auto const deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(60);

@@ -98,8 +98,8 @@ class NominationProtocol
     static std::vector<Value> getStatementValues(SCPStatement const& st);
 
     // attempts to nominate a value for consensus
-    bool nominate(ValueWrapperPtr value, Value const& previousValue,
-                  bool timedout);
+    bool nominate(NominationValueSupplier const& makeValue,
+                  Value const& previousValue, bool timedout);
 
     // stops the nomination protocol
     void stopNomination();

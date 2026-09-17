@@ -20,7 +20,7 @@ use tracing::{debug, error, info, warn};
 use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::{Multiaddr, PeerId};
 use stellar_overlay::config::Config;
-use stellar_overlay::flood::{CachedTxSet, Hash256, TxSetCache};
+use stellar_overlay::flood::{CachedTxSet, Hash256, TxSetCache, TxSetData};
 use stellar_overlay::integrated::{Overlay, OverlayHandle};
 use stellar_overlay::ipc::{CoreIpc, Message, MessageType};
 use stellar_overlay::libp2p_overlay::{
@@ -375,15 +375,15 @@ fn get_cached_tx_set_xdr<'a>(tx_set_cache: &'a TxSetCache, hash: &Hash256) -> Op
     tx_set_cache.get(hash).map(|cached| cached.xdr.as_slice())
 }
 
-fn cache_tx_set_xdr(
+fn cache_tx_set(
     tx_set_cache: &mut TxSetCache,
     current_ledger_seq: u32,
     hash: Hash256,
-    xdr: Vec<u8>,
+    data: Arc<TxSetData>,
 ) {
     tx_set_cache.insert(CachedTxSet {
         hash,
-        xdr: Arc::new(xdr),
+        xdr: data,
         ledger_seq: current_ledger_seq,
     });
 }
@@ -734,7 +734,7 @@ impl App {
                 // This ensures the TxSet is available when SCP processing resumes
                 // Stamp with the slot the set was requested for so eviction is
                 // exact; for an unsolicited set fall back to the next slot.
-                cache_tx_set_xdr(
+                cache_tx_set(
                     &mut self.tx_set_cache,
                     slot.unwrap_or(self.current_ledger_seq + 1),
                     hash,
@@ -1054,13 +1054,14 @@ impl App {
                 let mut hash = [0u8; 32];
                 hash.copy_from_slice(&msg.payload[0..32]);
                 let slot = u32::from_le_bytes(msg.payload[32..36].try_into().unwrap());
-                let tx_set_xdr = &msg.payload[36..];
+                let mut payload = msg.payload;
+                let tx_set_xdr = payload.split_off(36);
 
                 // Core is trusted for encoding, so we skip decoding. We still
                 // guard the content hash cheaply: caching bytes under a hash
                 // that peers would recompute differently makes the tx set
                 // unfetchable network-wide.
-                if !xdr::tx_set_hash_matches(&hash, tx_set_xdr) {
+                if !xdr::tx_set_hash_matches(&hash, &tx_set_xdr) {
                     warn!(
                         "TXSET_CACHE_DROP: Dropping TX set {:02x?}... from Core: content hash mismatch",
                         &hash[..4]
@@ -1075,7 +1076,34 @@ impl App {
                     tx_set_xdr.len()
                 );
 
-                cache_tx_set_xdr(&mut self.tx_set_cache, slot, hash, tx_set_xdr.to_vec());
+                // Keep an existing received/prepared representation intact on
+                // repeated IPC publication of the same content hash.
+                let data = if let Some(cached) = self.tx_set_cache.get(&hash) {
+                    Arc::clone(&cached.xdr)
+                } else {
+                    // Core sends this before final proposal validation. Await
+                    // completion on this task while the network and Core keep
+                    // running. Requests queue until the ready set is cached.
+                    let started = std::time::Instant::now();
+                    match tokio::task::spawn_blocking(move || TxSetData::from_local(tx_set_xdr))
+                        .await
+                    {
+                        Ok(Ok(data)) => {
+                            info!("TXSET_COMPRESS: Prepared locally built set {:02x?}... raw_bytes={} encoded_bytes={} duration_us={}",
+                                  &hash[..4], data.len(), data.encoded().len(), started.elapsed().as_micros());
+                            Arc::new(data)
+                        }
+                        result => {
+                            error!(
+                                "TXSET_CACHE_DROP: Failed to encode local set {:02x?}...: {:?}",
+                                &hash[..4],
+                                result
+                            );
+                            return true;
+                        }
+                    }
+                };
+                cache_tx_set(&mut self.tx_set_cache, slot, hash, data);
 
                 self.send_requested_tx_set(&hash);
             }
@@ -2055,12 +2083,64 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn local_publication_is_eager_and_preserves_existing_encoding() {
+        let (mut app, _core) = test_app();
+        let (hash, xdr) = test_txset_xdr(29);
+        let mut payload = request_tx_set_payload(&hash, 100);
+        payload.extend_from_slice(&xdr);
+        app.handle_core_message(Message::new(MessageType::CacheTxSet, payload.clone()))
+            .await;
+        let data = Arc::clone(&app.tx_set_cache.get(&hash).unwrap().xdr);
+        // No send has occurred: publication itself prepared the response.
+        assert_eq!(
+            zstd::bulk::decompress(&data.encoded()[4..], data.len()).unwrap(),
+            xdr
+        );
+        app.handle_core_message(Message::new(MessageType::CacheTxSet, payload))
+            .await;
+        assert!(Arc::ptr_eq(
+            &data,
+            &app.tx_set_cache.get(&hash).unwrap().xdr
+        ));
+    }
+
+    #[tokio::test]
+    async fn received_encoding_survives_cache_and_local_duplicate() {
+        let (mut app, _core) = test_app();
+        let (hash, xdr) = test_txset_xdr(30);
+        let received = Arc::new(TxSetData::from_local(xdr.clone()).unwrap());
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: Arc::clone(&received),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+        assert!(Arc::ptr_eq(
+            &received,
+            &app.tx_set_cache.get(&hash).unwrap().xdr
+        ));
+        let mut payload = request_tx_set_payload(&hash, 101);
+        payload.extend_from_slice(&xdr);
+        app.handle_core_message(Message::new(MessageType::CacheTxSet, payload))
+            .await;
+        let cached = app.tx_set_cache.get(&hash).unwrap();
+        assert!(Arc::ptr_eq(&received, &cached.xdr));
+        assert_eq!(cached.ledger_seq, 101);
+    }
+
+    #[tokio::test]
     async fn peer_responses_share_cached_storage_and_survive_eviction() {
         // Keep the network dispatcher alive but unpolled: responses remain
         // queued or awaiting dispatch, as when the transport is delayed.
         let (mut app, _core, network) = test_app_with_network();
         let (hash, data) = test_txset_xdr(7);
-        cache_tx_set_xdr(&mut app.tx_set_cache, 1, hash, data.clone());
+        cache_tx_set(
+            &mut app.tx_set_cache,
+            1,
+            hash,
+            Arc::new(TxSetData::from_local(data.clone()).unwrap()),
+        );
         let cached = Arc::downgrade(&app.tx_set_cache.get(&hash).unwrap().xdr);
         for _ in 0..29 {
             app.handle_libp2p_event(LibP2pOverlayEvent::TxSetRequested {
@@ -2128,7 +2208,7 @@ mod tests {
         let (hash, data) = test_txset_xdr(31);
         app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
             hash,
-            data: data.clone(),
+            data: Arc::new(TxSetData::from_local(data.clone()).unwrap()),
             from: PeerId::random(),
             slot: Some(100),
         })
@@ -2168,7 +2248,7 @@ mod tests {
         let (other, other_data) = test_txset_xdr(33);
         app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
             hash: other,
-            data: other_data,
+            data: Arc::new(TxSetData::from_local(other_data).unwrap()),
             from: PeerId::random(),
             slot: Some(101),
         })
@@ -2179,7 +2259,7 @@ mod tests {
         for arrival in 0..2 {
             app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
                 hash,
-                data: data.clone(),
+                data: Arc::new(TxSetData::from_local(data.clone()).unwrap()),
                 from: PeerId::random(),
                 slot: Some(101),
             })
@@ -2219,7 +2299,7 @@ mod tests {
         for (h, bytes) in [(hash, data.clone()), (other, other_data)] {
             app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
                 hash: h,
-                data: bytes,
+                data: Arc::new(TxSetData::from_local(bytes).unwrap()),
                 from: PeerId::random(),
                 slot: Some(100),
             })
@@ -2235,7 +2315,7 @@ mod tests {
         assert!(app.pending_core_tx_sets.contains_key(&hash));
         app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
             hash,
-            data: data.clone(),
+            data: Arc::new(TxSetData::from_local(data.clone()).unwrap()),
             from: PeerId::random(),
             slot: Some(100),
         })
@@ -2270,7 +2350,7 @@ mod tests {
         assert_eq!(app.pending_core_tx_sets.get(&future), Some(&120));
         app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
             hash: old,
-            data: data.clone(),
+            data: Arc::new(TxSetData::from_local(data.clone()).unwrap()),
             from: PeerId::random(),
             slot: Some(100),
         })
@@ -2315,7 +2395,7 @@ mod tests {
         .await;
         app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
             hash,
-            data: data.clone(),
+            data: Arc::new(TxSetData::from_local(data.clone()).unwrap()),
             from: PeerId::random(),
             slot: Some(100),
         })
@@ -2334,7 +2414,12 @@ mod tests {
 
         // Cache the set, so if the handler wrongly accepted the legacy
         // format it would respond with TxSetAvailable below.
-        cache_tx_set_xdr(&mut app.tx_set_cache, 1, hash, xdr_bytes);
+        cache_tx_set(
+            &mut app.tx_set_cache,
+            1,
+            hash,
+            Arc::new(TxSetData::from_local(xdr_bytes).unwrap()),
+        );
 
         // Pre-slotSeq payload: [hash:32] only. The protocol is now
         // [hash:32][slotSeq:4]; the short payload must be dropped.
@@ -2411,7 +2496,7 @@ mod tests {
 
         app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
             hash,
-            data: xdr_bytes.clone(),
+            data: Arc::new(TxSetData::from_local(xdr_bytes.clone()).unwrap()),
             from: PeerId::random(),
             slot: Some(100),
         })

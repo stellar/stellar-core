@@ -225,9 +225,10 @@ Slot::bumpState(Value const& value, bool force)
 }
 
 bool
-Slot::nominate(ValueWrapperPtr value, Value const& previousValue, bool timedout)
+Slot::nominate(NominationValueSupplier const& makeValue,
+               Value const& previousValue, bool timedout)
 {
-    return mNominationProtocol.nominate(value, previousValue, timedout);
+    return mNominationProtocol.nominate(makeValue, previousValue, timedout);
 }
 
 void

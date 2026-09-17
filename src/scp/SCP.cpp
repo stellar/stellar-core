@@ -34,11 +34,11 @@ SCP::receiveEnvelope(SCPEnvelopeWrapperPtr envelope)
 }
 
 bool
-SCP::nominate(uint64 slotIndex, ValueWrapperPtr value,
+SCP::nominate(uint64 slotIndex, NominationValueSupplier const& makeValue,
               Value const& previousValue)
 {
     dbgAssert(isValidator());
-    return getSlot(slotIndex, true)->nominate(value, previousValue, false);
+    return getSlot(slotIndex, true)->nominate(makeValue, previousValue, false);
 }
 
 std::set<NodeID>

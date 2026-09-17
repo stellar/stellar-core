@@ -6565,6 +6565,37 @@ class EarlyNominationTestAccess
     {
         herder.setupTriggerNextLedger();
     }
+
+    // These fixtures inspect a local proposal while requiring an absent peer
+    // to prevent externalization. Pick that peer so the local node is the
+    // first leader, independently of the test RNG seed and previous ledger.
+    static void
+    selectLocalFirstLeader(HerderImpl& herder)
+    {
+        auto& scp = herder.getSCP();
+        auto const& lcl =
+            herder.mApp.getLedgerManager().getLastClosedLedgerHeader();
+        auto qset = scp.getLocalQuorumSet();
+        REQUIRE(qset.validators.size() == 2);
+        for (int i = 0; i < 100; ++i)
+        {
+            qset.validators = {
+                scp.getLocalNodeID(),
+                SecretKey::fromSeed(sha256(fmt::format("absent-peer-{}", i)))
+                    .getPublicKey()};
+            scp.updateLocalQuorumSet(qset);
+            if (scp.predictNominationLeaders(
+                       lcl.header.ledgerSeq + 1,
+                       xdr::xdr_to_opaque(lcl.header.scpValue), 1)
+                    .count(scp.getLocalNodeID()))
+            {
+                herder.mPendingEnvelopes.addSCPQuorumSet(
+                    scp.getLocalNode()->getQuorumSetHash(), qset);
+                return;
+            }
+        }
+        FAIL("Could not select a first-round local leader");
+    }
 };
 }
 
@@ -6656,6 +6687,7 @@ TEST_CASE("trigger work is recorded by the proposal path",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
     auto& driver = herder.getHerderSCPDriver();
     auto const slot = app->getLedgerManager().getLastClosedLedgerNum() + 1;
     herder.mGetTopTransactionsForTesting = [&](size_t) {
@@ -6783,6 +6815,7 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
             config.mLedgerMaxTxCount = 1;
         });
     }
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     // The Soroban upgrade helper closes ledgers at its fixed test date.
     clock.setCurrentVirtualTime(
@@ -6922,7 +6955,7 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
-TEST_CASE("only the first two nomination leaders prepare early",
+TEST_CASE("only nomination leaders construct local proposals",
           "[herder][early-nomination]")
 {
     // A fixed, unanimous quorum gives all three nodes the same weights and
@@ -6987,7 +7020,7 @@ TEST_CASE("only the first two nomination leaders prepare early",
         REQUIRE(checkedRoles.insert(role).second);
         CAPTURE(role);
         EarlyNominationTestAccess::schedule(herder);
-        REQUIRE(EarlyNominationTestAccess::scheduled(herder) == (role < 2));
+        REQUIRE(EarlyNominationTestAccess::scheduled(herder) == (role == 0));
         bool done = false;
         VirtualTimer stop(clock);
         stop.expires_from_now(std::chrono::milliseconds(1));
@@ -6996,11 +7029,53 @@ TEST_CASE("only the first two nomination leaders prepare early",
             app, [&]() { return done; }, std::chrono::seconds(1));
         REQUIRE(done);
         REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
-        REQUIRE(pulls == (role < 2 ? 1 : 0));
+        REQUIRE(pulls == (role == 0 ? 1 : 0));
         REQUIRE(bool(EarlyNominationTestAccess::prepared(herder)) ==
-                (role < 2));
+                (role == 0));
         REQUIRE(scp.getNominationLeaders(seq).empty());
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
+        auto const trigger = herder.getTriggerTimer().expiry_time();
+        clock.setCurrentVirtualTime(trigger);
+        auto const triggerSystemTime = clock.system_now();
+        testutil::crankUntil(
+            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            std::chrono::seconds(1));
+        REQUIRE(scp.getNominationLeaders(seq) == first);
+        // The first leader refreshes its empty early snapshot. Followers do
+        // not even pull the mempool when starting nomination.
+        REQUIRE(pulls == (role == 0 ? 2 : 0));
+        REQUIRE(scp.getLatestMessagesSend(seq).empty() == (role != 0));
+
+        // With the first leader silent, real nomination timers eventually
+        // promote each follower. It builds exactly then, using a current close
+        // time, and its prepared/validated tx set is available for retrieval.
+        testutil::crankUntil(
+            app, [&]() { return !scp.getLatestMessagesSend(seq).empty(); },
+            std::chrono::seconds(30));
+        REQUIRE(scp.getNominationLeaders(seq).count(scp.getLocalNodeID()));
+        REQUIRE(pulls == (role == 0 ? 2 : 1));
+        auto messages = scp.getLatestMessagesSend(seq);
+        auto const& votes = messages.front().statement.pledges.nominate().votes;
+        REQUIRE(votes.size() == 1);
+        StellarValue nominated;
+        xdr::xdr_from_opaque(votes.front(), nominated);
+        auto txSet = std::get<TxSetXDRFrameConstPtr>(
+            herder.getTxSet(nominated.txSetHash));
+        REQUIRE(txSet);
+        REQUIRE(txSet->previousLedgerHash() == lcl.hash);
+        REQUIRE(herder.getHerderSCPDriver().validateValue(seq, votes.front(),
+                                                          true) ==
+                SCPDriver::kFullyValidatedValue);
+        if (role != 0)
+        {
+            REQUIRE(getConsensusTime(nominated) >
+                    ConsensusTime::fromSystemTime(triggerSystemTime,
+                                                  lcl.header.ledgerVersion));
+        }
+        auto const pullsAfterVote = pulls;
+        // Reentering the trigger for this slot cannot build a second proposal.
+        herder.triggerNextLedger(seq, true);
+        REQUIRE(pulls == pullsAfterVote);
         herder.mGetTopTransactionsForTesting = nullptr;
     }
     REQUIRE(checkedRoles == std::set<int>{0, 1, 2});
@@ -7024,6 +7099,7 @@ TEST_CASE("early underfilled proposals refresh at the trigger",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     auto const seq = lcl.header.ledgerSeq + 1;
     herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
@@ -7091,6 +7167,7 @@ TEST_CASE("early preparation respects manual and immediately due triggers",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
     auto const seq = app->getLedgerManager().getLastClosedLedgerNum() + 1;
     size_t pulls = 0;
     herder.mGetTopTransactionsForTesting = [&](size_t) {
@@ -7105,6 +7182,7 @@ TEST_CASE("early preparation respects manual and immediately due triggers",
     }
     else
     {
+        EarlyNominationTestAccess::schedule(herder);
         // No previous prepare timestamp: the normal fallback triggers now.
         REQUIRE(herder.getTriggerTimer().expiry_time() == clock.now());
         testutil::crankUntil(

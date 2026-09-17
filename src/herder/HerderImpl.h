@@ -267,6 +267,8 @@ class HerderImpl : public Herder
     PreparedTxSet buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
     void prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
     void discardPreparedTxSet();
+    ValueWrapperPtr makeNominationValue(uint32_t ledgerSeq,
+                                        bool checkTrackingSCP);
 
     // Compute the trigger-timer anchor point using the local node's
     // prepare-start timestamp for the previous slot. Returns a pessimistic

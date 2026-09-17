@@ -229,7 +229,7 @@ class LeaderPreviewTestDriver : public TestNominationSCP
         {
             return 0;
         }
-        auto winner = round < 3 ? nodes[0] : nodes[1];
+        auto winner = round < 3 ? nodes[0] : round == 3 ? nodes[1] : nodes[2];
         return id == winner || (tie && round < 3 && id == nodes[2]) ? 100 : 1;
     }
 
@@ -275,7 +275,14 @@ TEST_CASE("nomination leader preview has no protocol side effects",
     REQUIRE(driver.emitted == 0);
     REQUIRE(driver.timers == 0);
 
-    slot->nominate(std::make_shared<ValueWrapper>(value), previous, false);
+    size_t builds = 0;
+    slot->nominate(
+        [&]() {
+            ++builds;
+            return std::make_shared<ValueWrapper>(value);
+        },
+        previous, false);
+    REQUIRE(builds == 0);
     REQUIRE(slot->getNominationLeaders() == first);
     REQUIRE(driver.emitted == 0);
     REQUIRE(driver.timers == 1);
@@ -289,6 +296,95 @@ TEST_CASE("nomination leader preview has no protocol side effects",
     REQUIRE(slot->getNominationLeaders() == firstTwo);
     REQUIRE(driver.emitted == 1);
     REQUIRE(driver.timers == 2);
+    REQUIRE(builds == 1);
+    timeout = std::move(driver.nominationTimeout);
+    REQUIRE(timeout);
+    timeout();
+    REQUIRE(builds == 1);
+}
+
+TEST_CASE("lazy nomination follows leaders and handles unavailable values",
+          "[scp][early-nomination]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SCPQuorumSet qset;
+    qset.threshold = 3;
+    qset.validators = {v0NodeID, v1NodeID, v2NodeID};
+    LeaderPreviewTestDriver driver(v1NodeID, qset);
+    auto& scp = driver.mSCP;
+    Value previous{42}, value{43};
+    size_t builds = 0;
+    bool available = true;
+    bool stopWhileBuilding = false;
+    NominationValueSupplier makeValue = [&]() -> ValueWrapperPtr {
+        ++builds;
+        if (stopWhileBuilding)
+        {
+            scp.stopNomination(7);
+        }
+        return available ? std::make_shared<ValueWrapper>(value) : nullptr;
+    };
+
+    SECTION("a follower votes for the leader without constructing a value")
+    {
+        SCPEnvelope envelope;
+        envelope.statement.nodeID = v0NodeID;
+        envelope.statement.slotIndex = 7;
+        envelope.statement.pledges.type(SCP_ST_NOMINATE);
+        auto& nom = envelope.statement.pledges.nominate();
+        nom.quorumSetHash = sha256(xdr::xdr_to_opaque(qset));
+        nom.votes.push_back(value);
+        REQUIRE(scp.receiveEnvelope(driver.wrapEnvelope(envelope)) ==
+                SCP::VALID);
+        REQUIRE(scp.nominate(7, makeValue, previous));
+        REQUIRE(builds == 0);
+        REQUIRE(driver.emitted == 1);
+        auto timeout = std::move(driver.nominationTimeout);
+        timeout();
+        REQUIRE(scp.getNominationLeaders(7).count(v1NodeID));
+        // Even a promoted leader needs no private value if it already follows
+        // a usable value from the first leader.
+        REQUIRE(builds == 0);
+    }
+    SECTION("an unavailable proposal is retried on the next timeout")
+    {
+        available = false;
+        REQUIRE(!scp.nominate(7, makeValue, previous));
+        REQUIRE(builds == 0);
+        auto timeout = std::move(driver.nominationTimeout);
+        timeout();
+        REQUIRE(builds == 1);
+        REQUIRE(driver.emitted == 0);
+        available = true;
+        timeout = std::move(driver.nominationTimeout);
+        REQUIRE(timeout);
+        timeout();
+        REQUIRE(builds == 2);
+        REQUIRE(driver.emitted == 1);
+    }
+    SECTION("stopping nomination during construction cannot emit or rearm")
+    {
+        stopWhileBuilding = true;
+        scp.nominate(7, makeValue, previous);
+        REQUIRE(builds == 0);
+        auto timeout = std::move(driver.nominationTimeout);
+        timeout();
+        REQUIRE(builds == 1);
+        REQUIRE(driver.emitted == 0);
+        REQUIRE(driver.timers == 1);
+    }
+    SECTION("a stopped follower never constructs a proposal")
+    {
+        scp.nominate(7, makeValue, previous);
+        scp.stopNomination(7);
+        auto timeout = std::move(driver.nominationTimeout);
+        timeout();
+        REQUIRE(builds == 0);
+        REQUIRE(driver.emitted == 0);
+        REQUIRE(driver.timers == 1);
+    }
 }
 
 TEST_CASE("nomination leader preview preserves ties and zero weights",

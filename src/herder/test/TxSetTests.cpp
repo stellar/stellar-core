@@ -31,6 +31,44 @@ namespace
 {
 using namespace txtest;
 
+TEST_CASE("built tx set is available before final validation returns",
+          "[txset][eager-compression]")
+{
+    auto const protocol = GENERATE(27, 28);
+    auto cfg = getTestConfig();
+    cfg.LEDGER_PROTOCOL_VERSION = protocol;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocol;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 3;
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto source = getGenesisAccount(*app, 0);
+    auto destination = getGenesisAccount(*app, 1);
+    auto tx = transactionFromOperations(
+        *app, source.getSecretKey(), source.nextSequenceNumber(),
+        {payment(destination.getPublicKey(), 1)}, 100);
+    PerPhaseTransactionList phases{{tx}, {}};
+    PerPhaseTransactionList invalid(2);
+    TxSetXDRFrameConstPtr ready;
+    size_t callbacks = 0;
+    auto [wire, applicable] = makeTxSetFromTransactions(
+        phases, *app, ApplyTimeOffset{}, invalid, false, {},
+        [&](TxSetXDRFrameConstPtr const& set) {
+            ++callbacks;
+            ready = set;
+            REQUIRE(set->isGeneralizedTxSet());
+            REQUIRE(set->sizeTxTotal() == 1);
+            GeneralizedTransactionSet xdrSet;
+            set->toXDR(xdrSet);
+            REQUIRE(xdrSha256(xdrSet) == set->getContentsHash());
+        });
+    REQUIRE(callbacks == 1);
+    REQUIRE(ready == wire);
+    REQUIRE(invalid[0].empty());
+    REQUIRE(invalid[1].empty());
+    REQUIRE(applicable);
+    REQUIRE(applicable->checkValid(*app, 0, 0));
+}
+
 TEST_CASE("generalized tx set XDR validation", "[txset]")
 {
     Config cfg(getTestConfig());
