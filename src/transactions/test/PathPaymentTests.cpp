@@ -123,6 +123,20 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     auto cur3 = makeAsset(gateway2, "CUR3");
     auto cur4 = makeAsset(gateway2, "CUR4");
 
+    // Malformed operations are rejected during validation, so the transaction
+    // never makes it into a ledger and no balances change.
+    auto checkMalformed = [&](TransactionTestFramePtr const& tx) {
+        auto result = tx->checkValid(
+            app->getAppConnector(), CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+        REQUIRE(!result->isSuccess());
+        REQUIRE(result->getXDR()
+                    .result.results()
+                    .at(0)
+                    .tr()
+                    .pathPaymentStrictReceiveResult()
+                    .code() == PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
+    };
+
     SECTION("transact more than INT64_MAX in a path payment")
     {
         auto a1 = root->create("A1", minBalance4);
@@ -205,130 +219,85 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination amount 0")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(source.pay(destination, idr, 10, idr, 0, {}),
-                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
+            checkMalformed(
+                source.tx({pathPayment(destination, idr, 10, idr, 0, {})}));
         });
     }
 
     SECTION("path payment destination amount negative")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(source.pay(destination, idr, 10, idr, -1, {}),
-                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
+            checkMalformed(
+                source.tx({pathPayment(destination, idr, 10, idr, -1, {})}));
         });
     }
 
     SECTION("path payment send max 0")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(source.pay(destination, idr, 0, idr, 10, {}),
-                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
+            checkMalformed(
+                source.tx({pathPayment(destination, idr, 0, idr, 10, {})}));
         });
     }
 
     SECTION("path payment send max negative")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(source.pay(destination, idr, -1, idr, 10, {}),
-                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
+            checkMalformed(
+                source.tx({pathPayment(destination, idr, -1, idr, 10, {})}));
         });
     }
 
     SECTION("path payment send currency invalid")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(
-                source.pay(destination, makeInvalidAsset(), 10, idr, 10, {}),
-                ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
+            checkMalformed(source.tx({pathPayment(
+                destination, makeInvalidAsset(), 10, idr, 10, {})}));
         });
     }
 
     SECTION("path payment destination currency invalid")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(
-                source.pay(destination, idr, 10, makeInvalidAsset(), 10, {}),
-                ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
+            checkMalformed(source.tx({pathPayment(
+                destination, idr, 10, makeInvalidAsset(), 10, {})}));
         });
     }
 
     SECTION("path payment destination path currency invalid")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(
-                source.pay(destination, idr, 10, idr, 10, {makeInvalidAsset()}),
-                ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
+            checkMalformed(source.tx({pathPayment(destination, idr, 10, idr, 10,
+                                                  {makeInvalidAsset()})}));
         });
     }
 

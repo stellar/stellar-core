@@ -1654,7 +1654,8 @@ TEST_CASE("generalized tx set with multiple txs per source account",
     auto root = app->getRoot();
     int accountId = 1;
 
-    auto createTx = [&](int opCnt, int fee, bool unique) {
+    auto createTx = [&](int opCnt, int fee, bool unique,
+                        std::optional<SequenceNumber> seqNum = std::nullopt) {
         std::vector<Operation> ops;
         for (int i = 0; i < opCnt; ++i)
         {
@@ -1673,9 +1674,9 @@ TEST_CASE("generalized tx set with multiple txs per source account",
         }
         else
         {
-            return transactionFromOperations(*app, root->getSecretKey(),
-                                             root->nextSequenceNumber(), ops,
-                                             fee);
+            return transactionFromOperations(
+                *app, root->getSecretKey(),
+                seqNum ? *seqNum : root->nextSequenceNumber(), ops, fee);
         }
     };
 
@@ -1695,7 +1696,8 @@ TEST_CASE("generalized tx set with multiple txs per source account",
     SECTION("multiple txs from same source in classic phase")
     {
         auto tx1 = createTx(1, 1000, /* unique */ false);
-        auto tx2 = createTx(3, 1500, /* unique */ false);
+        // Make sure tx2 has a plausible sequence number (one following tx1).
+        auto tx2 = createTx(3, 1500, /* unique */ false, tx1->getSeqNum() + 1);
 
         // tx1 is valid on its own
         {
@@ -1712,6 +1714,7 @@ TEST_CASE("generalized tx set with multiple txs per source account",
                 makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, invalidTxs);
             // Second tx should be rejected due to duplicate source
             REQUIRE(invalidTxs.size() == 1);
+            REQUIRE(invalidTxs[0]->getFullHash() == tx2->getFullHash());
         }
         SECTION("validate block")
         {
@@ -1760,18 +1763,20 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
     SECTION("multiple txs from same source - classic and soroban phases")
     {
+        // Ensure that sequence numbers are plausible (sequential, starting
+        // from the account seq num).
+        auto tx1 = createTx(1, 1000, /* unique */ false);
+        auto tx2 = createTx(3, 1500, /* unique */ false, tx1->getSeqNum() + 1);
         SorobanResources resources;
         resources.instructions = 800'000;
         resources.diskReadBytes = 1000;
         resources.writeBytes = 1000;
         uint32_t inclusionFee = 500;
         int64_t resourceFee = sorobanResourceFee(*app, resources, 5000, 100);
-        auto sorobanTx = createUploadWasmTx(*app, *root, inclusionFee,
-                                            resourceFee, resources);
+        auto sorobanTx = createUploadWasmTx(
+            *app, *root, inclusionFee, resourceFee, resources, std::nullopt, 0,
+            std::nullopt, tx2->getSeqNum() + 1);
         REQUIRE(sorobanTx->getInclusionFee() == inclusionFee);
-
-        auto tx1 = createTx(1, 1000, /* unique */ false);
-        auto tx2 = createTx(3, 1500, /* unique */ false);
 
         // Classic phase has duplicate source accounts
         REQUIRE(
@@ -2247,7 +2252,7 @@ TEST_CASE("txset nomination", "[txset]")
             std::vector<std::pair<TestAccount, int64_t>> accounts;
             for (auto const& [key, seqNo] : accountKeys)
             {
-                accounts.emplace_back(TestAccount{*app, key, seqNo}, seqNo + 1);
+                accounts.emplace_back(TestAccount{*app, key}, seqNo + 1);
             }
             auto root = app->getRoot();
 

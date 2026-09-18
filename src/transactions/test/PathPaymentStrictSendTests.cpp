@@ -219,81 +219,74 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
 
     SECTION("send amount constraints")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         for_versions_from(12, *app, [&] {
-            int64_t i = 0;
             for (int64_t amount : std::vector<int64_t>({0, -1}))
             {
-                REQUIRE_THROWS_AS(source.pathPaymentStrictSend(
-                                      destination, xlm, amount, xlm, 1, {}),
-                                  ex_PATH_PAYMENT_STRICT_SEND_MALFORMED);
-                // clang-format off
-                market.requireBalances(
-                    {{source, {{xlm, minBalance1 - (++i) * txfee}}},
-                     {destination, {{xlm, minBalance}}}});
-                // clang-format on
+                auto tx = source.tx({pathPaymentStrictSend(
+                    destination, xlm, amount, xlm, 1, {})});
+                auto result =
+                    tx->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                REQUIRE(!result->isSuccess());
+                REQUIRE(result->getXDR()
+                            .result.results()
+                            .at(0)
+                            .tr()
+                            .pathPaymentStrictSendResult()
+                            .code() == PATH_PAYMENT_STRICT_SEND_MALFORMED);
             }
         });
     }
 
     SECTION("destination minimum constraints")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         for_versions_from(12, *app, [&] {
-            int64_t i = 0;
             for (int64_t amount : std::vector<int64_t>({0, -1}))
             {
-                REQUIRE_THROWS_AS(source.pathPaymentStrictSend(
-                                      destination, xlm, 1, xlm, amount, {}),
-                                  ex_PATH_PAYMENT_STRICT_SEND_MALFORMED);
-                // clang-format off
-                market.requireBalances(
-                    {{source, {{xlm, minBalance1 - (++i) * txfee}}},
-                     {destination, {{xlm, minBalance}}}});
-                // clang-format on
+                auto tx = source.tx({pathPaymentStrictSend(destination, xlm, 1,
+                                                           xlm, amount, {})});
+                auto result =
+                    tx->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                REQUIRE(!result->isSuccess());
+                REQUIRE(result->getXDR()
+                            .result.results()
+                            .at(0)
+                            .tr()
+                            .pathPaymentStrictSendResult()
+                            .code() == PATH_PAYMENT_STRICT_SEND_MALFORMED);
             }
         });
     }
 
     SECTION("currency invalid")
     {
-        auto market = TestMarket{*app};
         auto source = root->create("source", minBalance1);
         auto destination = root->create("destination", minBalance);
         for_versions_from(12, *app, [&] {
-            REQUIRE_THROWS_AS(source.pathPaymentStrictSend(destination,
-                                                           makeInvalidAsset(),
-                                                           10, xlm, 10, {}),
-                              ex_PATH_PAYMENT_STRICT_SEND_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - txfee}}},
-                 {destination, {{xlm, minBalance}}}});
-            // clang-format on
+            auto checkMalformed = [&](TransactionTestFramePtr const& tx) {
+                auto result =
+                    tx->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                REQUIRE(!result->isSuccess());
+                REQUIRE(result->getXDR()
+                            .result.results()
+                            .at(0)
+                            .tr()
+                            .pathPaymentStrictSendResult()
+                            .code() == PATH_PAYMENT_STRICT_SEND_MALFORMED);
+            };
 
-            REQUIRE_THROWS_AS(source.pathPaymentStrictSend(destination, xlm, 10,
-                                                           makeInvalidAsset(),
-                                                           10, {}),
-                              ex_PATH_PAYMENT_STRICT_SEND_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}}},
-                 {destination, {{xlm, minBalance}}}});
-            // clang-format on
-
-            REQUIRE_THROWS_AS(
-                source.pathPaymentStrictSend(destination, xlm, 10, xlm, 10,
-                                             {makeInvalidAsset()}),
-                ex_PATH_PAYMENT_STRICT_SEND_MALFORMED);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 3 * txfee}}},
-                 {destination, {{xlm, minBalance}}}});
-            // clang-format on
+            checkMalformed(source.tx({pathPaymentStrictSend(
+                destination, makeInvalidAsset(), 10, xlm, 10, {})}));
+            checkMalformed(source.tx({pathPaymentStrictSend(
+                destination, xlm, 10, makeInvalidAsset(), 10, {})}));
+            checkMalformed(source.tx({pathPaymentStrictSend(
+                destination, xlm, 10, xlm, 10, {makeInvalidAsset()})}));
         });
     }
 
@@ -410,11 +403,23 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_versions_from(12, *app, [&] {
-            gateway.merge(*root);
-            auto offers =
-                source.pathPaymentStrictSend(gateway, idr, 10, idr, 10, {});
+            auto mergeTx = gateway.tx({accountMerge(*root)});
+            auto pathPaymentTx = source.tx(
+                {pathPaymentStrictSend(gateway, idr, 10, idr, 10, {})});
+            auto resultSet = closeLedger(*app, {mergeTx, pathPaymentTx},
+                                         /* strictOrder */ true);
+            REQUIRE(resultSet.results.size() == 2);
+            REQUIRE(resultSet.results[0].result.result.code() == txSUCCESS);
+            auto const& result = resultSet.results[1].result;
+            REQUIRE(result.result.code() == txSUCCESS);
+            auto const& offers = result.result.results()
+                                     .at(0)
+                                     .tr()
+                                     .pathPaymentStrictSendResult()
+                                     .success()
+                                     .offers;
             std::vector<ClaimAtom> expected;
-            REQUIRE(offers.success().offers == expected);
+            REQUIRE(offers == expected);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 0}}}});
@@ -429,10 +434,20 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_versions_from(12, *app, [&] {
-            gateway.merge(*root);
-            REQUIRE_THROWS_AS(
-                source.pathPaymentStrictSend(gateway, idr, 10, usd, 10, {}),
-                ex_PATH_PAYMENT_STRICT_SEND_NO_DESTINATION);
+            auto mergeTx = gateway.tx({accountMerge(*root)});
+            auto pathPaymentTx = source.tx(
+                {pathPaymentStrictSend(gateway, idr, 10, usd, 10, {})});
+            auto resultSet = closeLedger(*app, {mergeTx, pathPaymentTx},
+                                         /* strictOrder */ true);
+            REQUIRE(resultSet.results.size() == 2);
+            REQUIRE(resultSet.results[0].result.result.code() == txSUCCESS);
+            auto const& result = resultSet.results[1].result;
+            REQUIRE(result.result.code() == txFAILED);
+            REQUIRE(result.result.results()
+                        .at(0)
+                        .tr()
+                        .pathPaymentStrictSendResult()
+                        .code() == PATH_PAYMENT_STRICT_SEND_NO_DESTINATION);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}}});
@@ -576,41 +591,60 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
         for_versions_from(12, *app, [&] {
             auto ledgerVersion = getLclProtocolVersion(*app);
 
-            auto pathPaymentStrictSend = [&](std::vector<Asset> const& path,
-                                             Asset& noIssuer) {
-                if (protocolVersionIsBefore(ledgerVersion,
-                                            ProtocolVersion::V_13))
-                {
-                    REQUIRE_THROWS_AS(
-                        source.pathPaymentStrictSend(destination, idr, 10, usd,
-                                                     10, path, &noIssuer),
-                        ex_PATH_PAYMENT_STRICT_SEND_NO_ISSUER);
-                }
-                else
-                {
-                    REQUIRE_THROWS_AS(
-                        source.pathPaymentStrictSend(destination, idr, 10, usd,
-                                                     10, path, &noIssuer),
-                        ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-                }
-            };
+            auto checkPathPaymentStrictSend =
+                [&](TransactionResult const& result, Asset const& noIssuer) {
+                    REQUIRE(result.result.code() == txFAILED);
+                    auto const& pathPaymentResult =
+                        result.result.results()
+                            .at(0)
+                            .tr()
+                            .pathPaymentStrictSendResult();
+                    if (protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_13))
+                    {
+                        REQUIRE(pathPaymentResult.code() ==
+                                PATH_PAYMENT_STRICT_SEND_NO_ISSUER);
+                        REQUIRE(pathPaymentResult.noIssuer() == noIssuer);
+                    }
+                    else
+                    {
+                        REQUIRE(pathPaymentResult.code() ==
+                                PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
+                    }
+                };
 
             SECTION("path payment send issuer missing")
             {
-                gateway.merge(*root);
-                pathPaymentStrictSend({}, idr);
+                auto mergeTx = gateway.tx({accountMerge(*root)});
+                auto pathPaymentTx = source.tx(
+                    {pathPaymentStrictSend(destination, idr, 10, usd, 10, {})});
+                auto resultSet = closeLedger(*app, {mergeTx, pathPaymentTx},
+                                             /* strictOrder */ true);
+                REQUIRE(resultSet.results.size() == 2);
+                REQUIRE(resultSet.results[0].result.result.code() == txSUCCESS);
+                checkPathPaymentStrictSend(resultSet.results[1].result, idr);
             }
 
             SECTION("path payment middle issuer missing")
             {
                 auto btc = makeAsset(getAccount("missing"), "BTC");
-                pathPaymentStrictSend({btc}, btc);
+                auto pathPaymentTx = source.tx({pathPaymentStrictSend(
+                    destination, idr, 10, usd, 10, {btc})});
+                auto resultSet = closeLedger(*app, {pathPaymentTx});
+                REQUIRE(resultSet.results.size() == 1);
+                checkPathPaymentStrictSend(resultSet.results[0].result, btc);
             }
 
             SECTION("path payment last issuer missing")
             {
-                gateway2.merge(*root);
-                pathPaymentStrictSend({}, usd);
+                auto mergeTx = gateway2.tx({accountMerge(*root)});
+                auto pathPaymentTx = source.tx(
+                    {pathPaymentStrictSend(destination, idr, 10, usd, 10, {})});
+                auto resultSet = closeLedger(*app, {mergeTx, pathPaymentTx},
+                                             /* strictOrder */ true);
+                REQUIRE(resultSet.results.size() == 2);
+                REQUIRE(resultSet.results[0].result.result.code() == txSUCCESS);
+                checkPathPaymentStrictSend(resultSet.results[1].result, usd);
             }
 
             // clang-format off
