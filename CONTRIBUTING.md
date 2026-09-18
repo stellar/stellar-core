@@ -309,7 +309,8 @@ test data for downstream consumers such as Horizon and RPC. The two modes are:
 The golden data lives in `test-lcm-current` (for the current protocol) and
 `test-lcm-next` (for the next protocol), one subdirectory per test file, one
 file per leaf section, named by a truncated hash of the test and section names.
-Each subdirectory's `index.json` maps those hashes back to readable names and
+Each subdirectory's `index.json` maps those hashes back to the names (test case
+and sections joined with `|`, as in the TxMeta baselines) and
 records the protocol version and rng seed that produced the data. Continuous
 integration runs `--check-lcm`, which fails fast if those headers do not match
 the running binary — so a protocol version bump requires re-capturing the
@@ -330,8 +331,8 @@ do not accumulate. Pass it only with the full `[tx]` run above: a narrower run
 visits only some leaves, and pruning would delete golden data that is still
 valid.
 
-Some tests are automatically skipped, with the reason logged, because their
-meta cannot serve as golden data: those that inject ledger entries straight
+Some tests are automatically skipped because their meta cannot serve as
+golden data: those that inject ledger entries straight
 into the bucket list (the meta never shows the entries being created), those
 that run a multi-node `Simulation`, and those using a config whose ledger
 content depends on thread scheduling or randomized nomination. If you add a

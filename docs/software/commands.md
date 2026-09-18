@@ -229,7 +229,8 @@ Command options can only by placed after command.
       it cannot decode. Each file
       is named with a truncated SHA-256 hash of the test/section path
       (e.g. `a1b2c3d4e5f67890.xdr`), and an `index.json` in each
-      directory maps hashes back to human-readable names. Each file contains
+      directory maps hashes back to the test case and section names, joined
+      with `|`. Each file contains
       stream-framed `LedgerCloseMeta` entries that can be decoded with
       `stellar-xdr decode --type LedgerCloseMeta --input stream-framed`.
       Non-deterministic diagnostic events are zeroed before writing, but
@@ -248,7 +249,7 @@ Command options can only by placed after command.
       subset of tests visits only some leaves, so pruning would delete golden
       data that is still valid.
       * Tests whose `LedgerCloseMeta` cannot serve as golden data are skipped
-      automatically, with the reason logged: those that inject ledger entries
+      automatically: those that inject ledger entries
       straight into the bucket list (the meta never shows the entries being
       created), run a multi-node `Simulation`, or use a config whose ledger
       content depends on thread scheduling or randomized nomination.

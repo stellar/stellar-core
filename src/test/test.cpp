@@ -90,20 +90,18 @@ enum class TestTxMetaMode
     META_TEST_CHECK
 };
 
-// Declared here (rather than with the other test globals below) because the
-// LCM capture/check code needs them when stamping and validating the header
-// keys of index.json files.
-static bool gTestAllVersions{false};
-static std::vector<uint32> gVersionsToTest;
+namespace stdfs = std::filesystem;
 
 namespace
 {
 
+bool gTestAllVersions{false};
+std::vector<uint32> gVersionsToTest;
 TestTxMetaMode gTestTxMetaMode{TestTxMetaMode::META_TEST_IGNORE};
 bool gLcmCaptureEnabled{false};
 // Root directory containing the test-lcm-<tier> trees to check against;
 // non-empty when --check-lcm was passed.
-std::string gLcmCheckDir;
+stdfs::path gLcmCheckDir;
 // Failures accumulated during --check-lcm, reported at end of run. Leaf
 // boundaries are reported from a Catch listener where no assertion context
 // is active, so failures are collected here and reported by reportLcmCheck,
@@ -113,27 +111,29 @@ std::vector<std::string> gLcmCheckFailures;
 // distinct sections sharing the same test/section name (Catch allows this,
 // but it would make two leaves silently write and check the same golden
 // file with different content).
-std::map<std::string, Catch::SourceLineInfo> gLcmLeafSources;
+std::map<stdfs::path, Catch::SourceLineInfo> gLcmLeafSources;
 // In capture mode, the index entries produced by this run, keyed by output
 // directory (one directory per test file). Written out at end of run, which
 // both truncates stale entries and drives pruning of stale .xdr files.
 // Mirrors saveTestTxMeta, which rebuilds each baseline JSON from what the
 // run observed rather than merging into the existing file.
-std::map<std::string, std::map<std::string, std::string>> gLcmCapturedIndex;
+std::map<stdfs::path, std::map<std::string, std::string>> gLcmCapturedIndex;
 // Output directories of every test case this run visited, whether or not it
 // produced eligible meta. A test file whose leaves have all become
 // ineligible contributes no captured entries, but its stale golden files
 // still need pruning.
-std::set<std::string> gLcmVisitedDirs;
+std::set<stdfs::path> gLcmVisitedDirs;
 // True when --prune-stale-lcm was passed. Off by default because a run
 // filtered to a subset of tests only visits some leaves, and deleting the
 // goldens of tests that simply did not run would be silent data loss. The
 // canonical full-corpus regeneration passes it explicitly.
 bool gLcmMayPrune{false};
 
-// Set when the running test does something that makes its LedgerCloseMeta
-// unsuitable as golden data — see taintLcmCapture. Reset per test case.
-std::string gLcmTaintReason;
+// Non-empty when the running test has done something that makes its
+// LedgerCloseMeta unsuitable as golden data — see disableLcmCapture. Holds
+// the reason, which is reported if golden data still exists for the test.
+// Reset per test case.
+std::string gLcmCaptureDisabledReason;
 
 // Header keys stored in each baseline/index file identifying the
 // configuration that produced it; checked on load so that stale golden data
@@ -166,35 +166,20 @@ needTestCtxTracking()
            lcmTrackingEnabled();
 }
 
-std::string
-sanitizeForFilename(std::string const& s)
-{
-    std::string out;
-    out.reserve(s.size());
-    for (char c : s)
-    {
-        if (c == ' ')
-            out += '_';
-        else if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' ||
-                 c == '"' || c == '<' || c == '>' || c == '|')
-            out += '-';
-        else
-            out += c;
-    }
-    return out;
-}
-
+// The test case and section names joined with '|', in the same format the
+// TxMeta baselines use. This is what index.json maps each hash back to; the
+// file name is the hash, so the name itself need not be filesystem-safe.
 std::string
 buildLcmHumanName(Catch::TestCaseInfo const& tc,
                   std::vector<SectionLcmState> const& sectionStack)
 {
-    std::string name = sanitizeForFilename(tc.name);
+    std::string name = tc.name;
     // Skip the first section — Catch2 always creates an implicit root
     // section with the same name as the test case.
     for (size_t i = 1; i < sectionStack.size(); ++i)
     {
-        name += "-";
-        name += sanitizeForFilename(sectionStack[i].info.name);
+        name += "|";
+        name += sectionStack[i].info.name;
     }
     return name;
 }
@@ -216,15 +201,20 @@ lcmTierDirName()
     return std::string("test-lcm-") + tier;
 }
 
-std::string
+stdfs::path
 buildLcmOutputDir(Catch::TestCaseInfo const& tc)
 {
-    std::filesystem::path file(tc.lineInfo.file);
+    stdfs::path file(tc.lineInfo.file);
     // In check mode the golden data lives under the directory passed to
     // --check-lcm (the source tree root when building out-of-tree); in
     // capture mode it is written relative to the current directory.
-    std::string prefix = gLcmCheckDir.empty() ? "" : gLcmCheckDir + "/";
-    return prefix + lcmTierDirName() + "/" + file.filename().stem().string();
+    return gLcmCheckDir / lcmTierDirName() / file.filename().stem();
+}
+
+stdfs::path
+lcmGoldenFilePath(stdfs::path const& dir, std::string const& hashHex)
+{
+    return dir / (hashHex + ".xdr");
 }
 
 int32_t
@@ -262,7 +252,7 @@ checkLcmSequenceContiguity(std::vector<LedgerCloseMeta> const& metas,
 
 // Read all LedgerCloseMeta entries from an existing XDR file.
 std::vector<LedgerCloseMeta>
-readLcmFromFile(std::string const& path)
+readLcmFromFile(stdfs::path const& path)
 {
     std::vector<LedgerCloseMeta> result;
     XDRInputFileStream in;
@@ -309,10 +299,10 @@ lcmSemanticallyEqual(std::vector<LedgerCloseMeta> const& a,
 // visited only some leaves must not drop the mappings of leaves whose .xdr
 // files are still on disk.
 void
-writeLcmIndex(std::string const& dir,
+writeLcmIndex(stdfs::path const& dir,
               std::map<std::string, std::string> const& entries, bool replace)
 {
-    std::string indexPath = dir + "/index.json";
+    auto indexPath = dir / "index.json";
     Json::Value root(Json::objectValue);
     if (!replace && std::filesystem::exists(indexPath))
     {
@@ -355,8 +345,8 @@ writeLcmIndex(std::string const& dir,
     std::ofstream out(indexPath, std::ios_base::trunc);
     if (!out)
     {
-        throw std::runtime_error(
-            fmt::format("LCM auto-capture: failed to open '{}'", indexPath));
+        throw std::runtime_error(fmt::format(
+            "LCM auto-capture: failed to open '{}'", indexPath.string()));
     }
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out << writer.write(root);
@@ -364,7 +354,7 @@ writeLcmIndex(std::string const& dir,
 }
 
 void
-writeLcmToFile(std::string const& path, std::string const& dir,
+writeLcmToFile(stdfs::path const& path, stdfs::path const& dir,
                std::string const& hashHex, std::string const& humanName,
                size_t startIndex)
 {
@@ -374,7 +364,7 @@ writeLcmToFile(std::string const& path, std::string const& dir,
         LOG_WARNING(DEFAULT_LOG,
                     "LCM auto-capture: no LedgerCloseMeta entries for '{}'. "
                     "This test may use tx->apply() instead of closeLedger().",
-                    path);
+                    path.string());
         return;
     }
 
@@ -394,7 +384,7 @@ writeLcmToFile(std::string const& path, std::string const& dir,
     // Always ensure the directory exists and record the index entry so it
     // stays in sync even when the XDR write below is skipped. The index file
     // itself is written at end of run, from these accumulated entries.
-    fs::mkpath(dir);
+    fs::mkpath(dir.string());
     gLcmCapturedIndex[dir].emplace(hashHex, humanName);
 
     // If an existing file is present, compare normalized versions. Skip the
@@ -411,15 +401,16 @@ writeLcmToFile(std::string const& path, std::string const& dir,
 
     // Remove any existing file (XDROutputFileStream uses O_APPEND on
     // POSIX, so we must remove first to avoid appending to stale data)
-    if (!fs::removeWithLog(path))
+    if (!fs::removeWithLog(path.string()))
     {
-        throw std::runtime_error(fmt::format(
-            "LCM auto-capture: failed to remove existing file '{}'", path));
+        throw std::runtime_error(
+            fmt::format("LCM auto-capture: failed to remove existing file '{}'",
+                        path.string()));
     }
 
     asio::io_context ioc;
     XDROutputFileStream out(ioc, /*fsyncOnClose=*/false);
-    out.open(path);
+    out.open(path.string());
 
     for (auto const& entry : newEntries)
     {
@@ -431,7 +422,7 @@ writeLcmToFile(std::string const& path, std::string const& dir,
 // sectionless test case) against the checked-in golden file, accumulating a
 // failure if the file is missing or its content differs.
 void
-checkLcmAgainstFile(std::string const& path, std::string const& humanName,
+checkLcmAgainstFile(stdfs::path const& path, std::string const& humanName,
                     size_t startIndex)
 {
     auto const& allMetas = txtest::getAccumulatedLcm();
@@ -445,7 +436,7 @@ checkLcmAgainstFile(std::string const& path, std::string const& humanName,
             gLcmCheckFailures.emplace_back(fmt::format(
                 "golden LCM file '{}' exists but test '{}' produced no "
                 "LedgerCloseMeta",
-                path, humanName));
+                path.string(), humanName));
         }
         return;
     }
@@ -463,23 +454,25 @@ checkLcmAgainstFile(std::string const& path, std::string const& humanName,
 
     if (!std::filesystem::exists(path))
     {
-        gLcmCheckFailures.emplace_back(fmt::format(
-            "missing golden LCM file '{}' for test '{}'", path, humanName));
+        gLcmCheckFailures.emplace_back(
+            fmt::format("missing golden LCM file '{}' for test '{}'",
+                        path.string(), humanName));
         return;
     }
 
     auto oldEntries = readLcmFromFile(path);
     if (!lcmSemanticallyEqual(oldEntries, newEntries))
     {
-        gLcmCheckFailures.emplace_back(fmt::format(
-            "LCM mismatch against '{}' for test '{}'", path, humanName));
+        gLcmCheckFailures.emplace_back(
+            fmt::format("LCM mismatch against '{}' for test '{}'",
+                        path.string(), humanName));
     }
 }
 
 void
-recordOrCheckLcm(std::string const& path, std::string const& dir,
-                 std::string const& hashHex, std::string const& humanName,
-                 size_t startIndex, Catch::SourceLineInfo const& leafSource)
+recordOrCheckLcm(stdfs::path const& dir, std::string const& hashHex,
+                 std::string const& humanName, size_t startIndex,
+                 Catch::SourceLineInfo const& leafSource)
 {
     if (gLcmCaptureEnabled)
     {
@@ -489,22 +482,18 @@ recordOrCheckLcm(std::string const& path, std::string const& dir,
         gLcmVisitedDirs.insert(dir);
     }
 
-    if (!gLcmTaintReason.empty())
+    auto path = lcmGoldenFilePath(dir, hashHex);
+    if (!gLcmCaptureDisabledReason.empty())
     {
         // This test's meta is not suitable as golden data. Capture skips it;
         // check flags any golden data that still exists for it, so a stale
         // vector from before the test became ineligible cannot linger.
-        if (gLcmCaptureEnabled)
-        {
-            LOG_WARNING(DEFAULT_LOG, "LCM auto-capture: skipping '{}': {}",
-                        humanName, gLcmTaintReason);
-        }
-        else if (std::filesystem::exists(path))
+        if (!gLcmCaptureEnabled && stdfs::exists(path))
         {
             gLcmCheckFailures.emplace_back(fmt::format(
                 "golden LCM file '{}' exists but test '{}' is not eligible "
                 "for capture: {}",
-                path, humanName, gLcmTaintReason));
+                path.string(), humanName, gLcmCaptureDisabledReason));
         }
         return;
     }
@@ -522,7 +511,7 @@ recordOrCheckLcm(std::string const& path, std::string const& dir,
                 "Duplicate LCM leaf name '{}': sections at {}:{} and {}:{} "
                 "produce the same golden file '{}'; rename one of them",
                 humanName, it->second.file, it->second.line, leafSource.file,
-                leafSource.line, path);
+                leafSource.line, path.string());
             LOG_FATAL(DEFAULT_LOG, "{}", msg);
             throw std::runtime_error(msg);
         }
@@ -562,7 +551,7 @@ struct TestContextListener : Catch::TestEventListenerBase
         }
         if (lcmTrackingEnabled())
         {
-            gLcmTaintReason.clear();
+            gLcmCaptureDisabledReason.clear();
             txtest::clearAccumulatedLcm();
             sLcmSectStack.clear();
             sTestCaseStartIndex = 0;
@@ -579,10 +568,8 @@ struct TestContextListener : Catch::TestEventListenerBase
             auto humanName = buildLcmHumanName(tc, sLcmSectStack);
             auto hash = sha256(humanName);
             auto hashHex = binToHex(hash).substr(0, 16);
-            auto dir = buildLcmOutputDir(tc);
-            auto path = dir + "/" + hashHex + ".xdr";
-            recordOrCheckLcm(path, dir, hashHex, humanName, sTestCaseStartIndex,
-                             tc.lineInfo);
+            recordOrCheckLcm(buildLcmOutputDir(tc), hashHex, humanName,
+                             sTestCaseStartIndex, tc.lineInfo);
         }
         if (needTestCtxTracking())
         {
@@ -626,15 +613,13 @@ struct TestContextListener : Catch::TestEventListenerBase
                 auto humanName = buildLcmHumanName(tc, sLcmSectStack);
                 auto hash = sha256(humanName);
                 auto hashHex = binToHex(hash).substr(0, 16);
-                auto dir = buildLcmOutputDir(tc);
-                auto path = dir + "/" + hashHex + ".xdr";
                 // Use the root section's startIndex so we capture all
                 // LCM for this test run, including setup code that
                 // ran before any SECTION was entered.
                 auto runStart = sLcmSectStack.front().startIndex;
                 sLcmSectStack.pop_back();
-                recordOrCheckLcm(path, dir, hashHex, humanName, runStart,
-                                 state.info.lineInfo);
+                recordOrCheckLcm(buildLcmOutputDir(tc), hashHex, humanName,
+                                 runStart, state.info.lineInfo);
             }
             else
             {
@@ -651,7 +636,6 @@ struct TestContextListener : Catch::TestEventListenerBase
 
 CATCH_REGISTER_LISTENER(TestContextListener)
 
-namespace stdfs = std::filesystem;
 std::optional<Catch::TestCaseInfo> TestContextListener::sTestCtx;
 std::vector<Catch::SectionInfo> TestContextListener::sSectCtx;
 std::vector<SectionLcmState> TestContextListener::sLcmSectStack;
@@ -705,13 +689,13 @@ isLcmCaptureEnabled()
 }
 
 void
-taintLcmCapture(std::string const& reason)
+disableLcmCapture(std::string const& reason)
 {
-    if (!lcmTrackingEnabled() || !gLcmTaintReason.empty())
+    if (!lcmTrackingEnabled() || !gLcmCaptureDisabledReason.empty())
     {
         return;
     }
-    gLcmTaintReason = reason;
+    gLcmCaptureDisabledReason = reason;
 }
 
 static void saveTestTxMeta(stdfs::path const& dir);
@@ -1632,7 +1616,7 @@ finalizeLcmCapture()
     size_t indexes = 0;
     for (auto const& dir : gLcmVisitedDirs)
     {
-        if (!std::filesystem::is_directory(dir))
+        if (!stdfs::is_directory(dir))
         {
             continue;
         }
@@ -1651,28 +1635,29 @@ finalizeLcmCapture()
             }
             continue;
         }
-        std::set<std::string> keep;
+        std::set<stdfs::path> keep;
         for (auto const& [hashHex, humanName] : entries)
         {
-            keep.insert(dir + "/" + hashHex + ".xdr");
+            keep.insert(lcmGoldenFilePath(dir, hashHex));
         }
-        std::vector<std::string> stale;
+        std::vector<stdfs::path> stale;
         for (auto const& dirent : stdfs::directory_iterator{dir})
         {
-            auto p = dirent.path();
-            if (p.extension() == ".xdr" && keep.find(p.string()) == keep.end())
+            auto const& p = dirent.path();
+            if (p.extension() == ".xdr" && keep.find(p) == keep.end())
             {
-                stale.emplace_back(p.string());
+                stale.emplace_back(p);
             }
         }
         for (auto const& p : stale)
         {
             LOG_INFO(DEFAULT_LOG, "LCM auto-capture: pruning stale golden {}",
-                     p);
-            if (!fs::removeWithLog(p))
+                     p.string());
+            if (!fs::removeWithLog(p.string()))
             {
                 throw std::runtime_error(fmt::format(
-                    "LCM auto-capture: failed to prune stale file '{}'", p));
+                    "LCM auto-capture: failed to prune stale file '{}'",
+                    p.string()));
             }
             ++pruned;
         }
@@ -1682,19 +1667,20 @@ finalizeLcmCapture()
             // tests became ineligible, or stopped closing ledgers), so drop
             // the index and the directory rather than leaving a file holding
             // nothing but header keys.
-            std::string indexPath = dir + "/index.json";
-            if (std::filesystem::exists(indexPath) &&
-                !fs::removeWithLog(indexPath))
+            auto indexPath = dir / "index.json";
+            if (stdfs::exists(indexPath) &&
+                !fs::removeWithLog(indexPath.string()))
             {
-                throw std::runtime_error(fmt::format(
-                    "LCM auto-capture: failed to remove '{}'", indexPath));
+                throw std::runtime_error(
+                    fmt::format("LCM auto-capture: failed to remove '{}'",
+                                indexPath.string()));
             }
             std::error_code ec;
-            std::filesystem::remove(dir, ec);
+            stdfs::remove(dir, ec);
             LOG_INFO(DEFAULT_LOG,
                      "LCM auto-capture: removed '{}', which no longer has any "
                      "eligible leaves",
-                     dir);
+                     dir.string());
         }
         else
         {
