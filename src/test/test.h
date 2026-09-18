@@ -51,10 +51,10 @@ bool isLcmCaptureEnabled();
 // unsuitable as golden data (e.g. it injects ledger entries straight into
 // the bucket list, or runs a multi-node simulation whose progression depends
 // on thread scheduling). Capture skips such a test's leaves; --check-lcm
-// fails, citing the reason, if golden data for them still exists, so a stale
-// or misleading vector cannot linger. Calling this when LCM tracking is off
-// is free, so hooks may call it unconditionally.
-void disableLcmCapture(std::string const& reason);
+// fails if golden data for them still exists, so a stale or misleading
+// vector cannot linger. Calling this when LCM tracking is off is free, so
+// hooks may call it unconditionally.
+void disableLcmCapture();
 
 void test_versions_wrapper(std::function<void(void)> f);
 

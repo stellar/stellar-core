@@ -356,20 +356,24 @@ integration runs `--check-lcm`, which fails fast if those headers do not match
 the running binary — so a protocol version bump requires re-capturing the
 data, even when no transaction semantics changed.
 
-To re-capture after an intentional change, or after a protocol bump:
+To re-capture after an intentional change, after a protocol bump, or after
+merging in a `master` that changed the golden data, run from the source tree
+root:
 
-    stellar-core test [tx] --rng-seed 12345 --capture-lcm --prune-stale-lcm
+    stellar-core test [tx] --rng-seed 12345 --capture-lcm
 
 for a build with only the current protocol enabled, and the same command for a
 build configured with `--enable-next-protocol-version-unsafe-for-production`,
 which writes the `next` tier instead. Note there is no `--all-versions` here:
 the golden data is captured at the default (latest) protocol version only.
 
-`--prune-stale-lcm` deletes golden files the run did not write and rebuilds
-each `index.json` from what it captured, so leaves that are no longer produced
-do not accumulate. Pass it only with the full `[tx]` run above: a narrower run
-visits only some leaves, and pruning would delete golden data that is still
-valid.
+Capture is a full-corpus operation: after a clean run it rebuilds each visited
+test file's `index.json` from what it captured and deletes golden files the run
+did not write, so leaves that are no longer produced do not accumulate. This is
+the same behaviour as `--record-test-tx-meta`. A run filtered to a subset of
+tests therefore deletes the goldens of sibling tests in the same file; that is
+fine while iterating locally, but always finish with the full `[tx]` run above
+before committing.
 
 Some tests are automatically skipped because their meta cannot serve as
 golden data: those that inject ledger entries straight
