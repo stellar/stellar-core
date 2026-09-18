@@ -127,15 +127,23 @@ FuzzTransactionFrame::attemptApplication(Application& app,
     AlwaysValidSignatureChecker signatureChecker{
         ltx.loadHeader().current().ledgerVersion, getContentsHash(),
         mEnvelope.v1().signatures};
-    CheckValidLedgerViewWrapper ltxStmt(ltx);
+
+    std::optional<SorobanNetworkConfig const> sorobanNetworkConfig;
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        sorobanNetworkConfig.emplace(
+            app.getAppConnector().getLastClosedSorobanNetworkConfig());
+    }
+    auto const* sorobanConfigPtr =
+        sorobanNetworkConfig ? &(*sorobanNetworkConfig) : nullptr;
+    LedgerTxnView ltxStmt(ltx, sorobanConfigPtr);
     // if any ill-formed Operations, do not attempt transaction application
     auto isInvalidOperation = [&](auto const& op, auto& opResult) {
         auto diagnostics =
             DiagnosticEventManager::createForValidation(app.getConfig());
-        return !op->checkValid(
-            app.getAppConnector(), signatureChecker,
-            &app.getAppConnector().getLastClosedSorobanNetworkConfig(), ltxStmt,
-            false, opResult, diagnostics);
+        return !op->checkValid(app.getAppConnector(), signatureChecker, ltxStmt,
+                               false, opResult, diagnostics);
     };
 
     auto const& ops = getOperations();
@@ -158,7 +166,7 @@ FuzzTransactionFrame::attemptApplication(Application& app,
     TransactionMetaBuilder tm(true, *this,
                               ltx.loadHeader().current().ledgerVersion,
                               app.getAppConnector());
-    std::optional<SorobanNetworkConfig const> sorobanNetworkConfig;
+
     Hash sorobanRngSeed;
     applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
                     *mTxResult, sorobanNetworkConfig, sorobanRngSeed);

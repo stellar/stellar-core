@@ -1202,12 +1202,9 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                 app->getNetworkID(), *root,
                 {root->op(revokeSponsorship(trustlineKey(*root, Asset{})))},
                 {});
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaBuilder txm(true, *tx,
-                                       ltx.loadHeader().current().ledgerVersion,
-                                       app->getAppConnector());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
                     REVOKE_SPONSORSHIP_MALFORMED);
         });
@@ -1220,12 +1217,9 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(revokeSponsorship(trustlineKey(*root, cur1)))}, {});
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaBuilder txm(true, *tx,
-                                       ltx.loadHeader().current().ledgerVersion,
-                                       app->getAppConnector());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
                     REVOKE_SPONSORSHIP_MALFORMED);
         });
@@ -1239,10 +1233,9 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                 app->getNetworkID(), a1, {a1.op(revokeSponsorship(ledgerKey))},
                 {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
                     REVOKE_SPONSORSHIP_MALFORMED);
 

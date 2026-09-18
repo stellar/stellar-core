@@ -697,12 +697,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                          acc1.op(endSponsoringFutureReserves())},
                         {acc1});
 
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
                         app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                     ltx.commit();
@@ -729,12 +730,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                             revokeSponsorship(trustlineKey(acc1, tlAsset)))},
                         {});
 
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
                         app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
                     REQUIRE(tx->getResultCode() == txFAILED);
 
@@ -756,12 +758,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                          gateway.op(endSponsoringFutureReserves())},
                         {acc2});
 
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
                         app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
                     REQUIRE(tx->getResultCode() == txFAILED);
 
@@ -782,12 +785,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                             revokeSponsorship(trustlineKey(acc1, tlAsset)))},
                         {});
 
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
                         app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                 }
@@ -806,12 +810,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                          gateway.op(endSponsoringFutureReserves())},
                         {acc2});
 
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
                         app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                 }
@@ -836,12 +841,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                         app->getNetworkID(), *root,
                         {acc1.op(changeTrust(idrUsd, 0))}, {acc1});
 
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
                         app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                     ltx.commit();
                 };
@@ -887,12 +893,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                              acc1.op(endSponsoringFutureReserves())},
                             {acc1});
 
+                        REQUIRE(tx->checkValidForTesting(
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaBuilder txm(
                             true, *tx, ltx.loadHeader().current().ledgerVersion,
                             app->getAppConnector());
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
                         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                         ltx.commit();
                     }

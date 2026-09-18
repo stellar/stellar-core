@@ -56,12 +56,13 @@ class TransactionFrame : public TransactionFrameBase
     bool
     maybeAdoptFailedReplayResult(MutableTransactionResultBase& txResult) const;
 
-    MutableTxResultPtr checkValidImpl(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
-        SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset,
-        DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
-        std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
+    MutableTxResultPtr
+    checkValidImpl(AppConnector& app, AbstractLedgerView const& ledgerView,
+                   SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+                   uint64_t upperBoundCloseTimeOffset,
+                   DiagnosticEventManager& diagnosticEvents,
+                   bool isOverlayValidation,
+                   std::optional<uint32_t> validationLedgerSeq) const;
 
   protected:
 #ifdef BUILD_TESTS
@@ -83,7 +84,7 @@ class TransactionFrame : public TransactionFrameBase
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header) const;
-    friend class LedgerTxnReadOnly;
+    friend class LedgerTxnView;
 
     enum ValidationType
     {
@@ -108,24 +109,21 @@ class TransactionFrame : public TransactionFrameBase
                               uint64_t lowerBoundCloseTimeOffset) const;
 
     // If check passes, returns the source account. Otherwise returns nullopt.
-    std::optional<LedgerEntryWrapper>
-    commonValidPreSeqNum(AppConnector& app, SorobanNetworkConfig const* cfg,
-                         CheckValidLedgerViewWrapper const& ledgerView,
-                         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset,
-                         Hash const& envelopeContentsHash,
-                         std::optional<FeePair> sorobanResourceFee,
-                         MutableTransactionResultBase& txResult,
-                         DiagnosticEventManager& diagnosticEvents,
-                         std::optional<uint32_t> validationLedgerSeq) const;
+    std::optional<LedgerEntryWrapper> commonValidPreSeqNum(
+        AppConnector& app, AbstractLedgerView const& ledgerView, bool chargeFee,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        Hash const& envelopeContentsHash,
+        std::optional<FeePair> sorobanResourceFee,
+        MutableTransactionResultBase& txResult,
+        DiagnosticEventManager& diagnosticEvents,
+        std::optional<uint32_t> validationLedgerSeq) const;
 
     virtual bool isBadSeq(LedgerHeaderWrapper const& header,
                           int64_t seqNum) const;
 
     ValidationType commonValid(
-        AppConnector& app, SorobanNetworkConfig const* cfg,
-        SignatureChecker& signatureChecker,
-        CheckValidLedgerViewWrapper const& ledgerView, SequenceNumber current,
+        AppConnector& app, SignatureChecker& signatureChecker,
+        AbstractLedgerView const& ledgerView, SequenceNumber current,
         bool applying, bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
         std::optional<FeePair> sorobanResourceFee,
@@ -153,7 +151,7 @@ class TransactionFrame : public TransactionFrameBase
     // `processSignatures` call.
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
-                           CheckValidLedgerViewWrapper const& ledgerView,
+                           AbstractLedgerView const& ledgerView,
                            MutableTransactionResultBase& txResult,
                            AbstractLedgerTxn* ltxForWrites) const;
 
@@ -250,18 +248,18 @@ class TransactionFrame : public TransactionFrameBase
 
     bool checkOperationSignatures(
         SignatureChecker& signatureChecker,
-        CheckValidLedgerViewWrapper const& ledgerView,
+        AbstractLedgerView const& ledgerView,
         MutableTransactionResultBase* txResult) const override;
 
     void checkValidWithOptionallyChargedFee(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        AppConnector& app, AbstractLedgerView const& ledgerView,
         SequenceNumber current, bool chargeFee,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
         Hash const& envelopeContentsHash, MutableTransactionResultBase& result,
         DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
         std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
     MutableTxResultPtr checkValid(AppConnector& app,
-                                  CheckValidLedgerViewWrapper const& ledgerView,
+                                  AbstractLedgerView const& ledgerView,
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset,
@@ -269,7 +267,7 @@ class TransactionFrame : public TransactionFrameBase
                                   std::optional<uint32_t> validationLedgerSeq =
                                       std::nullopt) const override;
     MutableTxResultPtr checkValidForOverlay(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        AppConnector& app, AbstractLedgerView const& ledgerView,
         SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset,
         DiagnosticEventManager& diagnosticEvents,
@@ -307,28 +305,24 @@ class TransactionFrame : public TransactionFrameBase
     //
     // If all of this succeeds, it returns a non-nullptr pointer to the
     // signature checker, to be used elsewhere in the txn. If anything
-    // fails it returns nullptr. `ltxForWrites` will contain the changes made
-    // up to the failure point in that case.
-    std::unique_ptr<SignatureChecker>
-    commonPreApply(bool chargeFee, AppConnector& app,
-                   CheckValidLedgerViewWrapper const& ledgerView,
-                   TransactionMetaBuilder& meta,
-                   MutableTransactionResultBase& txResult,
-                   SorobanNetworkConfig const* sorobanConfig,
-                   Hash const& envelopeContentsHash,
-                   AbstractLedgerTxn* ltxForWrites) const;
+    // fails it returns nullptr.
+    // The writes go directly to `ltxForWrites` and are not rolled back on
+    // failure.
+    std::unique_ptr<SignatureChecker> commonPreApply(
+        bool chargeFee, AppConnector& app, AbstractLedgerView const& ledgerView,
+        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+        Hash const& envelopeContentsHash,
+        AbstractLedgerTxn* ltxForWrites) const;
 
     void preParallelApplyReadOnlyWithOptionallyChargedFee(
-        bool chargeFee, AppConnector& app,
-        CheckValidLedgerViewWrapper const& ls, TransactionMetaBuilder& meta,
-        MutableTransactionResultBase& txResult,
-        SorobanNetworkConfig const& sorobanConfig,
+        bool chargeFee, AppConnector& app, AbstractLedgerView const& ls,
+        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
         Hash const& envelopeContentsHash) const;
 
     void preParallelApplyReadOnly(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ls,
-        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-        SorobanNetworkConfig const& sorobanConfig) const override;
+        AppConnector& app, AbstractLedgerView const& ls,
+        TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult) const override;
 
     void preParallelApplyWrite(
         AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,

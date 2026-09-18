@@ -1787,8 +1787,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // see if we need to include some upgrades
     std::vector<LedgerUpgrade> upgrades;
     {
-        CheckValidLedgerViewWrapper ledgerView(mApp);
-        upgrades = mUpgrades.createUpgradesFor(lcl.header, ledgerView,
+        auto ledgerView = mApp.getLedgerManager().getLCLView();
+        upgrades = mUpgrades.createUpgradesFor(lcl.header, *ledgerView,
                                                mApp.getConfig());
     }
     for (auto const& upgrade : upgrades)
@@ -1868,8 +1868,8 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 std::string
 HerderImpl::getUpgradesJson()
 {
-    auto ledgerView = CheckValidLedgerViewWrapper(mApp);
-    return mUpgrades.getParameters().toDebugJson(ledgerView);
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
+    return mUpgrades.getParameters().toDebugJson(*ledgerView);
 }
 
 void

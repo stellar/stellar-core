@@ -250,22 +250,45 @@ class LedgerManager
     virtual LedgerHeaderHistoryEntry const&
     getLastClosedLedgerHeader() const = 0;
 
-    // Create a thread-safe copy of the current canonical ledger state
-    // snapshot. Can be called from any thread (except for apply, which must use
-    // copyApplyLedgerView instead).
-    virtual ImmutableLedgerView copyImmutableLedgerView() const = 0;
+    // Scans the last closed ledger's live BucketList for entries of a given
+    // type. Note this iterates over all BucketEntries, so some may be shadowed
+    // and outdated.
+    virtual void scanLiveEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(BucketEntry const&)> callback) const = 0;
 
-    // Create a thread-safe copy of the current canonical ledger state
-    // snapshot, typed as an apply-time snapshot. Used by legacy (pre-V23)
-    // code paths that need an ApplyLedgerView but don't have
-    // access to ApplyState.
+#ifdef BUILD_TESTS
+    // Returns the concrete view backing `getLCLView`, which exposes the batch
+    // loading and Hot Archive functionality.
+    // At the moment this should only be necessary for the tests, as the
+    // production code-paths should only care about that functionality at apply
+    // time, which uses the concrete `ApplyLedgerView` implementation.
+    virtual ImmutableLedgerView copyImmutableLedgerView() const = 0;
+#endif
+
+    // Create a copy of the canonical last closed ledger snapshot.
+    // The returned snapshot is *not* thread-safe (albeit being `const`), so
+    // every thread must hold their own instance of the snapshot.
+    // `getLCLView` itself is thread-safe and can be called from multiple
+    // threads, except the apply thread, which must use `copyApplyLedgerView`
+    // instead.
+    virtual std::unique_ptr<AbstractLedgerView const> getLCLView() const = 0;
+
+    // Create a copy of the canonical ledger snapshot at the current moment in
+    // apply flow.
+    // The returned snapshot is *not* thread-safe, so every thread  used during
+    // transaction application must hold their own copy of the snapshot.
+    // `copyApplyLedgerView` is restricted to the ledger apply thread.
+    // Used by legacy (pre-V23) code paths that need an ApplyLedgerView but
+    // don't have access to ApplyState to copy it from.
     // TODO: Refactor such that this doesn't have to be a public function
     virtual ApplyLedgerView copyApplyLedgerView() const = 0;
 
-    // Refresh `ledgerView` if its ledger seq differs from the current canonical
-    // state. No-op otherwise. Can be called from any thread.
-    virtual void
-    maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView) const = 0;
+    // Makes the provided `ledgerView` match the current canonical LCL view.
+    // No-op when views have a matching ledger sequence number.
+    // Can be called from any thread.
+    virtual void syncWithLCLView(
+        std::unique_ptr<AbstractLedgerView const>& ledgerView) const = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database

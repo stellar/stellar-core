@@ -1053,16 +1053,16 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     auto allTxs = classicTxs;
     allTxs.insert(allTxs.end(), sorobanTxs.begin(), sorobanTxs.end());
     {
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
         auto diag = DiagnosticEventManager::createDisabled();
         for (auto const& tx : allTxs)
         {
             bool isValid = tx->checkValid(test.getApp().getAppConnector(),
-                                          ledgerView, 0, 0, 0, diag)
+                                          *ledgerView, 0, 0, 0, diag)
                                ->isSuccess();
             if (!isValid)
             {
-                tx->checkValid(test.getApp().getAppConnector(), ledgerView, 0,
+                tx->checkValid(test.getApp().getAppConnector(), *ledgerView, 0,
                                0, 0, diag);
             }
             REQUIRE(isValid);
@@ -1121,14 +1121,14 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     std::vector<std::pair<LedgerKey, std::pair<std::optional<LedgerEntry>,
                                                std::optional<LedgerEntry>>>>
         finalEntries;
-    CheckValidLedgerViewWrapper ledgerView(test.getApp());
+    auto ledgerView = test.getApp().getLedgerManager().getLCLView();
     auto archiveSnap =
         test.getApp().getLedgerManager().copyImmutableLedgerView();
     for (auto const& k : allKeys)
     {
         std::optional<LedgerEntry> liveEntry;
         std::optional<LedgerEntry> archivedEntry;
-        if (auto e = ledgerView.load(k))
+        if (auto e = ledgerView->load(k))
         {
             liveEntry = e.current();
             // All the entries that were in the live state and were
@@ -1155,7 +1155,7 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
         {
             LedgerKey ttlKey = getTTLKey(k);
             std::optional<LedgerEntry> liveTtlEntry;
-            if (auto e = ledgerView.load(ttlKey))
+            if (auto e = ledgerView->load(ttlKey))
             {
                 liveTtlEntry = e.current();
             }
@@ -1494,11 +1494,11 @@ runPreApplyScenario(int64_t seed, int multiplier, size_t preApplyTaskCount)
     // Validate every transaction manually, as we skip validation due to fixed
     // Soroban apply order.
     {
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
         auto diag = DiagnosticEventManager::createDisabled();
         for (auto const& tx : txs)
         {
-            REQUIRE(tx->checkValid(test.getApp().getAppConnector(), ledgerView,
+            REQUIRE(tx->checkValid(test.getApp().getAppConnector(), *ledgerView,
                                    0, 0, 0, diag)
                         ->isSuccess());
         }
@@ -1573,13 +1573,12 @@ runPreApplyScenario(int64_t seed, int multiplier, size_t preApplyTaskCount)
     observedAccounts.push_back(feeBumper.getPublicKey());
     observedAccounts.push_back(root.getPublicKey());
 
-    auto ledgerView =
-        test.getApp().getLedgerManager().copyImmutableLedgerView();
+    auto ledgerView = test.getApp().getLedgerManager().getLCLView();
     for (auto const& accountID : observedAccounts)
     {
         auto key = accountKey(accountID);
         std::optional<LedgerEntry> entry;
-        if (auto e = ledgerView.load(key))
+        if (auto e = ledgerView->load(key))
         {
             entry = e.current();
         }

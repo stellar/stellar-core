@@ -657,9 +657,9 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
             xdr::xdr_from_opaque(buffer, key);
-            auto ledgerView = CheckValidLedgerViewWrapper(mApp);
+            auto ledgerView = mApp.getLedgerManager().getLCLView();
 
-            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ledgerView, key);
+            auto ptr = ConfigUpgradeSetFrame::makeFromKey(*ledgerView, key);
 
             if (!ptr || ptr->isValidForApply(mApp.getConfig()) !=
                             Upgrades::UpgradeValidity::VALID)
@@ -727,9 +727,9 @@ CommandHandler::dumpProposedSettings(std::string const& params,
         decoder::decode_b64(blob, buffer);
         ConfigUpgradeSetKey key;
         xdr::xdr_from_opaque(buffer, key);
-        auto ledgerView = CheckValidLedgerViewWrapper(mApp);
+        auto ledgerView = mApp.getLedgerManager().getLCLView();
 
-        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ledgerView, key);
+        auto ptr = ConfigUpgradeSetFrame::makeFromKey(*ledgerView, key);
 
         if (!ptr || ptr->isValidForApply(mApp.getConfig()) !=
                         Upgrades::UpgradeValidity::VALID)
@@ -959,11 +959,11 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "detailed")
         {
-            CheckValidLedgerViewWrapper ledgerView(mApp);
+            auto ledgerView = mApp.getLedgerManager().getLCLView();
             xdr::xvector<ConfigSettingEntry> entries;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
             {
-                auto entry = ledgerView.load(
+                auto entry = ledgerView->load(
                     configSettingKey(static_cast<ConfigSettingID>(c)));
                 if (!entry)
                 {
@@ -976,7 +976,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "upgrade_xdr")
         {
-            CheckValidLedgerViewWrapper ledgerView(mApp);
+            auto ledgerView = mApp.getLedgerManager().getLCLView();
 
             ConfigUpgradeSet upgradeSet;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
@@ -987,7 +987,8 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 {
                     continue;
                 }
-                auto entry = ledgerView.load(configSettingKey(configSettingID));
+                auto entry =
+                    ledgerView->load(configSettingKey(configSettingID));
                 if (!entry)
                 {
                     continue;
@@ -1455,8 +1456,8 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        CheckValidLedgerViewWrapper ledgerView(mApp);
-        auto acc = ledgerView.load(accountKey(key.getPublicKey()));
+        auto ledgerView = mApp.getLedgerManager().getLCLView();
+        auto acc = ledgerView->load(accountKey(key.getPublicKey()));
         if (acc)
         {
             auto const& ae = acc.current().data.account();

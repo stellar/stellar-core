@@ -15,6 +15,7 @@
 
 namespace stellar
 {
+class AbstractLedgerView;
 class AbstractLedgerTxn;
 class LedgerManager;
 class LedgerTxnEntry;
@@ -97,16 +98,16 @@ class OperationFrame
     // to `nullptr` if they do not directly need the result of signature
     // validation (such as in the case of background signature validation).
     bool checkSignature(SignatureChecker& signatureChecker,
-                        CheckValidLedgerViewWrapper const& ledgerView,
-                        OperationResult* res, bool forApply) const;
+                        AbstractLedgerView const& ledgerView,
+                        LedgerHeaderWrapper const& header, OperationResult* res,
+                        bool forApply) const;
 
     AccountID getSourceID() const;
     MuxedAccount getSourceAccount() const;
 
     bool checkValid(AppConnector& app, SignatureChecker& signatureChecker,
-                    SorobanNetworkConfig const* cfg,
-                    CheckValidLedgerViewWrapper const& ledgerView,
-                    bool forApply, OperationResult& res,
+                    AbstractLedgerView const& ledgerView, bool forApply,
+                    OperationResult& res,
                     DiagnosticEventManager& diagnosticEvents) const;
 
     bool apply(AppConnector& app, SignatureChecker& signatureChecker,
