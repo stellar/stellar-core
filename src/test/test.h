@@ -47,14 +47,14 @@ extern bool force_sqlite;
 // seed that produced the data.
 bool isLcmCaptureEnabled();
 
-// Marks the running test as unsuitable for LedgerCloseMeta golden data,
-// naming the reason (e.g. injecting ledger entries straight into the bucket
-// list, or running a multi-node simulation whose progression depends on
-// thread scheduling). Capture skips such a test's leaves and logs the
-// reason; --check-lcm fails if golden data for them still exists, so a
-// stale or misleading vector cannot linger. Calling this when LCM tracking
-// is off is free, so hooks may call it unconditionally.
-void taintLcmCapture(std::string const& reason);
+// Disables LedgerCloseMeta capture for the running test because its meta is
+// unsuitable as golden data (e.g. it injects ledger entries straight into
+// the bucket list, or runs a multi-node simulation whose progression depends
+// on thread scheduling). Capture skips such a test's leaves; --check-lcm
+// fails, citing the reason, if golden data for them still exists, so a stale
+// or misleading vector cannot linger. Calling this when LCM tracking is off
+// is free, so hooks may call it unconditionally.
+void disableLcmCapture(std::string const& reason);
 
 void test_versions_wrapper(std::function<void(void)> f);
 
