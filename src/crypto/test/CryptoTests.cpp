@@ -1659,7 +1659,6 @@ ZcashTestVector const ZCASH_TEST_VECTORS[196] = {
 
 TEST_CASE("Ed25519 test vectors from Zcash", "[crypto]")
 {
-    PubKeyUtils::enableRustDalekVerify();
     for (auto const& tv : ZCASH_TEST_VECTORS)
     {
         PublicKey pk;
