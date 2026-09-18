@@ -3,6 +3,6 @@
    "!rng seed" : 12345,
    "!test all versions" : false,
    "!versions to test" : [ 28 ],
-   "1f16368433da1628" : "liabilities_match_created_offer-protocol_version_28-minimum_limits",
-   "457999c2534447ae" : "liabilities_match_created_offer-protocol_version_28-maximum_limits"
+   "4acf24b67e988146" : "liabilities match created offer|protocol version 28|maximum limits",
+   "e4504bac76559746" : "liabilities match created offer|protocol version 28|minimum limits"
 }

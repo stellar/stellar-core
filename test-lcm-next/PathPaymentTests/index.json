@@ -3,7 +3,7 @@
    "!rng seed" : 12345,
    "!test all versions" : false,
    "!versions to test" : [ 29 ],
-   "1354d03620082f2e" : "path_payment_uses_all_offers_in_a_loop-protocol_version_29-no_issuers_missing",
-   "7e6226a77fae06d5" : "path_payment_uses_all_offers_in_a_loop-protocol_version_29-outside_issuers_missing",
-   "9780b9c353954cd5" : "path_payment_uses_all_offers_in_a_loop-protocol_version_29-inside_issuers_missing"
+   "5cf9693f2120a6e9" : "path payment uses all offers in a loop|protocol version 29|inside issuers missing",
+   "cc63270983ba4cc8" : "path payment uses all offers in a loop|protocol version 29|no issuers missing",
+   "d53bb397f808b878" : "path payment uses all offers in a loop|protocol version 29|outside issuers missing"
 }
