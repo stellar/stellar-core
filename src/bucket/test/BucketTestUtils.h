@@ -94,8 +94,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
         // Entries injected straight into the bucket list appear in the ledger
         // without any transaction producing them, so the resulting meta is
         // not a faithful record of how the state came to be.
-        disableLcmCapture(
-            "injects ledger entries directly into the bucket list");
+        disableLcmCapture();
         mUseTestEntries = true;
         mAlsoAddActualEntries = alsoAddActualEntries;
         mTestInitEntries = initEntries;
@@ -110,8 +109,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     {
         // As above: injected archive state has no transaction behind it, so
         // the meta does not record how that state came to be.
-        disableLcmCapture(
-            "injects ledger entries directly into the bucket list");
+        disableLcmCapture();
         mUseTestEntries = true;
         mTestArchiveEntries = archiveEntries;
         mTestRestoredEntries = restoredEntries;

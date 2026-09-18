@@ -78,13 +78,10 @@ captureLastClosedLedgerLcm(Application& app)
     {
         // Configs whose ledger content depends on thread scheduling or on
         // randomized nomination cannot produce reproducible golden data.
-        if (app.getConfig().EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD)
+        if (app.getConfig().EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD ||
+            app.getConfig().TESTING_NOMINATE_RANDOM_VALUES)
         {
-            disableLcmCapture("uses EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD");
-        }
-        if (app.getConfig().TESTING_NOMINATE_RANDOM_VALUES)
-        {
-            disableLcmCapture("uses TESTING_NOMINATE_RANDOM_VALUES");
+            disableLcmCapture();
         }
     }
     if (isLcmCaptureEnabled() && !app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
