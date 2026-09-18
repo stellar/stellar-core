@@ -34,8 +34,9 @@ fi
 
 # NB: use `-gdwarf-3` (not -g or -gdwarf-4 or later) specifically as
 # it produces the highest-fidelity backtraces with our current
-# rust/gimli-backed backtrace system.
-test "${CFLAGS+set}" || CFLAGS="-gdwarf-3 -O2 -fno-omit-frame-pointer"
+# rust/gimli-backed backtrace system. pass -g1 to limit the size of
+# debuginfo and also the memory cost to create it.
+test "${CFLAGS+set}" || CFLAGS="-gdwarf-3 -g1 -O2 -fno-omit-frame-pointer"
 test "${CXXFLAGS+set}" || CXXFLAGS="$CFLAGS"
 
 AC_PROG_CC([clang gcc cc])
