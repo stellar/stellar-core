@@ -825,9 +825,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         for_versions(3, 9, *app, [&] {
                             setup();
                             {
-                                LedgerTxn ltx(app->getLedgerTxnRoot());
                                 REQUIRE(!tx->checkValidForTesting(
-                                    app->getAppConnector(), ltx, 0, 0, 0));
+                                    app->getAppConnector(),
+                                    *app->getLedgerManager().getLCLView(), 0, 0,
+                                    0));
                             }
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -1429,13 +1430,15 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                  a1.op(endSponsoringFutureReserves())},
                                 {a1});
                             {
+                                REQUIRE(insideSignerTx->checkValidForTesting(
+                                    app->getAppConnector(),
+                                    *app->getLedgerManager().getLCLView(), 0, 0,
+                                    0));
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
                                 TransactionMetaBuilder txm(
                                     true, *insideSignerTx,
                                     ltx.loadHeader().current().ledgerVersion,
                                     app->getAppConnector());
-                                REQUIRE(insideSignerTx->checkValidForTesting(
-                                    app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(insideSignerTx->apply(
                                     app->getAppConnector(), ltx, txm));
                                 REQUIRE(insideSignerTx->getResultCode() ==
@@ -1451,13 +1454,15 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                  a1.op(endSponsoringFutureReserves())},
                                 {a1});
                             {
+                                REQUIRE(outsideSignerTx->checkValidForTesting(
+                                    app->getAppConnector(),
+                                    *app->getLedgerManager().getLCLView(), 0, 0,
+                                    0));
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
                                 TransactionMetaBuilder txm(
                                     true, *outsideSignerTx,
                                     ltx.loadHeader().current().ledgerVersion,
                                     app->getAppConnector());
-                                REQUIRE(outsideSignerTx->checkValidForTesting(
-                                    app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(outsideSignerTx->apply(
                                     app->getAppConnector(), ltx, txm));
                                 REQUIRE(outsideSignerTx->getResultCode() ==
@@ -1684,9 +1689,9 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                 setFullFee(tx, 1000);
 
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
 
                 applyCheck(tx, *app);
@@ -1709,9 +1714,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(!tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
@@ -1723,9 +1729,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1741,9 +1748,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(b1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1767,9 +1775,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(b1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(!tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
 
                         applyCheck(tx, *app);
@@ -1795,9 +1804,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(b1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
 
                         applyCheck(tx, *app);
@@ -1822,9 +1832,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(b1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
 
                         applyCheck(tx, *app);
@@ -1909,9 +1920,9 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                 for_versions_to(9, *app, [&] {
                     setup();
                     {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
                         REQUIRE(!txFrame->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     }
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -1998,10 +2009,11 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 getSignatures(txFrame).clear();
                                 txFrame->addSignature(*root);
                                 {
-                                    LedgerTxn ltx(app->getLedgerTxnRoot());
                                     REQUIRE(txFrame->checkValidForTesting(
-                                                app->getAppConnector(), ltx, 0,
-                                                lowerBound,
+                                                app->getAppConnector(),
+                                                *app->getLedgerManager()
+                                                     .getLCLView(),
+                                                0, lowerBound,
                                                 0) == expectSuccess);
                                 }
                                 REQUIRE(
@@ -2080,10 +2092,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 txFrame->addSignature(*root);
 
                                 {
-                                    LedgerTxn ltx(app->getLedgerTxnRoot());
                                     REQUIRE(txFrame->checkValidForTesting(
-                                        app->getAppConnector(), ltx, 0, 0,
-                                        offset));
+                                        app->getAppConnector(),
+                                        *app->getLedgerManager().getLCLView(),
+                                        0, 0, offset));
                                 }
 
                                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
@@ -2094,10 +2106,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 setMaxTime(txFrame, upperBoundCloseTime - 1);
 
                                 {
-                                    LedgerTxn ltx(app->getLedgerTxnRoot());
                                     REQUIRE(!txFrame->checkValidForTesting(
-                                        app->getAppConnector(), ltx, 0, 0,
-                                        offset));
+                                        app->getAppConnector(),
+                                        *app->getLedgerManager().getLCLView(),
+                                        0, 0, offset));
                                 }
 
                                 REQUIRE(txFrame->getResultCode() == txTOO_LATE);
@@ -2124,9 +2136,9 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         root->tx({payment(a1.getPublicKey(), paymentAmount)});
                     setSeqNum(txFrame, txFrame->getSeqNum() - 1);
                     {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
                         REQUIRE(!txFrame->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     }
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
@@ -2517,10 +2529,9 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
         SECTION("checkValid accepts ed25519 signed payload signer")
         {
             // Normal checkValid should succeed — the payload signer is valid
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ls = CheckValidLedgerViewWrapper(ltx);
+            auto ls = app->getLedgerManager().getLCLView();
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            auto result = tx->checkValid(app->getAppConnector(), *ls, 0, 0, 0,
                                          diagnostics);
             REQUIRE(result->isSuccess());
         }
@@ -2534,10 +2545,9 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
 
         SECTION("checkValidForOverlay accepts ed25519 signed payload signer")
         {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ls = CheckValidLedgerViewWrapper(ltx);
+            auto ls = app->getLedgerManager().getLCLView();
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            auto result = tx->checkValidForOverlay(app->getAppConnector(), ls,
+            auto result = tx->checkValidForOverlay(app->getAppConnector(), *ls,
                                                    0, 0, 0, diagnostics);
             REQUIRE(result->isSuccess());
         }
@@ -2550,21 +2560,19 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
 
             SECTION("checkValid accepts fee bump")
             {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ls = CheckValidLedgerViewWrapper(ltx);
+                auto ls = app->getLedgerManager().getLCLView();
                 auto diagnostics = DiagnosticEventManager::createDisabled();
-                auto result = feeBumpTx->checkValid(app->getAppConnector(), ls,
+                auto result = feeBumpTx->checkValid(app->getAppConnector(), *ls,
                                                     0, 0, 0, diagnostics);
                 REQUIRE(result->isSuccess());
             }
 
             SECTION("checkValidForOverlay accepts fee bump")
             {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ls = CheckValidLedgerViewWrapper(ltx);
+                auto ls = app->getLedgerManager().getLCLView();
                 auto diagnostics = DiagnosticEventManager::createDisabled();
                 auto result = feeBumpTx->checkValidForOverlay(
-                    app->getAppConnector(), ls, 0, 0, 0, diagnostics);
+                    app->getAppConnector(), *ls, 0, 0, 0, diagnostics);
                 REQUIRE(result->isSuccess());
             }
         }
@@ -2586,8 +2594,9 @@ TEST_CASE("soroban txs not allowed before protocol upgrade",
     auto tx =
         sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op}, {},
                                        SorobanResources(), 1000, 1'000'000);
-    LedgerTxn ltx(app->getLedgerTxnRoot());
-    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                      *app->getLedgerManager().getLCLView(), 0,
+                                      0, 0));
     REQUIRE(tx->getResultCode() == txMALFORMED);
 }
 TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
@@ -2607,20 +2616,21 @@ TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
         payment.asset.type(ASSET_TYPE_NATIVE);
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), *root,
                                                  {op}, {}, resources, 100, 100);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
         if (protocolVersionStartsFrom(app->getLedgerManager()
                                           .getLastClosedLedgerHeader()
                                           .header.ledgerVersion,
                                       ProtocolVersion::V_21))
         {
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             REQUIRE(tx->getResultCode() == txMALFORMED);
         }
         else
         {
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+            REQUIRE(tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
         }
     });
 }
@@ -2645,9 +2655,10 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                 auto tx = sorobanTransactionFrameFromOps(
                     app->getNetworkID(), *root, {op0}, {}, resources, 100,
                     3'500'000);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                                 0, 0) == valid);
+                REQUIRE(tx->checkValidForTesting(
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0,
+                            0) == valid);
                 if (!valid)
                 {
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
@@ -2658,9 +2669,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
             {
                 auto tx = transactionFrameFromOps(app->getNetworkID(), *root,
                                                   {op0}, {});
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx,
-                                                  0, 0, 0));
+                REQUIRE(!tx->checkValidForTesting(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 REQUIRE(tx->getResultCode() == txMALFORMED);
             }
             SorobanResources resources;
@@ -2740,9 +2751,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         4'000'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("limit exceeded")
                 {
@@ -2751,9 +2762,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         4'000'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
                 }
             }
@@ -2764,9 +2775,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                         app->getNetworkID(), *root, {op0}, {}, resources, 1'000,
                         100'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
                 }
                 SECTION("inclusion fee is too low")
@@ -2774,9 +2785,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                         app->getNetworkID(), *root, {op0}, {}, resources,
                         1'000'099, 1'000'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txINSUFFICIENT_FEE);
                 }
                 SECTION("required resource fee is lower than declared")
@@ -2784,9 +2795,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                         app->getNetworkID(), *root, {op0}, {}, resources,
                         1'000'000, 10);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
                 }
                 SECTION("resource fee is negative")
@@ -2794,9 +2805,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                         app->getNetworkID(), *root, {op0}, {}, resources,
                         1'000'000, std::numeric_limits<int64_t>::min());
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     // Negative resource fee is handled before we get to
                     // Soroban-specific checks.
                     REQUIRE(tx->getResultCode() == txMALFORMED);
@@ -2809,9 +2820,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         static_cast<int64_t>(
                             std::numeric_limits<uint32_t>::max()) +
                             1);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
                 }
                 SECTION("resource fee is max int64")
@@ -2820,9 +2831,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         app->getNetworkID(), *root, {op0}, {}, resources,
                         std::numeric_limits<uint32_t>::max(),
                         std::numeric_limits<int64_t>::max());
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txMALFORMED);
                 }
                 SECTION("total fee is exactly uint32 max")
@@ -2833,9 +2844,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         static_cast<int64_t>(
                             std::numeric_limits<uint32_t>::max()) -
                             100);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("total fee exceeds uint32 after adding base fee")
                 {
@@ -2845,9 +2856,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         static_cast<int64_t>(
                             std::numeric_limits<uint32_t>::max()) -
                             100 + 1);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     // This gets rejected due to insufficient inclusion fee, so
                     // we have the respective error code (even though the fee is
                     // insufficient due to Soroban resource fee).
@@ -2862,9 +2873,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx =
                         feeBump(*app, *root, innerTx, 2 * 100 + resourceFee,
                                 /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("resource fee exceeds uint32 with fee bump")
                 {
@@ -2874,19 +2885,20 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         std::numeric_limits<uint32_t>::max(), resourceFee);
                     auto tx = feeBump(*app, *root, innerTx, resourceFee + 200,
                                       /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     // This is allowed from protocol 23 - fee bump is sufficient
                     // to cover the inner resource fee.
                     if (protocolVersionStartsFrom(ledgerVersion,
                                                   ProtocolVersion::V_23))
                     {
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
+                        REQUIRE(tx->checkValidForTesting(
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     }
                     else
                     {
                         REQUIRE(!tx->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                         REQUIRE(tx->getResultCode() == txFEE_BUMP_INNER_FAILED);
                     }
                 }
@@ -2901,9 +2913,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx =
                         feeBump(*app, *root, innerTx, resourceFee + 200 - 1,
                                 /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txINSUFFICIENT_FEE);
                 }
                 SECTION("resource fee is negative with fee bump")
@@ -2914,9 +2926,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = feeBump(*app, *root, innerTx,
                                       std::numeric_limits<int64_t>::max(),
                                       /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txMALFORMED);
                 }
                 SECTION("resource fee is max int64 with fee bump")
@@ -2928,9 +2940,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = feeBump(*app, *root, innerTx,
                                       std::numeric_limits<int64_t>::max(),
                                       /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txMALFORMED);
                 }
             }
@@ -2940,9 +2952,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                 auto tx = sorobanTransactionFrameFromOps(
                     app->getNetworkID(), *root, {op0, op0}, {}, resources, 100,
                     100'000);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx,
-                                                  0, 0, 0));
+                REQUIRE(!tx->checkValidForTesting(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 REQUIRE(tx->getResultCode() == txMALFORMED);
             }
             SECTION("contract size")
@@ -2958,9 +2970,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("over limit")
                 {
@@ -2969,9 +2981,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
             }
 
@@ -3000,9 +3012,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
 
                 auto keyBytes = makeBytes(InitialSorobanNetworkConfig::
@@ -3023,9 +3035,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("read-write key over size limit")
                 {
@@ -3042,9 +3054,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
             }
         });
@@ -3071,8 +3083,8 @@ TEST_CASE("XDR protocol 22 compatibility validation", "[tx][envelope]")
         auto tx =
             sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op}, {},
                                            SorobanResources(), 1000, 1'000'000);
-        CheckValidLedgerViewWrapper ledgerView(*app);
-        return tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0);
+        auto ledgerView = app->getLedgerManager().getLCLView();
+        return tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0);
     };
     SECTION("not valid in protocol 21")
     {
@@ -3104,7 +3116,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
         op.body.invokeHostFunctionOp().hostFunction.type(
             HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
 
-        CheckValidLedgerViewWrapper ledgerView(*app);
+        auto ledgerView = app->getLedgerManager().getLCLView();
         SECTION("muxed account ScAddress in function args")
         {
             auto& val = op.body.invokeHostFunctionOp()
@@ -3118,7 +3130,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
                 1'000'000);
 
             auto res =
-                tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0);
+                tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0);
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {
@@ -3139,7 +3151,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
                 app->getNetworkID(), *root, {op}, {}, SorobanResources(), 1000,
                 1'000'000);
             auto res =
-                tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0);
+                tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0);
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {
@@ -3162,7 +3174,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
                                                      {ttlOp}, {}, resources,
                                                      1000, 1'000'000);
             auto res =
-                tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0);
+                tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0);
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {

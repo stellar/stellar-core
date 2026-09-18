@@ -148,10 +148,26 @@ OperationFrame::apply(
     ZoneScoped;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
 
-    CheckValidLedgerViewWrapper ltxState(ltx);
-    bool applyRes = checkValid(
-        app, signatureChecker, sorobanConfig ? &sorobanConfig.value() : nullptr,
-        ltxState, true, res, opMeta.getDiagnosticEventManager());
+    auto const* cfg = sorobanConfig ? &sorobanConfig.value() : nullptr;
+    bool applyRes = [&] {
+        // Older protocol versions contain buggy account loading code that
+        // writes through to the LedgerTxn, so validate against a nested
+        // LedgerTxn that is rolled back.
+        std::optional<LedgerTxn> maybeLegacyNestedLtx;
+        if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                    ProtocolVersion::V_8))
+        {
+            maybeLegacyNestedLtx.emplace(ltx);
+        }
+        LedgerTxnView ledgerView(
+            maybeLegacyNestedLtx
+                ? static_cast<AbstractLedgerTxn&>(*maybeLegacyNestedLtx)
+                : ltx,
+            cfg);
+        return checkValid(app, signatureChecker, ledgerView,
+                          /*forApply=*/true, res,
+                          opMeta.getDiagnosticEventManager());
+    }();
     if (applyRes)
     {
         if (isSoroban())
@@ -215,11 +231,11 @@ OperationFrame::isOpSupported(LedgerHeader const&) const
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               CheckValidLedgerViewWrapper const& ledgerView,
+                               AbstractLedgerView const& ledgerView,
+                               LedgerHeaderWrapper const& header,
                                OperationResult* res, bool forApply) const
 {
     ZoneScoped;
-    auto header = ledgerView.getLedgerHeader();
     auto sourceAccount =
         ledgerView.getAccount(header, mParentTx, getSourceID());
     if (sourceAccount)
@@ -282,84 +298,55 @@ OperationFrame::getSourceAccount() const
 bool
 OperationFrame::checkValid(AppConnector& app,
                            SignatureChecker& signatureChecker,
-                           SorobanNetworkConfig const* cfg,
-                           CheckValidLedgerViewWrapper const& ledgerView,
-                           bool forApply, OperationResult& res,
+                           AbstractLedgerView const& ledgerView, bool forApply,
+                           OperationResult& res,
                            DiagnosticEventManager& diagnosticEvents) const
 {
     ZoneScoped;
-    bool validationResult = false;
-    auto validate = [this, &res, forApply, &signatureChecker, &app,
-                     &diagnosticEvents, &validationResult,
-                     &cfg](CheckValidLedgerViewWrapper const& ledgerView) {
-        if (!isOpSupported(ledgerView.getLedgerHeader().current()))
-        {
-            res.code(opNOT_SUPPORTED);
-            validationResult = false;
-            return;
-        }
-
-        auto ledgerVersion =
-            ledgerView.getLedgerHeader().current().ledgerVersion;
-        if (!forApply ||
-            protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
-        {
-            if (!checkSignature(signatureChecker, ledgerView, &res, forApply))
-            {
-                validationResult = false;
-                return;
-            }
-        }
-        else
-        {
-            // for ledger versions >= 10 we need to load account here, as for
-            // previous versions it is done in checkSignature call
-            // If we get to operation checkvalid, we know the tx source account
-            // has already been checked for existence. If we're not applying,
-            // it's guaranteed that the tx source account exists, since ledger
-            // state hasn't changed, so we can skip this redundant check.
-            // If we're applying, it's possible an earlier op modified the TX
-            // source, so we need to check again.
-            if ((mOperation.sourceAccount || forApply) &&
-                !ledgerView.getAccount(ledgerView.getLedgerHeader(), mParentTx,
-                                       getSourceID()))
-            {
-                res.code(opNO_ACCOUNT);
-                validationResult = false;
-                return;
-            }
-        }
-
-        if (protocolVersionStartsFrom(ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION) &&
-            isSoroban())
-        {
-            releaseAssertOrThrow(cfg);
-            validationResult = doCheckValidForSoroban(
-                *cfg, app.getConfig(), ledgerVersion, res, diagnosticEvents);
-        }
-        else
-        {
-            validationResult = doCheckValid(ledgerVersion, res);
-        }
-    };
-
-    // Older protocol versions contain buggy account loading code,
-    // so preserve nested LedgerTxn to avoid writing to the ledger
-    if (protocolVersionIsBefore(
-            ledgerView.getLedgerHeader().current().ledgerVersion,
-            ProtocolVersion::V_8) &&
-        forApply)
+    auto header = ledgerView.getLedgerHeader();
+    if (!isOpSupported(header.current()))
     {
-        ledgerView.executeWithMaybeInnerSnapshot(validate);
+        res.code(opNOT_SUPPORTED);
+        return false;
+    }
+
+    auto ledgerVersion = header.current().ledgerVersion;
+    if (!forApply ||
+        protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
+    {
+        if (!checkSignature(signatureChecker, ledgerView, header, &res,
+                            forApply))
+        {
+            return false;
+        }
     }
     else
     {
-        // Validate using read-only snapshot
-        validate(ledgerView);
+        // for ledger versions >= 10 we need to load account here, as for
+        // previous versions it is done in checkSignature call
+        // If we get to operation checkvalid, we know the tx source account
+        // has already been checked for existence. If we're not applying,
+        // it's guaranteed that the tx source account exists, since ledger
+        // state hasn't changed, so we can skip this redundant check.
+        // If we're applying, it's possible an earlier op modified the TX
+        // source, so we need to check again.
+        if ((mOperation.sourceAccount || forApply) &&
+            !ledgerView.getAccount(header, mParentTx, getSourceID()))
+        {
+            res.code(opNO_ACCOUNT);
+            return false;
+        }
     }
 
-    return validationResult;
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
+        isSoroban())
+    {
+        auto const* cfg = ledgerView.getSorobanNetworkConfig();
+        releaseAssertOrThrow(cfg);
+        return doCheckValidForSoroban(*cfg, app.getConfig(), ledgerVersion, res,
+                                      diagnosticEvents);
+    }
+    return doCheckValid(ledgerVersion, res);
 }
 
 bool

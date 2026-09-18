@@ -160,10 +160,10 @@ class TransactionFrameBase
     // and the operation's checkValid. Performs no writes. Safe to run
     // concurrently for distinct transactions, provided `ls` supports concurrent
     // reads.
-    virtual void preParallelApplyReadOnly(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ls,
-        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-        SorobanNetworkConfig const& sorobanConfig) const = 0;
+    virtual void
+    preParallelApplyReadOnly(AppConnector& app, AbstractLedgerView const& ls,
+                             TransactionMetaBuilder& meta,
+                             MutableTransactionResultBase& txResult) const = 0;
 
     // The write half of the Soroban pre-apply. Has to run on the thread that
     // owns `ltx`, serially across transactions, in canonical transaction order.
@@ -187,13 +187,13 @@ class TransactionFrameBase
     // validation where the snapshot reflects LCL but checks must evaluate
     // against the next ledger.
     virtual MutableTxResultPtr checkValid(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        AppConnector& app, AbstractLedgerView const& ledgerView,
         SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset,
         DiagnosticEventManager& diagnosticEvents,
         std::optional<uint32_t> validationLedgerSeq = std::nullopt) const = 0;
     virtual MutableTxResultPtr checkValidForOverlay(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        AppConnector& app, AbstractLedgerView const& ledgerView,
         SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset,
         DiagnosticEventManager& diagnosticEvents,
@@ -219,7 +219,7 @@ class TransactionFrameBase
     // populating signature cache in the background).
     virtual bool
     checkOperationSignatures(SignatureChecker& signatureChecker,
-                             CheckValidLedgerViewWrapper const& ledgerView,
+                             AbstractLedgerView const& ledgerView,
                              MutableTransactionResultBase* txResult) const = 0;
 
     // Validate all transaction-level signatures

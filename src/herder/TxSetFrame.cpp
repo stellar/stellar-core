@@ -605,9 +605,8 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
         {
 #endif
             includedTxs = buildSurgePricedParallelSorobanPhase(
-                txs, app.getConfig(),
-                app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
-                surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+                app, txs, surgePricingLaneConfig, hadTxNotFittingLane,
+                ledgerVersion);
 #ifdef BUILD_TESTS
         }
 #endif

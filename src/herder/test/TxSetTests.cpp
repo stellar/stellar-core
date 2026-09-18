@@ -5,6 +5,7 @@
 #include "crypto/SHA.h"
 #include "herder/ParallelTxSetBuilder.h"
 #include "herder/TxSetFrame.h"
+#include "herder/TxSetUtils.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -18,6 +19,7 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
@@ -1171,8 +1173,8 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
                         1)},
                     2000);
             }
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1332,8 +1334,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             auto tx = sorobanTransactionFrameFromOps(
                 app->getNetworkID(), source, {op}, {}, resources, 2000,
                 100'000'000);
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1699,9 +1701,10 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // tx1 is valid on its own
         {
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(
+                tx1->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
         }
 
         SECTION("build block")
@@ -1732,11 +1735,13 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // Both txs individually are valid
         {
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
-            REQUIRE(tx2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(
+                tx1->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
+            REQUIRE(
+                tx2->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
         }
 
         SECTION("build block")
@@ -1901,7 +1906,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
         if (validateTx)
         {
             REQUIRE(tx->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                   *app->getLedgerManager().getLCLView(), 0, 0,
+                                   0)
                         ->isSuccess());
         }
         return tx;
@@ -2108,7 +2114,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             auto feeBumpTx = feeBump(*app, *root, tx, 300);
             REQUIRE(feeBumpTx
                         ->checkValid(app->getAppConnector(),
-                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                     *app->getLedgerManager().getLCLView(), 0,
+                                     0, 0)
                         ->isSuccess());
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -2147,7 +2154,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             auto feeBumpTx = feeBump(*app, *root, tx, 200);
             REQUIRE(feeBumpTx
                         ->checkValid(app->getAppConnector(),
-                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                     *app->getLedgerManager().getLCLView(), 0,
+                                     0, 0)
                         ->isSuccess());
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -2647,8 +2655,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         // its resources.
         auto tx = createUploadWasmTx(*app, source, inclusionFee, resourceFee,
                                      resources);
-        CheckValidLedgerViewWrapper ledgerView(*app);
-        REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+        auto ledgerView = app->getLedgerManager().getLCLView();
+        REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                     ->isSuccess());
 
         return tx;
@@ -3261,7 +3269,7 @@ TEST_CASE("parallel tx set building benchmark",
 {
     int const MIN_STAGE_COUNT = 1;
     int const MAX_STAGE_COUNT = 4;
-    int const CLUSTER_COUNT = MAX_LEDGER_DEPENDENT_TX_CLUSTERS;
+    int const CLUSTER_COUNT = MAX_LEDGER_DEPENDENT_TX_CLUSTERS - 1;
     int const MEAN_INCLUDED_TX_COUNT = 5000;
     int const TX_COUNT_MEMPOOL_MULTIPLIER = 2;
 
@@ -3280,30 +3288,51 @@ TEST_CASE("parallel tx set building benchmark",
     int const MEAN_WRITE_BYTES_PER_TX = 500;
     int const MAX_WRITE_BYTES_PER_TX = 2000;
 
+    VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = MIN_STAGE_COUNT;
     cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = MAX_STAGE_COUNT;
+    // Set the limits override very high in order for the config upgrade below
+    // to pass.
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    auto app = createTestApplication(clock, cfg);
 
     // Only per-ledger limits matter for tx set building, as we don't perform
     // any validation.
-    auto sorobanCfg = SorobanNetworkConfig::emptyConfig();
-    sorobanCfg.mLedgerMaxTransactionsSizeBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_TX_SIZE;
-    sorobanCfg.mLedgerMaxInstructions =
-        static_cast<int64_t>(MEAN_INSTRUCTIONS_PER_TX) *
-        MEAN_INCLUDED_TX_COUNT / CLUSTER_COUNT;
-    sorobanCfg.mLedgerMaxDiskReadEntries =
-        MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX);
-    sorobanCfg.mLedgerMaxDiskReadBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX;
-    sorobanCfg.mLedgerMaxWriteLedgerEntries =
-        MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX;
-    sorobanCfg.mLedgerMaxWriteBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_WRITE_BYTES_PER_TX;
-    // This doesn't need to be a real limit for this test.
-    sorobanCfg.mLedgerMaxTxCount = MEAN_INCLUDED_TX_COUNT * 10;
-    sorobanCfg.mLedgerMaxDependentTxClusters = CLUSTER_COUNT;
+    modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& sorobanCfg) {
+        // The per-tx limits are only set to satisfy the config upgrade
+        // validity requirement of every ledger limit being at least as high as
+        // the respective per-tx limit.
+        sorobanCfg.mTxMaxSizeBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+        sorobanCfg.mTxMaxInstructions = MAX_INSTRUCTIONS_PER_TX;
+        sorobanCfg.mTxMaxDiskReadEntries = MAX_READS_PER_TX + MAX_WRITES_PER_TX;
+        sorobanCfg.mTxMaxFootprintEntries = sorobanCfg.mTxMaxDiskReadEntries;
+        sorobanCfg.mTxMaxDiskReadBytes = MAX_READ_BYTES_PER_TX;
+        sorobanCfg.mTxMaxWriteLedgerEntries = MAX_WRITES_PER_TX;
+        sorobanCfg.mTxMaxWriteBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
+        sorobanCfg.mLedgerMaxTransactionsSizeBytes =
+            MEAN_INCLUDED_TX_COUNT * MEAN_TX_SIZE;
+        sorobanCfg.mLedgerMaxInstructions =
+            static_cast<int64_t>(MEAN_INSTRUCTIONS_PER_TX) *
+            MEAN_INCLUDED_TX_COUNT / CLUSTER_COUNT;
+        sorobanCfg.mLedgerMaxDiskReadEntries =
+            MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX);
+        sorobanCfg.mLedgerMaxDiskReadBytes =
+            MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX;
+        sorobanCfg.mLedgerMaxWriteLedgerEntries =
+            MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX;
+        sorobanCfg.mLedgerMaxWriteBytes =
+            MEAN_INCLUDED_TX_COUNT * MEAN_WRITE_BYTES_PER_TX;
+        // This doesn't need to be a real limit for this test.
+        sorobanCfg.mLedgerMaxTxCount = MEAN_INCLUDED_TX_COUNT * 10;
+        sorobanCfg.mLedgerMaxDependentTxClusters = CLUSTER_COUNT;
+    });
+
+    auto const& sorobanCfg =
+        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
     auto limits = sorobanCfg.maxLedgerResources();
     limits.setVal(Resource::Type::INSTRUCTIONS,
                   std::numeric_limits<int64_t>::max());
@@ -3471,8 +3500,8 @@ TEST_CASE("parallel tx set building benchmark",
             std::vector<bool> hadTxNotFittingLane;
             auto start = std::chrono::steady_clock::now();
             auto stages = buildSurgePricedParallelSorobanPhase(
-                allTxs[iter], cfg, sorobanCfg, surgePricingLaneConfig,
-                hadTxNotFittingLane, ledgerVersion);
+                *app, allTxs[iter], surgePricingLaneConfig, hadTxNotFittingLane,
+                ledgerVersion);
             auto end = std::chrono::steady_clock::now();
             totalDuration +=
                 std::chrono::duration_cast<std::chrono::nanoseconds>(end -
@@ -3533,5 +3562,80 @@ TEST_CASE("parallel tx set building benchmark",
     runBenchmark(50, 50, 5);
     std::cout << "===" << std::endl;
 }
+
+TEST_CASE("parallel tx set validation matches sequential", "[txset]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+    auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
+    int const maxTxs = 1000;
+
+    std::vector<TestAccount> accounts;
+    for (int i = 0; i < maxTxs; ++i)
+    {
+        accounts.emplace_back(
+            root->create("account" + std::to_string(i), minBalance * 100));
+    }
+
+    auto makeTxs = [&](size_t count, TxFrameList& invalidTxs) {
+        TxFrameList txs;
+        for (size_t i = 0; i < count; ++i)
+        {
+            auto& account = accounts[i];
+            SequenceNumber seq = account.getLastSequenceNumber() + 1;
+            bool valid = true;
+            if (rand_flip())
+            {
+                seq += 1000;
+                valid = false;
+            }
+            auto tx = transactionFromOperations(
+                *app, account.getSecretKey(), seq,
+                {payment(account.getPublicKey(), static_cast<int64_t>(i) + 1)},
+                100);
+            txs.emplace_back(tx);
+            if (!valid)
+            {
+                invalidTxs.push_back(tx);
+            }
+        }
+        return txs;
+    };
+
+    for (size_t txCount : {0, 1, 2, 3, 4, 5, 6, 7, 500, 1000})
+    {
+        INFO("txCount=" << txCount);
+        TxFrameList actualInvalidTxs;
+        auto const txs = makeTxs(txCount, actualInvalidTxs);
+
+        for (size_t taskCount = 1; taskCount <= 8; ++taskCount)
+        {
+            INFO("taskCount=" << taskCount);
+            app->getBatchExecutor().setPreferredTaskCountForTesting(taskCount);
+            UnorderedMap<AccountID, int64_t> accountFeeMap;
+            auto [invalidTxs, validationResult] =
+                TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap,
+                                                       0, 0);
+            if (actualInvalidTxs.empty())
+            {
+                REQUIRE(validationResult == TxSetValidationResult::VALID);
+            }
+            else
+            {
+                REQUIRE(validationResult ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+            REQUIRE(actualInvalidTxs.size() == invalidTxs.size());
+            for (size_t i = 0; i < actualInvalidTxs.size(); ++i)
+            {
+                REQUIRE(actualInvalidTxs[i]->getFullHash() ==
+                        invalidTxs[i]->getFullHash());
+            }
+        }
+    }
+}
+
 } // namespace
 } // namespace stellar
