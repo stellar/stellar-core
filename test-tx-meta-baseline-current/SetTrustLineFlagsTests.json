@@ -26564,7 +26564,6 @@
 		"B0uwhkcOsbc=",
 		"PdncjEHs3Ps="
 	],
-	"set trustline flags|protocol version 10|not supported before version 17" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 11" : 
 	[
 		"b2HsWosiCJg=",
@@ -26573,7 +26572,6 @@
 		"B0uwhkcOsbc=",
 		"PdncjEHs3Ps="
 	],
-	"set trustline flags|protocol version 11|not supported before version 17" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 12" : 
 	[
 		"b2HsWosiCJg=",
@@ -26582,7 +26580,6 @@
 		"B0uwhkcOsbc=",
 		"PdncjEHs3Ps="
 	],
-	"set trustline flags|protocol version 12|not supported before version 17" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 13" : 
 	[
 		"b2HsWosiCJg=",
@@ -26591,7 +26588,6 @@
 		"B0uwhkcOsbc=",
 		"PdncjEHs3Ps="
 	],
-	"set trustline flags|protocol version 13|not supported before version 17" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 14" : 
 	[
 		"b2HsWosiCJg=",
@@ -26600,7 +26596,6 @@
 		"B0uwhkcOsbc=",
 		"PdncjEHs3Ps="
 	],
-	"set trustline flags|protocol version 14|not supported before version 17" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 15" : 
 	[
 		"b2HsWosiCJg=",
@@ -26609,7 +26604,6 @@
 		"B0uwhkcOsbc=",
 		"PdncjEHs3Ps="
 	],
-	"set trustline flags|protocol version 15|not supported before version 17" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 16" : 
 	[
 		"b2HsWosiCJg=",
@@ -26618,7 +26612,6 @@
 		"B0uwhkcOsbc=",
 		"PdncjEHs3Ps="
 	],
-	"set trustline flags|protocol version 16|not supported before version 17" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 17" : 
 	[
 		"b2HsWosiCJg=",
@@ -26703,39 +26696,6 @@
 	"set trustline flags|protocol version 17|errors|invalid state" : [ "0f+3o7cD4Jo=", "++5Cp/UZhWA=", "0f+3o7cD4Jo=", "++5Cp/UZhWA=" ],
 	"set trustline flags|protocol version 17|errors|invalid state|set authorized when maintain liabilities" : [ "9h44VskUKRI=", "3h6/d6jQQmY=" ],
 	"set trustline flags|protocol version 17|errors|invalid state|set maintain liabilities when authorized" : [ "zXq+Iqp30oI=", "3h6/d6jQQmY=" ],
-	"set trustline flags|protocol version 17|errors|malformed" : 
-	[
-		"5V2DfN3kgBE=",
-		"ZB2A6urmaLw=",
-		"3SOw6PzEYOo=",
-		"lMi+i34DuB4=",
-		"ZSlMmA0PJUY=",
-		"znD/E7XoYU4=",
-		"oO2uYPGiI+E=",
-		"nEv4FiUpiu4=",
-		"m467IjJFjXs=",
-		"IchQ3uRSbOk=",
-		"sxi80hOyfb4=",
-		"pVLQmSfWIfc=",
-		"sH9K1SGuMzs=",
-		"124+nNVsMSk=",
-		"6iq82UdQ3Q8=",
-		"9W8M0s5krvs=",
-		"p0UpLKdouVA=",
-		"YSS55htPCNw=",
-		"hyIaQ41xf0s=",
-		"3Rz25kftNdY=",
-		"M6uqeXIW6qg=",
-		"+/FYnnVlWsc=",
-		"pK7utHcnaAE=",
-		"ZhU+IScUlLY=",
-		"vaFYPfm58ZM=",
-		"zWppPhLQ8co=",
-		"AQTEuLgVDw0=",
-		"r7PfRFBgjWE=",
-		"wLVXVoeag2s=",
-		"f2hK9sVgZ/U="
-	],
 	"set trustline flags|protocol version 17|errors|no trust" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 17|small test" : 
 	[
@@ -26832,39 +26792,6 @@
 	"set trustline flags|protocol version 18|errors|invalid state" : [ "0f+3o7cD4Jo=", "++5Cp/UZhWA=", "0f+3o7cD4Jo=", "++5Cp/UZhWA=" ],
 	"set trustline flags|protocol version 18|errors|invalid state|set authorized when maintain liabilities" : [ "9h44VskUKRI=", "3h6/d6jQQmY=" ],
 	"set trustline flags|protocol version 18|errors|invalid state|set maintain liabilities when authorized" : [ "zXq+Iqp30oI=", "3h6/d6jQQmY=" ],
-	"set trustline flags|protocol version 18|errors|malformed" : 
-	[
-		"5V2DfN3kgBE=",
-		"ZB2A6urmaLw=",
-		"3SOw6PzEYOo=",
-		"lMi+i34DuB4=",
-		"ZSlMmA0PJUY=",
-		"znD/E7XoYU4=",
-		"oO2uYPGiI+E=",
-		"nEv4FiUpiu4=",
-		"m467IjJFjXs=",
-		"IchQ3uRSbOk=",
-		"sxi80hOyfb4=",
-		"pVLQmSfWIfc=",
-		"sH9K1SGuMzs=",
-		"124+nNVsMSk=",
-		"6iq82UdQ3Q8=",
-		"9W8M0s5krvs=",
-		"p0UpLKdouVA=",
-		"YSS55htPCNw=",
-		"hyIaQ41xf0s=",
-		"3Rz25kftNdY=",
-		"M6uqeXIW6qg=",
-		"+/FYnnVlWsc=",
-		"pK7utHcnaAE=",
-		"ZhU+IScUlLY=",
-		"vaFYPfm58ZM=",
-		"zWppPhLQ8co=",
-		"AQTEuLgVDw0=",
-		"r7PfRFBgjWE=",
-		"wLVXVoeag2s=",
-		"f2hK9sVgZ/U="
-	],
 	"set trustline flags|protocol version 18|errors|no trust" : [ "5V2DfN3kgBE=" ],
 	"set trustline flags|protocol version 18|small test" : 
 	[
@@ -26961,39 +26888,6 @@
 	"set trustline flags|protocol version 19|errors|invalid state" : [ "YOaYQVPd5N8=", "a3TMwnkgPk4=", "YOaYQVPd5N8=", "a3TMwnkgPk4=" ],
 	"set trustline flags|protocol version 19|errors|invalid state|set authorized when maintain liabilities" : [ "jV30dkq5qps=", "iQk4NnByWHc=" ],
 	"set trustline flags|protocol version 19|errors|invalid state|set maintain liabilities when authorized" : [ "e3vBj5hXWc4=", "iQk4NnByWHc=" ],
-	"set trustline flags|protocol version 19|errors|malformed" : 
-	[
-		"Tmv0tUZ8cD0=",
-		"wdPmd0zuTDw=",
-		"b48v+7psmmw=",
-		"9sCORZti05o=",
-		"oEUgZ9vGp5A=",
-		"eNFJqohLzZI=",
-		"foJmh37cFRU=",
-		"arDX3B8S8ck=",
-		"Ugkj2PXcjAE=",
-		"LnSkletmQtA=",
-		"kao2xxvsz80=",
-		"yuSF0kQMmy4=",
-		"I5fAxVn1A1Q=",
-		"pS9/09gPbEs=",
-		"Z0jOTQap65A=",
-		"+xfuAeEcw+g=",
-		"sHJkGGMaOPs=",
-		"pX7KXQb1F0s=",
-		"0ewXhOpBohI=",
-		"bvi7K2q/Ipo=",
-		"68hCebPK80g=",
-		"c24Vgz+GCoI=",
-		"+dndMiAKVTU=",
-		"TW6s7x5Bfew=",
-		"O8rmZ/t2kZ4=",
-		"LLLMojwXk/o=",
-		"9vmwtWCRLG4=",
-		"9QZFNfy0+JY=",
-		"bXKCwGffRmw=",
-		"HKUk2mXdTDk="
-	],
 	"set trustline flags|protocol version 19|errors|no trust" : [ "Tmv0tUZ8cD0=" ],
 	"set trustline flags|protocol version 19|small test" : 
 	[
@@ -27006,7 +26900,6 @@
 	"set trustline flags|protocol version 19|upgrade auth when not revocable|0 -> authorized" : [ "x0KE6nY4XQE=", "1cyLDJ2Tbsw=", "2MHFI+5umTA=" ],
 	"set trustline flags|protocol version 19|upgrade auth when not revocable|0 -> authorized to maintain liabilities" : [ "x0KE6nY4XQE=", "1cyLDJ2Tbsw=", "Gwz19BsDv2E=" ],
 	"set trustline flags|protocol version 19|upgrade auth when not revocable|authorized -> authorized to maintain liabilities -> authorized - with offers" : [ "rFo8i++Tz3U=", "bwX2J9WVssY=", "3FwWn5c9aLs=", "Mdlg2f9YMzY=" ],
-	"set trustline flags|protocol version 1|not supported before version 17" : [ "/lfj8xIFS8I=" ],
 	"set trustline flags|protocol version 2" : 
 	[
 		"0HxJuvxFaP8=",
@@ -27099,39 +26992,6 @@
 	"set trustline flags|protocol version 20|errors|invalid state" : [ "+XAXt30k7wo=", "xVY7WD24KzE=", "+XAXt30k7wo=", "xVY7WD24KzE=" ],
 	"set trustline flags|protocol version 20|errors|invalid state|set authorized when maintain liabilities" : [ "4IEi4zwxIKI=", "r6bO0fbaQSA=" ],
 	"set trustline flags|protocol version 20|errors|invalid state|set maintain liabilities when authorized" : [ "SBnl/0Ur3kg=", "r6bO0fbaQSA=" ],
-	"set trustline flags|protocol version 20|errors|malformed" : 
-	[
-		"nBXHw/Bu5Js=",
-		"kfP1t9/qqn8=",
-		"EFbeXmdqzpA=",
-		"mNjzO4OuPcc=",
-		"D60Lew9vFCo=",
-		"WWH8zk0oUv4=",
-		"pBar1CGOYgg=",
-		"hnARX9IyMgE=",
-		"SroYG8X4OaI=",
-		"GJvLnZpekAs=",
-		"TJtIADTA80s=",
-		"MzOZ9/jnmbI=",
-		"AqChcqKDBWw=",
-		"6QQGA7588xk=",
-		"ct0DXhsNu50=",
-		"IItd8zO7heM=",
-		"3e4gmDQqF6c=",
-		"YPJC4u7YaKA=",
-		"qiTKeQAKse4=",
-		"EGfFG9nlGEc=",
-		"1gj3Mz7Iq7g=",
-		"gWIBtbc3hdg=",
-		"77Pv4CWArlI=",
-		"eKtOKx38tQs=",
-		"iyYveXMXQ0g=",
-		"0aD4Eb17YJA=",
-		"gLe2smDuFYc=",
-		"K8uGBVSfUxk=",
-		"T/l+F6a87pw=",
-		"AH+qWW8wSow="
-	],
 	"set trustline flags|protocol version 20|errors|no trust" : [ "nBXHw/Bu5Js=" ],
 	"set trustline flags|protocol version 20|small test" : 
 	[
@@ -27228,39 +27088,6 @@
 	"set trustline flags|protocol version 21|errors|invalid state" : [ "+XAXt30k7wo=", "xVY7WD24KzE=", "+XAXt30k7wo=", "xVY7WD24KzE=" ],
 	"set trustline flags|protocol version 21|errors|invalid state|set authorized when maintain liabilities" : [ "4IEi4zwxIKI=", "r6bO0fbaQSA=" ],
 	"set trustline flags|protocol version 21|errors|invalid state|set maintain liabilities when authorized" : [ "SBnl/0Ur3kg=", "r6bO0fbaQSA=" ],
-	"set trustline flags|protocol version 21|errors|malformed" : 
-	[
-		"nBXHw/Bu5Js=",
-		"kfP1t9/qqn8=",
-		"EFbeXmdqzpA=",
-		"mNjzO4OuPcc=",
-		"D60Lew9vFCo=",
-		"WWH8zk0oUv4=",
-		"pBar1CGOYgg=",
-		"hnARX9IyMgE=",
-		"SroYG8X4OaI=",
-		"GJvLnZpekAs=",
-		"TJtIADTA80s=",
-		"MzOZ9/jnmbI=",
-		"AqChcqKDBWw=",
-		"6QQGA7588xk=",
-		"ct0DXhsNu50=",
-		"IItd8zO7heM=",
-		"3e4gmDQqF6c=",
-		"YPJC4u7YaKA=",
-		"qiTKeQAKse4=",
-		"EGfFG9nlGEc=",
-		"1gj3Mz7Iq7g=",
-		"gWIBtbc3hdg=",
-		"77Pv4CWArlI=",
-		"eKtOKx38tQs=",
-		"iyYveXMXQ0g=",
-		"0aD4Eb17YJA=",
-		"gLe2smDuFYc=",
-		"K8uGBVSfUxk=",
-		"T/l+F6a87pw=",
-		"AH+qWW8wSow="
-	],
 	"set trustline flags|protocol version 21|errors|no trust" : [ "nBXHw/Bu5Js=" ],
 	"set trustline flags|protocol version 21|small test" : 
 	[
@@ -27357,39 +27184,6 @@
 	"set trustline flags|protocol version 22|errors|invalid state" : [ "+XAXt30k7wo=", "xVY7WD24KzE=", "+XAXt30k7wo=", "xVY7WD24KzE=" ],
 	"set trustline flags|protocol version 22|errors|invalid state|set authorized when maintain liabilities" : [ "4IEi4zwxIKI=", "r6bO0fbaQSA=" ],
 	"set trustline flags|protocol version 22|errors|invalid state|set maintain liabilities when authorized" : [ "SBnl/0Ur3kg=", "r6bO0fbaQSA=" ],
-	"set trustline flags|protocol version 22|errors|malformed" : 
-	[
-		"nBXHw/Bu5Js=",
-		"kfP1t9/qqn8=",
-		"EFbeXmdqzpA=",
-		"mNjzO4OuPcc=",
-		"D60Lew9vFCo=",
-		"WWH8zk0oUv4=",
-		"pBar1CGOYgg=",
-		"hnARX9IyMgE=",
-		"SroYG8X4OaI=",
-		"GJvLnZpekAs=",
-		"TJtIADTA80s=",
-		"MzOZ9/jnmbI=",
-		"AqChcqKDBWw=",
-		"6QQGA7588xk=",
-		"ct0DXhsNu50=",
-		"IItd8zO7heM=",
-		"3e4gmDQqF6c=",
-		"YPJC4u7YaKA=",
-		"qiTKeQAKse4=",
-		"EGfFG9nlGEc=",
-		"1gj3Mz7Iq7g=",
-		"gWIBtbc3hdg=",
-		"77Pv4CWArlI=",
-		"eKtOKx38tQs=",
-		"iyYveXMXQ0g=",
-		"0aD4Eb17YJA=",
-		"gLe2smDuFYc=",
-		"K8uGBVSfUxk=",
-		"T/l+F6a87pw=",
-		"AH+qWW8wSow="
-	],
 	"set trustline flags|protocol version 22|errors|no trust" : [ "nBXHw/Bu5Js=" ],
 	"set trustline flags|protocol version 22|small test" : 
 	[
@@ -27486,39 +27280,6 @@
 	"set trustline flags|protocol version 23|errors|invalid state" : [ "DJiVkhmIJs4=", "VY7N5Tg4P4A=", "DJiVkhmIJs4=", "VY7N5Tg4P4A=" ],
 	"set trustline flags|protocol version 23|errors|invalid state|set authorized when maintain liabilities" : [ "cPCAm5FYyBE=", "DFdctIg8ntM=" ],
 	"set trustline flags|protocol version 23|errors|invalid state|set maintain liabilities when authorized" : [ "/wPz30B3B3k=", "DFdctIg8ntM=" ],
-	"set trustline flags|protocol version 23|errors|malformed" : 
-	[
-		"Xd9HtdNhGVA=",
-		"SymM1FmYlyA=",
-		"LBocPPKS24I=",
-		"BzS3kHkzM74=",
-		"01SYm603m9s=",
-		"vlLZU1HUCck=",
-		"0sN4o12Ge0o=",
-		"GrRq36Wg7SM=",
-		"B7UXmmPPbJY=",
-		"keHGQAmKIZw=",
-		"Z6bsTg0wLjs=",
-		"aG2279UTCvE=",
-		"B4o5qBSKoDk=",
-		"gGukDOtmPrk=",
-		"SXE0j60942Y=",
-		"y8F0cyYnv1U=",
-		"kGwQ0M4SqnY=",
-		"S83NYVprs/8=",
-		"VqXgmfg9PAQ=",
-		"j1SkQRTo+X8=",
-		"h2ySbgoi+yg=",
-		"Agm/TGJjuLg=",
-		"tcuaFPrkzwo=",
-		"RipipwRxKjE=",
-		"Dc1ON5R1VmY=",
-		"HqXZ1MTe1IU=",
-		"LD/sfiuaYpQ=",
-		"160Bc14MRK0=",
-		"P+DWs7+hLDU=",
-		"v/VIU+7ijFw="
-	],
 	"set trustline flags|protocol version 23|errors|no trust" : [ "Xd9HtdNhGVA=" ],
 	"set trustline flags|protocol version 23|small test" : 
 	[
@@ -27615,39 +27376,6 @@
 	"set trustline flags|protocol version 24|errors|invalid state" : [ "DJiVkhmIJs4=", "VY7N5Tg4P4A=", "DJiVkhmIJs4=", "VY7N5Tg4P4A=" ],
 	"set trustline flags|protocol version 24|errors|invalid state|set authorized when maintain liabilities" : [ "cPCAm5FYyBE=", "DFdctIg8ntM=" ],
 	"set trustline flags|protocol version 24|errors|invalid state|set maintain liabilities when authorized" : [ "/wPz30B3B3k=", "DFdctIg8ntM=" ],
-	"set trustline flags|protocol version 24|errors|malformed" : 
-	[
-		"Xd9HtdNhGVA=",
-		"SymM1FmYlyA=",
-		"LBocPPKS24I=",
-		"BzS3kHkzM74=",
-		"01SYm603m9s=",
-		"vlLZU1HUCck=",
-		"0sN4o12Ge0o=",
-		"GrRq36Wg7SM=",
-		"B7UXmmPPbJY=",
-		"keHGQAmKIZw=",
-		"Z6bsTg0wLjs=",
-		"aG2279UTCvE=",
-		"B4o5qBSKoDk=",
-		"gGukDOtmPrk=",
-		"SXE0j60942Y=",
-		"y8F0cyYnv1U=",
-		"kGwQ0M4SqnY=",
-		"S83NYVprs/8=",
-		"VqXgmfg9PAQ=",
-		"j1SkQRTo+X8=",
-		"h2ySbgoi+yg=",
-		"Agm/TGJjuLg=",
-		"tcuaFPrkzwo=",
-		"RipipwRxKjE=",
-		"Dc1ON5R1VmY=",
-		"HqXZ1MTe1IU=",
-		"LD/sfiuaYpQ=",
-		"160Bc14MRK0=",
-		"P+DWs7+hLDU=",
-		"v/VIU+7ijFw="
-	],
 	"set trustline flags|protocol version 24|errors|no trust" : [ "Xd9HtdNhGVA=" ],
 	"set trustline flags|protocol version 24|small test" : 
 	[
@@ -27744,39 +27472,6 @@
 	"set trustline flags|protocol version 25|errors|invalid state" : [ "DJiVkhmIJs4=", "VY7N5Tg4P4A=", "DJiVkhmIJs4=", "VY7N5Tg4P4A=" ],
 	"set trustline flags|protocol version 25|errors|invalid state|set authorized when maintain liabilities" : [ "cPCAm5FYyBE=", "DFdctIg8ntM=" ],
 	"set trustline flags|protocol version 25|errors|invalid state|set maintain liabilities when authorized" : [ "/wPz30B3B3k=", "DFdctIg8ntM=" ],
-	"set trustline flags|protocol version 25|errors|malformed" : 
-	[
-		"Xd9HtdNhGVA=",
-		"SymM1FmYlyA=",
-		"LBocPPKS24I=",
-		"BzS3kHkzM74=",
-		"01SYm603m9s=",
-		"vlLZU1HUCck=",
-		"0sN4o12Ge0o=",
-		"GrRq36Wg7SM=",
-		"B7UXmmPPbJY=",
-		"keHGQAmKIZw=",
-		"Z6bsTg0wLjs=",
-		"aG2279UTCvE=",
-		"B4o5qBSKoDk=",
-		"gGukDOtmPrk=",
-		"SXE0j60942Y=",
-		"y8F0cyYnv1U=",
-		"kGwQ0M4SqnY=",
-		"S83NYVprs/8=",
-		"VqXgmfg9PAQ=",
-		"j1SkQRTo+X8=",
-		"h2ySbgoi+yg=",
-		"Agm/TGJjuLg=",
-		"tcuaFPrkzwo=",
-		"RipipwRxKjE=",
-		"Dc1ON5R1VmY=",
-		"HqXZ1MTe1IU=",
-		"LD/sfiuaYpQ=",
-		"160Bc14MRK0=",
-		"P+DWs7+hLDU=",
-		"v/VIU+7ijFw="
-	],
 	"set trustline flags|protocol version 25|errors|no trust" : [ "Xd9HtdNhGVA=" ],
 	"set trustline flags|protocol version 25|small test" : 
 	[
@@ -27873,39 +27568,6 @@
 	"set trustline flags|protocol version 26|errors|invalid state" : [ "DJiVkhmIJs4=", "VY7N5Tg4P4A=", "DJiVkhmIJs4=", "VY7N5Tg4P4A=" ],
 	"set trustline flags|protocol version 26|errors|invalid state|set authorized when maintain liabilities" : [ "cPCAm5FYyBE=", "DFdctIg8ntM=" ],
 	"set trustline flags|protocol version 26|errors|invalid state|set maintain liabilities when authorized" : [ "/wPz30B3B3k=", "DFdctIg8ntM=" ],
-	"set trustline flags|protocol version 26|errors|malformed" : 
-	[
-		"Xd9HtdNhGVA=",
-		"SymM1FmYlyA=",
-		"LBocPPKS24I=",
-		"BzS3kHkzM74=",
-		"01SYm603m9s=",
-		"vlLZU1HUCck=",
-		"0sN4o12Ge0o=",
-		"GrRq36Wg7SM=",
-		"B7UXmmPPbJY=",
-		"keHGQAmKIZw=",
-		"Z6bsTg0wLjs=",
-		"aG2279UTCvE=",
-		"B4o5qBSKoDk=",
-		"gGukDOtmPrk=",
-		"SXE0j60942Y=",
-		"y8F0cyYnv1U=",
-		"kGwQ0M4SqnY=",
-		"S83NYVprs/8=",
-		"VqXgmfg9PAQ=",
-		"j1SkQRTo+X8=",
-		"h2ySbgoi+yg=",
-		"Agm/TGJjuLg=",
-		"tcuaFPrkzwo=",
-		"RipipwRxKjE=",
-		"Dc1ON5R1VmY=",
-		"HqXZ1MTe1IU=",
-		"LD/sfiuaYpQ=",
-		"160Bc14MRK0=",
-		"P+DWs7+hLDU=",
-		"v/VIU+7ijFw="
-	],
 	"set trustline flags|protocol version 26|errors|no trust" : [ "Xd9HtdNhGVA=" ],
 	"set trustline flags|protocol version 26|small test" : 
 	[
@@ -28002,39 +27664,6 @@
 	"set trustline flags|protocol version 27|errors|invalid state" : [ "DJiVkhmIJs4=", "VY7N5Tg4P4A=", "DJiVkhmIJs4=", "VY7N5Tg4P4A=" ],
 	"set trustline flags|protocol version 27|errors|invalid state|set authorized when maintain liabilities" : [ "cPCAm5FYyBE=", "DFdctIg8ntM=" ],
 	"set trustline flags|protocol version 27|errors|invalid state|set maintain liabilities when authorized" : [ "/wPz30B3B3k=", "DFdctIg8ntM=" ],
-	"set trustline flags|protocol version 27|errors|malformed" : 
-	[
-		"Xd9HtdNhGVA=",
-		"SymM1FmYlyA=",
-		"LBocPPKS24I=",
-		"BzS3kHkzM74=",
-		"01SYm603m9s=",
-		"vlLZU1HUCck=",
-		"0sN4o12Ge0o=",
-		"GrRq36Wg7SM=",
-		"B7UXmmPPbJY=",
-		"keHGQAmKIZw=",
-		"Z6bsTg0wLjs=",
-		"aG2279UTCvE=",
-		"B4o5qBSKoDk=",
-		"gGukDOtmPrk=",
-		"SXE0j60942Y=",
-		"y8F0cyYnv1U=",
-		"kGwQ0M4SqnY=",
-		"S83NYVprs/8=",
-		"VqXgmfg9PAQ=",
-		"j1SkQRTo+X8=",
-		"h2ySbgoi+yg=",
-		"Agm/TGJjuLg=",
-		"tcuaFPrkzwo=",
-		"RipipwRxKjE=",
-		"Dc1ON5R1VmY=",
-		"HqXZ1MTe1IU=",
-		"LD/sfiuaYpQ=",
-		"160Bc14MRK0=",
-		"P+DWs7+hLDU=",
-		"v/VIU+7ijFw="
-	],
 	"set trustline flags|protocol version 27|errors|no trust" : [ "Xd9HtdNhGVA=" ],
 	"set trustline flags|protocol version 27|small test" : 
 	[
@@ -28131,39 +27760,6 @@
 	"set trustline flags|protocol version 28|errors|invalid state" : [ "DJiVkhmIJs4=", "VY7N5Tg4P4A=", "DJiVkhmIJs4=", "VY7N5Tg4P4A=" ],
 	"set trustline flags|protocol version 28|errors|invalid state|set authorized when maintain liabilities" : [ "cPCAm5FYyBE=", "DFdctIg8ntM=" ],
 	"set trustline flags|protocol version 28|errors|invalid state|set maintain liabilities when authorized" : [ "/wPz30B3B3k=", "DFdctIg8ntM=" ],
-	"set trustline flags|protocol version 28|errors|malformed" : 
-	[
-		"Xd9HtdNhGVA=",
-		"SymM1FmYlyA=",
-		"LBocPPKS24I=",
-		"BzS3kHkzM74=",
-		"01SYm603m9s=",
-		"vlLZU1HUCck=",
-		"0sN4o12Ge0o=",
-		"GrRq36Wg7SM=",
-		"B7UXmmPPbJY=",
-		"keHGQAmKIZw=",
-		"Z6bsTg0wLjs=",
-		"aG2279UTCvE=",
-		"B4o5qBSKoDk=",
-		"gGukDOtmPrk=",
-		"SXE0j60942Y=",
-		"y8F0cyYnv1U=",
-		"kGwQ0M4SqnY=",
-		"S83NYVprs/8=",
-		"VqXgmfg9PAQ=",
-		"j1SkQRTo+X8=",
-		"h2ySbgoi+yg=",
-		"Agm/TGJjuLg=",
-		"tcuaFPrkzwo=",
-		"RipipwRxKjE=",
-		"Dc1ON5R1VmY=",
-		"HqXZ1MTe1IU=",
-		"LD/sfiuaYpQ=",
-		"160Bc14MRK0=",
-		"P+DWs7+hLDU=",
-		"v/VIU+7ijFw="
-	],
 	"set trustline flags|protocol version 28|errors|no trust" : [ "Xd9HtdNhGVA=" ],
 	"set trustline flags|protocol version 28|small test" : 
 	[
@@ -28176,7 +27772,6 @@
 	"set trustline flags|protocol version 28|upgrade auth when not revocable|0 -> authorized" : [ "iflE3+hwXfE=", "yBsK55Y7kYU=", "nseFPAiMjX4=" ],
 	"set trustline flags|protocol version 28|upgrade auth when not revocable|0 -> authorized to maintain liabilities" : [ "iflE3+hwXfE=", "yBsK55Y7kYU=", "xjST+M6UZeU=" ],
 	"set trustline flags|protocol version 28|upgrade auth when not revocable|authorized -> authorized to maintain liabilities -> authorized - with offers" : [ "w6iHOMgk5Zk=", "xwBPyJTkCdg=", "XhY1S+Bov0Y=", "fWhsK0sz/s4=" ],
-	"set trustline flags|protocol version 2|not supported before version 17" : [ "/lfj8xIFS8I=" ],
 	"set trustline flags|protocol version 3" : 
 	[
 		"0HxJuvxFaP8=",
@@ -28185,7 +27780,6 @@
 		"AbvD43bSgKc=",
 		"/cLVI1Me+ug="
 	],
-	"set trustline flags|protocol version 3|not supported before version 17" : [ "/lfj8xIFS8I=" ],
 	"set trustline flags|protocol version 4" : 
 	[
 		"0HxJuvxFaP8=",
@@ -28194,7 +27788,6 @@
 		"AbvD43bSgKc=",
 		"/cLVI1Me+ug="
 	],
-	"set trustline flags|protocol version 4|not supported before version 17" : [ "/lfj8xIFS8I=" ],
 	"set trustline flags|protocol version 5" : 
 	[
 		"0HxJuvxFaP8=",
@@ -28203,7 +27796,6 @@
 		"AbvD43bSgKc=",
 		"/cLVI1Me+ug="
 	],
-	"set trustline flags|protocol version 5|not supported before version 17" : [ "/lfj8xIFS8I=" ],
 	"set trustline flags|protocol version 6" : 
 	[
 		"0HxJuvxFaP8=",
@@ -28212,7 +27804,6 @@
 		"AbvD43bSgKc=",
 		"/cLVI1Me+ug="
 	],
-	"set trustline flags|protocol version 6|not supported before version 17" : [ "/lfj8xIFS8I=" ],
 	"set trustline flags|protocol version 7" : 
 	[
 		"0HxJuvxFaP8=",
@@ -28221,7 +27812,6 @@
 		"AbvD43bSgKc=",
 		"/cLVI1Me+ug="
 	],
-	"set trustline flags|protocol version 7|not supported before version 17" : [ "/lfj8xIFS8I=" ],
 	"set trustline flags|protocol version 8" : 
 	[
 		"0HxJuvxFaP8=",
@@ -28230,7 +27820,6 @@
 		"AbvD43bSgKc=",
 		"/cLVI1Me+ug="
 	],
-	"set trustline flags|protocol version 8|not supported before version 17" : [ "/lfj8xIFS8I=" ],
 	"set trustline flags|protocol version 9" : 
 	[
 		"0HxJuvxFaP8=",
@@ -28238,6 +27827,5 @@
 		"N1PUKxp/rNw=",
 		"AbvD43bSgKc=",
 		"/cLVI1Me+ug="
-	],
-	"set trustline flags|protocol version 9|not supported before version 17" : [ "/lfj8xIFS8I=" ]
+	]
 }

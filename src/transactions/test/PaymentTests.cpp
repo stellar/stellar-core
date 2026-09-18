@@ -155,11 +155,11 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
         for_versions_to(7, *app, [&] {
             auto txFrame = a1.tx({accountMerge(b1), payment(b1, 200)});
 
-            applyCheck(txFrame, *app);
+            auto r = closeLedger(*app, {txFrame});
+            checkTx(0, r, txINTERNAL_ERROR);
 
             REQUIRE(a1.exists());
             REQUIRE(b1.exists());
-            REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
 
             REQUIRE(b1Balance == b1.getBalance());
             REQUIRE((a1Balance - txFrame->getInclusionFee()) ==
@@ -262,9 +262,12 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             auto b1 = root->create("B", startingBalance);
             auto rootBalance = root->getBalance();
             auto tx1 = b1.tx({payment(*root, paymentAmount)});
-            auto tx2 = b1.tx({payment(*root, 6)});
+            auto tx2 = b1.tx({payment(*root, 6)}, tx1->getSeqNum() + 1);
 
-            auto r = closeLedger(*app, {tx1, tx2}, true);
+            auto r = closeLedger(*app, {tx1, tx2}, /* strictOrder */ true,
+                                 emptyUpgradeSteps,
+                                 /* disableTxValidationForLegacyScenario */
+                                 true);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txINSUFFICIENT_BALANCE);
 
@@ -366,7 +369,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!doesAccountExist(*app, createSourceAccount));
             REQUIRE(sourceAccount.getBalance() ==
                     amount - tx->getInclusionFee());
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
 
             REQUIRE(tx->getResult().result.code() == txFAILED);
             REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
@@ -411,15 +414,14 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                  accountMerge(createSourceAccount),
                  payment(payAccount, payAmount)});
 
-            REQUIRE(!applyCheck(tx, *app));
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txINTERNAL_ERROR);
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(!doesAccountExist(*app, createSourceAccount));
             REQUIRE(doesAccountExist(*app, payAccount));
             REQUIRE(sourceAccount.getBalance() ==
                     amount - tx->getInclusionFee());
             REQUIRE(payAccount.getBalance() == amount);
-
-            REQUIRE(tx->getResult().result.code() == txINTERNAL_ERROR);
         });
 
         for_versions(8, 9, *app, [&] {
@@ -435,7 +437,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(sourceAccount.getBalance() ==
                     amount - tx->getInclusionFee());
             REQUIRE(payAccount.getBalance() == amount);
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
 
             REQUIRE(tx->getResult().result.code() == txFAILED);
             REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
@@ -487,14 +489,16 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                      payment(payAndMergeDestination, pay2Amount))});
             tx->addSignature(payAndMergeDestination);
 
-            REQUIRE(applyCheck(tx, *app));
+            // The source account is merged and re-created within the
+            // transaction, so don't verify the sequence number.
+            REQUIRE(applyCheck(tx, *app, /* checkSeqNum */ false));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount - createAmount - tx->getInclusionFee());
-            REQUIRE(sourceAccount.loadSequenceNumber() == 0x700000000ull);
-            REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == 0x700000000ull);
+            REQUIRE(payAndMergeDestination.getLastSequenceNumber() ==
                     payAndMergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -555,8 +559,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(sourceAccount.getBalance() == createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount - createAmount - tx->getInclusionFee());
-            REQUIRE(sourceAccount.loadSequenceNumber() == 0x700000000ull);
-            REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == 0x700000000ull);
+            REQUIRE(payAndMergeDestination.getLastSequenceNumber() ==
                     payAndMergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -628,8 +632,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount + pay2Amount - tx->getInclusionFee() -
                         createAmount);
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
-            REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(payAndMergeDestination.getLastSequenceNumber() ==
                     payAndMergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -689,8 +693,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount + pay2Amount - tx->getInclusionFee() -
                         createAmount);
-            REQUIRE(sourceAccount.loadSequenceNumber() == 0x700000000ull);
-            REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == 0x700000000ull);
+            REQUIRE(payAndMergeDestination.getLastSequenceNumber() ==
                     payAndMergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -765,10 +769,10 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(secondSourceAccount.getBalance() == amount - createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount + pay2Amount - tx->getInclusionFee());
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
-            REQUIRE(secondSourceAccount.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(secondSourceAccount.getLastSequenceNumber() ==
                     secondSourceSeqNum);
-            REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
+            REQUIRE(payAndMergeDestination.getLastSequenceNumber() ==
                     payAndMergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -829,10 +833,10 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(secondSourceAccount.getBalance() == amount - createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount + pay2Amount - tx->getInclusionFee());
-            REQUIRE(sourceAccount.loadSequenceNumber() == 0x800000000ull);
-            REQUIRE(secondSourceAccount.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == 0x800000000ull);
+            REQUIRE(secondSourceAccount.getLastSequenceNumber() ==
                     secondSourceSeqNum);
-            REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
+            REQUIRE(payAndMergeDestination.getLastSequenceNumber() ==
                     payAndMergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -915,10 +919,11 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(createDestination.getBalance() ==
                     create1Amount - payAmount);
             REQUIRE(payDestination.getBalance() == create2Amount);
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
-            REQUIRE(createSource.loadSequenceNumber() == createSourceSeqNum);
-            REQUIRE(createDestination.loadSequenceNumber() == 0x800000000ull);
-            REQUIRE(payDestination.loadSequenceNumber() == 0x800000000ull);
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(createSource.getLastSequenceNumber() == createSourceSeqNum);
+            REQUIRE(createDestination.getLastSequenceNumber() ==
+                    0x800000000ull);
+            REQUIRE(payDestination.getLastSequenceNumber() == 0x800000000ull);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
             REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
@@ -983,7 +988,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(mergeDestination.getBalance() == amount + amount + amount -
                                                          tx->getInclusionFee() -
                                                          tx->getInclusionFee());
-            REQUIRE(mergeDestination.loadSequenceNumber() ==
+            REQUIRE(mergeDestination.getLastSequenceNumber() ==
                     mergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -1039,8 +1044,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(sourceAccount.getBalance() ==
                     amount - tx->getInclusionFee());
             REQUIRE(mergeDestination.getBalance() == amount);
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
-            REQUIRE(mergeDestination.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(mergeDestination.getLastSequenceNumber() ==
                     mergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txFAILED);
@@ -1090,8 +1095,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(sourceAccount.getBalance() ==
                     amount - tx->getInclusionFee());
             REQUIRE(mergeDestination.getBalance() == amount);
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
-            REQUIRE(mergeDestination.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(mergeDestination.getLastSequenceNumber() ==
                     mergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txFAILED);
@@ -1147,7 +1152,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(mergeDestination.getBalance() == amount + amount + amount -
                                                          tx->getInclusionFee() -
                                                          tx->getInclusionFee());
-            REQUIRE(mergeDestination.loadSequenceNumber() ==
+            REQUIRE(mergeDestination.getLastSequenceNumber() ==
                     mergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -1251,8 +1256,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(sourceAccount.getBalance() ==
                     amount - tx->getInclusionFee());
             REQUIRE(mergeDestination.getBalance() == amount);
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
-            REQUIRE(mergeDestination.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(mergeDestination.getLastSequenceNumber() ==
                     mergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txFAILED);
@@ -1350,8 +1355,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(sourceAccount.getBalance() ==
                     amount - tx->getInclusionFee());
             REQUIRE(mergeDestination.getBalance() == amount);
-            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
-            REQUIRE(mergeDestination.loadSequenceNumber() ==
+            REQUIRE(sourceAccount.getLastSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(mergeDestination.getLastSequenceNumber() ==
                     mergeDestinationSeqNum);
 
             REQUIRE(tx->getResult().result.code() == txFAILED);
@@ -1797,8 +1802,9 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + txfee - 1);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
@@ -1812,8 +1818,9 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                 "pay-from",
                 app->getLedgerManager().getLastMinBalance(0) + amount + txfee);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });
@@ -1826,8 +1833,9 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + txfee + 1);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });
@@ -1840,8 +1848,9 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });
@@ -1917,9 +1926,10 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
     SECTION("dest amount too big for native asset")
     {
         for_versions_to(10, *app, [&] {
-            REQUIRE_THROWS_AS(
-                root->pay(a1, xlm, std::numeric_limits<int64_t>::max()),
-                ex_txINTERNAL_ERROR);
+            auto tx = root->tx(
+                {payment(a1, xlm, std::numeric_limits<int64_t>::max())});
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txINTERNAL_ERROR);
         });
         for_versions_from(11, *app, [&] {
             REQUIRE_THROWS_AS(
@@ -1974,8 +1984,9 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + txfee - 1);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
@@ -1989,8 +2000,9 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
                 "pay-from",
                 app->getLedgerManager().getLastMinBalance(0) + amount + txfee);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });
@@ -2003,8 +2015,9 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + txfee + 1);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });
@@ -2017,8 +2030,9 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });
@@ -2085,8 +2099,9 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + txfee - 1);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
@@ -2100,8 +2115,9 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
                 "pay-from",
                 app->getLedgerManager().getLastMinBalance(0) + amount + txfee);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });
@@ -2114,8 +2130,9 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + txfee + 1);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });
@@ -2128,8 +2145,9 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
                 "pay-from", app->getLedgerManager().getLastMinBalance(0) +
                                 amount + 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
-                REQUIRE_THROWS_AS(payFrom.pay(*root, 1),
-                                  ex_txINSUFFICIENT_BALANCE);
+                auto tx = payFrom.tx({payment(*root, 1)});
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txINSUFFICIENT_BALANCE);
             });
             for_versions_from(9, *app,
                               [&] { REQUIRE_NOTHROW(payFrom.pay(*root, 1)); });

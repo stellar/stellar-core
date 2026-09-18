@@ -47,7 +47,6 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             auto tx1 = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(createAccount(key.getPublicKey(), 0))}, {});
-            root->loadSequenceNumber();
             auto tx2 = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(createAccount(key.getPublicKey(), 1))}, {});
@@ -67,7 +66,6 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             auto tx1 = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(createAccount(key.getPublicKey(), -1))}, {});
-            root->loadSequenceNumber();
             auto tx2 = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(createAccount(key.getPublicKey(), 0))}, {});

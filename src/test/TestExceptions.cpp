@@ -409,6 +409,28 @@ throwIf(ClaimClaimableBalanceResult const& result)
 }
 
 void
+throwIf(RevokeSponsorshipResult const& result)
+{
+    switch (result.code())
+    {
+    case REVOKE_SPONSORSHIP_DOES_NOT_EXIST:
+        throw ex_REVOKE_SPONSORSHIP_DOES_NOT_EXIST{};
+    case REVOKE_SPONSORSHIP_NOT_SPONSOR:
+        throw ex_REVOKE_SPONSORSHIP_NOT_SPONSOR{};
+    case REVOKE_SPONSORSHIP_LOW_RESERVE:
+        throw ex_REVOKE_SPONSORSHIP_LOW_RESERVE{};
+    case REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE:
+        throw ex_REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE{};
+    case REVOKE_SPONSORSHIP_MALFORMED:
+        throw ex_REVOKE_SPONSORSHIP_MALFORMED{};
+    case REVOKE_SPONSORSHIP_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
 throwIf(ClawbackResult const& result)
 {
     switch (result.code())
@@ -666,8 +688,10 @@ throwIf(TransactionResult const& result)
         break;
     case BEGIN_SPONSORING_FUTURE_RESERVES:
     case END_SPONSORING_FUTURE_RESERVES:
-    case REVOKE_SPONSORSHIP:
         // Sponsorship tests catch error codes at a higher level than this.
+        break;
+    case REVOKE_SPONSORSHIP:
+        throwIf(opResult.tr().revokeSponsorshipResult());
         break;
     case CLAWBACK:
         throwIf(opResult.tr().clawbackResult());
