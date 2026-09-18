@@ -87,6 +87,18 @@ TEST_CASE("private addresses", "[overlay][PeerManager]")
     CHECK(pa.isPrivate());
     pa = PeerBareAddress("192.168.1.2", 15);
     CHECK(pa.isPrivate());
+    pa = PeerBareAddress("169.254.169.254", 15);
+    CHECK(pa.isPrivate());
+}
+
+TEST_CASE("localhost addresses", "[overlay][PeerManager]")
+{
+    PeerBareAddress pa("1.2.3.4", 15);
+    CHECK(!pa.isLocalhost());
+    pa = PeerBareAddress("127.0.0.1", 15);
+    CHECK(pa.isLocalhost());
+    pa = PeerBareAddress("127.255.255.255", 15);
+    CHECK(pa.isLocalhost());
 }
 
 TEST_CASE("create peer record", "[overlay][PeerManager]")
