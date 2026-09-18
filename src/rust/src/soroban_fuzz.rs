@@ -20,19 +20,19 @@
 
 use crate::rust_bridge::FuzzResultCode;
 
-// Stub implementation when testutils feature is disabled
-#[cfg(not(feature = "testutils"))]
+// Stub implementation when fuzz_targets feature is disabled
+#[cfg(not(feature = "fuzz_targets"))]
 pub fn run_soroban_fuzz_target(_name: &str, _data: &[u8]) -> FuzzResultCode {
     FuzzResultCode::FUZZ_DISABLED
 }
 
-// When testutils feature is enabled, import and use the actual implementations
-#[cfg(feature = "testutils")]
+// When fuzz_targets feature is enabled, import and use the actual targets
+#[cfg(feature = "fuzz_targets")]
 use soroban_fuzz_targets::{self as fuzz, FuzzResult};
 
 /// Run a Soroban fuzz target with the given input bytes.
 /// Panics on internal errors (which is what the fuzzer wants to find!)
-#[cfg(feature = "testutils")]
+#[cfg(feature = "fuzz_targets")]
 pub fn run_soroban_fuzz_target(name: &str, data: &[u8]) -> FuzzResultCode {
     let result = match name {
         "soroban_expr" => fuzz::expr::run_fuzz_target(data),

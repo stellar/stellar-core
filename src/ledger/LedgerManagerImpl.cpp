@@ -342,9 +342,8 @@ LedgerManagerImpl::ApplyState::isCompilationRunning() const
 
 void
 LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+    LedgerKeyRefs deadEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig)
 {
     releaseAssert(mPhase == Phase::SETTING_UP_STATE ||
@@ -1031,8 +1030,10 @@ LedgerManagerImpl::ApplyState::finishPendingCompilation()
     releaseAssert(mPhase == Phase::SETTING_UP_STATE);
     releaseAssert(mCompiler);
     auto newCache = mCompiler->wait();
-    getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.set_count(
+    getMetrics().mSorobanMetrics.mModuleCacheRebuildWasmBytes.set_count(
         (int64)mCompiler->getBytesCompiled());
+    getMetrics().mSorobanMetrics.mModuleCacheRebuildHeapBytes.set_count(
+        mCompiler->getBytesAllocatedDuringCompilation());
     getMetrics().mSorobanMetrics.mModuleCacheNumEntries.set_count(
         (int64)mCompiler->getContractsCompiled());
     getMetrics().mSorobanMetrics.mModuleCacheRebuildTime.Update(
@@ -1178,7 +1179,7 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     // contract-set in the live BL as an event that warrants a rebuild.
 
     int64_t lastCompiledWasmBytesCount =
-        getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.count();
+        getMetrics().mSorobanMetrics.mModuleCacheRebuildWasmBytes.count();
     uint64_t lastCompiledWasmBytes =
         lastCompiledWasmBytesCount < 0
             ? 0
@@ -2751,6 +2752,16 @@ LedgerManagerImpl::applySorobanStage(
     }
 
     globalParState.commitChangesFromThreads(app, threadStates, stage);
+
+    // Thread states are rather large and can take up to a few ms to be
+    // deallocated. Defer the deallocation to the background worker in order to
+    // not block the apply thread unnecessarily.
+    auto deferredThreadStates = std::make_shared<
+        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>>(
+        std::move(threadStates));
+    app.postOnBackgroundThread(
+        [deferredThreadStates]() { deferredThreadStates->clear(); },
+        "destroy parallel apply thread states");
 }
 
 void
@@ -2760,9 +2771,10 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                                       Hash const& sorobanBasePrngSeed)
 {
     ZoneScoped;
-    GlobalParallelApplyLedgerState globalParState(
+    auto globalParStatePtr = std::make_unique<GlobalParallelApplyLedgerState>(
         app, mApplyState.copyApplyLedgerView(), ltx, stages,
         mApplyState.getInMemorySorobanState(), sorobanConfig);
+    auto& globalParState = *globalParStatePtr;
     // LedgerTxn is not passed into applySorobanStage, so there's no risk
     // of the header being updated while we apply the stages.
     auto const& header = ltx.loadHeader().current();
@@ -2772,6 +2784,16 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                           sorobanBasePrngSeed);
     }
     globalParState.commitChangesToLedgerTxn(ltx);
+
+    // Global state is rather large and can take up to a few ms to be
+    // deallocated. Defer the deallocation to the background worker in order to
+    // not block the apply thread unnecessarily.
+    auto deferredGlobalState =
+        std::make_shared<std::unique_ptr<GlobalParallelApplyLedgerState>>(
+            std::move(globalParStatePtr));
+    app.postOnBackgroundThread(
+        [deferredGlobalState]() { deferredGlobalState->reset(); },
+        "destroy parallel apply global state");
 }
 
 void
@@ -3177,8 +3199,6 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
 {
     ZoneScoped;
     // `ledgerApplied` protects this call with a mutex
-    std::vector<LedgerEntry> initEntries, liveEntries;
-    std::vector<LedgerKey> deadEntries;
 
     EvictedStateVectors evictedState;
     std::vector<LedgerKey> restoredHotArchiveKeys;
@@ -3288,8 +3308,16 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         finalSorobanConfig =
             std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
     }
-    // NB: getAllEntries seals the ltx.
-    ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+
+    // NB: these are borrowed from `ltx`, which stays for the remainder of this
+    // call. Make sure to not store these references anywhere out of scope of
+    // this function (e.g. via async tasks that are not joined before
+    // returning from this function).
+    // sealAndBorrowAllEntries seals the ltx, so the borrowed references are
+    // guaranteed to be immutable.
+    LedgerEntryRefVec initEntries, liveEntries;
+    LedgerKeyRefVec deadEntries;
+    ltx.sealAndBorrowAllEntries(initEntries, liveEntries, deadEntries);
 
     // Launch async task to update in-memory Soroban state. This is independent
     // from both addHotArchiveBatch and addLiveBatch, so all can run in
@@ -3413,11 +3441,11 @@ LedgerManagerImpl::ApplyState::evictFromModuleCache(
 
 void
 LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
-    uint32_t ledgerVersion, std::vector<LedgerEntry> const& le)
+    uint32_t ledgerVersion, LedgerEntryRefs le)
 {
     ZoneScoped;
     assertWritablePhase();
-    for (auto const& e : le)
+    for (LedgerEntry const& e : le)
     {
         if (e.data.type() == CONTRACT_CODE)
         {

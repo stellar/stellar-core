@@ -294,23 +294,7 @@ solution is, as root to run
 
 Stellar-core has built-in support for Tracy traces.
 
-To install the visualizer, follow the [build and install instructions](https://github.com/wolfpld/tracy) from the main Tracy site.
-
-At a high level you need to
-
-install the required pre-requesites to build clients, run in a shell:
-
-    vcpkg.exe integrate install
-    vcpkg.exe install --triplet x64-windows-static capstone freetype glfw3
-
-Then build one of the servers.
-
-Solutions for servers compatible with the version of stellar-core can be found under:
-
-    * lib/tracy/profiler/build/win32 (GUI)
-    * lib/tracy/capture/build/win32
-
-Note: when connecting, use `localhost` instead of `127.0.0.1` as Tracy binds by default to IPV6 addresses.
+To install the visualizer, follow the directions in [INSTALL.md](../INSTALL.md).
 
 ### General Visual Studio profiler
 
@@ -319,3 +303,75 @@ The main page for the profiler built into Visual Studio Community Edition is loc
 ## All platforms
 
 Intel V-Tune (free, unlimited license 90 days renewal) https://software.intel.com/en-us/system-studio/choose-download
+
+# Memory-use profiling
+
+Tools for memory use profiling are less well-developed than CPU profiling, but there are some options available.
+
+## Tracy
+
+Tracy has some built-in support for memory profiling, but turning it on will
+slow down core significantly and will use memory in the tracy client _very
+quickly_, easily overwhelming your workstation if you're not careful. So you can
+usually only turn it on for a brief period of time.
+
+It is most useful for examining a small part of the code for a short period of
+time, where you already have a fairly good idea of there being memory allocation
+issues that you want to see a precise accounting of. Allocations get linked to
+zones (as a list in each zone detail view) and are available for inspection in
+the "memory" window, along with a total map of memory and a list of all
+allocations.
+
+Stellar-core has support for this mode separate from normal tracy tracing,
+because it is so performance intensive and memory hungry. You need to configure
+with --enable-tracy-memory-tracking and --disable-tcmalloc.
+
+## Heaptrack
+
+A better option for a high level "profile" of memory is the "heaptrack" tool,
+which is available on Linux.
+
+    $ sudo apt install heaptrack heaptrack-gui
+
+To use it you will also need to configure with --disable-tcmalloc, because it
+works by intercepting malloc/free calls underlying the default operator
+new/delete, and tcmalloc's operator new and delete will bypass that
+interception.
+
+Heaptrack should also be run only for a moderate amount of time, otherwise the
+recording will be huge. But it at least writes its recording to disk, and the
+recording is much more compact than tracy's in-memory structure, so it can run
+much longer than tracy in memory-recording mode without issue.
+
+Heaptrack can run a program as a subprocess or attach remotely. The remote
+attach mode allows you to avoid starting it until the program is close to the
+period you want to measure, so is recommended. You will need to enable ptrace
+permissions.
+
+Heaptrack's default recording mode is very slow as it symbolicates all the
+stacks while it runs. A better way is to record a _raw_ profile and then
+symbolicate the data after the fact.
+
+Combining these facts, the best execution we've found is like the following:
+
+    # in one terminal...
+    $ stellar-core ...
+
+    # in another terminal...
+    $ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
+    $ heaptrack --raw $(pidof stellar-core)
+
+    # switch back core and stop it with Ctrl-C when done
+
+    # heaptrack will exit and write a file like
+    # heaptrack.stellar-core.12345.raw.zst along with, hopefully, instructions
+    # to run something like this to post-process the raw file into a more
+    # compact and symbolicated form. This will run a long time:
+
+    $ zstd -dc < ".../heaptrack.stellar-core.12345.raw.zst" \
+        | /usr/lib/heaptrack/libexec/heaptrack_interpret \
+        | zstd -c > ".../heaptrack.stellar-core.12345.zst"
+
+    # finally load the profile into the visualization tool
+    $ heaptrack_gui ".../heaptrack.stellar-core.12345.zst"
+

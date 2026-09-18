@@ -165,6 +165,11 @@ InternalLedgerKey::makeMaxSeqNumToApplyKey(AccountID const& sourceAccount)
 InternalLedgerKey&
 InternalLedgerKey::operator=(InternalLedgerKey const& glk)
 {
+    if (this == &glk)
+    {
+        return *this;
+    }
+
     type(glk.type());
     assign(glk);
     return *this;
@@ -191,9 +196,9 @@ InternalLedgerKey::~InternalLedgerKey()
 size_t
 InternalLedgerKey::hash() const
 {
-    if (mHash != 0)
+    if (mHash)
     {
-        return mHash;
+        return *mHash;
     }
     size_t res;
     switch (type())
@@ -225,7 +230,6 @@ void
 InternalLedgerKey::assign(InternalLedgerKey const& glk)
 {
     releaseAssert(glk.type() == mType);
-    mHash = glk.mHash;
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
@@ -243,13 +247,13 @@ InternalLedgerKey::assign(InternalLedgerKey const& glk)
     default:
         abort();
     }
+    mHash = glk.mHash;
 }
 
 void
 InternalLedgerKey::assign(InternalLedgerKey&& glk)
 {
     releaseAssert(glk.type() == mType);
-    mHash = glk.mHash;
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
@@ -267,6 +271,8 @@ InternalLedgerKey::assign(InternalLedgerKey&& glk)
     default:
         abort();
     }
+    mHash = glk.mHash;
+    glk.mHash.reset();
 }
 
 void
@@ -289,7 +295,7 @@ InternalLedgerKey::construct()
     default:
         abort();
     }
-    mHash = 0;
+    mHash.reset();
 }
 
 void
@@ -312,7 +318,7 @@ InternalLedgerKey::destruct()
     default:
         abort();
     }
-    mHash = 0;
+    mHash.reset();
 }
 
 void
@@ -345,7 +351,7 @@ LedgerKey&
 InternalLedgerKey::ledgerKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
-    mHash = 0;
+    mHash.reset();
     return mLedgerKey;
 }
 
@@ -360,7 +366,7 @@ SponsorshipKey&
 InternalLedgerKey::sponsorshipKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
-    mHash = 0;
+    mHash.reset();
     return mSponsorshipKey;
 }
 
@@ -375,7 +381,7 @@ SponsorshipCounterKey&
 InternalLedgerKey::sponsorshipCounterKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
-    mHash = 0;
+    mHash.reset();
     return mSponsorshipCounterKey;
 }
 
@@ -390,7 +396,7 @@ MaxSeqNumToApplyKey&
 InternalLedgerKey::maxSeqNumToApplyKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
-    mHash = 0;
+    mHash.reset();
     return mMaxSeqNumToApplyKey;
 }
 

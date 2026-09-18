@@ -360,6 +360,9 @@ class HerderImpl : public Herder
         // network-close-time anchor to the local prepare-start anchor.
         medida::Meter& mTriggerPrepareStartFallback;
 
+        // Time spent building the tx set proposed at nomination.
+        medida::Timer& mTxSetBuild;
+
         SCPMetrics(Application& app);
     };
 

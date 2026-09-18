@@ -477,8 +477,13 @@ AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
 # tcmalloc_minimal - enabled by default on Linux for improved memory allocation performance
 # Disabled when using sanitizers (asan, memcheck, tsan) as they replace malloc
 # Uses vendored gperftools from lib/gperftools
+AC_ARG_ENABLE(tcmalloc,
+    AS_HELP_STRING([--disable-tcmalloc],
+        [Disable tcmalloc support]))
 unset have_tcmalloc
-if test "x$enable_asan" = "xyes" -o "x$enable_memcheck" = "xyes" -o "x$enable_threadsanitizer" = "xyes"; then
+if test x"$enable_tcmalloc" = xno; then
+    AC_MSG_NOTICE([tcmalloc disabled by user])
+elif test "x$enable_asan" = "xyes" -o "x$enable_memcheck" = "xyes" -o "x$enable_threadsanitizer" = "xyes"; then
     AC_MSG_NOTICE([tcmalloc disabled due to sanitizer being enabled])
 else
     case "${host_os}" in
@@ -501,6 +506,11 @@ fi
 AM_CONDITIONAL(USE_TCMALLOC, [test -n "$have_tcmalloc"])
 AC_SUBST(libtcmalloc_CFLAGS)
 AC_SUBST(libtcmalloc_LIBS)
+
+# AC_CONFIG_SUBDIRS disables option checking so options can be forwarded to
+# recursive configures. Re-enable it for the top-level configure by default;
+# generated recursion still passes --disable-option-checking to sub-configures.
+m4_divert_text([DEFAULTS], [enable_option_checking=fatal])
 
 AC_ARG_ENABLE(tests,
     AS_HELP_STRING([--disable-tests],
@@ -536,7 +546,12 @@ AC_ARG_ENABLE(tracy-memory-tracking,
     AS_HELP_STRING([--enable-tracy-memory-tracking],
         [Enable 'tracy' profiler/tracer memory tracking code (slow)]))
 AM_CONDITIONAL(USE_TRACY_MEMORY_TRACKING, [test x$enable_tracy_memory_tracking = xyes])
-
+if test x"$enable_tracy_memory_tracking" = xyes -a x"$have_tcmalloc" = x1; then
+  AC_MSG_ERROR([--enable-tracy-memory-tracking requires --disable-tcmalloc])
+fi
+if test x"$enable_tracy_memory_tracking" = xyes -a x"$enable_tracy" != xyes; then
+  AC_MSG_ERROR([--enable-tracy-memory-tracking requires --enable-tracy])
+fi
 if test x"$enable_tracy" = xyes -a x"$enable_asan" = xyes; then
        AC_MSG_ERROR([--enable-asan is not compatible with --enable-tracy])
 fi

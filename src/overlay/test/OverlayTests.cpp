@@ -3368,14 +3368,8 @@ TEST_CASE("background signature verification with missing account",
     s->addPendingConnection(senderSecretKey.getPublicKey(),
                             receiverSecretKey.getPublicKey());
     s->startAllNodes();
-    s->crankForAtLeast(std::chrono::seconds(1), false);
-
-    // Get the connected TCPPeer
-    auto receiverPeer = senderNode->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", receiverNode->getConfig().PEER_PORT});
-
-    REQUIRE(receiverPeer);
-    REQUIRE(receiverPeer->isAuthenticatedForTesting());
+    auto [receiverPeer, _] =
+        crankUntilAuthenticated(s, *senderNode, *receiverNode);
 
     // Create a malicious transaction with a non-existent fee source account.
     // NOTE: Because background signature verification occurs before virtually
