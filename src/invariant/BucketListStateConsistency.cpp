@@ -66,13 +66,14 @@ BucketListStateConsistency::checkSnapshot(
     std::string errorMsg;
 
     // Property 7: Track total entry sizes for validation
-    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(applyView);
+    auto const* sorobanConfig = applyView.getSorobanNetworkConfig();
+    releaseAssertOrThrow(sorobanConfig);
     uint64_t expectedSorobanSize = 0;
 
     auto checkLiveEntry = [&seenLiveNonTTLKeys, &seenDeadKeys, &errorMsg,
                            &inMemorySnapshot, &applyView, checkHotArchive,
                            &isStopping, &expectedSorobanSize, &header,
-                           &sorobanConfig](BucketEntry const& be) {
+                           sorobanConfig](BucketEntry const& be) {
         if (isStopping())
         {
             return Loop::COMPLETE;
@@ -130,9 +131,9 @@ BucketListStateConsistency::checkSnapshot(
             if (lk.type() == CONTRACT_CODE)
             {
                 uint32_t entryXdrSize = xdr::xdr_size(be.liveEntry());
-                expectedSorobanSize +=
-                    ledgerEntrySizeForRent(be.liveEntry(), entryXdrSize,
-                                           header.ledgerVersion, sorobanConfig);
+                expectedSorobanSize += ledgerEntrySizeForRent(
+                    be.liveEntry(), entryXdrSize, header.ledgerVersion,
+                    *sorobanConfig);
             }
             else
             {

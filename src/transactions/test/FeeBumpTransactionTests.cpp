@@ -96,9 +96,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions({12}, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee, fee, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txNOT_SUPPORTED);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -110,9 +110,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee - 1, 1, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -124,9 +124,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee + 1, 101, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(result->getFeeCharged() == 2 * 101);
@@ -139,9 +139,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txNO_ACCOUNT);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -159,9 +159,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -182,9 +182,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -197,9 +197,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_BALANCE);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -219,9 +219,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH_EXTRA);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -238,9 +238,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
                 auto const& fbRes = result->getXDR();
@@ -257,9 +257,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, -1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
                 auto const& fbRes = result->getXDR();
@@ -279,9 +279,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto result =
-                    fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
                 auto const& fbRes = result->getXDR();
@@ -329,9 +329,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
 
                 MutableTxResultPtr result;
@@ -363,9 +365,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
                 acc.setOptions(setMasterWeight(0));
                 {
@@ -391,9 +395,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
                 acc.pay(*root, 2 * fee);
                 {
@@ -428,9 +434,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     app->getNetworkID(), fbXDR);
                 auto fb = TransactionTestFrame::fromTxFrame(rawTx);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
 
                 auto setOptionsTx = acc.tx({setOptions(setLowThreshold(1))});
@@ -460,9 +468,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, acc, 2 * fee,
                                   fee, 1);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
 
                 auto setOptionsOp = setOptions(setMasterWeight(0));
@@ -496,9 +506,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, acc, 2 * fee,
                                   fee, INT64_MAX);
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -557,12 +569,15 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                          acc.op(endSponsoringFutureReserves())},
                         {sponsoring});
 
+                    REQUIRE(
+                        tx->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
                         app->getAppConnector());
-                    REQUIRE(tx->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
                     auto result = tx->processFeeSeqNum(ltx, fee);
                     REQUIRE(
                         tx->apply(app->getAppConnector(), ltx, txm, *result));
@@ -578,9 +593,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 }
 
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(fb->checkValid(app->getAppConnector(), ltx, 0, 0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());

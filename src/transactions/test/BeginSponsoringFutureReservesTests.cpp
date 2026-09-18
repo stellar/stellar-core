@@ -47,10 +47,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 app->getNetworkID(), *root,
                 {root->op(beginSponsoringFutureReserves(a1))}, {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            ltx.commit();
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
 
             REQUIRE(getOperationResultCode(*tx, 0) == opNOT_SUPPORTED);
         });
@@ -63,10 +62,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 app->getNetworkID(), *root,
                 {root->op(beginSponsoringFutureReserves(*root))}, {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            ltx.commit();
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
 
             REQUIRE(getBeginSponsoringFutureReservesResultCode(*tx, 0) ==
                     BEGIN_SPONSORING_FUTURE_RESERVES_MALFORMED);
@@ -251,18 +249,18 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
 
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txBAD_MIN_SEQ_AGE_OR_GAP);
                 }
 
                 {
                     // this increments ledgerSeq
                     closeLedger(*app);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                 }
             }

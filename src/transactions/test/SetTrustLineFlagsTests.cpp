@@ -1148,13 +1148,15 @@ TEST_CASE_VERSIONS("revoke from pool",
                                 {acc1});
 
                             {
+                                REQUIRE(tx->checkValidForTesting(
+                                    app->getAppConnector(),
+                                    *app->getLedgerManager().getLCLView(), 0, 0,
+                                    0));
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
                                 TransactionMetaBuilder txm(
                                     true, *tx,
                                     ltx.loadHeader().current().ledgerVersion,
                                     app->getAppConnector());
-                                REQUIRE(tx->checkValidForTesting(
-                                    app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(tx->apply(app->getAppConnector(), ltx,
                                                   txm));
                                 REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1250,12 +1252,13 @@ TEST_CASE_VERSIONS("revoke from pool",
                     bool trustlineIsSponsored = getNumSponsored(*app, acc1) > 0;
 
                     {
+                        REQUIRE(tx->checkValidForTesting(
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaBuilder txm(
                             true, *tx, ltx.loadHeader().current().ledgerVersion,
                             app->getAppConnector());
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
                         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm) ==
                                 success);
 
@@ -1518,12 +1521,13 @@ TEST_CASE_VERSIONS("revoke from pool",
                              acc1.op(endSponsoringFutureReserves())},
                             {acc1});
 
+                        REQUIRE(tx->checkValidForTesting(
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaBuilder txm(
                             true, *tx, ltx.loadHeader().current().ledgerVersion,
                             app->getAppConnector());
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
                         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                         REQUIRE(tx->getResultCode() == txSUCCESS);
 
@@ -1700,11 +1704,13 @@ TEST_CASE("pool share revocation order test", "[tx][settrustlineflags]")
              trustor.op(changeTrust(shareAC, INT64_MAX)),
              trustor.op(endSponsoringFutureReserves())},
             {trustor});
+        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                         *app->getLedgerManager().getLCLView(),
+                                         0, 0, 0));
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaBuilder txm(true, *tx,
                                    ltx.loadHeader().current().ledgerVersion,
                                    app->getAppConnector());
-        REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
         REQUIRE(tx->getResultCode() == txSUCCESS);
         ltx.commit();
@@ -1718,11 +1724,13 @@ TEST_CASE("pool share revocation order test", "[tx][settrustlineflags]")
              trustor.op(changeTrust(shareAD, INT64_MAX)),
              trustor.op(endSponsoringFutureReserves())},
             {trustor});
+        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                         *app->getLedgerManager().getLCLView(),
+                                         0, 0, 0));
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaBuilder txm(true, *tx,
                                    ltx.loadHeader().current().ledgerVersion,
                                    app->getAppConnector());
-        REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
         REQUIRE(tx->getResultCode() == txSUCCESS);
         ltx.commit();
@@ -1763,11 +1771,13 @@ TEST_CASE("pool share revocation order test", "[tx][settrustlineflags]")
          root->op(revokeOp), sponsor2.op(endSponsoringFutureReserves())},
         {sponsor1, sponsor2});
 
+    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                     *app->getLedgerManager().getLCLView(), 0,
+                                     0, 0));
     LedgerTxn ltx(app->getLedgerTxnRoot());
     TransactionMetaBuilder txm(true, *tx,
                                ltx.loadHeader().current().ledgerVersion,
                                app->getAppConnector());
-    REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
     bool success = tx->apply(app->getAppConnector(), ltx, txm);
 
     // PS2 (balance>0, backer=B, sandwich sponsor=Y) first:
@@ -1855,11 +1865,13 @@ TEST_CASE("revocation result test across validators", "[tx][settrustlineflags]")
              trustor.op(changeTrust(share, INT64_MAX)),
              trustor.op(endSponsoringFutureReserves())},
             {trustor});
+        tx->checkValidForTesting(app->getAppConnector(),
+                                 *app->getLedgerManager().getLCLView(), 0, 0,
+                                 0);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaBuilder txm(true, *tx,
                                    ltx.loadHeader().current().ledgerVersion,
                                    app->getAppConnector());
-        tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0);
         tx->apply(app->getAppConnector(), ltx, txm);
         ltx.commit();
     };
@@ -1892,11 +1904,13 @@ TEST_CASE("revocation result test across validators", "[tx][settrustlineflags]")
          root->op(revokeOp), sponsor2.op(endSponsoringFutureReserves())},
         {sponsor1, sponsor2});
 
+    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                     *app->getLedgerManager().getLCLView(), 0,
+                                     0, 0));
     LedgerTxn ltx(app->getLedgerTxnRoot());
     TransactionMetaBuilder txm(true, *tx,
                                ltx.loadHeader().current().ledgerVersion,
                                app->getAppConnector());
-    REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
     bool success = tx->apply(app->getAppConnector(), ltx, txm);
 
     // A deterministic implementation must always produce the same result.

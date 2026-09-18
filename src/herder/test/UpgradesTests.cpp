@@ -339,12 +339,12 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         makeTxCountUpgrade(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
     auto baseReserveUpgrade =
         makeBaseReserveUpgrade(cfg.TESTING_UPGRADE_RESERVE);
-    auto ledgerView = CheckValidLedgerViewWrapper(*app);
+    auto ledgerView = app->getLedgerManager().getLCLView();
 
     SECTION("protocol version upgrade needed")
     {
         header.ledgerVersion--;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, *ledgerView,
                                                         app->getConfig());
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{protocolVersionUpgrade}
@@ -355,7 +355,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base fee upgrade needed")
     {
         header.baseFee /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, *ledgerView,
                                                         app->getConfig());
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseFeeUpgrade}
@@ -366,7 +366,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("tx count upgrade needed")
     {
         header.maxTxSetSize /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, *ledgerView,
                                                         app->getConfig());
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{txCountUpgrade}
@@ -377,7 +377,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base reserve upgrade needed")
     {
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, *ledgerView,
                                                         app->getConfig());
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseReserveUpgrade}
@@ -391,7 +391,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         header.baseFee /= 2;
         header.maxTxSetSize /= 2;
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, *ledgerView,
                                                         app->getConfig());
         auto expected =
             shouldListAny
@@ -711,7 +711,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
         LedgerTxn ltx(app->getLedgerTxnRoot());
         ltx.loadHeader().current() = header;
 
-        auto ledgerView = CheckValidLedgerViewWrapper(ltx);
+        LedgerTxnView ledgerView(ltx);
         LedgerUpgrade outUpgrade;
         SECTION("valid")
         {
@@ -886,7 +886,7 @@ TEST_CASE("config upgrade validation for protocol 23", "[upgrades]")
         }
         LedgerTxn ltx(app->getLedgerTxnRoot());
         ltx.loadHeader().current() = header;
-        auto ledgerView = CheckValidLedgerViewWrapper(ltx);
+        LedgerTxnView ledgerView(ltx);
         LedgerUpgrade outUpgrade;
         return Upgrades::isValidForApply(
             toUpgradeType(makeConfigUpgrade(*configUpgradeSet)), outUpgrade,
@@ -1111,11 +1111,11 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
             .getLedgerManager()
             .getSorobanInMemoryStateSizeForTesting();
     auto getExpectedInMemorySize = [&]() {
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
         auto res = expectedInMemorySizeDelta;
         for (auto const& key : addedKeys)
         {
-            auto le = ledgerView.load(key);
+            auto le = ledgerView->load(key);
             res += ledgerEntrySizeForRent(le.current(),
                                           xdr::xdr_size(le.current()), 23,
                                           test.getNetworkCfg());
@@ -1124,11 +1124,11 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
     };
 
     auto getStateSizeWindow = [&]() {
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
         LedgerKey key(CONFIG_SETTING);
         key.configSetting().configSettingID =
             ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
-        auto le = ledgerView.load(key);
+        auto le = ledgerView->load(key);
         REQUIRE(le);
         std::vector<uint64_t> windowFromLtx =
             le.current().data.configSetting().liveSorobanStateSizeWindow();
@@ -1421,11 +1421,11 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                         .liveSorobanStateSizeWindowSampleSize == size);
         };
         auto loadWindow = [&]() {
-            CheckValidLedgerViewWrapper ledgerView(*app);
+            auto ledgerView = app->getLedgerManager().getLCLView();
             LedgerKey key(CONFIG_SETTING);
             key.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
-            return ledgerView.load(key)
+            return ledgerView->load(key)
                 .current()
                 .data.configSetting()
                 .liveSorobanStateSizeWindow();
@@ -2988,8 +2988,8 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
     }
 
     {
-        CheckValidLedgerViewWrapper ledgerView(*app);
-        REQUIRE(!ledgerView.load(getParallelComputeSettingsLedgerKey()));
+        auto ledgerView = app->getLedgerManager().getLCLView();
+        REQUIRE(!ledgerView->load(getParallelComputeSettingsLedgerKey()));
     }
 
     executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<uint32_t>(
@@ -2997,9 +2997,9 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
 
     // Make sure initial value is correct.
     {
-        CheckValidLedgerViewWrapper ledgerView(*app);
+        auto ledgerView = app->getLedgerManager().getLCLView();
         auto parellelComputeEntry =
-            ledgerView.load(getParallelComputeSettingsLedgerKey())
+            ledgerView->load(getParallelComputeSettingsLedgerKey())
                 .current()
                 .data.configSetting();
         REQUIRE(parellelComputeEntry.configSettingID() ==
@@ -3024,9 +3024,9 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
     }
 
-    CheckValidLedgerViewWrapper ledgerView(*app);
+    auto ledgerView = app->getLedgerManager().getLCLView();
 
-    REQUIRE(ledgerView.load(getParallelComputeSettingsLedgerKey())
+    REQUIRE(ledgerView->load(getParallelComputeSettingsLedgerKey())
                 .current()
                 .data.configSetting()
                 .contractParallelCompute()
@@ -3196,12 +3196,13 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
         });
 
         auto submitTx = [&](TransactionTestFramePtr tx) {
+            REQUIRE(tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaBuilder txm(true, *tx,
                                        ltx.loadHeader().current().ledgerVersion,
                                        app->getAppConnector());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
             ltx.commit();
 
@@ -4080,7 +4081,7 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
     };
     auto runUpgradeAndGetSnapshot = [&]() {
         executeUpgrade(*app, makeProtocolVersionUpgrade(fixedProtocolVersion));
-        return app->getAppConnector().copyImmutableLedgerView();
+        return app->getLedgerManager().copyImmutableLedgerView();
     };
     auto const& corruptedEntries =
         p23_hot_archive_bug::internal::P23_CORRUPTED_HOT_ARCHIVE_ENTRIES;
