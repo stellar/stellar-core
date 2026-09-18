@@ -3,11 +3,11 @@
    "!rng seed" : 12345,
    "!test all versions" : false,
    "!versions to test" : [ 28 ],
-   "02426fcd1b6a0dbe" : "sponsor_future_reserves-protocol_version_28-already_sponsored",
-   "124577e8c014e46f" : "sponsor_future_reserves-protocol_version_28-add_sponsored_entry_before_adding_first_sponsored_signer",
-   "2f7cc6c5797d6418" : "sponsor_future_reserves-protocol_version_28-sponsorships_with_precondition_that_uses_v3_extension",
-   "3ca9bd46788ce395" : "sponsor_future_reserves-protocol_version_28-sponsoring_account_is_sponsored",
-   "476ba4fadb58a1ac" : "sponsor_future_reserves-protocol_version_28-success",
-   "aec15f4898b342da" : "sponsor_future_reserves-protocol_version_28-sponsored_account_is_sponsoring",
-   "e657a64b555a35d5" : "sponsor_future_reserves-protocol_version_28-bad_sponsorship"
+   "2f93b877eda10b18" : "sponsor future reserves|protocol version 28|already sponsored",
+   "397bad986ea5b426" : "sponsor future reserves|protocol version 28|sponsored account is sponsoring",
+   "59f680287b2a00df" : "sponsor future reserves|protocol version 28|success",
+   "a9df849f16a4cb02" : "sponsor future reserves|protocol version 28|sponsoring account is sponsored",
+   "cf40fd511244b627" : "sponsor future reserves|protocol version 28|bad sponsorship",
+   "dfa61b835ddab6f1" : "sponsor future reserves|protocol version 28|add sponsored entry before adding first sponsored signer",
+   "e47beace9994d9fa" : "sponsor future reserves|protocol version 28|sponsorships with precondition that uses v3 extension"
 }

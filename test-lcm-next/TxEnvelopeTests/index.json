@@ -3,7 +3,7 @@
    "!rng seed" : 12345,
    "!test all versions" : false,
    "!versions to test" : [ 29 ],
-   "33b31b8901ef27e4" : "txset_-_correct_apply_order",
-   "5a5798ba7b39a55c" : "soroban_transaction_validation-protocol_version_29-footprint_limit-read-only_key_over_size_limit",
-   "5dd8350657e154c9" : "soroban_transaction_validation-protocol_version_29-footprint_limit-read-write_key_over_size_limit"
+   "739d3fee74b62b57" : "soroban transaction validation|protocol version 29|footprint limit|read-write key over size limit",
+   "8c2395b250372f24" : "txset - correct apply order",
+   "ea7b067e87a9778c" : "soroban transaction validation|protocol version 29|footprint limit|read-only key over size limit"
 }
