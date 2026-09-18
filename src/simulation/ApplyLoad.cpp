@@ -1165,11 +1165,11 @@ ApplyLoad::applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig)
         upgradeBytes, mUpgradeCodeKey, mUpgradeInstanceKey, std::nullopt,
         resources);
     {
-        CheckValidLedgerViewWrapper ledgerView(mApp);
+        auto ledgerView = mApp.getLedgerManager().getLCLView();
         auto diagnostics =
             DiagnosticEventManager::createForValidation(mApp.getConfig());
         auto validationRes = invokeTx->checkValid(
-            mApp.getAppConnector(), ledgerView, 0, 0, 0, diagnostics);
+            mApp.getAppConnector(), *ledgerView, 0, 0, 0, diagnostics);
         if (!validationRes->isSuccess())
         {
             if (validationRes->getResultCode() == txSOROBAN_INVALID)
@@ -1690,14 +1690,14 @@ ApplyLoad::benchmarkLimitsIteration()
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
                      getGlobalRandomEngine());
 
-    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
     auto appConnector = mApp.getAppConnector();
 
     auto addTx = [&ledgerView, &appConnector,
                   &txs](TransactionFrameBasePtr tx) {
         auto diagnostics = DiagnosticEventManager::createDisabled();
         auto res =
-            tx->checkValid(appConnector, ledgerView, 0, 0, 0, diagnostics);
+            tx->checkValid(appConnector, *ledgerView, 0, 0, 0, diagnostics);
         releaseAssert(res && res->isSuccess());
         txs.emplace_back(tx);
     };
@@ -2012,7 +2012,7 @@ ApplyLoad::generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
 
     releaseAssert(accounts.size() >= startAccountIdx + classicTxCount());
 
-    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
     auto appConnector = mApp.getAppConnector();
     auto diagnostics = DiagnosticEventManager::createDisabled();
 
@@ -2031,7 +2031,7 @@ ApplyLoad::generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
             mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
             std::nullopt, memo);
         auto res =
-            tx->checkValid(appConnector, ledgerView, 0, 0, 0, diagnostics);
+            tx->checkValid(appConnector, *ledgerView, 0, 0, 0, diagnostics);
         releaseAssert(res && res->isSuccess());
         txs.emplace_back(tx);
     }
@@ -2113,7 +2113,7 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
             txs.push_back(tx.second);
         }
     }
-    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
     auto diag = DiagnosticEventManager::createDisabled();
     // Validate all the generated transactions. This serves 2 purposes:
     // - ensure that the tx generator works as expected
@@ -2125,7 +2125,7 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
     for (auto const& tx : txs)
     {
         releaseAssert(
-            tx->checkValid(mApp.getAppConnector(), ledgerView, 0, 0, 0, diag)
+            tx->checkValid(mApp.getAppConnector(), *ledgerView, 0, 0, 0, diag)
                 ->isSuccess());
     }
 }
@@ -2314,12 +2314,12 @@ ApplyLoad::generateTokenTransfers(std::vector<TransactionFrameBasePtr>& txs,
         txs.push_back(tx.second);
     }
 
-    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
     auto diag = DiagnosticEventManager::createDisabled();
     for (auto const& tx : txs)
     {
         releaseAssert(
-            tx->checkValid(mApp.getAppConnector(), ledgerView, 0, 0, 0, diag)
+            tx->checkValid(mApp.getAppConnector(), *ledgerView, 0, 0, 0, diag)
                 ->isSuccess());
     }
 }
@@ -3079,11 +3079,11 @@ ApplyLoad::generateSoroswapSwaps(std::vector<TransactionFrameBasePtr>& txs,
         txs.push_back(tx.second);
     }
 
-    CheckValidLedgerViewWrapper ls(mApp);
+    auto ls = mApp.getLedgerManager().getLCLView();
     auto diag = DiagnosticEventManager::createDisabled();
     for (auto const& tx : txs)
     {
-        releaseAssert(tx->checkValid(mApp.getAppConnector(), ls, 0, 0, 0, diag)
+        releaseAssert(tx->checkValid(mApp.getAppConnector(), *ls, 0, 0, 0, diag)
                           ->isSuccess());
     }
 }

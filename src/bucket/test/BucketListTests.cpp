@@ -1112,16 +1112,17 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
             LedgerKey stateArchivalKey(CONFIG_SETTING);
             stateArchivalKey.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
-            CheckValidLedgerViewWrapper ledgerView(*app);
+            auto ledgerView = app->getLedgerManager().getLCLView();
             auto stateArchivalEntry =
-                ledgerView.load(stateArchivalKey).current();
+                ledgerView->load(stateArchivalKey).current();
             modifyStateArchivalFn(stateArchivalEntry.data.configSetting()
                                       .stateArchivalSettings());
 
             LedgerKey evictionIterKey(CONFIG_SETTING);
             evictionIterKey.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
-            auto evictionIterEntry = ledgerView.load(evictionIterKey).current();
+            auto evictionIterEntry =
+                ledgerView->load(evictionIterKey).current();
             modifyEvictionIteratorFn(
                 evictionIterEntry.data.configSetting().evictionIterator());
 
@@ -1723,11 +1724,11 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         }
 
         closeLedger(*app);
-        auto blLedgerView = app->getLedgerManager().copyImmutableLedgerView();
+        auto blLedgerView = app->getLedgerManager().getLCLView();
 
         // Snapshot should automatically update with latest version
-        auto loadedEntry = blLedgerView.loadLiveEntry(LedgerEntryKey(entry));
-        REQUIRE((loadedEntry && *loadedEntry == entry));
+        auto loadedEntry = blLedgerView->load(LedgerEntryKey(entry));
+        REQUIRE((loadedEntry && loadedEntry.current() == entry));
     }
 }
 

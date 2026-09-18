@@ -1109,9 +1109,9 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
     MutableTxResultPtr result;
     {
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        result = tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0,
-                                diagnostics);
+        auto ledgerView = getApp().getLedgerManager().getLCLView();
+        result = tx->checkValid(getApp().getAppConnector(), *ledgerView, 0, 0,
+                                0, diagnostics);
     }
     REQUIRE(result->isSuccess());
 
@@ -1383,9 +1383,9 @@ SorobanTest::createRestoreTx(SorobanResources const& resources,
 bool
 SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 {
-    CheckValidLedgerViewWrapper ledgerView(getApp());
+    auto ledgerView = getApp().getLedgerManager().getLCLView();
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    auto ret = tx->checkValid(getApp().getAppConnector(), ledgerView, 0, 0, 0,
+    auto ret = tx->checkValid(getApp().getAppConnector(), *ledgerView, 0, 0, 0,
                               diagnostics);
     return ret->isSuccess();
 }
@@ -1396,8 +1396,8 @@ SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
     auto diagnostics =
         DiagnosticEventManager::createForValidation(mApp->getConfig());
     {
-        CheckValidLedgerViewWrapper ledgerView(getApp());
-        auto result = tx->checkValid(getApp().getAppConnector(), ledgerView, 0,
+        auto ledgerView = getApp().getLedgerManager().getLCLView();
+        auto result = tx->checkValid(getApp().getAppConnector(), *ledgerView, 0,
                                      0, 0, diagnostics);
         if (!result->isSuccess())
         {
@@ -1456,8 +1456,8 @@ ExpirationStatus
 SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
 {
     auto ttlKey = getTTLKey(key);
-    CheckValidLedgerViewWrapper ledgerView(getApp());
-    if (auto le = ledgerView.load(ttlKey))
+    auto ledgerView = getApp().getLedgerManager().getLCLView();
+    if (auto le = ledgerView->load(ttlKey))
     {
         if (le.current().data.ttl().liveUntilLedgerSeq <= getLCLSeq())
         {

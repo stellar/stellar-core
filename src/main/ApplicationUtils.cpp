@@ -730,7 +730,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
     auto& lm = app->getLedgerManager();
 
     lm.partiallyLoadLastKnownLedgerForUtils();
-    auto liveLedgerView = app->getAppConnector().copyImmutableLedgerView();
+    auto liveLedgerView = app->getLedgerManager().getLCLView();
     auto ttlGetter = [&liveLedgerView, includeAllStates,
                       dumpHotArchive](LedgerKey const& key) -> uint32_t {
         if (includeAllStates || dumpHotArchive)
@@ -739,13 +739,13 @@ dumpLedger(Config cfg, std::string const& outputFile,
                 "TTL is undefined when `--include-all-states` or "
                 "`--hot-archive` flag is set.");
         }
-        auto entry = liveLedgerView.loadLiveEntry(key);
+        auto entry = liveLedgerView->load(key);
         if (!entry)
         {
             throw std::runtime_error("No TTL entry found for key: " +
                                      xdrToCerealString(key, "key"));
         }
-        return entry->data.ttl().liveUntilLedgerSeq;
+        return entry.current().data.ttl().liveUntilLedgerSeq;
     };
 
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
@@ -869,10 +869,10 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
         LOG_INFO(DEFAULT_LOG, "Wrote {} bytes to {}", entry.code.size(),
                  filename);
     };
-    auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+    auto& lmForScan = app->getLedgerManager();
     if (hash == "ALL")
     {
-        ledgerView.scanLiveEntriesOfType(
+        lmForScan.scanLiveEntriesOfType(
             CONTRACT_CODE, [&](BucketEntry const& entry) {
                 if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
                 {
@@ -888,10 +888,11 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
         LedgerKey key;
         key.type(LedgerEntryType::CONTRACT_CODE);
         key.contractCode().hash = hexToBin256(hash);
-        auto entry = ledgerView.loadLiveEntry(key);
-        if (entry && entry->data.type() == LedgerEntryType::CONTRACT_CODE)
+        auto entry = lmForScan.getLCLView()->load(key);
+        if (entry &&
+            entry.current().data.type() == LedgerEntryType::CONTRACT_CODE)
         {
-            auto const& codeEntry = entry->data.contractCode();
+            auto const& codeEntry = entry.current().data.contractCode();
             writeBlob(codeEntry);
         }
         else

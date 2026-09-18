@@ -213,8 +213,8 @@ class OverlayManager
     virtual bool
     checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> tracker) = 0;
 
-    // Get a snapshot of ledger state for use by the overlay thread only. Caller
-    // is responsible for updating the snapshot as needed.
-    virtual ImmutableLedgerView& getOverlayThreadSnapshot() = 0;
+    // Get a snapshot of ledger state for use by the overlay thread only.
+    // The snapshot is guaranteed to be synchronized with the LCL.
+    virtual AbstractLedgerView const& getOverlayThreadSnapshot() = 0;
 };
 }

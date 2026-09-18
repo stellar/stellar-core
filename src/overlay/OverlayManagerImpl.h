@@ -168,7 +168,7 @@ class OverlayManagerImpl : public OverlayManager
     void recordMessageMetric(StellarMessage const& stellarMsg,
                              Peer::pointer peer) override;
 
-    ImmutableLedgerView& getOverlayThreadSnapshot() override;
+    AbstractLedgerView const& getOverlayThreadSnapshot() override;
 
   private:
     struct ResolvedPeers
@@ -186,7 +186,7 @@ class OverlayManagerImpl : public OverlayManager
         mScheduledMessages;
 
     // Snapshot of ledger state for use ONLY by the overlay thread
-    std::optional<ImmutableLedgerView> mOverlayThreadSnapshot;
+    std::unique_ptr<AbstractLedgerView const> mOverlayThreadSnapshot;
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>
