@@ -73,6 +73,16 @@ captureLastClosedLedgerLcm(Application& app)
     // then applies the tx directly, so txs never appear in LCM. Fix this
     // by restructuring applyCheck to use closeLedger(app, {tx}) when
     // capturing LCM.
+    if (isLcmCaptureEnabled())
+    {
+        // Configs whose ledger content depends on thread scheduling or on
+        // randomized nomination cannot produce reproducible golden data.
+        if (app.getConfig().EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD ||
+            app.getConfig().TESTING_NOMINATE_RANDOM_VALUES)
+        {
+            disableLcmCapture();
+        }
+    }
     if (isLcmCaptureEnabled() && !app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         auto const& closeMeta =

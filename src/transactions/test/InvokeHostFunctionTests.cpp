@@ -6349,18 +6349,6 @@ TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
         }
         SECTION("missing signature field")
         {
-            baseCredentials.address()
-                .signature.vec()
-                .activate()[0]
-                .map()
-                .activate()
-                .pop_back();
-            REQUIRE(singleInvocation(signer, baseCredentials) ==
-                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
-        }
-
-        SECTION("missing signature field")
-        {
             fieldsMap.pop_back();
             REQUIRE(singleInvocation(signer, baseCredentials) ==
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
@@ -6390,7 +6378,7 @@ TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
             REQUIRE(singleInvocation(signer, baseCredentials) ==
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         }
-        SECTION("wrong key type")
+        SECTION("wrong signature key type")
         {
             fieldsMap[1].key = makeBytesSCVal(std::string("signature"));
             REQUIRE(singleInvocation(signer, baseCredentials) ==

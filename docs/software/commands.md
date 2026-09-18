@@ -219,11 +219,40 @@ Command options can only by placed after command.
       it cannot decode. Each file
       is named with a truncated SHA-256 hash of the test/section path
       (e.g. `a1b2c3d4e5f67890.xdr`), and an `index.json` in each
-      directory maps hashes back to human-readable names. Each file contains
+      directory maps hashes back to the test case and section names, joined
+      with `|`. Each file contains
       stream-framed `LedgerCloseMeta` entries that can be decoded with
       `stellar-xdr decode --type LedgerCloseMeta --input stream-framed`.
-      Meta is normalized (sorted) before writing so that output is
-      deterministic given a fixed `--rng-seed`.
+      Non-deterministic diagnostic events are zeroed before writing, but
+      entries are otherwise written in their original order, which some
+      downstream consumers depend on. Comparisons — both the skip-rewrite
+      check during capture and `--check-lcm` — are done on normalized
+      (sorted) copies, so given a fixed `--rng-seed` files are only
+      rewritten or flagged on semantic changes. Each `index.json` is stamped
+      with the protocol version, rng seed and protocol-version list that
+      produced the data.
+      Capture is a full-corpus operation: after a clean run it rewrites each
+      visited test file's `index.json` from what the run captured and deletes
+      `.xdr` files it did not write, as `--record-test-tx-meta` does for its
+      baselines. A run filtered to a subset of tests therefore deletes the
+      goldens of sibling tests in the same file, so regenerate with the full
+      `[tx]` suite before committing.
+      * Tests whose `LedgerCloseMeta` cannot serve as golden data are skipped
+      automatically: those that inject ledger entries
+      straight into the bucket list (the meta never shows the entries being
+      created), run a multi-node `Simulation`, or use a config whose ledger
+      content depends on thread scheduling or randomized nomination.
+      `--check-lcm` fails if golden data still exists for such a test.
+      * `--check-lcm <DIRNAME>` : check `LedgerCloseMeta` captured from tests
+      against the golden files under `DIRNAME/test-lcm-current/` (or
+      `test-lcm-next/` for vnext builds), where `DIRNAME` is the directory
+      containing the two trees (typically the source tree root). Fails fast
+      if the `index.json` headers don't match the running binary — e.g. after
+      a protocol version bump without regenerating the golden data — and
+      fails at the end of the run if any captured meta differs from the
+      corresponding golden file. Continuous integration runs this mode; after
+      intentional changes, regenerate with `--capture-lcm` under each build
+      configuration and commit the result.
   * The network passphrase is set to `(V) (;,,;) (V)` for all captured meta.
   * For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md)
     on possible options for test.
