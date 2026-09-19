@@ -1,0 +1,59 @@
+# Socket Basics security scan for stellar-core.
+# Upstream: https://github.com/SocketDev/socket-basics
+# Scanner settings live in .socket-basics.json; SAST path exclusions live in
+# .semgrepignore.
+#
+# This workflow does SAST through OpenGrep, secret scanning through TruffleHog,
+# Dockerfile misconfiguration scanning through Trivy, and submits results to
+# Socket.dev
+#
+# Schedule: Saturday 14:32 UTC. socket-scan.yml occupies minutes
+# :00 :12 :24 :36 :48 of every hour, so this repo's slot avoids those.
+
+name: Socket Basics security scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "32 14 * * 6"
+
+permissions:
+  contents: read
+
+jobs:
+  socket-basics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Run Socket Basics
+        env:
+          SOCKET_SECURITY_API_TOKEN: ${{ secrets.SOCKET_SECURITY_API_TOKEN }}
+          SOCKET_ORG: stellar
+        run: |
+          set +e
+          docker run --rm \
+            -v "$PWD:/github/workspace" \
+            -w /github/workspace \
+            -e SOCKET_SECURITY_API_TOKEN \
+            -e SOCKET_ORG \
+            -e GITHUB_REPOSITORY \
+            -e GITHUB_REF_NAME \
+            -e GITHUB_SHA \
+            ghcr.io/socketdev/socket-basics@sha256:d463bae84f21d0240d5e197acb81e95144a966a20ab7cd05cca3a70e1796a4bb \
+            --config .socket-basics.json 2>&1 | tee /tmp/socket-basics.log
+          rc=${PIPESTATUS[0]}
+
+          # socket-basics exits non-zero merely BECAUSE high/critical findings
+          # exist, so the exit code is not a health signal. "Scan completed!" is.
+          # Findings raise a warning annotation; only a broken scan fails the job.
+          if grep -q "Scan completed!" /tmp/socket-basics.log; then
+            hc=$(grep -oE "Found [0-9]+ high/critical" /tmp/socket-basics.log \
+                 | grep -oE "[0-9]+" | head -1)
+            if [ -n "$hc" ] && [ "$hc" -gt 0 ]; then
+              echo "::warning::Socket Basics found $hc high/critical finding(s)"
+            fi
+            exit 0
+          fi
+          echo "::error::Socket Basics did not complete (docker exit $rc)"
+          exit "${rc:-1}"
