@@ -67,7 +67,7 @@ AppConnector::isStopping() const
     return mApp.isStopping();
 }
 
-SorobanMetrics&
+SorobanMetricsRegistry&
 AppConnector::getSorobanMetrics() const
 {
     return mApp.getLedgerManager().getSorobanMetrics();

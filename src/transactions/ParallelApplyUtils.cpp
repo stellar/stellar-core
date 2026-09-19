@@ -315,7 +315,8 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     AppConnector& app, ApplyLedgerView applyView, AbstractLedgerTxn& ltx,
     std::vector<ApplyStage> const& stages,
     InMemorySorobanState const& inMemoryState,
-    SorobanNetworkConfig const& sorobanConfig)
+    SorobanNetworkConfig const& sorobanConfig,
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
     , mLCLApplyView(std::move(applyView))
     , mInMemorySorobanState(inMemoryState)
@@ -336,13 +337,15 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     // had their sequence numbers bumped and fees charged. preParallelApply will
     // update sequence numbers so it needs to be called before we check
     // LedgerTxn.
-    preApplyAndCollectModifiedClassicEntries(app, ltx, stages);
+    preApplyAndCollectModifiedClassicEntries(app, ltx, stages,
+                                             sorobanApplyMetricsPerThread);
 }
 
 void
 GlobalParallelApplyLedgerState::preApplyAndCollectModifiedClassicEntries(
     AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages)
+    std::vector<ApplyStage> const& stages,
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     auto fetchInMemoryClassicEntries =
         [&](xdr::xvector<LedgerKey> const& keys) {
@@ -401,7 +404,8 @@ GlobalParallelApplyLedgerState::preApplyAndCollectModifiedClassicEntries(
 
     auto header =
         std::make_shared<LedgerHeader const>(ltx.loadHeader().current());
-    readOnlyParallelPreApply(app, txBundles, header, ltx);
+    readOnlyParallelPreApply(app, txBundles, header, ltx,
+                             sorobanApplyMetricsPerThread);
     commitPreParallelApplyWrites(app, ltx, txBundles);
 
     for (auto const* txBundle : txBundles)
@@ -415,7 +419,8 @@ GlobalParallelApplyLedgerState::preApplyAndCollectModifiedClassicEntries(
 void
 GlobalParallelApplyLedgerState::readOnlyParallelPreApply(
     AppConnector& app, std::vector<TxBundle const*> const& txBundles,
-    std::shared_ptr<LedgerHeader const> header, AbstractLedgerTxn const& ltx)
+    std::shared_ptr<LedgerHeader const> header, AbstractLedgerTxn const& ltx,
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     ZoneScoped;
     if (txBundles.empty())
@@ -445,9 +450,14 @@ GlobalParallelApplyLedgerState::readOnlyParallelPreApply(
     };
 
     auto& batchExecutor = app.getBatchExecutor();
+    auto taskCount = batchExecutor.preferredTaskCount();
+    if (sorobanApplyMetricsPerThread.size() < taskCount)
+    {
+        sorobanApplyMetricsPerThread.resize(taskCount);
+    }
     batchExecutor.executeBatchOverRanges(
-        txBundles.size(), batchExecutor.preferredTaskCount(),
-        [&](size_t begin, size_t end, size_t) {
+        txBundles.size(), taskCount,
+        [&](size_t begin, size_t end, size_t taskIndex) {
             // NB: mLCLApplyView is not thread-safe, so we need to copy it into
             // a thread-local view.
             CheckValidLedgerViewWrapper ledgerView(
@@ -458,7 +468,8 @@ GlobalParallelApplyLedgerState::readOnlyParallelPreApply(
                 auto const* txBundle = txBundles[i];
                 txBundle->getTx()->preParallelApplyReadOnly(
                     app, ledgerView, txBundle->getEffects().getMeta(),
-                    txBundle->getResPayload(), mSorobanConfig);
+                    txBundle->getResPayload(), mSorobanConfig,
+                    sorobanApplyMetricsPerThread[taskIndex]);
             }
         });
 }

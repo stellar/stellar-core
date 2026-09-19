@@ -19,6 +19,7 @@ namespace stellar
 
 class InMemorySorobanState;
 class GlobalParallelApplyLedgerState;
+struct SorobanApplyMetrics;
 
 class ParallelLedgerInfo
 {
@@ -221,13 +222,15 @@ class GlobalParallelApplyLedgerState
 
     void preApplyAndCollectModifiedClassicEntries(
         AppConnector& app, AbstractLedgerTxn& ltx,
-        std::vector<ApplyStage> const& stages);
+        std::vector<ApplyStage> const& stages,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     // Runs the read-only pre-apply stage for every bundle.
-    void readOnlyParallelPreApply(AppConnector& app,
-                                  std::vector<TxBundle const*> const& txBundles,
-                                  std::shared_ptr<LedgerHeader const> header,
-                                  AbstractLedgerTxn const& ltx);
+    void readOnlyParallelPreApply(
+        AppConnector& app, std::vector<TxBundle const*> const& txBundles,
+        std::shared_ptr<LedgerHeader const> header,
+        AbstractLedgerTxn const& ltx,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     bool
     maybeMergeRoTTLBumps(LedgerKey const& key,
@@ -247,11 +250,12 @@ class GlobalParallelApplyLedgerState
                             std::unordered_set<LedgerKey> const& readWriteSet);
 
   public:
-    GlobalParallelApplyLedgerState(AppConnector& app, ApplyLedgerView applyView,
-                                   AbstractLedgerTxn& ltx,
-                                   std::vector<ApplyStage> const& stages,
-                                   InMemorySorobanState const& inMemoryState,
-                                   SorobanNetworkConfig const& sorobanConfig);
+    GlobalParallelApplyLedgerState(
+        AppConnector& app, ApplyLedgerView applyView, AbstractLedgerTxn& ltx,
+        std::vector<ApplyStage> const& stages,
+        InMemorySorobanState const& inMemoryState,
+        SorobanNetworkConfig const& sorobanConfig,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     ParallelApplyEntryMap<staticScope> const& getGlobalEntryMap() const;
     RestoredEntries const& getRestoredEntries() const;
