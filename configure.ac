@@ -482,6 +482,7 @@ AC_ARG_ENABLE(tcmalloc,
     AS_HELP_STRING([--disable-tcmalloc],
         [Disable tcmalloc support]))
 unset have_tcmalloc
+unset gperftools_configure_args
 if test x"$enable_tcmalloc" = xno; then
     AC_MSG_NOTICE([tcmalloc disabled by user])
 elif test "x$enable_asan" = "xyes" -o "x$enable_memcheck" = "xyes" -o "x$enable_threadsanitizer" = "xyes"; then
@@ -490,7 +491,7 @@ else
     case "${host_os}" in
         linux*)
             # Configure gperftools for minimal tcmalloc only
-            ac_configure_args="$ac_configure_args --enable-minimal --disable-cpu-profiler --disable-heap-profiler --disable-heap-checker --disable-debugalloc"
+            gperftools_configure_args="--enable-minimal --disable-cpu-profiler --disable-heap-profiler --disable-heap-checker --disable-debugalloc"
             AC_CONFIG_SUBDIRS([lib/gperftools])
             have_tcmalloc=1
             AC_DEFINE([USE_TCMALLOC], [1], [Define to 1 if using tcmalloc])
@@ -507,6 +508,14 @@ fi
 AM_CONDITIONAL(USE_TCMALLOC, [test -n "$have_tcmalloc"])
 AC_SUBST(libtcmalloc_CFLAGS)
 AC_SUBST(libtcmalloc_LIBS)
+
+# config.status has already captured the top-level recheck arguments when
+# AC_CONFIG_COMMANDS_POST runs, but sub-configure recursion has not yet begun.
+AC_CONFIG_COMMANDS_POST([
+  AS_IF([test -n "$gperftools_configure_args"], [
+    ac_configure_args="$ac_configure_args $gperftools_configure_args"
+  ])
+])
 
 # AC_CONFIG_SUBDIRS disables option checking so options can be forwarded to
 # recursive configures. Re-enable it for the top-level configure by default;
