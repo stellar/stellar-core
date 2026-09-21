@@ -33,6 +33,7 @@
 #include <medida/meter.h>
 #include <set>
 #include <sstream>
+#include <string_view>
 
 namespace stellar
 {
@@ -168,6 +169,102 @@ isValidHexHash(std::string const& s)
 }
 
 static void
+validateHASObjectFields(rapidjson::Value const& object,
+                        std::set<std::string_view> allowed)
+{
+    if (!object.IsObject())
+    {
+        throw std::runtime_error("Expected a HAS JSON object");
+    }
+    for (auto const& member : object.GetObject())
+    {
+        std::string_view name(member.name.GetString(),
+                              member.name.GetStringLength());
+        // Erasing each allowed name also rejects duplicate fields.
+        if (!allowed.erase(name) || member.value.IsNull())
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("Unexpected, duplicate, or null HAS field: {}"),
+                name));
+        }
+    }
+}
+
+static void
+validateHASJsonFields(std::istream& in)
+{
+    // Cereal skips fields it does not consume, and its optional v1 passphrase
+    // read also catches type errors. Check the JSON fields before loading it.
+    rapidjson::IStreamWrapper stream(in);
+    rapidjson::Document json;
+    json.ParseStream(stream);
+    if (json.HasParseError())
+    {
+        throw std::runtime_error("Invalid HAS JSON");
+    }
+    validateHASObjectFields(json, {"version", "server", "currentLedger",
+                                   "networkPassphrase", "currentBuckets",
+                                   "hotArchiveBuckets"});
+    if (!json.HasMember("version") || !json["version"].IsUint())
+    {
+        throw std::runtime_error("Invalid HAS version");
+    }
+    if (json["version"].GetUint() ==
+            HistoryArchiveState::
+                HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE &&
+        json.HasMember("hotArchiveBuckets"))
+    {
+        throw std::runtime_error("Unexpected hotArchiveBuckets in HAS v1");
+    }
+    if (json.HasMember("networkPassphrase") &&
+        !json["networkPassphrase"].IsString())
+    {
+        throw std::runtime_error("Invalid HAS networkPassphrase");
+    }
+
+    for (auto array : {"currentBuckets", "hotArchiveBuckets"})
+    {
+        if (!json.HasMember(array))
+        {
+            continue; // Cereal checks for missing required fields.
+        }
+        if (!json[array].IsArray())
+        {
+            throw std::runtime_error("Expected a HAS bucket array");
+        }
+        for (auto const& level : json[array].GetArray())
+        {
+            validateHASObjectFields(level, {"curr", "snap", "next"});
+            if (!level.HasMember("next"))
+            {
+                continue;
+            }
+            auto const& next = level["next"];
+            if (!next.IsObject() || !next.HasMember("state") ||
+                !next["state"].IsUint())
+            {
+                throw std::runtime_error("Invalid HAS future state");
+            }
+            switch (next["state"].GetUint())
+            {
+            case 0: // FB_CLEAR
+                validateHASObjectFields(next, {"state"});
+                break;
+            case 1: // FB_HASH_OUTPUT
+                validateHASObjectFields(next, {"state", "output"});
+                break;
+            case 2: // FB_HASH_INPUTS
+                validateHASObjectFields(next,
+                                        {"state", "curr", "snap", "shadow"});
+                break;
+            default:
+                throw std::runtime_error("Invalid HAS future state");
+            }
+        }
+    }
+}
+
+static void
 validateHASAfterDeserialization(HistoryArchiveState const& has)
 {
     if (has.version < HistoryArchiveState::
@@ -251,6 +348,9 @@ HistoryArchiveState::load(std::string const& inFile)
             fmt::format(FMT_STRING("Error opening file {}"), inFile));
     }
     in.exceptions(std::ios::badbit);
+    validateHASJsonFields(in);
+    in.clear();
+    in.seekg(0);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
     validateHASAfterDeserialization(*this);
@@ -270,6 +370,9 @@ HistoryArchiveState::fromString(std::string const& str)
     }
 
     std::istringstream in(str);
+    validateHASJsonFields(in);
+    in.clear();
+    in.seekg(0);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
     validateHASAfterDeserialization(*this);

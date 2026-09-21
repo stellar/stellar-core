@@ -34,6 +34,7 @@
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/DownloadBucketsWork.h"
 #include "historywork/DownloadVerifyTxResultsWork.h"
+#include "historywork/VerifyBucketWork.h"
 #include "historywork/VerifyTxResultsWork.h"
 #include <fmt/format.h>
 #include <lib/catch.hpp>
@@ -2674,4 +2675,68 @@ TEST_CASE("CheckpointBuilder", "[history][publish]")
         cb.checkpointComplete(ledgerSeq);
         validateCheckpointFiles(*app, ledgerSeq, true);
     }
+}
+
+TEST_CASE("catchup rejects unrepresentable checkpoint ranges",
+          "[history][catchup][archive-format]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    TmpDirHistoryConfigurator archiveConfig;
+    archiveConfig.configure(cfg, true);
+    auto app = createTestApplication(clock, cfg);
+    uint32_t target = CatchupConfiguration::CURRENT;
+    HistoryArchiveState has;
+    has.currentLedger = UINT32_MAX;
+    SECTION("current")
+    {
+    }
+    SECTION("explicit target")
+    {
+        target = UINT32_MAX;
+        // The guard must check the requested target, not the archive's claim.
+        has.currentLedger = 63;
+    }
+    auto root = archiveConfig.getArchiveDirName();
+    fs::mkpath(root + "/" + HistoryArchiveState::wellKnownRemoteDir());
+    has.save(root + "/" + HistoryArchiveState::wellKnownRemoteName());
+    fs::mkpath(root + "/" + HistoryArchiveState::remoteDir(UINT32_MAX));
+    has.save(root + "/" + HistoryArchiveState::remoteName(UINT32_MAX));
+    auto& lam = app->getLedgerApplyManager();
+    app->getLedgerManager().startCatchup(
+        CatchupConfiguration(target, 0,
+                             CatchupConfiguration::Mode::OFFLINE_BASIC),
+        nullptr);
+    testutil::crankUntil(
+        app, [&] { return lam.catchupWorkIsDone(); }, std::chrono::seconds(30));
+    CHECK(lam.getCatchupWorkState() == BasicWork::State::WORK_FAILURE);
+    CHECK(app->getLedgerManager().getLastClosedLedgerNum() == 1);
+}
+
+TEST_CASE("bucket verification rejects oversized files without waiting",
+          "[history][catchup][archive-format]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto dir = app->getTmpDirManager().tmpDir("verify-rejection");
+    auto filename = dir.getName() + "/bucket.xdr";
+    std::ofstream(filename, std::ios::binary).close();
+    // Sparse file: exercise the limit without allocating 100 GiB.
+    std::filesystem::resize_file(
+        filename, HistoryArchiveState::MAX_HISTORY_ARCHIVE_BUCKET_SIZE + 1);
+
+    auto checkFailure = [&]<typename BucketT>() {
+        std::shared_ptr<typename BucketT::IndexT const> index;
+        bool failed = false;
+        auto work =
+            app->getWorkScheduler().scheduleWork<VerifyBucketWork<BucketT>>(
+                filename, Hash{}, index, [&] { failed = true; });
+        testutil::crankUntil(
+            app, [&] { return work->isDone(); }, std::chrono::seconds(30));
+        CHECK(work->getState() == BasicWork::State::WORK_FAILURE);
+        CHECK(failed);
+        CHECK_FALSE(index);
+    };
+    checkFailure.template operator()<LiveBucket>();
+    checkFailure.template operator()<HotArchiveBucket>();
 }
