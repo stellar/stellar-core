@@ -143,8 +143,9 @@ template <class BucketT> class FutureBucket
     load(Archive& ar)
     {
         clear();
-        ar(cereal::make_nvp("state", mState));
-        switch (mState)
+        unsigned state;
+        ar(cereal::make_nvp("state", state));
+        switch (state)
         {
         case FB_HASH_INPUTS:
             ar(cereal::make_nvp("curr", mInputCurrBucketHash));
@@ -176,8 +177,8 @@ template <class BucketT> class FutureBucket
         default:
             throw std::runtime_error(
                 "deserialized unexpected FutureBucket state");
-            break;
         }
+        mState = static_cast<State>(state);
         checkState();
     }
 

@@ -39,27 +39,13 @@ BasicWork::State
 VerifyBucketWork<BucketT>::onRun()
 {
     ZoneScoped;
-    if (mDone)
+    if (!mDone)
     {
-        if (mEc)
-        {
-            return State::WORK_FAILURE;
-        }
-        return State::WORK_SUCCESS;
+        spawnVerifier();
     }
-
-    spawnVerifier();
-
-    // Handle synchronous completion (e.g., oversized bucket rejection).
-    // spawnVerifier() may set mDone immediately without posting async work,
-    // so we must check before returning WORK_WAITING.
     if (mDone)
     {
-        if (mEc)
-        {
-            return State::WORK_FAILURE;
-        }
-        return State::WORK_SUCCESS;
+        return mEc ? State::WORK_FAILURE : State::WORK_SUCCESS;
     }
 
     return State::WORK_WAITING;

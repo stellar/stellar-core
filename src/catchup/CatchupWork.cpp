@@ -408,23 +408,21 @@ CatchupWork::runCatchupStep()
     // HAS is fetched and validated at this point
     releaseAssert(mHAS->currentLedger > LedgerManager::GENESIS_LEDGER_SEQ);
 
-    // Reject HAS whose currentLedger is so large that checkpoint arithmetic
-    // would overflow. checkpointContainingLedger saturates to UINT32_MAX on
-    // overflow; treat that as failure here so downstream code never sees a
-    // wrapped/bogus ledger.
-    if (HistoryManager::checkpointContainingLedger(mHAS->currentLedger,
-                                                   mApp.getConfig()) ==
+    auto resolvedConfiguration =
+        mCatchupConfiguration.resolve(mHAS->currentLedger);
+    // Check the actual target, including an explicit catchup target. The
+    // half-open CheckpointRange needs room for the following checkpoint.
+    if (HistoryManager::checkpointContainingLedger(
+            resolvedConfiguration.toLedger(), mApp.getConfig()) ==
         std::numeric_limits<uint32_t>::max())
     {
         CLOG_ERROR(History,
-                   "HAS currentLedger {} is too large for checkpoint "
+                   "Catchup target {} is too large for checkpoint "
                    "arithmetic",
-                   mHAS->currentLedger);
+                   resolvedConfiguration.toLedger());
         return State::WORK_FAILURE;
     }
 
-    auto resolvedConfiguration =
-        mCatchupConfiguration.resolve(mHAS->currentLedger);
     auto catchupRange =
         CatchupRange{mLastClosedLedgerHashPair.first, resolvedConfiguration,
                      mApp.getHistoryManager()};
