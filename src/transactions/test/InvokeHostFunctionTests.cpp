@@ -6017,10 +6017,9 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         ConfigUpgradeSet upgradeSet2;
         upgradeSet2.updatedEntry = initialEntries;
 
-        auto invokeRes2 =
-            getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
-                        contractSourceRefLedgerKey, contractID, upgradeSet2,
-                        a1.getLastSequenceNumber() + 4, 0);
+        auto invokeRes2 = getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
+                                      contractSourceRefLedgerKey, contractID,
+                                      upgradeSet2, a1.nextSequenceNumber(), 0);
 
         auto const& upgradeSetKey2 = invokeRes2.second;
 
@@ -6130,11 +6129,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             // Value is too high due to the check in validateConfigUpgradeSet
             costEntryIter->contractLedgerCost()
                 .sorobanStateRentFeeGrowthFactor = 50'001;
-            REQUIRE_THROWS_AS(
+            REQUIRE_THROWS_WITH(
                 getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
                             contractSourceRefLedgerKey, contractID, upgradeSet,
-                            a1.getLastSequenceNumber() + 3, 0),
-                std::runtime_error);
+                            a1.nextSequenceNumber(), 0),
+                "Invalid contractLedgerCost");
         }
     }
 }
@@ -8341,7 +8340,7 @@ TEST_CASE_VERSIONS("source account of first tx is in second txs footprint",
         auto b1 = test.getRoot().create("B", startingBalance);
         auto c1 = test.getRoot().create("C", startingBalance);
 
-        auto b1StartingSeq = b1.loadSequenceNumber();
+        auto b1StartingSeq = b1.getLastSequenceNumber();
 
         auto classicTx = c1.tx({payment(b1, 10)});
 
@@ -8362,7 +8361,7 @@ TEST_CASE_VERSIONS("source account of first tx is in second txs footprint",
         checkTx(1, r, txSUCCESS);
         checkTx(2, r, txSUCCESS);
 
-        REQUIRE(b1.loadSequenceNumber() == b1StartingSeq + 1);
+        REQUIRE(b1.getLastSequenceNumber() == b1StartingSeq + 1);
         REQUIRE(b1.getBalance() ==
                 startingBalance + 10 + 50 - r.results.at(2).result.feeCharged);
     });
@@ -10749,9 +10748,9 @@ TEST_CASE_VERSIONS("classic payment to soroban fee bump account",
         auto sorobanAccountStartingBalance = sorobanAccount.getBalance();
 
         // Record initial sequence numbers
-        auto paymentSenderStartingSeq = paymentSender.loadSequenceNumber();
-        auto feeBumpAccountStartingSeq = feeBumpAccount.loadSequenceNumber();
-        auto sorobanAccountStartingSeq = sorobanAccount.loadSequenceNumber();
+        auto paymentSenderStartingSeq = paymentSender.getLastSequenceNumber();
+        auto feeBumpAccountStartingSeq = feeBumpAccount.getLastSequenceNumber();
+        auto sorobanAccountStartingSeq = sorobanAccount.getLastSequenceNumber();
 
         // Step 1: Create classic payment to the fee bump account
         auto classicPaymentTx =
@@ -10781,12 +10780,12 @@ TEST_CASE_VERSIONS("classic payment to soroban fee bump account",
         checkTx(1, result, txFEE_BUMP_INNER_SUCCESS); // Fee bump soroban
 
         // Verify sequence numbers
-        REQUIRE(paymentSender.loadSequenceNumber() ==
+        REQUIRE(paymentSender.getLastSequenceNumber() ==
                 paymentSenderStartingSeq + 1); // Payment sender seq incremented
-        REQUIRE(sorobanAccount.loadSequenceNumber() ==
+        REQUIRE(sorobanAccount.getLastSequenceNumber() ==
                 sorobanAccountStartingSeq +
                     1); // Soroban account seq incremented
-        REQUIRE(feeBumpAccount.loadSequenceNumber() ==
+        REQUIRE(feeBumpAccount.getLastSequenceNumber() ==
                 feeBumpAccountStartingSeq); // Fee bump account seq unchanged
 
         // Verify the soroban account balance is unchanged (didn't pay fee)
@@ -10831,11 +10830,11 @@ TEST_CASE_VERSIONS("classic payment source same as soroban fee bump source",
             sorobanInnerAccount.getBalance();
 
         // Record initial sequence numbers
-        auto sharedAccountStartingSeq = sharedAccount.loadSequenceNumber();
+        auto sharedAccountStartingSeq = sharedAccount.getLastSequenceNumber();
         auto paymentRecipientStartingSeq =
-            paymentRecipient.loadSequenceNumber();
+            paymentRecipient.getLastSequenceNumber();
         auto sorobanInnerAccountStartingSeq =
-            sorobanInnerAccount.loadSequenceNumber();
+            sorobanInnerAccount.getLastSequenceNumber();
 
         // Step 1: Create classic payment from shared account
         auto classicPaymentTx =
@@ -10865,12 +10864,12 @@ TEST_CASE_VERSIONS("classic payment source same as soroban fee bump source",
         checkTx(1, result, txFEE_BUMP_INNER_SUCCESS); // Fee bump soroban
 
         // Verify sequence numbers
-        REQUIRE(sharedAccount.loadSequenceNumber() ==
+        REQUIRE(sharedAccount.getLastSequenceNumber() ==
                 sharedAccountStartingSeq +
                     1); // Only classic payment increments seq
-        REQUIRE(paymentRecipient.loadSequenceNumber() ==
+        REQUIRE(paymentRecipient.getLastSequenceNumber() ==
                 paymentRecipientStartingSeq); // Recipient seq unchanged
-        REQUIRE(sorobanInnerAccount.loadSequenceNumber() ==
+        REQUIRE(sorobanInnerAccount.getLastSequenceNumber() ==
                 sorobanInnerAccountStartingSeq +
                     1); // Inner soroban account seq incremented
 
@@ -10923,8 +10922,8 @@ TEST_CASE_VERSIONS(
 
         // Record initial sequence numbers
         auto sorobanSourceStartingSeq =
-            sorobanSourceAccount.loadSequenceNumber();
-        auto signerAdminStartingSeq = signerAdmin.loadSequenceNumber();
+            sorobanSourceAccount.getLastSequenceNumber();
+        auto signerAdminStartingSeq = signerAdmin.getLastSequenceNumber();
 
         // Step 1: Classic transaction to add signer to the soroban source
         // account
@@ -10951,9 +10950,9 @@ TEST_CASE_VERSIONS(
         checkTx(1, result, txBAD_AUTH); // Soroban transaction
 
         // Verify sequence numbers
-        REQUIRE(signerAdmin.loadSequenceNumber() ==
+        REQUIRE(signerAdmin.getLastSequenceNumber() ==
                 signerAdminStartingSeq + 1); // Set options tx increments seq
-        REQUIRE(sorobanSourceAccount.loadSequenceNumber() ==
+        REQUIRE(sorobanSourceAccount.getLastSequenceNumber() ==
                 sorobanSourceStartingSeq + 1); // Soroban tx increments seq
 
         // Verify balances
@@ -11024,8 +11023,8 @@ TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
 
         // Record initial sequence numbers
         auto sorobanSourceStartingSeq =
-            sorobanSourceAccount.loadSequenceNumber();
-        auto bumpAdminStartingSeq = bumpAdmin.loadSequenceNumber();
+            sorobanSourceAccount.getLastSequenceNumber();
+        auto bumpAdminStartingSeq = bumpAdmin.getLastSequenceNumber();
 
         // Step 1: Classic transaction to bump sequence of the soroban
         // source account
@@ -11052,8 +11051,8 @@ TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
         checkTx(1, result, txBAD_SEQ); // Soroban transaction
 
         // Verify sequence numbers
-        REQUIRE(bumpAdmin.loadSequenceNumber() == bumpAdminStartingSeq + 1);
-        REQUIRE(sorobanSourceAccount.loadSequenceNumber() == targetSequence);
+        REQUIRE(bumpAdmin.getLastSequenceNumber() == bumpAdminStartingSeq + 1);
+        REQUIRE(sorobanSourceAccount.getLastSequenceNumber() == targetSequence);
 
         // Verify balances
         // Bump admin should have paid the bump sequence fee

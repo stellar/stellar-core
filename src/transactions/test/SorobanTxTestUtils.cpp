@@ -1319,10 +1319,6 @@ SorobanTest::deployAssetContract(Asset const& asset)
 TestAccount&
 SorobanTest::getRoot()
 {
-    // TestAccount caches the next seqno in-memory, assuming all invoked TXs
-    // succeed. This is not true for these tests, so we load the seqno from
-    // disk to circumvent the cache.
-    mRoot->loadSequenceNumber();
     return *mRoot;
 }
 

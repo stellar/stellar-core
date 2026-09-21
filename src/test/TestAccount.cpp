@@ -22,24 +22,26 @@ namespace stellar
 using namespace txtest;
 
 SequenceNumber
-TestAccount::loadSequenceNumber()
+TestAccount::getLastSequenceNumber()
 {
-    mSn = 0;
-    return getLastSequenceNumber();
+    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto const entry = ledgerView.load(accountKey(getPublicKey()));
+    if (!entry)
+    {
+        return 0;
+    }
+    return entry.current().data.account().seqNum;
 }
 
-void
-TestAccount::updateSequenceNumber()
+SequenceNumber
+TestAccount::nextSequenceNumber()
 {
-    if (mSn == 0)
+    auto sn = getLastSequenceNumber();
+    if (sn == std::numeric_limits<SequenceNumber>::max())
     {
-        CheckValidLedgerViewWrapper ledgerView(mApp);
-        auto const entry = ledgerView.load(accountKey(getPublicKey()));
-        if (entry)
-        {
-            mSn = entry.current().data.account().seqNum;
-        }
+        throw std::runtime_error("Sequence number overflow in test account");
     }
+    return sn + 1;
 }
 
 uint32_t

@@ -35,14 +35,6 @@
 		27,
 		28
 	],
-	"liquidity pool deposit|protocol version 10|not supported before protocol 18" : [ "X2yKCWehH5U=" ],
-	"liquidity pool deposit|protocol version 11|not supported before protocol 18" : [ "X2yKCWehH5U=" ],
-	"liquidity pool deposit|protocol version 12|not supported before protocol 18" : [ "X2yKCWehH5U=" ],
-	"liquidity pool deposit|protocol version 13|not supported before protocol 18" : [ "X2yKCWehH5U=" ],
-	"liquidity pool deposit|protocol version 14|not supported before protocol 18" : [ "X2yKCWehH5U=" ],
-	"liquidity pool deposit|protocol version 15|not supported before protocol 18" : [ "X2yKCWehH5U=" ],
-	"liquidity pool deposit|protocol version 16|not supported before protocol 18" : [ "X2yKCWehH5U=" ],
-	"liquidity pool deposit|protocol version 17|not supported before protocol 18" : [ "X2yKCWehH5U=" ],
 	"liquidity pool deposit|protocol version 18|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
 		"/sVEioCFztQ=",
@@ -228,22 +220,6 @@
 		"bCOKAzZCU2Y=",
 		"BHlkPaVjcs8=",
 		"mYeNJBTrHqg="
-	],
-	"liquidity pool deposit|protocol version 18|validity checks" : 
-	[
-		"X2yKCWehH5U=",
-		"cy/GSttEFYc=",
-		"4XlF4KXx+CY=",
-		"mLW3ICoUl8E=",
-		"jgDa5YyehEI=",
-		"VOECAjFapFM=",
-		"ZDNVwehYSFk=",
-		"IzcV55OzRvU=",
-		"W1Fi1P9B9uQ=",
-		"3nMTdZ8zDmY=",
-		"swiO1vr08Gc=",
-		"3AgEwsGAcp8=",
-		"y/Ue2z2xiME="
 	],
 	"liquidity pool deposit|protocol version 19|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
@@ -431,23 +407,6 @@
 		"vjA31zyJDp4=",
 		"3hsjhdpLMLE="
 	],
-	"liquidity pool deposit|protocol version 19|validity checks" : 
-	[
-		"Hh0UYapt5UI=",
-		"wfmI51/JnFs=",
-		"ibcCcj8IRAY=",
-		"Gzan8Mdh0Yk=",
-		"wj7l2WDh1tU=",
-		"mX42xKStZNM=",
-		"QMvNSjuiJho=",
-		"fohifeHmN/Q=",
-		"hQcKC536+uo=",
-		"gbDc8j3G10o=",
-		"qW7EDH5Fjz4=",
-		"LNWM6xNL2Yo=",
-		"RoITMtHgdic="
-	],
-	"liquidity pool deposit|protocol version 1|not supported before protocol 18" : [ "/lfj8xIFS8I=" ],
 	"liquidity pool deposit|protocol version 20|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
 		"YMUBlQ+0niU=",
@@ -633,22 +592,6 @@
 		"FAY4p4krchI=",
 		"7hneufRPlpg=",
 		"WhnOQ7uR138="
-	],
-	"liquidity pool deposit|protocol version 20|validity checks" : 
-	[
-		"5oGt1iMFSw4=",
-		"bXV9BF3vsV0=",
-		"QCdEgywetBo=",
-		"uZYwLE/Rjnw=",
-		"zRbw4a48CMw=",
-		"66Aeje6lkZk=",
-		"3LvT0/fExp0=",
-		"b5CSUcteWZ4=",
-		"TxifHbsOA40=",
-		"b5UGN2DZdTw=",
-		"OJhlIHriAqA=",
-		"cowmDyS/6Yk=",
-		"0y3U2HBbd24="
 	],
 	"liquidity pool deposit|protocol version 21|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
@@ -836,22 +779,6 @@
 		"7hneufRPlpg=",
 		"WhnOQ7uR138="
 	],
-	"liquidity pool deposit|protocol version 21|validity checks" : 
-	[
-		"5oGt1iMFSw4=",
-		"bXV9BF3vsV0=",
-		"QCdEgywetBo=",
-		"uZYwLE/Rjnw=",
-		"zRbw4a48CMw=",
-		"66Aeje6lkZk=",
-		"3LvT0/fExp0=",
-		"b5CSUcteWZ4=",
-		"TxifHbsOA40=",
-		"b5UGN2DZdTw=",
-		"OJhlIHriAqA=",
-		"cowmDyS/6Yk=",
-		"0y3U2HBbd24="
-	],
 	"liquidity pool deposit|protocol version 22|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
 		"YMUBlQ+0niU=",
@@ -1037,22 +964,6 @@
 		"FAY4p4krchI=",
 		"7hneufRPlpg=",
 		"WhnOQ7uR138="
-	],
-	"liquidity pool deposit|protocol version 22|validity checks" : 
-	[
-		"5oGt1iMFSw4=",
-		"bXV9BF3vsV0=",
-		"QCdEgywetBo=",
-		"uZYwLE/Rjnw=",
-		"zRbw4a48CMw=",
-		"66Aeje6lkZk=",
-		"3LvT0/fExp0=",
-		"b5CSUcteWZ4=",
-		"TxifHbsOA40=",
-		"b5UGN2DZdTw=",
-		"OJhlIHriAqA=",
-		"cowmDyS/6Yk=",
-		"0y3U2HBbd24="
 	],
 	"liquidity pool deposit|protocol version 23|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
@@ -1240,22 +1151,6 @@
 		"Rdua52j41yA=",
 		"KnodtZT8gC8="
 	],
-	"liquidity pool deposit|protocol version 23|validity checks" : 
-	[
-		"Zby/J3+a3+M=",
-		"c3wyZ9CLvUY=",
-		"JuC4AuiIpbs=",
-		"RpcbumH8vz8=",
-		"gfKt+nb+HGo=",
-		"E+1gFs0xgc4=",
-		"+IopLW8CNwc=",
-		"zWL1ZtG34Jg=",
-		"HCraC1rTyGE=",
-		"Mph+WRIoQDM=",
-		"K2Xp/o5UFaA=",
-		"rWgI3zRbOIE=",
-		"9xMyUK9Hqgo="
-	],
 	"liquidity pool deposit|protocol version 24|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
 		"3Z8M0tc2y4o=",
@@ -1441,22 +1336,6 @@
 		"sd/UseinCHY=",
 		"Rdua52j41yA=",
 		"KnodtZT8gC8="
-	],
-	"liquidity pool deposit|protocol version 24|validity checks" : 
-	[
-		"Zby/J3+a3+M=",
-		"c3wyZ9CLvUY=",
-		"JuC4AuiIpbs=",
-		"RpcbumH8vz8=",
-		"gfKt+nb+HGo=",
-		"E+1gFs0xgc4=",
-		"+IopLW8CNwc=",
-		"zWL1ZtG34Jg=",
-		"HCraC1rTyGE=",
-		"Mph+WRIoQDM=",
-		"K2Xp/o5UFaA=",
-		"rWgI3zRbOIE=",
-		"9xMyUK9Hqgo="
 	],
 	"liquidity pool deposit|protocol version 25|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
@@ -1644,22 +1523,6 @@
 		"Rdua52j41yA=",
 		"KnodtZT8gC8="
 	],
-	"liquidity pool deposit|protocol version 25|validity checks" : 
-	[
-		"Zby/J3+a3+M=",
-		"c3wyZ9CLvUY=",
-		"JuC4AuiIpbs=",
-		"RpcbumH8vz8=",
-		"gfKt+nb+HGo=",
-		"E+1gFs0xgc4=",
-		"+IopLW8CNwc=",
-		"zWL1ZtG34Jg=",
-		"HCraC1rTyGE=",
-		"Mph+WRIoQDM=",
-		"K2Xp/o5UFaA=",
-		"rWgI3zRbOIE=",
-		"9xMyUK9Hqgo="
-	],
 	"liquidity pool deposit|protocol version 26|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
 		"3Z8M0tc2y4o=",
@@ -1845,22 +1708,6 @@
 		"sd/UseinCHY=",
 		"Rdua52j41yA=",
 		"KnodtZT8gC8="
-	],
-	"liquidity pool deposit|protocol version 26|validity checks" : 
-	[
-		"Zby/J3+a3+M=",
-		"c3wyZ9CLvUY=",
-		"JuC4AuiIpbs=",
-		"RpcbumH8vz8=",
-		"gfKt+nb+HGo=",
-		"E+1gFs0xgc4=",
-		"+IopLW8CNwc=",
-		"zWL1ZtG34Jg=",
-		"HCraC1rTyGE=",
-		"Mph+WRIoQDM=",
-		"K2Xp/o5UFaA=",
-		"rWgI3zRbOIE=",
-		"9xMyUK9Hqgo="
 	],
 	"liquidity pool deposit|protocol version 27|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
@@ -2048,22 +1895,6 @@
 		"Rdua52j41yA=",
 		"KnodtZT8gC8="
 	],
-	"liquidity pool deposit|protocol version 27|validity checks" : 
-	[
-		"Zby/J3+a3+M=",
-		"c3wyZ9CLvUY=",
-		"JuC4AuiIpbs=",
-		"RpcbumH8vz8=",
-		"gfKt+nb+HGo=",
-		"E+1gFs0xgc4=",
-		"+IopLW8CNwc=",
-		"zWL1ZtG34Jg=",
-		"HCraC1rTyGE=",
-		"Mph+WRIoQDM=",
-		"K2Xp/o5UFaA=",
-		"rWgI3zRbOIE=",
-		"9xMyUK9Hqgo="
-	],
 	"liquidity pool deposit|protocol version 28|bad price in existing pool due to 0 calculated deposit amounts for both assets" : 
 	[
 		"3Z8M0tc2y4o=",
@@ -2249,29 +2080,5 @@
 		"sd/UseinCHY=",
 		"Rdua52j41yA=",
 		"KnodtZT8gC8="
-	],
-	"liquidity pool deposit|protocol version 28|validity checks" : 
-	[
-		"Zby/J3+a3+M=",
-		"c3wyZ9CLvUY=",
-		"JuC4AuiIpbs=",
-		"RpcbumH8vz8=",
-		"gfKt+nb+HGo=",
-		"E+1gFs0xgc4=",
-		"+IopLW8CNwc=",
-		"zWL1ZtG34Jg=",
-		"HCraC1rTyGE=",
-		"Mph+WRIoQDM=",
-		"K2Xp/o5UFaA=",
-		"rWgI3zRbOIE=",
-		"9xMyUK9Hqgo="
-	],
-	"liquidity pool deposit|protocol version 2|not supported before protocol 18" : [ "/lfj8xIFS8I=" ],
-	"liquidity pool deposit|protocol version 3|not supported before protocol 18" : [ "/lfj8xIFS8I=" ],
-	"liquidity pool deposit|protocol version 4|not supported before protocol 18" : [ "/lfj8xIFS8I=" ],
-	"liquidity pool deposit|protocol version 5|not supported before protocol 18" : [ "/lfj8xIFS8I=" ],
-	"liquidity pool deposit|protocol version 6|not supported before protocol 18" : [ "/lfj8xIFS8I=" ],
-	"liquidity pool deposit|protocol version 7|not supported before protocol 18" : [ "/lfj8xIFS8I=" ],
-	"liquidity pool deposit|protocol version 8|not supported before protocol 18" : [ "/lfj8xIFS8I=" ],
-	"liquidity pool deposit|protocol version 9|not supported before protocol 18" : [ "/lfj8xIFS8I=" ]
+	]
 }

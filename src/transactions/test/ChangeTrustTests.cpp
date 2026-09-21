@@ -179,8 +179,10 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
     {
         auto const nativeAsset = makeNativeAsset();
         for_versions_to(9, *app, [&] {
-            REQUIRE_THROWS_AS(gateway.changeTrust(nativeAsset, INT64_MAX - 1),
-                              ex_txINTERNAL_ERROR);
+            auto tx =
+                gateway.tx({txtest::changeTrust(nativeAsset, INT64_MAX - 1)});
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txINTERNAL_ERROR);
         });
 
         for_versions_from(10, *app, [&] {

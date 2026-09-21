@@ -63,8 +63,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 10|all version errors" : [ "9KcnB2NRLOk=" ],
-	"clawback|protocol version 10|pre V17 errors" : [ "9KcnB2NRLOk=", "bZ847eLWPjM=", "b64U1Zy5JWQ=" ],
 	"clawback|protocol version 11" : 
 	[
 		"5Q4kYyAALdw=",
@@ -74,8 +72,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 11|all version errors" : [ "9KcnB2NRLOk=" ],
-	"clawback|protocol version 11|pre V17 errors" : [ "9KcnB2NRLOk=", "bZ847eLWPjM=", "b64U1Zy5JWQ=" ],
 	"clawback|protocol version 12" : 
 	[
 		"5Q4kYyAALdw=",
@@ -85,8 +81,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 12|all version errors" : [ "9KcnB2NRLOk=" ],
-	"clawback|protocol version 12|pre V17 errors" : [ "9KcnB2NRLOk=", "bZ847eLWPjM=", "b64U1Zy5JWQ=" ],
 	"clawback|protocol version 13" : 
 	[
 		"5Q4kYyAALdw=",
@@ -96,8 +90,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 13|all version errors" : [ "9KcnB2NRLOk=" ],
-	"clawback|protocol version 13|pre V17 errors" : [ "9KcnB2NRLOk=", "bZ847eLWPjM=", "b64U1Zy5JWQ=" ],
 	"clawback|protocol version 14" : 
 	[
 		"5Q4kYyAALdw=",
@@ -107,8 +99,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 14|all version errors" : [ "9KcnB2NRLOk=" ],
-	"clawback|protocol version 14|pre V17 errors" : [ "9KcnB2NRLOk=", "bZ847eLWPjM=", "b64U1Zy5JWQ=" ],
 	"clawback|protocol version 15" : 
 	[
 		"5Q4kYyAALdw=",
@@ -118,8 +108,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 15|all version errors" : [ "9KcnB2NRLOk=" ],
-	"clawback|protocol version 15|pre V17 errors" : [ "9KcnB2NRLOk=", "bZ847eLWPjM=", "b64U1Zy5JWQ=" ],
 	"clawback|protocol version 16" : 
 	[
 		"5Q4kYyAALdw=",
@@ -129,8 +117,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 16|all version errors" : [ "9KcnB2NRLOk=" ],
-	"clawback|protocol version 16|pre V17 errors" : [ "9KcnB2NRLOk=", "bZ847eLWPjM=", "b64U1Zy5JWQ=" ],
 	"clawback|protocol version 17" : 
 	[
 		"5Q4kYyAALdw=",
@@ -162,7 +148,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 17|all version errors" : [ "9KcnB2NRLOk=" ],
 	"clawback|protocol version 17|from V17" : 
 	[
 		"N8N6kJnyU5s=",
@@ -203,7 +188,7 @@
 		"vYIWdgkoxHk="
 	],
 	"clawback|protocol version 17|from V17|allow trust" : [ "HlVxTbBDkAI=", "HlVxTbBDkAI=", "HlVxTbBDkAI=" ],
-	"clawback|protocol version 17|from V17|allow trust|allow trust can't set clawback" : [ "8PwF9Kh+9l8=", "42gflYDZwVQ=" ],
+	"clawback|protocol version 17|from V17|allow trust|allow trust can't set clawback" : [ "8pcBF+mTsYw=" ],
 	"clawback|protocol version 17|from V17|allow trust|clawback after revoking auth" : [ "8pcBF+mTsYw=", "5gGOfxwKWPc=" ],
 	"clawback|protocol version 17|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "D5GEWxE62wo=", "TYA+fs8dyo4=" ],
 	"clawback|protocol version 17|from V17|basic test" : [ "HYG0M9Yly6M=" ],
@@ -219,35 +204,6 @@
 	"clawback|protocol version 17|from V17|errors|apply|no trust" : [ "RtKDJEzij4c=" ],
 	"clawback|protocol version 17|from V17|errors|apply|not clawback enabled" : [ "kORMA9SE2kM=", "7y4wSGIM6QI=", "6wLWMC3Yvb0=", "Zyqqfe9Setg=" ],
 	"clawback|protocol version 17|from V17|errors|apply|underfunded" : [ "RtKDJEzij4c=", "RDhvKocAmBQ=", "6EmYS49E+to=", "Ml+0Iv+LG0s=" ],
-	"clawback|protocol version 17|from V17|errors|check validity" : 
-	[
-		"RtKDJEzij4c=",
-		"SCIMuvsHaCk=",
-		"D8uBq7m3mZY=",
-		"gwjkXsTQR8g=",
-		"0P/PsrZe/qw=",
-		"/WQW+SBl0Qw=",
-		"EaVZwSJJHdM=",
-		"dviCK/kHPLE=",
-		"eA+rSTU7mSI=",
-		"8RpY9tz/geU=",
-		"51y6ngCOkTw=",
-		"qOGSykkD0f0=",
-		"D577SzafXyQ=",
-		"uHvZYcZ7bxg=",
-		"7ZSVaoia72s=",
-		"jS1E5WYDo0M=",
-		"xQPOGKAMbTE=",
-		"mfyCLnpR4lE=",
-		"T/epuofFB+I=",
-		"f66m+TWYe2U=",
-		"Dmi5diGFKcI=",
-		"9YCKNA9Mp+M=",
-		"egBo78K8c5M=",
-		"/yZ+FrhNH74=",
-		"jjuL65t09D0=",
-		"y8PT702eoqA="
-	],
 	"clawback|protocol version 17|from V17|errors|set options" : [ "RtKDJEzij4c=", "sGEJ7TDXp1w=", "MiDdj3UvGJw=" ],
 	"clawback|protocol version 17|from V17|errors|set options clawback immutable" : [ "lHlIV45FL28=", "cPjhLq0ga6A=", "4AKdGhO7b48=" ],
 	"clawback|protocol version 18" : 
@@ -281,7 +237,6 @@
 		"5Q4kYyAALdw=",
 		"fg1vCAAPafE="
 	],
-	"clawback|protocol version 18|all version errors" : [ "9KcnB2NRLOk=" ],
 	"clawback|protocol version 18|from V17" : 
 	[
 		"N8N6kJnyU5s=",
@@ -322,7 +277,7 @@
 		"vYIWdgkoxHk="
 	],
 	"clawback|protocol version 18|from V17|allow trust" : [ "HlVxTbBDkAI=", "HlVxTbBDkAI=", "HlVxTbBDkAI=" ],
-	"clawback|protocol version 18|from V17|allow trust|allow trust can't set clawback" : [ "8PwF9Kh+9l8=", "42gflYDZwVQ=" ],
+	"clawback|protocol version 18|from V17|allow trust|allow trust can't set clawback" : [ "8pcBF+mTsYw=" ],
 	"clawback|protocol version 18|from V17|allow trust|clawback after revoking auth" : [ "8pcBF+mTsYw=", "5gGOfxwKWPc=" ],
 	"clawback|protocol version 18|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "D5GEWxE62wo=", "TYA+fs8dyo4=" ],
 	"clawback|protocol version 18|from V17|basic test" : [ "HYG0M9Yly6M=" ],
@@ -338,35 +293,6 @@
 	"clawback|protocol version 18|from V17|errors|apply|no trust" : [ "RtKDJEzij4c=" ],
 	"clawback|protocol version 18|from V17|errors|apply|not clawback enabled" : [ "kORMA9SE2kM=", "7y4wSGIM6QI=", "6wLWMC3Yvb0=", "Zyqqfe9Setg=" ],
 	"clawback|protocol version 18|from V17|errors|apply|underfunded" : [ "RtKDJEzij4c=", "RDhvKocAmBQ=", "6EmYS49E+to=", "Ml+0Iv+LG0s=" ],
-	"clawback|protocol version 18|from V17|errors|check validity" : 
-	[
-		"RtKDJEzij4c=",
-		"SCIMuvsHaCk=",
-		"D8uBq7m3mZY=",
-		"gwjkXsTQR8g=",
-		"0P/PsrZe/qw=",
-		"/WQW+SBl0Qw=",
-		"EaVZwSJJHdM=",
-		"dviCK/kHPLE=",
-		"eA+rSTU7mSI=",
-		"8RpY9tz/geU=",
-		"51y6ngCOkTw=",
-		"qOGSykkD0f0=",
-		"D577SzafXyQ=",
-		"uHvZYcZ7bxg=",
-		"7ZSVaoia72s=",
-		"jS1E5WYDo0M=",
-		"xQPOGKAMbTE=",
-		"mfyCLnpR4lE=",
-		"T/epuofFB+I=",
-		"f66m+TWYe2U=",
-		"Dmi5diGFKcI=",
-		"9YCKNA9Mp+M=",
-		"egBo78K8c5M=",
-		"/yZ+FrhNH74=",
-		"jjuL65t09D0=",
-		"y8PT702eoqA="
-	],
 	"clawback|protocol version 18|from V17|errors|set options" : [ "RtKDJEzij4c=", "sGEJ7TDXp1w=", "MiDdj3UvGJw=" ],
 	"clawback|protocol version 18|from V17|errors|set options clawback immutable" : [ "lHlIV45FL28=", "cPjhLq0ga6A=", "4AKdGhO7b48=" ],
 	"clawback|protocol version 19" : 
@@ -400,7 +326,6 @@
 		"kmIJg8vnQrI=",
 		"zoCdKZpRQqw="
 	],
-	"clawback|protocol version 19|all version errors" : [ "oM/Fb/bycM8=" ],
 	"clawback|protocol version 19|from V17" : 
 	[
 		"mjsqpjWd+M8=",
@@ -441,7 +366,7 @@
 		"q3JBsQJB8Xs="
 	],
 	"clawback|protocol version 19|from V17|allow trust" : [ "WsySkKs/lgc=", "WsySkKs/lgc=", "WsySkKs/lgc=" ],
-	"clawback|protocol version 19|from V17|allow trust|allow trust can't set clawback" : [ "twABCBZgywo=", "S9GRssVlO2I=" ],
+	"clawback|protocol version 19|from V17|allow trust|allow trust can't set clawback" : [ "YoDPo91v4Bg=" ],
 	"clawback|protocol version 19|from V17|allow trust|clawback after revoking auth" : [ "YoDPo91v4Bg=", "etnwZplq6iY=" ],
 	"clawback|protocol version 19|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "ASMTYZo6ygk=", "maIn0b4wuaY=" ],
 	"clawback|protocol version 19|from V17|basic test" : [ "g7+y/02q23Y=" ],
@@ -457,39 +382,8 @@
 	"clawback|protocol version 19|from V17|errors|apply|no trust" : [ "78hSo9pgcdA=" ],
 	"clawback|protocol version 19|from V17|errors|apply|not clawback enabled" : [ "kyXzEQsIPYE=", "RWcQXJK8mhI=", "aQmA2oqAFuw=", "rJX7a/mqH3s=" ],
 	"clawback|protocol version 19|from V17|errors|apply|underfunded" : [ "78hSo9pgcdA=", "8SmCxfXi28M=", "kXM189Cp6Uc=", "rvTEfFr52fw=" ],
-	"clawback|protocol version 19|from V17|errors|check validity" : 
-	[
-		"78hSo9pgcdA=",
-		"zVqymF7JXtY=",
-		"XJuiOcvMHnw=",
-		"h9p1hkhkpkU=",
-		"2x8pAfYht/Y=",
-		"HSH+Tvd2H+g=",
-		"KJFeoaBmqVE=",
-		"uMTD/s5XS4w=",
-		"VZ03cFNLh4U=",
-		"uMidDSfFxM8=",
-		"6MKLcmbCciU=",
-		"UXcASt87uZs=",
-		"6rExVqbsEjg=",
-		"Mv9Kn8I9auc=",
-		"FOZArWUlRzw=",
-		"6nyFhiG6wN0=",
-		"Azt+37cEX4A=",
-		"6EyKim9IjZ0=",
-		"xdcTKHJvmUs=",
-		"7yk/LYRINTo=",
-		"CIZUiyEd2ko=",
-		"z3c3wDbwJVw=",
-		"vf8Z5ujWedQ=",
-		"/teWLEWjMMc=",
-		"y2BbILmo4q0=",
-		"zlr787gOsnw="
-	],
 	"clawback|protocol version 19|from V17|errors|set options" : [ "78hSo9pgcdA=", "v+QnXGkNuiM=", "NyXublIIvzk=" ],
 	"clawback|protocol version 19|from V17|errors|set options clawback immutable" : [ "+0WyZ8nx8Hc=", "EZ9PKTsZkUI=", "rBKZoFwPpss=" ],
-	"clawback|protocol version 1|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 1|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"clawback|protocol version 2" : 
 	[
 		"FWMlXsJZmnc=",
@@ -530,7 +424,6 @@
 		"Y0nt0WerpiI=",
 		"DDPBQ7J3m64="
 	],
-	"clawback|protocol version 20|all version errors" : [ "3KcddxVL5Oc=" ],
 	"clawback|protocol version 20|from V17" : 
 	[
 		"iBCGRmirDrg=",
@@ -571,7 +464,7 @@
 		"EW6/X42wIO4="
 	],
 	"clawback|protocol version 20|from V17|allow trust" : [ "XNtfGiMoixc=", "XNtfGiMoixc=", "XNtfGiMoixc=" ],
-	"clawback|protocol version 20|from V17|allow trust|allow trust can't set clawback" : [ "iu/NNGFIv+8=", "oL3PViRbyEo=" ],
+	"clawback|protocol version 20|from V17|allow trust|allow trust can't set clawback" : [ "gBBkt3elc78=" ],
 	"clawback|protocol version 20|from V17|allow trust|clawback after revoking auth" : [ "gBBkt3elc78=", "jTZfkmEfLcs=" ],
 	"clawback|protocol version 20|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "2lOnVJ6uZtc=", "pu4tiMgzC+0=" ],
 	"clawback|protocol version 20|from V17|basic test" : [ "1ei35kzXGqk=" ],
@@ -587,35 +480,6 @@
 	"clawback|protocol version 20|from V17|errors|apply|no trust" : [ "XGy7QIgn41M=" ],
 	"clawback|protocol version 20|from V17|errors|apply|not clawback enabled" : [ "8zSd+iWeuD4=", "+4N2zIVtTkc=", "nh3TVP9OW8A=", "LabvDGHk2BM=" ],
 	"clawback|protocol version 20|from V17|errors|apply|underfunded" : [ "XGy7QIgn41M=", "danRgFb6rpY=", "UZ2J9Hdn638=", "MvFUeHKPhSU=" ],
-	"clawback|protocol version 20|from V17|errors|check validity" : 
-	[
-		"XGy7QIgn41M=",
-		"ZK/tIKuOC54=",
-		"yKFOWZANEC4=",
-		"OXa8t5B/5pU=",
-		"BZDs+NiY5JA=",
-		"AdDI45CxGSI=",
-		"I1WblZFDVDA=",
-		"eLqwbaD/WX0=",
-		"P3XyA8/kowE=",
-		"/U2SVEdyCuQ=",
-		"CTBOkT6xWqE=",
-		"J5KEDnlJlB0=",
-		"wEGQWsLQHeE=",
-		"dlft1xW29lU=",
-		"rP8On1v2uPM=",
-		"kTaezvO4h98=",
-		"1STce0HoeFA=",
-		"2bhQkE7y4Ow=",
-		"j5RBjEz8iSM=",
-		"pRWhrZvlxwI=",
-		"bXr9PsRqjuI=",
-		"PYEeMoNTKQI=",
-		"SIWhl3s8YLc=",
-		"cgcv9yPGOOQ=",
-		"2WbgQnREXAs=",
-		"aXXim1rA3tI="
-	],
 	"clawback|protocol version 20|from V17|errors|set options" : [ "XGy7QIgn41M=", "9rYRgjL1IU8=", "oQ+IvTdvagg=" ],
 	"clawback|protocol version 20|from V17|errors|set options clawback immutable" : [ "+/EL6ADdRnA=", "eJlAcgAIk9A=", "aA+9c0gC4/o=" ],
 	"clawback|protocol version 21" : 
@@ -649,7 +513,6 @@
 		"Y0nt0WerpiI=",
 		"DDPBQ7J3m64="
 	],
-	"clawback|protocol version 21|all version errors" : [ "3KcddxVL5Oc=" ],
 	"clawback|protocol version 21|from V17" : 
 	[
 		"iBCGRmirDrg=",
@@ -690,7 +553,7 @@
 		"EW6/X42wIO4="
 	],
 	"clawback|protocol version 21|from V17|allow trust" : [ "XNtfGiMoixc=", "XNtfGiMoixc=", "XNtfGiMoixc=" ],
-	"clawback|protocol version 21|from V17|allow trust|allow trust can't set clawback" : [ "iu/NNGFIv+8=", "oL3PViRbyEo=" ],
+	"clawback|protocol version 21|from V17|allow trust|allow trust can't set clawback" : [ "gBBkt3elc78=" ],
 	"clawback|protocol version 21|from V17|allow trust|clawback after revoking auth" : [ "gBBkt3elc78=", "jTZfkmEfLcs=" ],
 	"clawback|protocol version 21|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "2lOnVJ6uZtc=", "pu4tiMgzC+0=" ],
 	"clawback|protocol version 21|from V17|basic test" : [ "1ei35kzXGqk=" ],
@@ -706,35 +569,6 @@
 	"clawback|protocol version 21|from V17|errors|apply|no trust" : [ "XGy7QIgn41M=" ],
 	"clawback|protocol version 21|from V17|errors|apply|not clawback enabled" : [ "8zSd+iWeuD4=", "+4N2zIVtTkc=", "nh3TVP9OW8A=", "LabvDGHk2BM=" ],
 	"clawback|protocol version 21|from V17|errors|apply|underfunded" : [ "XGy7QIgn41M=", "danRgFb6rpY=", "UZ2J9Hdn638=", "MvFUeHKPhSU=" ],
-	"clawback|protocol version 21|from V17|errors|check validity" : 
-	[
-		"XGy7QIgn41M=",
-		"ZK/tIKuOC54=",
-		"yKFOWZANEC4=",
-		"OXa8t5B/5pU=",
-		"BZDs+NiY5JA=",
-		"AdDI45CxGSI=",
-		"I1WblZFDVDA=",
-		"eLqwbaD/WX0=",
-		"P3XyA8/kowE=",
-		"/U2SVEdyCuQ=",
-		"CTBOkT6xWqE=",
-		"J5KEDnlJlB0=",
-		"wEGQWsLQHeE=",
-		"dlft1xW29lU=",
-		"rP8On1v2uPM=",
-		"kTaezvO4h98=",
-		"1STce0HoeFA=",
-		"2bhQkE7y4Ow=",
-		"j5RBjEz8iSM=",
-		"pRWhrZvlxwI=",
-		"bXr9PsRqjuI=",
-		"PYEeMoNTKQI=",
-		"SIWhl3s8YLc=",
-		"cgcv9yPGOOQ=",
-		"2WbgQnREXAs=",
-		"aXXim1rA3tI="
-	],
 	"clawback|protocol version 21|from V17|errors|set options" : [ "XGy7QIgn41M=", "9rYRgjL1IU8=", "oQ+IvTdvagg=" ],
 	"clawback|protocol version 21|from V17|errors|set options clawback immutable" : [ "+/EL6ADdRnA=", "eJlAcgAIk9A=", "aA+9c0gC4/o=" ],
 	"clawback|protocol version 22" : 
@@ -768,7 +602,6 @@
 		"Y0nt0WerpiI=",
 		"DDPBQ7J3m64="
 	],
-	"clawback|protocol version 22|all version errors" : [ "3KcddxVL5Oc=" ],
 	"clawback|protocol version 22|from V17" : 
 	[
 		"iBCGRmirDrg=",
@@ -809,7 +642,7 @@
 		"EW6/X42wIO4="
 	],
 	"clawback|protocol version 22|from V17|allow trust" : [ "XNtfGiMoixc=", "XNtfGiMoixc=", "XNtfGiMoixc=" ],
-	"clawback|protocol version 22|from V17|allow trust|allow trust can't set clawback" : [ "iu/NNGFIv+8=", "oL3PViRbyEo=" ],
+	"clawback|protocol version 22|from V17|allow trust|allow trust can't set clawback" : [ "gBBkt3elc78=" ],
 	"clawback|protocol version 22|from V17|allow trust|clawback after revoking auth" : [ "gBBkt3elc78=", "jTZfkmEfLcs=" ],
 	"clawback|protocol version 22|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "2lOnVJ6uZtc=", "pu4tiMgzC+0=" ],
 	"clawback|protocol version 22|from V17|basic test" : [ "1ei35kzXGqk=" ],
@@ -825,35 +658,6 @@
 	"clawback|protocol version 22|from V17|errors|apply|no trust" : [ "XGy7QIgn41M=" ],
 	"clawback|protocol version 22|from V17|errors|apply|not clawback enabled" : [ "8zSd+iWeuD4=", "+4N2zIVtTkc=", "nh3TVP9OW8A=", "LabvDGHk2BM=" ],
 	"clawback|protocol version 22|from V17|errors|apply|underfunded" : [ "XGy7QIgn41M=", "danRgFb6rpY=", "UZ2J9Hdn638=", "MvFUeHKPhSU=" ],
-	"clawback|protocol version 22|from V17|errors|check validity" : 
-	[
-		"XGy7QIgn41M=",
-		"ZK/tIKuOC54=",
-		"yKFOWZANEC4=",
-		"OXa8t5B/5pU=",
-		"BZDs+NiY5JA=",
-		"AdDI45CxGSI=",
-		"I1WblZFDVDA=",
-		"eLqwbaD/WX0=",
-		"P3XyA8/kowE=",
-		"/U2SVEdyCuQ=",
-		"CTBOkT6xWqE=",
-		"J5KEDnlJlB0=",
-		"wEGQWsLQHeE=",
-		"dlft1xW29lU=",
-		"rP8On1v2uPM=",
-		"kTaezvO4h98=",
-		"1STce0HoeFA=",
-		"2bhQkE7y4Ow=",
-		"j5RBjEz8iSM=",
-		"pRWhrZvlxwI=",
-		"bXr9PsRqjuI=",
-		"PYEeMoNTKQI=",
-		"SIWhl3s8YLc=",
-		"cgcv9yPGOOQ=",
-		"2WbgQnREXAs=",
-		"aXXim1rA3tI="
-	],
 	"clawback|protocol version 22|from V17|errors|set options" : [ "XGy7QIgn41M=", "9rYRgjL1IU8=", "oQ+IvTdvagg=" ],
 	"clawback|protocol version 22|from V17|errors|set options clawback immutable" : [ "+/EL6ADdRnA=", "eJlAcgAIk9A=", "aA+9c0gC4/o=" ],
 	"clawback|protocol version 23" : 
@@ -887,7 +691,6 @@
 		"Dy9L2beyoqI=",
 		"yK6SzJU7bnQ="
 	],
-	"clawback|protocol version 23|all version errors" : [ "p4/WJEhlYrk=" ],
 	"clawback|protocol version 23|from V17" : 
 	[
 		"oFsNPa6txrU=",
@@ -928,7 +731,7 @@
 		"sk9GRafbppU="
 	],
 	"clawback|protocol version 23|from V17|allow trust" : [ "n6LIgU69wl0=", "n6LIgU69wl0=", "n6LIgU69wl0=" ],
-	"clawback|protocol version 23|from V17|allow trust|allow trust can't set clawback" : [ "2IteCfyCwhU=", "sTAww/zzaMA=" ],
+	"clawback|protocol version 23|from V17|allow trust|allow trust can't set clawback" : [ "i0CxNCezxac=" ],
 	"clawback|protocol version 23|from V17|allow trust|clawback after revoking auth" : [ "i0CxNCezxac=", "oCDi/0Bb1hY=" ],
 	"clawback|protocol version 23|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "5l7/Tyy8zGY=", "uS/pzWBz1oo=" ],
 	"clawback|protocol version 23|from V17|basic test" : [ "lZTJiD6j/6I=" ],
@@ -944,35 +747,6 @@
 	"clawback|protocol version 23|from V17|errors|apply|no trust" : [ "0Tfxm4XVEr0=" ],
 	"clawback|protocol version 23|from V17|errors|apply|not clawback enabled" : [ "0balGGSFtIM=", "qVlDsyHEP/8=", "nWIiEArIuP4=", "iYyoqUwRP44=" ],
 	"clawback|protocol version 23|from V17|errors|apply|underfunded" : [ "0Tfxm4XVEr0=", "1lZte7ya2Eo=", "UDIlEKz5C9w=", "13DJ/ZYpDZQ=" ],
-	"clawback|protocol version 23|from V17|errors|check validity" : 
-	[
-		"0Tfxm4XVEr0=",
-		"0LP5DLjBmuc=",
-		"bK6vnjBD0VQ=",
-		"drjFOKZHvC0=",
-		"9rNmV2HCIHo=",
-		"cIVGh/yHpfE=",
-		"Z5uq8uXGf+U=",
-		"BP5deJCm8Vc=",
-		"j+2qhP5UkQQ=",
-		"m7+a9+0Xa00=",
-		"ebv6hZx31rY=",
-		"bQz/QnTg+Gs=",
-		"JTW7WKA2nrI=",
-		"QQsmtXSSMV8=",
-		"4OQurciAuA8=",
-		"tdcidOTzj0o=",
-		"DcjA5DGNg6c=",
-		"YgXTAsQrOww=",
-		"yXX1M25JdY8=",
-		"S9vKwOdc9us=",
-		"u6AfaV6kAaE=",
-		"ICitmJpn33I=",
-		"tiirdAWMjSI=",
-		"pA0fozCtzFg=",
-		"pOPWDxSWLJs=",
-		"N4IpepbVE94="
-	],
 	"clawback|protocol version 23|from V17|errors|set options" : [ "0Tfxm4XVEr0=", "d+6niptq9w4=", "tdqsDRpoM3s=" ],
 	"clawback|protocol version 23|from V17|errors|set options clawback immutable" : [ "l77R48sqLpw=", "AH57wge7wl8=", "RkaLElBC+CY=" ],
 	"clawback|protocol version 24" : 
@@ -1006,7 +780,6 @@
 		"Dy9L2beyoqI=",
 		"yK6SzJU7bnQ="
 	],
-	"clawback|protocol version 24|all version errors" : [ "p4/WJEhlYrk=" ],
 	"clawback|protocol version 24|from V17" : 
 	[
 		"oFsNPa6txrU=",
@@ -1047,7 +820,7 @@
 		"sk9GRafbppU="
 	],
 	"clawback|protocol version 24|from V17|allow trust" : [ "n6LIgU69wl0=", "n6LIgU69wl0=", "n6LIgU69wl0=" ],
-	"clawback|protocol version 24|from V17|allow trust|allow trust can't set clawback" : [ "2IteCfyCwhU=", "sTAww/zzaMA=" ],
+	"clawback|protocol version 24|from V17|allow trust|allow trust can't set clawback" : [ "i0CxNCezxac=" ],
 	"clawback|protocol version 24|from V17|allow trust|clawback after revoking auth" : [ "i0CxNCezxac=", "oCDi/0Bb1hY=" ],
 	"clawback|protocol version 24|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "5l7/Tyy8zGY=", "uS/pzWBz1oo=" ],
 	"clawback|protocol version 24|from V17|basic test" : [ "lZTJiD6j/6I=" ],
@@ -1063,35 +836,6 @@
 	"clawback|protocol version 24|from V17|errors|apply|no trust" : [ "0Tfxm4XVEr0=" ],
 	"clawback|protocol version 24|from V17|errors|apply|not clawback enabled" : [ "0balGGSFtIM=", "qVlDsyHEP/8=", "nWIiEArIuP4=", "iYyoqUwRP44=" ],
 	"clawback|protocol version 24|from V17|errors|apply|underfunded" : [ "0Tfxm4XVEr0=", "1lZte7ya2Eo=", "UDIlEKz5C9w=", "13DJ/ZYpDZQ=" ],
-	"clawback|protocol version 24|from V17|errors|check validity" : 
-	[
-		"0Tfxm4XVEr0=",
-		"0LP5DLjBmuc=",
-		"bK6vnjBD0VQ=",
-		"drjFOKZHvC0=",
-		"9rNmV2HCIHo=",
-		"cIVGh/yHpfE=",
-		"Z5uq8uXGf+U=",
-		"BP5deJCm8Vc=",
-		"j+2qhP5UkQQ=",
-		"m7+a9+0Xa00=",
-		"ebv6hZx31rY=",
-		"bQz/QnTg+Gs=",
-		"JTW7WKA2nrI=",
-		"QQsmtXSSMV8=",
-		"4OQurciAuA8=",
-		"tdcidOTzj0o=",
-		"DcjA5DGNg6c=",
-		"YgXTAsQrOww=",
-		"yXX1M25JdY8=",
-		"S9vKwOdc9us=",
-		"u6AfaV6kAaE=",
-		"ICitmJpn33I=",
-		"tiirdAWMjSI=",
-		"pA0fozCtzFg=",
-		"pOPWDxSWLJs=",
-		"N4IpepbVE94="
-	],
 	"clawback|protocol version 24|from V17|errors|set options" : [ "0Tfxm4XVEr0=", "d+6niptq9w4=", "tdqsDRpoM3s=" ],
 	"clawback|protocol version 24|from V17|errors|set options clawback immutable" : [ "l77R48sqLpw=", "AH57wge7wl8=", "RkaLElBC+CY=" ],
 	"clawback|protocol version 25" : 
@@ -1125,7 +869,6 @@
 		"Dy9L2beyoqI=",
 		"yK6SzJU7bnQ="
 	],
-	"clawback|protocol version 25|all version errors" : [ "p4/WJEhlYrk=" ],
 	"clawback|protocol version 25|from V17" : 
 	[
 		"oFsNPa6txrU=",
@@ -1166,7 +909,7 @@
 		"sk9GRafbppU="
 	],
 	"clawback|protocol version 25|from V17|allow trust" : [ "n6LIgU69wl0=", "n6LIgU69wl0=", "n6LIgU69wl0=" ],
-	"clawback|protocol version 25|from V17|allow trust|allow trust can't set clawback" : [ "2IteCfyCwhU=", "sTAww/zzaMA=" ],
+	"clawback|protocol version 25|from V17|allow trust|allow trust can't set clawback" : [ "i0CxNCezxac=" ],
 	"clawback|protocol version 25|from V17|allow trust|clawback after revoking auth" : [ "i0CxNCezxac=", "oCDi/0Bb1hY=" ],
 	"clawback|protocol version 25|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "5l7/Tyy8zGY=", "uS/pzWBz1oo=" ],
 	"clawback|protocol version 25|from V17|basic test" : [ "lZTJiD6j/6I=" ],
@@ -1182,35 +925,6 @@
 	"clawback|protocol version 25|from V17|errors|apply|no trust" : [ "0Tfxm4XVEr0=" ],
 	"clawback|protocol version 25|from V17|errors|apply|not clawback enabled" : [ "0balGGSFtIM=", "qVlDsyHEP/8=", "nWIiEArIuP4=", "iYyoqUwRP44=" ],
 	"clawback|protocol version 25|from V17|errors|apply|underfunded" : [ "0Tfxm4XVEr0=", "1lZte7ya2Eo=", "UDIlEKz5C9w=", "13DJ/ZYpDZQ=" ],
-	"clawback|protocol version 25|from V17|errors|check validity" : 
-	[
-		"0Tfxm4XVEr0=",
-		"0LP5DLjBmuc=",
-		"bK6vnjBD0VQ=",
-		"drjFOKZHvC0=",
-		"9rNmV2HCIHo=",
-		"cIVGh/yHpfE=",
-		"Z5uq8uXGf+U=",
-		"BP5deJCm8Vc=",
-		"j+2qhP5UkQQ=",
-		"m7+a9+0Xa00=",
-		"ebv6hZx31rY=",
-		"bQz/QnTg+Gs=",
-		"JTW7WKA2nrI=",
-		"QQsmtXSSMV8=",
-		"4OQurciAuA8=",
-		"tdcidOTzj0o=",
-		"DcjA5DGNg6c=",
-		"YgXTAsQrOww=",
-		"yXX1M25JdY8=",
-		"S9vKwOdc9us=",
-		"u6AfaV6kAaE=",
-		"ICitmJpn33I=",
-		"tiirdAWMjSI=",
-		"pA0fozCtzFg=",
-		"pOPWDxSWLJs=",
-		"N4IpepbVE94="
-	],
 	"clawback|protocol version 25|from V17|errors|set options" : [ "0Tfxm4XVEr0=", "d+6niptq9w4=", "tdqsDRpoM3s=" ],
 	"clawback|protocol version 25|from V17|errors|set options clawback immutable" : [ "l77R48sqLpw=", "AH57wge7wl8=", "RkaLElBC+CY=" ],
 	"clawback|protocol version 26" : 
@@ -1244,7 +958,6 @@
 		"Dy9L2beyoqI=",
 		"yK6SzJU7bnQ="
 	],
-	"clawback|protocol version 26|all version errors" : [ "p4/WJEhlYrk=" ],
 	"clawback|protocol version 26|from V17" : 
 	[
 		"oFsNPa6txrU=",
@@ -1285,7 +998,7 @@
 		"sk9GRafbppU="
 	],
 	"clawback|protocol version 26|from V17|allow trust" : [ "n6LIgU69wl0=", "n6LIgU69wl0=", "n6LIgU69wl0=" ],
-	"clawback|protocol version 26|from V17|allow trust|allow trust can't set clawback" : [ "2IteCfyCwhU=", "sTAww/zzaMA=" ],
+	"clawback|protocol version 26|from V17|allow trust|allow trust can't set clawback" : [ "i0CxNCezxac=" ],
 	"clawback|protocol version 26|from V17|allow trust|clawback after revoking auth" : [ "i0CxNCezxac=", "oCDi/0Bb1hY=" ],
 	"clawback|protocol version 26|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "5l7/Tyy8zGY=", "uS/pzWBz1oo=" ],
 	"clawback|protocol version 26|from V17|basic test" : [ "lZTJiD6j/6I=" ],
@@ -1301,35 +1014,6 @@
 	"clawback|protocol version 26|from V17|errors|apply|no trust" : [ "0Tfxm4XVEr0=" ],
 	"clawback|protocol version 26|from V17|errors|apply|not clawback enabled" : [ "0balGGSFtIM=", "qVlDsyHEP/8=", "nWIiEArIuP4=", "iYyoqUwRP44=" ],
 	"clawback|protocol version 26|from V17|errors|apply|underfunded" : [ "0Tfxm4XVEr0=", "1lZte7ya2Eo=", "UDIlEKz5C9w=", "13DJ/ZYpDZQ=" ],
-	"clawback|protocol version 26|from V17|errors|check validity" : 
-	[
-		"0Tfxm4XVEr0=",
-		"0LP5DLjBmuc=",
-		"bK6vnjBD0VQ=",
-		"drjFOKZHvC0=",
-		"9rNmV2HCIHo=",
-		"cIVGh/yHpfE=",
-		"Z5uq8uXGf+U=",
-		"BP5deJCm8Vc=",
-		"j+2qhP5UkQQ=",
-		"m7+a9+0Xa00=",
-		"ebv6hZx31rY=",
-		"bQz/QnTg+Gs=",
-		"JTW7WKA2nrI=",
-		"QQsmtXSSMV8=",
-		"4OQurciAuA8=",
-		"tdcidOTzj0o=",
-		"DcjA5DGNg6c=",
-		"YgXTAsQrOww=",
-		"yXX1M25JdY8=",
-		"S9vKwOdc9us=",
-		"u6AfaV6kAaE=",
-		"ICitmJpn33I=",
-		"tiirdAWMjSI=",
-		"pA0fozCtzFg=",
-		"pOPWDxSWLJs=",
-		"N4IpepbVE94="
-	],
 	"clawback|protocol version 26|from V17|errors|set options" : [ "0Tfxm4XVEr0=", "d+6niptq9w4=", "tdqsDRpoM3s=" ],
 	"clawback|protocol version 26|from V17|errors|set options clawback immutable" : [ "l77R48sqLpw=", "AH57wge7wl8=", "RkaLElBC+CY=" ],
 	"clawback|protocol version 27" : 
@@ -1363,7 +1047,6 @@
 		"Dy9L2beyoqI=",
 		"yK6SzJU7bnQ="
 	],
-	"clawback|protocol version 27|all version errors" : [ "p4/WJEhlYrk=" ],
 	"clawback|protocol version 27|from V17" : 
 	[
 		"oFsNPa6txrU=",
@@ -1404,7 +1087,7 @@
 		"sk9GRafbppU="
 	],
 	"clawback|protocol version 27|from V17|allow trust" : [ "n6LIgU69wl0=", "n6LIgU69wl0=", "n6LIgU69wl0=" ],
-	"clawback|protocol version 27|from V17|allow trust|allow trust can't set clawback" : [ "2IteCfyCwhU=", "sTAww/zzaMA=" ],
+	"clawback|protocol version 27|from V17|allow trust|allow trust can't set clawback" : [ "i0CxNCezxac=" ],
 	"clawback|protocol version 27|from V17|allow trust|clawback after revoking auth" : [ "i0CxNCezxac=", "oCDi/0Bb1hY=" ],
 	"clawback|protocol version 27|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "5l7/Tyy8zGY=", "uS/pzWBz1oo=" ],
 	"clawback|protocol version 27|from V17|basic test" : [ "lZTJiD6j/6I=" ],
@@ -1420,35 +1103,6 @@
 	"clawback|protocol version 27|from V17|errors|apply|no trust" : [ "0Tfxm4XVEr0=" ],
 	"clawback|protocol version 27|from V17|errors|apply|not clawback enabled" : [ "0balGGSFtIM=", "qVlDsyHEP/8=", "nWIiEArIuP4=", "iYyoqUwRP44=" ],
 	"clawback|protocol version 27|from V17|errors|apply|underfunded" : [ "0Tfxm4XVEr0=", "1lZte7ya2Eo=", "UDIlEKz5C9w=", "13DJ/ZYpDZQ=" ],
-	"clawback|protocol version 27|from V17|errors|check validity" : 
-	[
-		"0Tfxm4XVEr0=",
-		"0LP5DLjBmuc=",
-		"bK6vnjBD0VQ=",
-		"drjFOKZHvC0=",
-		"9rNmV2HCIHo=",
-		"cIVGh/yHpfE=",
-		"Z5uq8uXGf+U=",
-		"BP5deJCm8Vc=",
-		"j+2qhP5UkQQ=",
-		"m7+a9+0Xa00=",
-		"ebv6hZx31rY=",
-		"bQz/QnTg+Gs=",
-		"JTW7WKA2nrI=",
-		"QQsmtXSSMV8=",
-		"4OQurciAuA8=",
-		"tdcidOTzj0o=",
-		"DcjA5DGNg6c=",
-		"YgXTAsQrOww=",
-		"yXX1M25JdY8=",
-		"S9vKwOdc9us=",
-		"u6AfaV6kAaE=",
-		"ICitmJpn33I=",
-		"tiirdAWMjSI=",
-		"pA0fozCtzFg=",
-		"pOPWDxSWLJs=",
-		"N4IpepbVE94="
-	],
 	"clawback|protocol version 27|from V17|errors|set options" : [ "0Tfxm4XVEr0=", "d+6niptq9w4=", "tdqsDRpoM3s=" ],
 	"clawback|protocol version 27|from V17|errors|set options clawback immutable" : [ "l77R48sqLpw=", "AH57wge7wl8=", "RkaLElBC+CY=" ],
 	"clawback|protocol version 28" : 
@@ -1482,7 +1136,6 @@
 		"Dy9L2beyoqI=",
 		"yK6SzJU7bnQ="
 	],
-	"clawback|protocol version 28|all version errors" : [ "p4/WJEhlYrk=" ],
 	"clawback|protocol version 28|from V17" : 
 	[
 		"oFsNPa6txrU=",
@@ -1523,7 +1176,7 @@
 		"sk9GRafbppU="
 	],
 	"clawback|protocol version 28|from V17|allow trust" : [ "n6LIgU69wl0=", "n6LIgU69wl0=", "n6LIgU69wl0=" ],
-	"clawback|protocol version 28|from V17|allow trust|allow trust can't set clawback" : [ "2IteCfyCwhU=", "sTAww/zzaMA=" ],
+	"clawback|protocol version 28|from V17|allow trust|allow trust can't set clawback" : [ "i0CxNCezxac=" ],
 	"clawback|protocol version 28|from V17|allow trust|clawback after revoking auth" : [ "i0CxNCezxac=", "oCDi/0Bb1hY=" ],
 	"clawback|protocol version 28|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "5l7/Tyy8zGY=", "uS/pzWBz1oo=" ],
 	"clawback|protocol version 28|from V17|basic test" : [ "lZTJiD6j/6I=" ],
@@ -1539,35 +1192,6 @@
 	"clawback|protocol version 28|from V17|errors|apply|no trust" : [ "0Tfxm4XVEr0=" ],
 	"clawback|protocol version 28|from V17|errors|apply|not clawback enabled" : [ "0balGGSFtIM=", "qVlDsyHEP/8=", "nWIiEArIuP4=", "iYyoqUwRP44=" ],
 	"clawback|protocol version 28|from V17|errors|apply|underfunded" : [ "0Tfxm4XVEr0=", "1lZte7ya2Eo=", "UDIlEKz5C9w=", "13DJ/ZYpDZQ=" ],
-	"clawback|protocol version 28|from V17|errors|check validity" : 
-	[
-		"0Tfxm4XVEr0=",
-		"0LP5DLjBmuc=",
-		"bK6vnjBD0VQ=",
-		"drjFOKZHvC0=",
-		"9rNmV2HCIHo=",
-		"cIVGh/yHpfE=",
-		"Z5uq8uXGf+U=",
-		"BP5deJCm8Vc=",
-		"j+2qhP5UkQQ=",
-		"m7+a9+0Xa00=",
-		"ebv6hZx31rY=",
-		"bQz/QnTg+Gs=",
-		"JTW7WKA2nrI=",
-		"QQsmtXSSMV8=",
-		"4OQurciAuA8=",
-		"tdcidOTzj0o=",
-		"DcjA5DGNg6c=",
-		"YgXTAsQrOww=",
-		"yXX1M25JdY8=",
-		"S9vKwOdc9us=",
-		"u6AfaV6kAaE=",
-		"ICitmJpn33I=",
-		"tiirdAWMjSI=",
-		"pA0fozCtzFg=",
-		"pOPWDxSWLJs=",
-		"N4IpepbVE94="
-	],
 	"clawback|protocol version 28|from V17|errors|set options" : [ "0Tfxm4XVEr0=", "d+6niptq9w4=", "tdqsDRpoM3s=" ],
 	"clawback|protocol version 28|from V17|errors|set options clawback immutable" : [ "l77R48sqLpw=", "AH57wge7wl8=", "RkaLElBC+CY=" ],
 	"clawback|protocol version 29" : 
@@ -1601,7 +1225,6 @@
 		"Dy9L2beyoqI=",
 		"yK6SzJU7bnQ="
 	],
-	"clawback|protocol version 29|all version errors" : [ "p4/WJEhlYrk=" ],
 	"clawback|protocol version 29|from V17" : 
 	[
 		"oFsNPa6txrU=",
@@ -1642,7 +1265,7 @@
 		"sk9GRafbppU="
 	],
 	"clawback|protocol version 29|from V17|allow trust" : [ "n6LIgU69wl0=", "n6LIgU69wl0=", "n6LIgU69wl0=" ],
-	"clawback|protocol version 29|from V17|allow trust|allow trust can't set clawback" : [ "2IteCfyCwhU=", "sTAww/zzaMA=" ],
+	"clawback|protocol version 29|from V17|allow trust|allow trust can't set clawback" : [ "i0CxNCezxac=" ],
 	"clawback|protocol version 29|from V17|allow trust|clawback after revoking auth" : [ "i0CxNCezxac=", "oCDi/0Bb1hY=" ],
 	"clawback|protocol version 29|from V17|allow trust|clawback after revoking auth to AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG" : [ "5l7/Tyy8zGY=", "uS/pzWBz1oo=" ],
 	"clawback|protocol version 29|from V17|basic test" : [ "lZTJiD6j/6I=" ],
@@ -1658,39 +1281,8 @@
 	"clawback|protocol version 29|from V17|errors|apply|no trust" : [ "0Tfxm4XVEr0=" ],
 	"clawback|protocol version 29|from V17|errors|apply|not clawback enabled" : [ "0balGGSFtIM=", "qVlDsyHEP/8=", "nWIiEArIuP4=", "iYyoqUwRP44=" ],
 	"clawback|protocol version 29|from V17|errors|apply|underfunded" : [ "0Tfxm4XVEr0=", "1lZte7ya2Eo=", "UDIlEKz5C9w=", "13DJ/ZYpDZQ=" ],
-	"clawback|protocol version 29|from V17|errors|check validity" : 
-	[
-		"0Tfxm4XVEr0=",
-		"0LP5DLjBmuc=",
-		"bK6vnjBD0VQ=",
-		"drjFOKZHvC0=",
-		"9rNmV2HCIHo=",
-		"cIVGh/yHpfE=",
-		"Z5uq8uXGf+U=",
-		"BP5deJCm8Vc=",
-		"j+2qhP5UkQQ=",
-		"m7+a9+0Xa00=",
-		"ebv6hZx31rY=",
-		"bQz/QnTg+Gs=",
-		"JTW7WKA2nrI=",
-		"QQsmtXSSMV8=",
-		"4OQurciAuA8=",
-		"tdcidOTzj0o=",
-		"DcjA5DGNg6c=",
-		"YgXTAsQrOww=",
-		"yXX1M25JdY8=",
-		"S9vKwOdc9us=",
-		"u6AfaV6kAaE=",
-		"ICitmJpn33I=",
-		"tiirdAWMjSI=",
-		"pA0fozCtzFg=",
-		"pOPWDxSWLJs=",
-		"N4IpepbVE94="
-	],
 	"clawback|protocol version 29|from V17|errors|set options" : [ "0Tfxm4XVEr0=", "d+6niptq9w4=", "tdqsDRpoM3s=" ],
 	"clawback|protocol version 29|from V17|errors|set options clawback immutable" : [ "l77R48sqLpw=", "AH57wge7wl8=", "RkaLElBC+CY=" ],
-	"clawback|protocol version 2|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 2|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"clawback|protocol version 3" : 
 	[
 		"FWMlXsJZmnc=",
@@ -1700,8 +1292,6 @@
 		"FWMlXsJZmnc=",
 		"kwENzAa51UM="
 	],
-	"clawback|protocol version 3|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 3|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"clawback|protocol version 4" : 
 	[
 		"FWMlXsJZmnc=",
@@ -1711,8 +1301,6 @@
 		"FWMlXsJZmnc=",
 		"kwENzAa51UM="
 	],
-	"clawback|protocol version 4|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 4|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"clawback|protocol version 5" : 
 	[
 		"FWMlXsJZmnc=",
@@ -1722,8 +1310,6 @@
 		"FWMlXsJZmnc=",
 		"kwENzAa51UM="
 	],
-	"clawback|protocol version 5|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 5|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"clawback|protocol version 6" : 
 	[
 		"FWMlXsJZmnc=",
@@ -1733,8 +1319,6 @@
 		"FWMlXsJZmnc=",
 		"kwENzAa51UM="
 	],
-	"clawback|protocol version 6|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 6|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"clawback|protocol version 7" : 
 	[
 		"FWMlXsJZmnc=",
@@ -1744,8 +1328,6 @@
 		"FWMlXsJZmnc=",
 		"kwENzAa51UM="
 	],
-	"clawback|protocol version 7|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 7|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"clawback|protocol version 8" : 
 	[
 		"FWMlXsJZmnc=",
@@ -1755,8 +1337,6 @@
 		"FWMlXsJZmnc=",
 		"kwENzAa51UM="
 	],
-	"clawback|protocol version 8|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 8|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ],
 	"clawback|protocol version 9" : 
 	[
 		"FWMlXsJZmnc=",
@@ -1765,7 +1345,5 @@
 		"kwENzAa51UM=",
 		"FWMlXsJZmnc=",
 		"kwENzAa51UM="
-	],
-	"clawback|protocol version 9|all version errors" : [ "/lfj8xIFS8I=" ],
-	"clawback|protocol version 9|pre V17 errors" : [ "/lfj8xIFS8I=", "/lfj8xIFS8I=", "/lfj8xIFS8I=" ]
+	]
 }

@@ -71,7 +71,7 @@ TransactionResult expectedResult(int64_t fee, size_t opsCount,
                                  TransactionResultCode code,
                                  std::vector<ExpectedOpResult> ops = {});
 
-bool applyCheck(TransactionTestFramePtr tx, Application& app,
+bool applyCheck(TransactionTestFramePtr const& tx, Application& app,
                 bool checkSeqNum = true);
 void applyTx(TransactionTestFramePtr const& tx, Application& app,
              bool checkSeqNum = true);
@@ -84,11 +84,26 @@ void checkLiquidityPool(Application& app, PoolID const& poolID,
                         int64_t totalPoolShares,
                         int64_t poolSharesTrustLineCount);
 
+// The following group of `closeLedger*` methods closes the ledger with the
+// provided transactions.
+// `strictOrder` enforces the apply order to match the provided transaction
+// order, at cost of slightly relaxed tx set validation rules (prefer avoiding
+// this when possible).
+// `disableTxValidationForLegacyScenario` disables individual transaction
+// validation. This is only kept for the legacy test scenarios that need
+// multiple txs per source account per ledger (which is not allowed since p20).
+// This flag serves 2 purposes:
+// - Keep the legacy scenarios simpler
+// - Have some basic smoke test coverage for applying multiple txs per source
+//   account per ledger (so that we get an earlier breakage signal vs full
+//   catchup).
+
 TransactionResultSet
 closeLedger(Application& app,
             std::vector<TransactionFrameBasePtr> const& txs = {},
             bool strictOrder = false,
-            xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps);
+            xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
+            bool disableTxValidationForLegacyScenario = false);
 
 TransactionResultSet
 closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
@@ -97,14 +112,16 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
 TransactionResultSet
 closeLedgerOn(Application& app, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs = {},
-              bool strictOrder = false);
+              bool strictOrder = false,
+              bool disableTxValidationForLegacyScenario = false);
 
 TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false,
               xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
-              ParallelSorobanOrder const& parallelSorobanOrder = {});
+              ParallelSorobanOrder const& parallelSorobanOrder = {},
+              bool disableTxValidationForLegacyScenario = false);
 
 TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 

@@ -639,8 +639,8 @@ TEST_CASE_VERSIONS("revoke from pool",
                         : root->op(setTrustLineFlags(
                               acc1, cur1,
                               clearTrustLineFlags(AUTHORIZED_FLAG)));
-                applyCheck(acc1.tx({root->op(payment(acc1, 1)), revokeOp}),
-                           *app);
+                REQUIRE(applyCheck(
+                    acc1.tx({root->op(payment(acc1, 1)), revokeOp}), *app));
 
                 root->allowTrust(cur1, acc1);
 
