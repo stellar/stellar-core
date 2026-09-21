@@ -33,12 +33,12 @@ setlocal EnableDelayedExpansion
 
 rem -- range to use for stable host envs
 set MIN_P=21
-set MAX_P=27
+set MAX_P=28
 rem -- version of the latest WIP protocol
-set LATEST_P=27
+set LATEST_P=28
 rem -- source host used to build the latest protocol. When this differs from
 rem -- LATEST_P, the latest build reuses an older host with --features next.
-set LATEST_HOST_P=27
+set LATEST_HOST_P=28
 
 if "%3"=="next" (
     set "core_features=--features next"
