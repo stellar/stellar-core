@@ -155,11 +155,11 @@ BatchExecutor::executeBatch(std::vector<std::function<T()>> tasks)
     {
         return results;
     }
-    if (tasks.size() == 1)
-    {
-        results[0] = tasks[0]();
-        return results;
-    }
+
+    // NB: there used to be a special case here that ran singleton tasks on the
+    // current thread. We now intentionally omit this in favor of ensuring that
+    // all tasks run on the threads created for the executor, which have large
+    // stacks even when running on mac or windows.
 
     // Only one executeBatch that uses pinned workers may be in progress at a
     // time.

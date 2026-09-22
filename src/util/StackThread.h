@@ -5,7 +5,7 @@
 // StackThread.h -- a std::thread work-alike with a settable stack size.
 //
 // Platforms: Linux (glibc/musl), macOS, Windows (MSVC / clang-cl / MinGW-w64).
-// Language:  C++17.
+// Language:  C++20.
 //
 // Differences from std::thread, all deliberate:
 //   * ctor takes a stack size in bytes as its first argument (0 = platform
@@ -37,6 +37,7 @@
 #include <utility>
 
 #if defined(_WIN32)
+#include <atomic>
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -62,6 +63,9 @@ struct PayloadBase
     virtual ~PayloadBase() = default;
     virtual void run() = 0;
     std::string mName;
+#if defined(_WIN32)
+    std::atomic<bool> mReady{false};
+#endif
 };
 
 template <class Fn> struct Payload final : PayloadBase
@@ -118,7 +122,7 @@ class StackThread
         // a strict weak ordering consistent with == on every implementation
         // where pthread_t is a scalar (all of glibc, musl, macOS).
         friend std::strong_ordering operator<=>(id const& a,
-                            id const& b) noexcept;
+                                                id const& b) noexcept;
 
         template <class Char, class Traits>
         friend std::basic_ostream<Char, Traits>&

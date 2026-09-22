@@ -111,7 +111,14 @@ void*
 trampoline(void* raw)
 #endif
 {
-    std::unique_ptr<PayloadBase> payload(static_cast<PayloadBase*>(raw));
+    auto* payloadRaw = static_cast<PayloadBase*>(raw);
+#if defined(_WIN32)
+    while (!payloadRaw->mReady.load(std::memory_order_acquire))
+    {
+        std::this_thread::yield();
+    }
+#endif
+    std::unique_ptr<PayloadBase> payload(payloadRaw);
     try
     {
         setCurrentThreadName(payload->mName);
@@ -346,29 +353,20 @@ StackThread::start(std::size_t stackBytes,
     }
     // Without STACK_SIZE_PARAM_IS_A_RESERVATION the size argument is the
     // initial *commit*, and the reserve still comes from the PE header.
-    // _beginthreadex may start executing the trampoline before it returns, so
-    // create the thread suspended until mHandle is published. This preserves
-    // std::thread-like constructor synchronization for callables that capture
-    // the StackThread object under construction.
+    // The trampoline waits on mReady until mHandle is published. Ownership is
+    // only transferred after _beginthreadex succeeds, and there are no
+    // throwing operations after the transfer.
     uintptr_t const h = ::_beginthreadex(
         nullptr, static_cast<unsigned>(stackBytes), &detail::trampoline,
-        payload.get(), STACK_SIZE_PARAM_IS_A_RESERVATION | CREATE_SUSPENDED,
-        nullptr);
+        payload.get(), STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
     if (h == 0)
     {
         throw std::system_error(errno, std::generic_category(),
                                 "_beginthreadex");
     }
     mHandle = reinterpret_cast<HANDLE>(h);
-    [[maybe_unused]] auto* transferredPayload = payload.release();
-    if (::ResumeThread(mHandle) == static_cast<DWORD>(-1))
-    {
-        DWORD const ec = ::GetLastError();
-        ::CloseHandle(mHandle);
-        mHandle = nullptr;
-        throw std::system_error(static_cast<int>(ec), std::system_category(),
-                                "ResumeThread");
-    }
+    auto* transferredPayload = payload.release();
+    transferredPayload->mReady.store(true, std::memory_order_release);
 #else
     ::pthread_attr_t attr;
     int rc = ::pthread_attr_init(&attr);

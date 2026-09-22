@@ -18,8 +18,11 @@
 #include <thread>
 #include <unordered_map>
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 #include <pthread.h>
+#endif
+
+#if defined(__linux__)
 #include <sched.h>
 #endif
 
@@ -78,25 +81,75 @@ TEST_CASE("StackThread invokes free function with arguments", "[stackthread]")
     REQUIRE(counter == 7);
 }
 
-#if defined(__linux__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__)
 TEST_CASE("StackThread applies requested stack size and name", "[stackthread]")
 {
     std::size_t observed = 0;
     std::string name;
-    StackThread t(
-        stellar::WORKER_STACK_BYTES, "deep-worker", [&observed, &name] {
+    bool stackInspected = false;
+    bool nameInspected = false;
+    StackThread t(stellar::WORKER_STACK_BYTES, "deep-worker", [&] {
+#if defined(_WIN32)
+        using GetStackLimitsFn = void(WINAPI*)(PULONG_PTR, PULONG_PTR);
+        auto const getStackLimits =
+            reinterpret_cast<GetStackLimitsFn>(reinterpret_cast<void*>(
+                ::GetProcAddress(::GetModuleHandleW(L"kernel32.dll"),
+                                 "GetCurrentThreadStackLimits")));
+        if (getStackLimits != nullptr)
+        {
+            ULONG_PTR low = 0;
+            ULONG_PTR high = 0;
+            getStackLimits(&low, &high);
+            observed = high - low;
+            stackInspected = true;
+        }
+
+        using GetDescFn = HRESULT(WINAPI*)(HANDLE, PWSTR*);
+        auto const getDesc = reinterpret_cast<GetDescFn>(
+            reinterpret_cast<void*>(::GetProcAddress(
+                ::GetModuleHandleW(L"kernel32.dll"), "GetThreadDescription")));
+        if (getDesc != nullptr)
+        {
+            PWSTR description = nullptr;
+            if (SUCCEEDED(getDesc(::GetCurrentThread(), &description)))
+            {
+                std::wstring const wideName(description);
+                ::LocalFree(description);
+                name.assign(wideName.begin(), wideName.end());
+                nameInspected = true;
+            }
+        }
+#elif defined(__APPLE__)
+            observed = ::pthread_get_stacksize_np(::pthread_self());
+            stackInspected = true;
+            char nameBuf[64] = {0};
+            if (::pthread_getname_np(::pthread_self(), nameBuf,
+                                     sizeof(nameBuf)) == 0)
+            {
+                name = nameBuf;
+                nameInspected = true;
+            }
+#elif defined(__linux__)
             pthread_attr_t a;
-            if (pthread_getattr_np(pthread_self(), &a) == 0)
+            if (::pthread_getattr_np(::pthread_self(), &a) == 0)
             {
                 void* base = nullptr;
-                pthread_attr_getstack(&a, &base, &observed);
-                pthread_attr_destroy(&a);
+                stackInspected =
+                    ::pthread_attr_getstack(&a, &base, &observed) == 0;
+                ::pthread_attr_destroy(&a);
             }
             char nameBuf[32] = {0};
-            pthread_getname_np(pthread_self(), nameBuf, sizeof(nameBuf));
-            name = nameBuf;
-        });
+            if (::pthread_getname_np(::pthread_self(), nameBuf,
+                                     sizeof(nameBuf)) == 0)
+            {
+                name = nameBuf;
+                nameInspected = true;
+            }
+#endif
+    });
     t.join();
+    REQUIRE(stackInspected);
+    REQUIRE(nameInspected);
     REQUIRE(observed >= stellar::WORKER_STACK_BYTES);
     REQUIRE(name == "deep-worker");
 }
