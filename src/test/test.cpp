@@ -125,7 +125,8 @@ std::map<stdfs::path, std::map<std::string, std::string>> gLcmCapturedIndex;
 std::set<stdfs::path> gLcmVisitedDirs;
 // Set when the running test has done something that makes its
 // LedgerCloseMeta unsuitable as golden data — see disableLcmCapture. Reset
-// per test case.
+// at the start of each run of the test body (one per leaf section), so a
+// leaf that disables capture does not also disable its siblings.
 bool gLcmCaptureDisabled{false};
 
 // Header keys stored in each baseline/index file identifying the
@@ -527,7 +528,6 @@ struct TestContextListener : Catch::TestEventListenerBase
         }
         if (lcmTrackingEnabled())
         {
-            gLcmCaptureDisabled = false;
             txtest::clearAccumulatedLcm();
             sLcmSectStack.clear();
             sTestCaseStartIndex = 0;
@@ -566,7 +566,13 @@ struct TestContextListener : Catch::TestEventListenerBase
         if (lcmTrackingEnabled())
         {
             sTestCaseHasSection = true;
-            if (!sLcmSectStack.empty())
+            if (sLcmSectStack.empty())
+            {
+                // Catch runs the test body once per leaf section, starting
+                // each run with the implicit root section.
+                gLcmCaptureDisabled = false;
+            }
+            else
             {
                 sLcmSectStack.back().hasChildSection = true;
             }
