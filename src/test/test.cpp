@@ -153,6 +153,18 @@ struct SectionLcmState
     bool hasChildSection; // true if any child section was entered
 };
 
+// A leaf whose LCM is recorded or checked only once the whole run of the test
+// body is known to have passed, so a failing run cannot overwrite a golden.
+struct PendingLcmLeaf
+{
+    stdfs::path dir;
+    std::string hashHex;
+    std::string humanName;
+    size_t startIndex; // [startIndex, endIndex) into gAccumulatedLcm
+    size_t endIndex;
+    Catch::SourceLineInfo source;
+};
+
 bool
 needTestCtxTracking()
 {
@@ -211,7 +223,7 @@ lcmGoldenFilePath(stdfs::path const& dir, std::string const& hashHex)
     return dir / (hashHex + ".xdr");
 }
 
-int32_t
+uint32_t
 lcmLedgerSeq(LedgerCloseMeta const& lcm)
 {
     switch (lcm.v())
@@ -227,21 +239,42 @@ lcmLedgerSeq(LedgerCloseMeta const& lcm)
     }
 }
 
+// Throws if the ledgers in [startIndex, endIndex) are not contiguous. This
+// runs after the test body has finished, so it cannot use REQUIRE.
 void
 checkLcmSequenceContiguity(std::vector<LedgerCloseMeta> const& metas,
-                           size_t startIndex, std::string const& path)
+                           size_t startIndex, size_t endIndex,
+                           stdfs::path const& path)
 {
-    if (startIndex + 1 >= metas.size())
-    {
-        // Zero or one entry — nothing to check for contiguity.
-        return;
-    }
-    for (size_t i = startIndex + 1; i < metas.size(); ++i)
+    for (size_t i = startIndex + 1; i < endIndex; ++i)
     {
         auto prevSeq = lcmLedgerSeq(metas[i - 1]);
         auto curSeq = lcmLedgerSeq(metas[i]);
-        REQUIRE(curSeq == prevSeq + 1);
+        if (curSeq != prevSeq + 1)
+        {
+            throw std::runtime_error(fmt::format(
+                "non-contiguous LedgerCloseMeta for '{}': ledger {} follows {}",
+                path.string(), curSeq, prevSeq));
+        }
     }
+}
+
+// Copies of the accumulated LCM in [startIndex, endIndex) with
+// non-deterministic diagnostics zeroed, but otherwise in original order: some
+// restoration ledger-entry changes must stay ordered for downstream consumers.
+std::vector<LedgerCloseMeta>
+lcmEntriesForGolden(size_t startIndex, size_t endIndex, stdfs::path const& path)
+{
+    auto const& allMetas = txtest::getAccumulatedLcm();
+    releaseAssert(endIndex <= allMetas.size());
+    checkLcmSequenceContiguity(allMetas, startIndex, endIndex, path);
+    std::vector<LedgerCloseMeta> entries(allMetas.begin() + startIndex,
+                                         allMetas.begin() + endIndex);
+    for (auto& entry : entries)
+    {
+        zeroNonDeterministicDiagnostics(entry);
+    }
+    return entries;
 }
 
 // Read all LedgerCloseMeta entries from an existing XDR file.
@@ -333,10 +366,9 @@ writeLcmIndex(stdfs::path const& dir,
 void
 writeLcmToFile(stdfs::path const& path, stdfs::path const& dir,
                std::string const& hashHex, std::string const& humanName,
-               size_t startIndex)
+               size_t startIndex, size_t endIndex)
 {
-    auto const& allMetas = txtest::getAccumulatedLcm();
-    if (startIndex >= allMetas.size())
+    if (startIndex >= endIndex)
     {
         LOG_WARNING(DEFAULT_LOG,
                     "LCM auto-capture: no LedgerCloseMeta entries for '{}'. "
@@ -345,18 +377,7 @@ writeLcmToFile(stdfs::path const& path, stdfs::path const& dir,
         return;
     }
 
-    checkLcmSequenceContiguity(allMetas, startIndex, path);
-
-    // Build the new entries with zeroed diagnostics but without
-    // normalization: some restoration ledger-entry changes must remain in
-    // their original order for downstream consumers.
-    std::vector<LedgerCloseMeta> newEntries;
-    newEntries.reserve(allMetas.size() - startIndex);
-    for (size_t i = startIndex; i < allMetas.size(); ++i)
-    {
-        newEntries.push_back(allMetas[i]);
-        zeroNonDeterministicDiagnostics(newEntries.back());
-    }
+    auto newEntries = lcmEntriesForGolden(startIndex, endIndex, path);
 
     // Always ensure the directory exists and record the index entry so it
     // stays in sync even when the XDR write below is skipped. The index file
@@ -400,10 +421,9 @@ writeLcmToFile(stdfs::path const& path, stdfs::path const& dir,
 // failure if the file is missing or its content differs.
 void
 checkLcmAgainstFile(stdfs::path const& path, std::string const& humanName,
-                    size_t startIndex)
+                    size_t startIndex, size_t endIndex)
 {
-    auto const& allMetas = txtest::getAccumulatedLcm();
-    if (startIndex >= allMetas.size())
+    if (startIndex >= endIndex)
     {
         // Capture mode never writes a file for a leaf with no meta, so an
         // existing golden file means this test used to produce LCM and no
@@ -418,16 +438,7 @@ checkLcmAgainstFile(stdfs::path const& path, std::string const& humanName,
         return;
     }
 
-    checkLcmSequenceContiguity(allMetas, startIndex, path);
-
-    // Same treatment as capture: zero diagnostics, no normalization.
-    std::vector<LedgerCloseMeta> newEntries;
-    newEntries.reserve(allMetas.size() - startIndex);
-    for (size_t i = startIndex; i < allMetas.size(); ++i)
-    {
-        newEntries.push_back(allMetas[i]);
-        zeroNonDeterministicDiagnostics(newEntries.back());
-    }
+    auto newEntries = lcmEntriesForGolden(startIndex, endIndex, path);
 
     if (!std::filesystem::exists(path))
     {
@@ -447,10 +458,10 @@ checkLcmAgainstFile(stdfs::path const& path, std::string const& humanName,
 }
 
 void
-recordOrCheckLcm(stdfs::path const& dir, std::string const& hashHex,
-                 std::string const& humanName, size_t startIndex,
-                 Catch::SourceLineInfo const& leafSource)
+recordOrCheckLcm(PendingLcmLeaf const& leaf)
 {
+    auto const& [dir, hashHex, humanName, startIndex, endIndex, leafSource] =
+        leaf;
     if (gLcmCaptureEnabled)
     {
         // Record the directory even when this leaf is skipped below, so a
@@ -478,7 +489,7 @@ recordOrCheckLcm(stdfs::path const& dir, std::string const& hashHex,
     // Detect two distinct sections whose names hash to the same golden file.
     // Only leaves that actually accumulated LCM matter: leaves with no meta
     // never write or check a file, so a name collision there is harmless.
-    if (startIndex < txtest::getAccumulatedLcm().size())
+    if (startIndex < endIndex)
     {
         auto [it, inserted] = gLcmLeafSources.emplace(path, leafSource);
         if (!inserted && (it->second.line != leafSource.line ||
@@ -495,11 +506,20 @@ recordOrCheckLcm(stdfs::path const& dir, std::string const& hashHex,
     }
     if (gLcmCaptureEnabled)
     {
-        writeLcmToFile(path, dir, hashHex, humanName, startIndex);
+        writeLcmToFile(path, dir, hashHex, humanName, startIndex, endIndex);
+        return;
     }
-    else
+    try
     {
-        checkLcmAgainstFile(path, humanName, startIndex);
+        checkLcmAgainstFile(path, humanName, startIndex, endIndex);
+    }
+    catch (std::exception const& e)
+    {
+        // E.g. a golden file that no longer decodes. Record it like any other
+        // check failure rather than aborting the rest of the run.
+        gLcmCheckFailures.emplace_back(
+            fmt::format("error checking LCM against '{}' for test '{}': {}",
+                        path.string(), humanName, e.what()));
     }
 }
 
@@ -514,8 +534,23 @@ struct TestContextListener : Catch::TestEventListenerBase
 
     // LCM auto-capture state
     static std::vector<SectionLcmState> sLcmSectStack;
+    static std::vector<PendingLcmLeaf> sPendingLcmLeaves;
     static size_t sTestCaseStartIndex;
     static bool sTestCaseHasSection;
+
+    static PendingLcmLeaf
+    makePendingLcmLeaf(Catch::TestCaseInfo const& tc, size_t startIndex,
+                       Catch::SourceLineInfo const& source)
+    {
+        auto humanName = buildLcmHumanName(tc, sLcmSectStack);
+        auto hashHex = binToHex(sha256(humanName)).substr(0, 16);
+        return {buildLcmOutputDir(tc),
+                hashHex,
+                humanName,
+                startIndex,
+                txtest::getAccumulatedLcm().size(),
+                source};
+    }
 
     void
     testCaseStarting(Catch::TestCaseInfo const& testInfo) override
@@ -537,15 +572,13 @@ struct TestContextListener : Catch::TestEventListenerBase
     void
     testCaseEnded(Catch::TestCaseStats const& testCaseStats) override
     {
-        if (lcmTrackingEnabled() && !sTestCaseHasSection)
+        if (lcmTrackingEnabled() && !sTestCaseHasSection &&
+            testCaseStats.totals.assertions.failed == 0)
         {
             releaseAssert(sTestCtx.has_value());
             auto const& tc = sTestCtx.value();
-            auto humanName = buildLcmHumanName(tc, sLcmSectStack);
-            auto hash = sha256(humanName);
-            auto hashHex = binToHex(hash).substr(0, 16);
-            recordOrCheckLcm(buildLcmOutputDir(tc), hashHex, humanName,
-                             sTestCaseStartIndex, tc.lineInfo);
+            recordOrCheckLcm(
+                makePendingLcmLeaf(tc, sTestCaseStartIndex, tc.lineInfo));
         }
         if (needTestCtxTracking())
         {
@@ -571,6 +604,7 @@ struct TestContextListener : Catch::TestEventListenerBase
                 // Catch runs the test body once per leaf section, starting
                 // each run with the implicit root section.
                 gLcmCaptureDisabled = false;
+                sPendingLcmLeaves.clear();
             }
             else
             {
@@ -588,24 +622,30 @@ struct TestContextListener : Catch::TestEventListenerBase
             auto state = sLcmSectStack.back();
             if (!state.hasChildSection)
             {
-                // Build path before popping so the leaf section name
-                // is included in sLcmSectStack.
+                // Build the name before popping so the leaf section name is
+                // included. Use the root section's startIndex so we capture
+                // all LCM for this run, including setup code that ran before
+                // any SECTION was entered.
                 releaseAssert(sTestCtx.has_value());
-                auto const& tc = sTestCtx.value();
-                auto humanName = buildLcmHumanName(tc, sLcmSectStack);
-                auto hash = sha256(humanName);
-                auto hashHex = binToHex(hash).substr(0, 16);
-                // Use the root section's startIndex so we capture all
-                // LCM for this test run, including setup code that
-                // ran before any SECTION was entered.
-                auto runStart = sLcmSectStack.front().startIndex;
-                sLcmSectStack.pop_back();
-                recordOrCheckLcm(buildLcmOutputDir(tc), hashHex, humanName,
-                                 runStart, state.info.lineInfo);
+                sPendingLcmLeaves.push_back(makePendingLcmLeaf(
+                    sTestCtx.value(), sLcmSectStack.front().startIndex,
+                    state.info.lineInfo));
             }
-            else
+            sLcmSectStack.pop_back();
+            if (sLcmSectStack.empty())
             {
-                sLcmSectStack.pop_back();
+                // The implicit root section has ended, so this run of the
+                // test body is over and its stats cover every assertion in
+                // it, including code outside the leaf and failures that
+                // unwound. Only a clean run may write or check goldens.
+                if (sectionStats.assertions.failed == 0)
+                {
+                    for (auto const& leaf : sPendingLcmLeaves)
+                    {
+                        recordOrCheckLcm(leaf);
+                    }
+                }
+                sPendingLcmLeaves.clear();
             }
         }
         if (needTestCtxTracking())
@@ -621,6 +661,7 @@ CATCH_REGISTER_LISTENER(TestContextListener)
 std::optional<Catch::TestCaseInfo> TestContextListener::sTestCtx;
 std::vector<Catch::SectionInfo> TestContextListener::sSectCtx;
 std::vector<SectionLcmState> TestContextListener::sLcmSectStack;
+std::vector<PendingLcmLeaf> TestContextListener::sPendingLcmLeaves;
 size_t TestContextListener::sTestCaseStartIndex = 0;
 bool TestContextListener::sTestCaseHasSection = false;
 
