@@ -255,14 +255,12 @@ checkXDRFileIdentity()
 #endif
 
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // cap_0084_muxed_contract is the one feature enabled outside next-protocol
-    // builds: the embedded protocol-30 host turns it on in its stellar-xdr
-    // dependency unconditionally, so C++ has to match. Anything else is a build
-    // misconfiguration.
-    if (cppFeatures != std::vector<std::string>{"cap_0084_muxed_contract"})
+    // If we're not building for the next protocol, no XDR feature flags
+    // should be enabled. If any are, it's a build misconfiguration.
+    if (!cppFeatures.empty())
     {
         throw std::runtime_error(
-            "unexpected XDR feature flags without "
+            "XDR feature flags are enabled without "
             "ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION");
     }
 #endif

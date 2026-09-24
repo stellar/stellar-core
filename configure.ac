@@ -618,10 +618,8 @@ AS_IF([test "x$enable_fastdev_unsafe_for_production" = "xyes"], [
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
-# Unconditional: the protocol-30 soroban host enables the stellar-xdr crate's
-# cap_0084_muxed_contract feature in every build, and startup checks that C++
-# and Rust agree on the set of enabled XDR features.
-AM_CONDITIONAL(CAP_0084_MUXED_CONTRACT, [true])
+AM_CONDITIONAL(CAP_0084_MUXED_CONTRACT,
+    [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
 AC_PATH_PROG(CARGO, cargo)
 if test x"$CARGO" = x; then

@@ -32,6 +32,9 @@ use crate::RustBuf;
 // We also alias the latest soroban as soroban_curr to help reduce churn in code
 // that's just "always supposed to use the latest".
 
+#[cfg(not(feature = "next"))]
+pub(crate) use p29 as soroban_curr;
+#[cfg(feature = "next")]
 pub(crate) use p30 as soroban_curr;
 
 // We also pin some protocol _agnostic_ definitions that are technically
@@ -176,6 +179,7 @@ macro_rules! ttl_ledger_entry_meta_stub {
     };
 }
 
+#[cfg(feature = "next")]
 #[path = "."]
 pub(crate) mod p30 {
     pub(crate) extern crate soroban_env_host_p30;
@@ -266,6 +270,180 @@ pub(crate) mod p30 {
             diagnostic_events,
             trace_hook,
             Some(module_cache.p30_cache.module_cache.clone()),
+        )
+    }
+
+    wasm_module_memory_cost_v1_unsupported_stub!();
+
+    pub(crate) fn wasm_module_memory_cost_v2_wrapper(
+        budget: &Budget,
+        contract_code_entry_ext: &ContractCodeEntryExt,
+        code_size_bytes: u32,
+    ) -> Result<u64, HostError> {
+        wasm_module_memory_cost(budget, contract_code_entry_ext, code_size_bytes)
+    }
+
+    pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
+        bucket_list_size: i64,
+        fee_config: CxxRentWriteFeeConfiguration,
+    ) -> i64 {
+        compute_rent_write_fee_per_1kb(bucket_list_size, &fee_config.into())
+    }
+
+    pub(crate) fn convert_transaction_resources(
+        value: &CxxTransactionResources,
+    ) -> TransactionResources {
+        TransactionResources {
+            instructions: value.instructions,
+            disk_read_entries: value.disk_read_entries,
+            write_entries: value.write_entries,
+            disk_read_bytes: value.disk_read_bytes,
+            write_bytes: value.write_bytes,
+            contract_events_size_bytes: value.contract_events_size_bytes,
+            transaction_size_bytes: value.transaction_size_bytes,
+        }
+    }
+
+    impl From<CxxRentWriteFeeConfiguration> for RentWriteFeeConfiguration {
+        fn from(value: CxxRentWriteFeeConfiguration) -> Self {
+            Self {
+                state_target_size_bytes: value.state_target_size_bytes,
+                rent_fee_1kb_state_size_low: value.rent_fee_1kb_state_size_low,
+                rent_fee_1kb_state_size_high: value.rent_fee_1kb_state_size_high,
+                state_size_rent_fee_growth_factor: value.state_size_rent_fee_growth_factor,
+            }
+        }
+    }
+
+    pub(crate) fn convert_rent_fee_configuration(
+        value: &CxxRentFeeConfiguration,
+    ) -> RentFeeConfiguration {
+        RentFeeConfiguration {
+            fee_per_rent_1kb: value.fee_per_rent_1kb,
+            fee_per_write_1kb: value.fee_per_write_1kb,
+            fee_per_write_entry: value.fee_per_write_entry,
+            persistent_rent_rate_denominator: value.persistent_rent_rate_denominator,
+            temporary_rent_rate_denominator: value.temporary_rent_rate_denominator,
+        }
+    }
+
+    pub(crate) fn convert_fee_configuration(value: CxxFeeConfiguration) -> FeeConfiguration {
+        FeeConfiguration {
+            fee_per_instruction_increment: value.fee_per_instruction_increment,
+            fee_per_disk_read_entry: value.fee_per_disk_read_entry,
+            fee_per_write_entry: value.fee_per_write_entry,
+            fee_per_disk_read_1kb: value.fee_per_disk_read_1kb,
+            fee_per_write_1kb: value.fee_per_write_1kb,
+            fee_per_historical_1kb: value.fee_per_historical_1kb,
+            fee_per_contract_event_1kb: value.fee_per_contract_event_1kb,
+            fee_per_transaction_size_1kb: value.fee_per_transaction_size_1kb,
+        }
+    }
+
+    pub(crate) fn convert_ledger_entry_rent_change(
+        value: &CxxLedgerEntryRentChange,
+    ) -> LedgerEntryRentChange {
+        LedgerEntryRentChange {
+            is_persistent: value.is_persistent,
+            is_code_entry: value.is_code_entry,
+            old_size_bytes: value.old_size_bytes,
+            new_size_bytes: value.new_size_bytes,
+            old_live_until_ledger: value.old_live_until_ledger,
+            new_live_until_ledger: value.new_live_until_ledger,
+        }
+    }
+}
+
+#[path = "."]
+pub(crate) mod p29 {
+    pub(crate) extern crate soroban_env_host_p29;
+    use crate::{
+        bridge::rust_bridge::CxxLedgerEntryRentChange,
+        rust_bridge::{
+            CxxFeeConfiguration, CxxRentFeeConfiguration, CxxRentWriteFeeConfiguration,
+            CxxTransactionResources,
+        },
+        SorobanModuleCache,
+    };
+    use soroban_env_host::{
+        budget::Budget,
+        e2e_invoke::{self, InvokeHostFunctionResult},
+        fees::{
+            compute_rent_write_fee_per_1kb, FeeConfiguration, LedgerEntryRentChange,
+            RentFeeConfiguration, RentWriteFeeConfiguration, TransactionResources,
+        },
+        vm::wasm_module_memory_cost,
+        xdr::{ContractCodeEntry, ContractCodeEntryExt, DiagnosticEvent},
+        HostError, LedgerInfo, TraceHook,
+    };
+
+    pub(crate) use soroban_env_host_p29 as soroban_env_host;
+
+    pub(crate) mod soroban_proto_any;
+
+    pub(crate) use soroban_env_host::e2e_invoke::TtlLedgerEntryMeta;
+    pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
+
+    pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
+        v.interface.pre_release
+    }
+
+    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+        v.interface.protocol
+    }
+
+    pub(crate) fn get_xdr_base_git_rev() -> String {
+        soroban_env_host::xdr::VERSION.xdr.to_string()
+    }
+    pub(crate) fn get_xdr_pkg_ver() -> String {
+        soroban_env_host::xdr::VERSION.pkg.to_string()
+    }
+    pub(crate) fn get_xdr_git_rev() -> String {
+        soroban_env_host::xdr::VERSION.rev.to_string()
+    }
+    pub(crate) fn get_xdr_features() -> Vec<String> {
+        soroban_env_host::xdr::VERSION
+            .features
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    invoke_v1_unsupported_stub!();
+
+    pub fn invoke_host_function_v2_with_trace_hook_and_module_cache<
+        T: AsRef<[u8]>,
+        I: ExactSizeIterator<Item = T>,
+        LI: ExactSizeIterator<Item = (Option<T>, Option<TtlLedgerEntryMeta>)>,
+    >(
+        budget: &Budget,
+        enable_diagnostics: bool,
+        encoded_host_fn: T,
+        encoded_resources: T,
+        restored_rw_entry_indices: &[u32],
+        encoded_source_account: T,
+        encoded_auth_entries: I,
+        ledger_info: LedgerInfo,
+        encoded_ledger_entries: LI,
+        base_prng_seed: T,
+        diagnostic_events: &mut Vec<DiagnosticEvent>,
+        trace_hook: Option<TraceHook>,
+        module_cache: &SorobanModuleCache,
+    ) -> Result<InvokeHostFunctionResult, HostError> {
+        e2e_invoke::invoke_host_function(
+            budget,
+            enable_diagnostics,
+            encoded_host_fn,
+            encoded_resources,
+            restored_rw_entry_indices,
+            encoded_source_account,
+            encoded_auth_entries,
+            ledger_info,
+            encoded_ledger_entries,
+            base_prng_seed,
+            diagnostic_events,
+            trace_hook,
+            Some(module_cache.p29_cache.module_cache.clone()),
         )
     }
 
@@ -2037,6 +2215,8 @@ const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p26),
     proto_versioned_functions_for_module!(p27),
     proto_versioned_functions_for_module!(p28),
+    proto_versioned_functions_for_module!(p29),
+    #[cfg(feature = "next")]
     proto_versioned_functions_for_module!(p30),
 ];
 
@@ -2081,17 +2261,8 @@ fn protocol_dispatches_as_expected() {
         assert_eq!(get_host_module_for_protocol(27, 27).unwrap().max_proto, 27);
     }
 
-    // The p30 host reports protocol 29 without the "next" feature and 30 with
-    // it, so it serves 29 in both builds and 30 only under "next".
-    #[cfg(not(feature = "fastdev"))]
-    {
-        assert_eq!(get_host_module_for_protocol(28, 28).unwrap().max_proto, 28);
-    }
-
-    #[cfg(not(feature = "next"))]
-    {
-        assert_eq!(get_host_module_for_protocol(29, 29).unwrap().max_proto, 29);
-    }
+    assert_eq!(get_host_module_for_protocol(28, 28).unwrap().max_proto, 28);
+    assert_eq!(get_host_module_for_protocol(29, 29).unwrap().max_proto, 29);
 
     #[cfg(feature = "next")]
     {

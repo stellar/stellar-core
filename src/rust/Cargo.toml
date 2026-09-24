@@ -115,19 +115,19 @@ tracy-client = { version = "=0.17.0", features = [
 # Cargo.lock! The unified build will re-resolve transitive dependencies and
 # unify them, perturbing the contents of the lockfile.
 
-# NB: the crate self-reports version 29.0.0; the p30 label is the maximum
-# protocol it serves, which it reaches only with the `next` feature.
 [dependencies.soroban-env-host-p30]
-version = "=29.0.0"
+version = "=30.0.0"
 git = "https://github.com/sisuresh/rs-soroban-env"
 package = "soroban-env-host"
-rev = "1dcc2c7d5c1516d0c6150296e80143c8f63cb344"
+rev = "c3a60d916754082993f8ce88f4e50a3104a90eac"
 optional = true
-# This dependency is only enabled by the `fastdev` feature, which implies
-# `next`, so the host is always wanted at its next-protocol number here. The
-# non-fastdev build takes p30 from the submodule rlib instead, where
-# src/Makefile.am passes --features=next to SOROBAN_MAX_PROTOCOL.
-features = ["next"]
+
+[dependencies.soroban-env-host-p29]
+version = "=29.0.0"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "cb32250d926bd7188f3a6f9075bd48c44550dcac"
+optional = true
 
 [dependencies.soroban-env-host-p28]
 version = "=28.0.0"
@@ -220,6 +220,7 @@ rev = "502a354eb9a31cf86098be84aa1b3081767fa3c7"
 # orchestrated by the build system. See note above and in docs/CONTRIBUTING.md.
 fastdev = ["dep:soroban-env-host-p27",
            "dep:soroban-env-host-p28",
+           "dep:soroban-env-host-p29",
            "dep:soroban-env-host-p30",
            "next"]
 
