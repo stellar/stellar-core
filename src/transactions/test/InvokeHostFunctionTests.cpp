@@ -749,11 +749,11 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
             INFO("mint to muxed contract fails (CAP-0084)");
             // Only `transfer` accepts a muxed destination; `mint` still takes
             // a plain Address.
-            REQUIRE(!client.mint(
-                root,
-                makeMuxedContractAddress(
-                    transferContract.getAddress().contractId(), 1),
-                500'000'000));
+            REQUIRE(
+                !client.mint(root,
+                             makeMuxedContractAddress(
+                                 transferContract.getAddress().contractId(), 1),
+                             500'000'000));
             REQUIRE(client.lastEvent() == std::nullopt);
         }
         if (!useNativeAsset)
