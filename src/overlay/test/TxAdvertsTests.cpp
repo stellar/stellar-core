@@ -24,7 +24,7 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
         flushed = true;
     });
 
-    auto limit = app->getLedgerManager().getLastMaxTxSetSizeOps();
+    auto limit = pullMode.getTxLimit();
     auto getHash = [](auto i) { return sha256(std::to_string(i)); };
 
     SECTION("incoming adverts")
