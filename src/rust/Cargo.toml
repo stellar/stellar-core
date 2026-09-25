@@ -117,9 +117,9 @@ tracy-client = { version = "=0.17.0", features = [
 
 [dependencies.soroban-env-host-p30]
 version = "=30.0.0"
-git = "https://github.com/sisuresh/rs-soroban-env"
+git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "211da5174683aeb3e39c11108a2de79fcd40284b"
+rev = "169890d50e27ef948bef66401147aba814d9b04e"
 optional = true
 
 [dependencies.soroban-env-host-p29]

@@ -1511,7 +1511,7 @@ dependencies = [
 [[package]]
 name = "soroban-builtin-sdk-macros"
 version = "30.0.0"
-source = "git+https://github.com/sisuresh/rs-soroban-env?rev=211da5174683aeb3e39c11108a2de79fcd40284b#211da5174683aeb3e39c11108a2de79fcd40284b"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=169890d50e27ef948bef66401147aba814d9b04e#169890d50e27ef948bef66401147aba814d9b04e"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
@@ -1667,7 +1667,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-common"
 version = "30.0.0"
-source = "git+https://github.com/sisuresh/rs-soroban-env?rev=211da5174683aeb3e39c11108a2de79fcd40284b#211da5174683aeb3e39c11108a2de79fcd40284b"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=169890d50e27ef948bef66401147aba814d9b04e#169890d50e27ef948bef66401147aba814d9b04e"
 dependencies = [
  "crate-git-revision 0.0.9",
  "ethnum",
@@ -1999,7 +1999,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-host"
 version = "30.0.0"
-source = "git+https://github.com/sisuresh/rs-soroban-env?rev=211da5174683aeb3e39c11108a2de79fcd40284b#211da5174683aeb3e39c11108a2de79fcd40284b"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=169890d50e27ef948bef66401147aba814d9b04e#169890d50e27ef948bef66401147aba814d9b04e"
 dependencies = [
  "ark-bls12-381 0.5.0",
  "ark-bn254 0.5.0",
@@ -2161,7 +2161,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-macros"
 version = "30.0.0"
-source = "git+https://github.com/sisuresh/rs-soroban-env?rev=211da5174683aeb3e39c11108a2de79fcd40284b#211da5174683aeb3e39c11108a2de79fcd40284b"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=169890d50e27ef948bef66401147aba814d9b04e#169890d50e27ef948bef66401147aba814d9b04e"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
