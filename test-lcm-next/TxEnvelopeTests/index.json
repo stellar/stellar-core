@@ -1,7 +1,9 @@
 {
-   "33b31b8901ef27e4" : "txset_-_correct_apply_order",
-   "8a618c6bf87583c8" : "soroban_transaction_validation-protocol_version_26-footprint_limit-read-only_key_over_size_limit",
-   "ab82fe7cbed50696" : "soroban_transaction_validation-protocol_version_28-footprint_limit-read-only_key_over_size_limit",
-   "c5e8f50805e3d276" : "soroban_transaction_validation-protocol_version_26-footprint_limit-read-write_key_over_size_limit",
-   "ed0dbfc79ec4422d" : "soroban_transaction_validation-protocol_version_28-footprint_limit-read-write_key_over_size_limit"
+   "!cfg protocol version" : 29,
+   "!rng seed" : 12345,
+   "!test all versions" : false,
+   "!versions to test" : [ 29 ],
+   "739d3fee74b62b57" : "soroban transaction validation|protocol version 29|footprint limit|read-write key over size limit",
+   "8c2395b250372f24" : "txset - correct apply order",
+   "ea7b067e87a9778c" : "soroban transaction validation|protocol version 29|footprint limit|read-only key over size limit"
 }
