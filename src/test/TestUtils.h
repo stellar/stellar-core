@@ -49,17 +49,23 @@ template <class BucketT> class BucketListDepthModifier
     ~BucketListDepthModifier();
 };
 
-inline BucketMetadata
+template <typename BucketT>
+BucketMetadata
 testBucketMetadata(uint32_t protocolVersion)
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
-    if (protocolVersionStartsFrom(
+    if (std::is_same_v<BucketT, HotArchiveBucket> ||
+        protocolVersionStartsFrom(
             protocolVersion,
             HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
         meta.ext.v(1);
-        meta.ext.bucketListType() = BucketListType::LIVE;
+        meta.ext.bucketListType() = std::is_same_v<BucketT, HotArchiveBucket>
+                                        ? BucketListType::HOT_ARCHIVE
+                                        : BucketListType::LIVE;
     }
 
     return meta;

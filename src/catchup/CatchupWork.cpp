@@ -27,6 +27,7 @@
 #include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include <limits>
 
 namespace stellar
 {
@@ -409,6 +410,19 @@ CatchupWork::runCatchupStep()
 
     auto resolvedConfiguration =
         mCatchupConfiguration.resolve(mHAS->currentLedger);
+    // Check the actual target, including an explicit catchup target. The
+    // half-open CheckpointRange needs room for the following checkpoint.
+    if (HistoryManager::checkpointContainingLedger(
+            resolvedConfiguration.toLedger(), mApp.getConfig()) ==
+        std::numeric_limits<uint32_t>::max())
+    {
+        CLOG_ERROR(History,
+                   "Catchup target {} is too large for checkpoint "
+                   "arithmetic",
+                   resolvedConfiguration.toLedger());
+        return State::WORK_FAILURE;
+    }
+
     auto catchupRange =
         CatchupRange{mLastClosedLedgerHashPair.first, resolvedConfiguration,
                      mApp.getHistoryManager()};

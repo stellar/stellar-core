@@ -39,16 +39,15 @@ BasicWork::State
 VerifyBucketWork<BucketT>::onRun()
 {
     ZoneScoped;
+    if (!mDone)
+    {
+        spawnVerifier();
+    }
     if (mDone)
     {
-        if (mEc)
-        {
-            return State::WORK_FAILURE;
-        }
-        return State::WORK_SUCCESS;
+        return mEc ? State::WORK_FAILURE : State::WORK_SUCCESS;
     }
 
-    spawnVerifier();
     return State::WORK_WAITING;
 }
 
