@@ -537,14 +537,20 @@ AS_IF([test "x$enable_thread_jitter" = "xyes"], [
 AM_CONDITIONAL(BUILD_THREAD_JITTER, [test x$enable_thread_jitter = xyes])
 
 AC_ARG_ENABLE(xdrpp-uptr,
-    AS_HELP_STRING([--enable-xdrpp-uptr],
-        [Generate xdrpp unions using the cxx20 -uptr pointer-backed layout]))
-AS_IF([test "x$enable_xdrpp_uptr" = "xyes"], [
-  XDR_FEATURE_FLAGS='-uptr'
-  AC_MSG_NOTICE([enabling xdrpp -uptr mode for generated XDR code])
-], [
-  XDR_FEATURE_FLAGS=
-])
+    AS_HELP_STRING([--enable-xdrpp-uptr@<:@=BYTES@:>@],
+        [Indirect all xdrpp union arms, or only arms larger than BYTES]),
+    [], [enable_xdrpp_uptr=no])
+AS_CASE([$enable_xdrpp_uptr],
+  [yes], [
+    XDR_FEATURE_FLAGS='-uptr'
+    AC_MSG_NOTICE([enabling xdrpp -uptr mode for generated XDR code])
+  ],
+  [no], [XDR_FEATURE_FLAGS=],
+  [*[!0-9]*], [AC_MSG_ERROR([--enable-xdrpp-uptr requires a byte count])],
+  [*], [
+    XDR_FEATURE_FLAGS="-uptr-threshold $enable_xdrpp_uptr"
+    AC_MSG_NOTICE([indirecting xdrpp union arms larger than $enable_xdrpp_uptr bytes])
+  ])
 AC_SUBST([XDR_FEATURE_FLAGS])
 
 AC_ARG_ENABLE(tracy,
