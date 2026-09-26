@@ -12,6 +12,12 @@
 #include <string>
 #include <vector>
 
+// POSIX-only includes for rlim_t used in the test helper declaration.
+// This header must be included before the computeSafeMaxHandles declaration.
+#ifndef _WIN32
+#include <sys/resource.h>
+#endif
+
 namespace stellar
 {
 namespace fs
@@ -119,6 +125,18 @@ int64_t getOpenHandleCount();
 // default). Returns true if file was removed or didn't exist, false if removal
 // failed.
 bool removeWithLog(std::string const& path, bool ignoreEnoent = true);
+
+// ----------------------------------------------------------------------
+// Exposed for testing only - computes safe 75% of an rlimit value.
+// This helper extracts the core logic from getMaxHandles() so that
+// boundary cases (RLIM_INFINITY, large values, small remainders) can
+// be tested directly without depending on the system's actual rlimit.
+// On Windows, this function is not defined (rlim_t is POSIX-only).
+// The required header <sys/resource.h> is included above.
+// ----------------------------------------------------------------------
+#ifndef _WIN32
+int64_t computeSafeMaxHandles(rlim_t limit);
+#endif
 
 }
 }
