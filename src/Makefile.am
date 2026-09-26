@@ -1,6 +1,6 @@
 ## Process this file with automake to produce Makefile.in
 
-AUTOMAKE_OPTIONS = serial-tests
+AUTOMAKE_OPTIONS = serial-tests foreign -Wno-portability
 bin_PROGRAMS = stellar-core
 
 include $(top_srcdir)/common.mk
@@ -113,13 +113,22 @@ TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-co
 
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) $(GENERATED_VERSION_SOURCES) $(TEST_FILES)
 
-$(SRC_X_FILES:.x=.h): $(XDRC)
-XDR_FEATURE_FLAGS =
+$(SRC_X_FILES:.x=.h): $(XDRC) Makefile
+XDR_FEATURE_FLAGS = @XDR_FEATURE_FLAGS@
 
 SUFFIXES = .x .h .rs
 .x.h:
-	mkdir -p $(@D)
-	$(XDRC) -hh -pedantic $(XDR_FEATURE_FLAGS) -o $@ $<
+	$(AM_V_GEN)set -e; mkdir -p $(@D); \
+	backup=$@.tmp; \
+	had_target=false; \
+	if test -f $@; then cp -p $@ $$backup; had_target=true; fi; \
+	if $(XDRC) -hh -pedantic $(XDR_FEATURE_FLAGS) -o $@ $<; then \
+		if $$had_target && cmp -s $$backup $@; then mv -f $$backup $@; else rm -f $$backup; fi; \
+	else \
+		status=$$?; \
+		if $$had_target; then mv -f $$backup $@; else rm -f $@; fi; \
+		exit $$status; \
+	fi
 
 BISON=bison
 FLEX=flex
