@@ -1,8 +1,8 @@
 {
-   "!cfg protocol version" : 28,
+   "!cfg protocol version" : 29,
    "!rng seed" : 12345,
    "!test all versions" : false,
-   "!versions to test" : [ 28 ],
+   "!versions to test" : [ 29 ],
    "012504b1914e5df1" : "source trustline frozen|ManageSellOffer selling trustline frozen",
    "0319c1bc71ffbb34" : "operation destination frozen|PaymentOp destination trustline frozen",
    "0755e03a9e1e7d7c" : "frozen ledger keys DEX path payments|A->B->C->A [path-strict-receive][leg=0][selling-frozen]",

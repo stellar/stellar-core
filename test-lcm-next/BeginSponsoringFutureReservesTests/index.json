@@ -1,13 +1,13 @@
 {
-   "!cfg protocol version" : 29,
+   "!cfg protocol version" : 30,
    "!rng seed" : 12345,
    "!test all versions" : false,
-   "!versions to test" : [ 29 ],
-   "28c2749d65248cad" : "sponsor future reserves|protocol version 29|sponsored account is sponsoring",
-   "6c8d287cb053c8f5" : "sponsor future reserves|protocol version 29|bad sponsorship",
-   "82c5d76a41699a20" : "sponsor future reserves|protocol version 29|already sponsored",
-   "c19775d267de5e49" : "sponsor future reserves|protocol version 29|sponsoring account is sponsored",
-   "c59c57a121ca0f8c" : "sponsor future reserves|protocol version 29|add sponsored entry before adding first sponsored signer",
-   "c84b15007fadc34a" : "sponsor future reserves|protocol version 29|success",
-   "fe5fdf037a523f63" : "sponsor future reserves|protocol version 29|sponsorships with precondition that uses v3 extension"
+   "!versions to test" : [ 30 ],
+   "1467a37ff2a1e960" : "sponsor future reserves|protocol version 30|add sponsored entry before adding first sponsored signer",
+   "16ca002da0d1fd67" : "sponsor future reserves|protocol version 30|already sponsored",
+   "1c7fb8566ea79e53" : "sponsor future reserves|protocol version 30|success",
+   "24cec2c5f1acf638" : "sponsor future reserves|protocol version 30|bad sponsorship",
+   "5a03a46b7b48bb06" : "sponsor future reserves|protocol version 30|sponsoring account is sponsored",
+   "6659d8dd4f89982c" : "sponsor future reserves|protocol version 30|sponsored account is sponsoring",
+   "b71da06f9ce2dec8" : "sponsor future reserves|protocol version 30|sponsorships with precondition that uses v3 extension"
 }
