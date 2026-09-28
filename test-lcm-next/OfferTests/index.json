@@ -1,8 +1,8 @@
 {
-   "!cfg protocol version" : 29,
+   "!cfg protocol version" : 30,
    "!rng seed" : 12345,
    "!test all versions" : false,
-   "!versions to test" : [ 29 ],
-   "0d735fa46c555204" : "liabilities match created offer|protocol version 29|maximum limits",
-   "a3aad2ce40a43f5a" : "liabilities match created offer|protocol version 29|minimum limits"
+   "!versions to test" : [ 30 ],
+   "9a363b756ac27b94" : "liabilities match created offer|protocol version 30|minimum limits",
+   "ac05f5b5102a5237" : "liabilities match created offer|protocol version 30|maximum limits"
 }

@@ -1,9 +1,9 @@
 {
-   "!cfg protocol version" : 29,
+   "!cfg protocol version" : 30,
    "!rng seed" : 12345,
    "!test all versions" : false,
-   "!versions to test" : [ 29 ],
-   "739d3fee74b62b57" : "soroban transaction validation|protocol version 29|footprint limit|read-write key over size limit",
+   "!versions to test" : [ 30 ],
+   "1238ceb2dd9e02c1" : "soroban transaction validation|protocol version 30|footprint limit|read-write key over size limit",
    "8c2395b250372f24" : "txset - correct apply order",
-   "ea7b067e87a9778c" : "soroban transaction validation|protocol version 29|footprint limit|read-only key over size limit"
+   "bd2eacd94f956f79" : "soroban transaction validation|protocol version 30|footprint limit|read-only key over size limit"
 }
