@@ -19,6 +19,9 @@ namespace txtest
 
 SCAddress makeContractAddress(Hash const& hash);
 SCAddress makeMuxedAccountAddress(AccountID const& accountID, uint64_t id);
+#ifdef CAP_0084_MUXED_CONTRACT
+SCAddress makeMuxedContractAddress(Hash const& contractId, uint64_t id);
+#endif
 SCVal makeI32(int32_t i32);
 SCVal makeI128(uint64_t u64);
 SCSymbol makeSymbol(std::string const& str);

@@ -250,6 +250,10 @@ checkXDRFileIdentity()
     // Verify that C++ and Rust have the same XDR feature flags enabled.
     std::vector<std::string> cppFeatures;
 
+#ifdef CAP_0084_MUXED_CONTRACT
+    cppFeatures.push_back("cap_0084_muxed_contract");
+#endif
+
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // If we're not building for the next protocol, no XDR feature flags
     // should be enabled. If any are, it's a build misconfiguration.
