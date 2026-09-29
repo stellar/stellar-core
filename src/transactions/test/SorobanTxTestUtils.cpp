@@ -66,6 +66,35 @@ makeMuxedAccountAddress(AccountID const& accountID, uint64_t id)
     return addr;
 }
 
+#ifdef CAP_0084_MUXED_CONTRACT
+SCAddress
+makeMuxedContractAddress(Hash const& contractId, uint64_t id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_MUXED_CONTRACT);
+    addr.muxedContract().contractId = contractId;
+    addr.muxedContract().id = id;
+    return addr;
+}
+#endif
+
+// CAP-0084: resolve a muxed contract address to its underlying contract id.
+// The SAC keys balances on the underlying contract, so every balance
+// key/value built from an SCAddress must de-mux first. Non-muxed-contract
+// addresses are returned unchanged.
+static SCAddress
+demuxContractAddress(SCAddress const& addr)
+{
+#ifdef CAP_0084_MUXED_CONTRACT
+    if (addr.type() == SC_ADDRESS_TYPE_MUXED_CONTRACT)
+    {
+        SCAddress c(SC_ADDRESS_TYPE_CONTRACT);
+        c.contractId() = addr.muxedContract().contractId;
+        return c;
+    }
+#endif
+    return addr;
+}
+
 SCVal
 makeI32(int32_t i32)
 {
@@ -1572,7 +1601,7 @@ LedgerKey
 AssetContractTestClient::makeContractDataBalanceKey(SCAddress const& addr)
 {
     SCVal val(SCV_ADDRESS);
-    val.address() = addr;
+    val.address() = demuxContractAddress(addr);
 
     LedgerKey balanceKey(CONTRACT_DATA);
     balanceKey.contractData().contract = mContract.getAddress();
@@ -1624,7 +1653,7 @@ int64_t
 AssetContractTestClient::getBalance(SCAddress const& addr)
 {
     SCVal val(SCV_ADDRESS);
-    val.address() = addr;
+    val.address() = demuxContractAddress(addr);
 
     return addr.type() == SC_ADDRESS_TYPE_ACCOUNT
                ? txtest::getBalance(mApp, addr.accountId(), mAsset)

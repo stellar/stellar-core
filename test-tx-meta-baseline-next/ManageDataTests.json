@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 29,
+	"!cfg protocol version" : 30,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -34,7 +34,8 @@
 		26,
 		27,
 		28,
-		29
+		29,
+		30
 	],
 	"manage data|protocol version 0" : 
 	[
@@ -1382,6 +1383,69 @@
 		"mAWbWdp6LBg=",
 		"mAWbWdp6LBg="
 	],
+	"manage data|protocol version 30" : 
+	[
+		"aOx4bIFUt0o=",
+		"oO/+1pwID2o=",
+		"BYjAjdO9QXo=",
+		"yT5lu4bhxIU=",
+		"6K0WkO3AMxI=",
+		"0y+eCGGtEU0=",
+		"5irlFRbPDfo=",
+		"BY4H3I/eGpE=",
+		"aOx4bIFUt0o=",
+		"oO/+1pwID2o=",
+		"BYjAjdO9QXo=",
+		"yT5lu4bhxIU=",
+		"6K0WkO3AMxI=",
+		"0y+eCGGtEU0=",
+		"5irlFRbPDfo=",
+		"BY4H3I/eGpE=",
+		"aOx4bIFUt0o=",
+		"oO/+1pwID2o=",
+		"BYjAjdO9QXo=",
+		"yT5lu4bhxIU=",
+		"6K0WkO3AMxI=",
+		"0y+eCGGtEU0=",
+		"5irlFRbPDfo=",
+		"BY4H3I/eGpE=",
+		"aOx4bIFUt0o=",
+		"oO/+1pwID2o=",
+		"BYjAjdO9QXo=",
+		"yT5lu4bhxIU=",
+		"6K0WkO3AMxI=",
+		"0y+eCGGtEU0=",
+		"5irlFRbPDfo=",
+		"BY4H3I/eGpE=",
+		"aOx4bIFUt0o=",
+		"oO/+1pwID2o=",
+		"BYjAjdO9QXo=",
+		"yT5lu4bhxIU=",
+		"6K0WkO3AMxI=",
+		"0y+eCGGtEU0=",
+		"5irlFRbPDfo=",
+		"BY4H3I/eGpE=",
+		"aOx4bIFUt0o=",
+		"oO/+1pwID2o=",
+		"BYjAjdO9QXo=",
+		"yT5lu4bhxIU=",
+		"6K0WkO3AMxI=",
+		"0y+eCGGtEU0=",
+		"5irlFRbPDfo=",
+		"BY4H3I/eGpE="
+	],
+	"manage data|protocol version 30|create data with native buying liabilities" : [ "+UuZn22VTR0=", "mXXwh1WHTiY=", "NZZl1uFhgvE=" ],
+	"manage data|protocol version 30|create data with native selling liabilities" : 
+	[
+		"+UuZn22VTR0=",
+		"X3XyNCCIBWc=",
+		"3KrfexL0wJ4=",
+		"lHEs/qReu4Y=",
+		"p0uwSHnLadw="
+	],
+	"manage data|protocol version 30|sponsorship" : [ "Nxc1wCMphbc=", "Q/Dc+hiCDls=", "Nxc1wCMphbc=", "Q/Dc+hiCDls=" ],
+	"manage data|protocol version 30|sponsorship|create, modify, and remove sponsored entry" : [ "pqClGK5j2ws=" ],
+	"manage data|protocol version 30|too many subentries" : [ "/MwafQLVTVY=", "VYl/z2T+lco=", "/MwafQLVTVY=", "VYl/z2T+lco=" ],
 	"manage data|protocol version 3|create data with native buying liabilities" : [ "qCwjFNJMBnw=", "SKX1KAqXh00=" ],
 	"manage data|protocol version 3|create data with native selling liabilities" : [ "qCwjFNJMBnw=", "53GEXRQ7pjE=" ],
 	"manage data|protocol version 3|sponsorship" : [ "WgWa5IeywWM=", "Ic4hzQF8UuA=", "WgWa5IeywWM=", "Ic4hzQF8UuA=" ],

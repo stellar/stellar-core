@@ -152,6 +152,42 @@ TEST_CASE("XDR field resolver", "[xdrquery]")
         REQUIRE(std::get<std::string>(*field) == "ACCOUNT");
     }
 
+    SECTION("muxed address field")
+    {
+        // Vectors from rs-stellar-xdr's strkey tests.
+        uint256 const key = hexToBin256(
+            "363eaa3867841fbad0f4ed88c779e4fe66e56a2470dc98c0ec9c073d05c7b103");
+        LedgerEntry e;
+        e.data.type(CONTRACT_DATA);
+        auto& val = e.data.contractData().val;
+        val.type(SCV_ADDRESS);
+        auto& addr = val.address();
+        std::vector<std::string> const path = {"data", "contractData", "val",
+                                               "address"};
+        SECTION("muxed account")
+        {
+            addr.type(SC_ADDRESS_TYPE_MUXED_ACCOUNT);
+            addr.muxedAccount().id = 123456;
+            addr.muxedAccount().ed25519 = key;
+            auto field = getXDRFieldValidated(e, path);
+            REQUIRE(std::get<std::string>(*field) ==
+                    "MA3D5KRYM6CB7OWQ6TWYRR3Z4T7GNZLKERYNZGGA5SOAOPIFY6YQGAAAAA"
+                    "AAAAPCICBKU");
+        }
+#ifdef CAP_0084_MUXED_CONTRACT
+        SECTION("muxed contract")
+        {
+            addr.type(SC_ADDRESS_TYPE_MUXED_CONTRACT);
+            addr.muxedContract().id = 123456;
+            addr.muxedContract().contractId = key;
+            auto field = getXDRFieldValidated(e, path);
+            REQUIRE(std::get<std::string>(*field) ==
+                    "WA3D5KRYM6CB7OWQ6TWYRR3Z4T7GNZLKERYNZGGA5SOAOPIFY6YQGAAAAA"
+                    "AAAAPCIA6IG");
+        }
+#endif
+    }
+
     SECTION("null field")
     {
         LedgerEntry e;

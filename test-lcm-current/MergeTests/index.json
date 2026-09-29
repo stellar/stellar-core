@@ -1,7 +1,7 @@
 {
-   "!cfg protocol version" : 28,
+   "!cfg protocol version" : 29,
    "!rng seed" : 12345,
    "!test all versions" : false,
-   "!versions to test" : [ 28 ],
-   "d3641e36a832ab57" : "merge event reconciler|protocol version 28"
+   "!versions to test" : [ 29 ],
+   "6e0af84a81c08165" : "merge event reconciler|protocol version 29"
 }
