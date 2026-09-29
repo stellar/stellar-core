@@ -7833,6 +7833,7 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // cache and the following line of code should be commented-out.
     //
     // p30 is a separate work-in-progress host with its own cache.
+    // moduleCacheProtocolCount -= 1;
 #endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()

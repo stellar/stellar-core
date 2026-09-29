@@ -16,11 +16,11 @@
 
 use crate::{
     rust_bridge::CxxBuf,
-    soroban_proto_all::{get_host_module_for_protocol, p27, protocol_agnostic},
+    soroban_proto_all::{get_host_module_for_protocol, protocol_agnostic},
 };
 
 #[cfg(not(feature = "fastdev"))]
-use crate::soroban_proto_all::{p23, p24, p25, p26};
+use crate::soroban_proto_all::{p23, p24, p25, p26, p27};
 
 use crate::soroban_proto_all::{p28, p29};
 
@@ -36,6 +36,7 @@ pub(crate) struct SorobanModuleCache {
     pub(crate) p25_cache: p25::soroban_proto_any::ProtocolSpecificModuleCache,
     #[cfg(not(feature = "fastdev"))]
     pub(crate) p26_cache: p26::soroban_proto_any::ProtocolSpecificModuleCache,
+    #[cfg(not(feature = "fastdev"))]
     pub(crate) p27_cache: p27::soroban_proto_any::ProtocolSpecificModuleCache,
     pub(crate) p28_cache: p28::soroban_proto_any::ProtocolSpecificModuleCache,
     pub(crate) p29_cache: p29::soroban_proto_any::ProtocolSpecificModuleCache,
@@ -54,6 +55,7 @@ impl SorobanModuleCache {
             p25_cache: p25::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             #[cfg(not(feature = "fastdev"))]
             p26_cache: p26::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
+            #[cfg(not(feature = "fastdev"))]
             p27_cache: p27::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             p28_cache: p28::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             p29_cache: p29::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
@@ -76,6 +78,7 @@ impl SorobanModuleCache {
             25 => self.p25_cache.compile(_wasm),
             #[cfg(not(feature = "fastdev"))]
             26 => self.p26_cache.compile(_wasm),
+            #[cfg(not(feature = "fastdev"))]
             27 => self.p27_cache.compile(_wasm),
             28 => self.p28_cache.compile(_wasm),
             29 => self.p29_cache.compile(_wasm),
@@ -95,6 +98,7 @@ impl SorobanModuleCache {
             p25_cache: self.p25_cache.shallow_clone()?,
             #[cfg(not(feature = "fastdev"))]
             p26_cache: self.p26_cache.shallow_clone()?,
+            #[cfg(not(feature = "fastdev"))]
             p27_cache: self.p27_cache.shallow_clone()?,
             p28_cache: self.p28_cache.shallow_clone()?,
             p29_cache: self.p29_cache.shallow_clone()?,
@@ -116,6 +120,7 @@ impl SorobanModuleCache {
         self.p25_cache.evict(&_hash)?;
         #[cfg(not(feature = "fastdev"))]
         self.p26_cache.evict(&_hash)?;
+        #[cfg(not(feature = "fastdev"))]
         self.p27_cache.evict(&_hash)?;
         self.p28_cache.evict(&_hash)?;
         self.p29_cache.evict(&_hash)?;
@@ -132,6 +137,7 @@ impl SorobanModuleCache {
         self.p25_cache.clear()?;
         #[cfg(not(feature = "fastdev"))]
         self.p26_cache.clear()?;
+        #[cfg(not(feature = "fastdev"))]
         self.p27_cache.clear()?;
         self.p28_cache.clear()?;
         self.p29_cache.clear()?;
@@ -159,6 +165,7 @@ impl SorobanModuleCache {
             25 => self.p25_cache.contains_module(&_hash),
             #[cfg(not(feature = "fastdev"))]
             26 => self.p26_cache.contains_module(&_hash),
+            #[cfg(not(feature = "fastdev"))]
             27 => self.p27_cache.contains_module(&_hash),
             28 => self.p28_cache.contains_module(&_hash),
             29 => self.p29_cache.contains_module(&_hash),
@@ -182,6 +189,7 @@ impl SorobanModuleCache {
             25 => bytes = bytes.max(self.p25_cache.get_wasm_bytes_input()?),
             #[cfg(not(feature = "fastdev"))]
             26 => bytes = bytes.max(self.p26_cache.get_wasm_bytes_input()?),
+            #[cfg(not(feature = "fastdev"))]
             27 => bytes = bytes.max(self.p27_cache.get_wasm_bytes_input()?),
             28 => bytes = bytes.max(self.p28_cache.get_wasm_bytes_input()?),
             29 => bytes = bytes.max(self.p29_cache.get_wasm_bytes_input()?),

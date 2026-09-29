@@ -702,6 +702,7 @@ pub(crate) mod p28 {
     }
 }
 
+#[cfg(not(feature = "fastdev"))]
 #[path = "."]
 pub(crate) mod p27 {
     pub(crate) extern crate soroban_env_host_p27;
@@ -2213,6 +2214,7 @@ const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p25),
     #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p26),
+    #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p27),
     proto_versioned_functions_for_module!(p28),
     proto_versioned_functions_for_module!(p29),

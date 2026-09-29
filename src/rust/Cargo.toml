@@ -218,8 +218,7 @@ rev = "3a02306036a15cfbc0e4c865d1f70ad06bad9faa"
 
 # Turn on the optional fastdev build. This is typically only useful in an IDE or when
 # orchestrated by the build system. See note above and in docs/CONTRIBUTING.md.
-fastdev = ["dep:soroban-env-host-p27",
-           "dep:soroban-env-host-p28",
+fastdev = ["dep:soroban-env-host-p28",
            "dep:soroban-env-host-p29",
            "dep:soroban-env-host-p30",
            "next"]
