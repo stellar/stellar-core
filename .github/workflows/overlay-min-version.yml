@@ -1,0 +1,74 @@
+name: Overlay min version
+
+# Once pubnet has upgraded to a new ledger protocol, opens a PR raising
+# OVERLAY_PROTOCOL_MIN_VERSION to the overlay version of the code that
+# introduced that protocol (see scripts/check-overlay-min-version.sh).
+
+on:
+  schedule:
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  bump-overlay-min-version:
+    if: github.repository == 'stellar/stellar-core'
+    runs-on: ubuntu-24.04
+    env:
+      BRANCH: bot/bump-overlay-min-version
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get pubnet ledger protocol version
+      id: pubnet
+      run: |
+        PROTOCOL=$(curl -sSf --retry 3 https://horizon.stellar.org/ | jq -er .current_protocol_version)
+        echo "Pubnet is on protocol $PROTOCOL"
+        echo "protocol=$PROTOCOL" >> "$GITHUB_OUTPUT"
+
+    - name: Raise OVERLAY_PROTOCOL_MIN_VERSION if possible
+      run: ./scripts/check-overlay-min-version.sh --apply '${{ steps.pubnet.outputs.protocol }}'
+
+    - name: Open or update PR
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PROTOCOL: ${{ steps.pubnet.outputs.protocol }}
+        BASE: ${{ github.ref_name }}
+      run: |
+        if git diff --quiet
+        then
+          echo "OVERLAY_PROTOCOL_MIN_VERSION is up to date"
+          exit 0
+        fi
+        MIN=$(sed -n 's/^[[:space:]]*OVERLAY_PROTOCOL_MIN_VERSION[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' src/main/Config.cpp)
+
+        # Leave an existing PR alone if it already makes the same change.
+        if git fetch --depth=1 origin "$BRANCH" 2>/dev/null &&
+           git diff --quiet FETCH_HEAD -- src/main/Config.cpp
+        then
+          echo "$BRANCH already raises OVERLAY_PROTOCOL_MIN_VERSION to $MIN"
+          exit 0
+        fi
+
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git checkout -B "$BRANCH"
+        git commit -qam "Bump OVERLAY_PROTOCOL_MIN_VERSION to $MIN" \
+          -m "Pubnet is on protocol $PROTOCOL, so nodes with an overlay version below $MIN can no longer follow it."
+        git push -f origin "$BRANCH"
+
+        if [ -z "$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[].number')" ]
+        then
+          gh pr create --base "$BASE" --head "$BRANCH" \
+            --title "Bump OVERLAY_PROTOCOL_MIN_VERSION to $MIN" \
+            --body "Pubnet is on protocol $PROTOCOL, so nodes with an overlay version below $MIN can no longer follow it. Opened by the \`${{ github.workflow }}\` workflow."
+        fi
