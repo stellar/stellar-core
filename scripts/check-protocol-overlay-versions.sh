@@ -22,7 +22,7 @@
 
 set -e
 
-SRCDIR=$(realpath $(dirname $0)/..)
+SRCDIR=$(realpath "$(dirname "$0")/..")
 CONFIG_CPP=src/main/Config.cpp
 
 if [ $# -lt 1 ] || [ $# -gt 2 ]
@@ -102,6 +102,12 @@ HEAD_OVERLAY=$(extract "$HEAD_REV" OVERLAY_PROTOCOL_VERSION "$OVERLAY_EXPR")
 
 echo "CURRENT_LEDGER_PROTOCOL_VERSION: $BASE_LEDGER -> $HEAD_LEDGER"
 echo "OVERLAY_PROTOCOL_VERSION:        $BASE_OVERLAY -> $HEAD_OVERLAY"
+
+if [ "$HEAD_OVERLAY" -lt "$BASE_OVERLAY" ]
+then
+    echo "error: OVERLAY_PROTOCOL_VERSION was lowered from $BASE_OVERLAY to $HEAD_OVERLAY" >&2
+    exit 1
+fi
 
 if [ "$HEAD_LEDGER" -gt "$BASE_LEDGER" ]
 then
