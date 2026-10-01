@@ -97,11 +97,6 @@ fn compare_xdr_files_sha256(
         return Err(format!("XDR files count mismatch between {} and {}", crate1, crate2).into());
     }
     for (file1, sha1) in files1 {
-        // Contract specs are not used by core or the host, so (as in
-        // hash-xdrs.sh) they don't need to match.
-        if file1.ends_with("Stellar-contract-spec.x") {
-            continue;
-        }
         if let Some((_, sha2)) = files2.iter().find(|(f, _)| f == file1) {
             if sha1 != sha2 {
                 return Err(

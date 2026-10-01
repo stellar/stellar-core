@@ -1628,7 +1628,7 @@ dependencies = [
  "soroban-env-macros 27.0.0",
  "soroban-wasmi 0.31.1-soroban.20.0.1 (git+https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0)",
  "static_assertions",
- "stellar-xdr 27.0.0",
+ "stellar-xdr 27.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmparser",
 ]
 
@@ -2126,7 +2126,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "stellar-xdr 27.0.0",
+ "stellar-xdr 27.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 2.0.39",
 ]
 
@@ -2192,7 +2192,7 @@ dependencies = [
  "arbitrary",
  "soroban-env-common 27.0.0",
  "soroban-env-macros 27.0.0",
- "stellar-xdr 27.0.0",
+ "stellar-xdr 27.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-encoder",
  "wasmparser",
 ]
@@ -2288,14 +2288,14 @@ dependencies = [
 [[package]]
 name = "stellar-quorum-analyzer"
 version = "0.1.0"
-source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=3a02306036a15cfbc0e4c865d1f70ad06bad9faa#3a02306036a15cfbc0e4c865d1f70ad06bad9faa"
+source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=502a354eb9a31cf86098be84aa1b3081767fa3c7#502a354eb9a31cf86098be84aa1b3081767fa3c7"
 dependencies = [
  "batsat",
  "itertools 0.10.5",
  "log",
  "petgraph",
  "stellar-strkey 0.0.13",
- "stellar-xdr 28.0.0 (git+https://github.com/stellar/rs-stellar-xdr?rev=a9c9750e4a24473323f550b5184742975d6419f4)",
+ "stellar-xdr 27.0.0 (git+https://github.com/stellar/rs-stellar-xdr?rev=3305b3e31f19fdb4e64e4b7a4354bb120cdf4415)",
 ]
 
 [[package]]
@@ -2439,6 +2439,19 @@ dependencies = [
  "arbitrary",
  "base64 0.22.1",
  "crate-git-revision 0.0.6",
+ "escape-bytes",
+ "ethnum",
+ "hex",
+ "sha2",
+ "stellar-strkey 0.0.13",
+]
+
+[[package]]
+name = "stellar-xdr"
+version = "27.0.0"
+source = "git+https://github.com/stellar/rs-stellar-xdr?rev=3305b3e31f19fdb4e64e4b7a4354bb120cdf4415#3305b3e31f19fdb4e64e4b7a4354bb120cdf4415"
+dependencies = [
+ "crate-git-revision 0.0.9",
  "escape-bytes",
  "ethnum",
  "hex",
