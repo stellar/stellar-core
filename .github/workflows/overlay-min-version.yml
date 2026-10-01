@@ -31,12 +31,14 @@ jobs:
     - name: Get pubnet ledger protocol version
       id: pubnet
       run: |
-        PROTOCOL=$(curl -sSf --retry 3 https://horizon.stellar.org/ | jq -er .current_protocol_version)
+        PROTOCOL=$(curl -sSf --retry 3 https://horizon.stellar.org/ | jq -er '.current_protocol_version | numbers')
         echo "Pubnet is on protocol $PROTOCOL"
         echo "protocol=$PROTOCOL" >> "$GITHUB_OUTPUT"
 
     - name: Raise OVERLAY_PROTOCOL_MIN_VERSION if possible
-      run: ./scripts/check-overlay-min-version.sh --apply '${{ steps.pubnet.outputs.protocol }}'
+      env:
+        PROTOCOL: ${{ steps.pubnet.outputs.protocol }}
+      run: ./scripts/check-overlay-min-version.sh --apply "$PROTOCOL"
 
     - name: Open or update PR
       env:
@@ -51,8 +53,10 @@ jobs:
         fi
         MIN=$(sed -n 's/^[[:space:]]*OVERLAY_PROTOCOL_MIN_VERSION[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' src/main/Config.cpp)
 
-        # Leave an existing PR alone if it already makes the same change.
-        if git fetch --depth=1 origin "$BRANCH" 2>/dev/null &&
+        # Leave an open PR alone if it already makes the same change.
+        OPEN_PR=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[].number')
+        if [ -n "$OPEN_PR" ] &&
+           git fetch --depth=1 origin "$BRANCH" 2>/dev/null &&
            git diff --quiet FETCH_HEAD -- src/main/Config.cpp
         then
           echo "$BRANCH already raises OVERLAY_PROTOCOL_MIN_VERSION to $MIN"
@@ -66,7 +70,7 @@ jobs:
           -m "Pubnet is on protocol $PROTOCOL, so nodes with an overlay version below $MIN can no longer follow it."
         git push -f origin "$BRANCH"
 
-        if [ -z "$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[].number')" ]
+        if [ -z "$OPEN_PR" ]
         then
           gh pr create --base "$BASE" --head "$BRANCH" \
             --title "Bump OVERLAY_PROTOCOL_MIN_VERSION to $MIN" \

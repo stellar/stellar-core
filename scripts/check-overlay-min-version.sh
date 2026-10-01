@@ -92,7 +92,8 @@ ledger_bump_commit()
     FOUND=
     for C in $(git log --format=%H -G 'CURRENT_LEDGER_PROTOCOL_VERSION[[:space:]]*=' HEAD -- "$CONFIG_CPP")
     do
-        if [ "$(extract "$C" CURRENT_LEDGER_PROTOCOL_VERSION "$LEDGER_EXPR")" -lt "$NETWORK_LEDGER" ]
+        LEDGER=$(extract "$C" CURRENT_LEDGER_PROTOCOL_VERSION "$LEDGER_EXPR")
+        if [ "$LEDGER" -lt "$NETWORK_LEDGER" ]
         then
             break
         fi
@@ -143,7 +144,8 @@ if [ -n "$APPLY" ]
 then
     sed "s/^\([[:space:]]*OVERLAY_PROTOCOL_MIN_VERSION[[:space:]]*=[[:space:]]*\)$CODE_MIN;/\1$TARGET_MIN;/" "$CONFIG_CPP" > "$CONFIG_CPP.tmp"
     mv "$CONFIG_CPP.tmp" "$CONFIG_CPP"
-    if [ "$(extract "" OVERLAY_PROTOCOL_MIN_VERSION "$MIN_EXPR")" != "$TARGET_MIN" ]
+    NEW_MIN=$(extract "" OVERLAY_PROTOCOL_MIN_VERSION "$MIN_EXPR")
+    if [ "$NEW_MIN" != "$TARGET_MIN" ]
     then
         echo "error: failed to update OVERLAY_PROTOCOL_MIN_VERSION in $CONFIG_CPP" >&2
         exit 2
