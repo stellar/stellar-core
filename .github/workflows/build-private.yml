@@ -52,10 +52,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     - name: Check protocol bump is accompanied by an overlay version bump
       run: |
         BASE_SHA='${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
-        git fetch --depth=1 origin "$BASE_SHA"
         ./scripts/check-protocol-overlay-versions.sh "$BASE_SHA"
 
   build:
