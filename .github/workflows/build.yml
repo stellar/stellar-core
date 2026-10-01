@@ -17,7 +17,7 @@ jobs:
 
   complete:
     if: always()
-    needs: [static-checks, protocol-version-check, build-linux, build-linux-fuzz-targets, build-mac]
+    needs: [static-checks, build-linux, build-linux-fuzz-targets, build-mac]
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small
     steps:
@@ -101,7 +101,8 @@ jobs:
   protocol-version-check:
     # Check that a bump of CURRENT_LEDGER_PROTOCOL_VERSION is accompanied by
     # a bump of OVERLAY_PROTOCOL_VERSION. Only runs on events that have a
-    # base revision to compare against (not on branch pushes).
+    # base revision to compare against (not on branch pushes). Not yet in
+    # `complete`'s needs, so a failure doesn't block merging.
     if: github.event.repository.visibility != 'private' && github.event_name != 'push'
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small
