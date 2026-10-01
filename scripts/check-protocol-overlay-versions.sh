@@ -76,7 +76,8 @@ ledger_bump_commit()
     FOUND=
     for C in $(git log --format=%H -G 'CURRENT_LEDGER_PROTOCOL_VERSION[[:space:]]*=' "$BASE_REV" -- "$CONFIG_CPP")
     do
-        if [ "$(extract "$C" CURRENT_LEDGER_PROTOCOL_VERSION "$LEDGER_EXPR")" != "$BASE_LEDGER" ]
+        LEDGER=$(extract "$C" CURRENT_LEDGER_PROTOCOL_VERSION "$LEDGER_EXPR")
+        if [ "$LEDGER" != "$BASE_LEDGER" ]
         then
             break
         fi
