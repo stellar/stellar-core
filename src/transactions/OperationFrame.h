@@ -49,6 +49,8 @@ class OperationFrame
                            DiagnosticEventManager& diagnosticEvents) const;
     virtual bool doCheckValid(uint32_t ledgerVersion,
                               OperationResult& res) const = 0;
+    virtual bool doCheckValidForOverlay(uint32_t ledgerVersion,
+                                        OperationResult& res) const;
     virtual bool
     doApplyForSoroban(AppConnector& app, AbstractLedgerTxn& ltx,
                       SorobanNetworkConfig const& sorobanConfig,
@@ -110,6 +112,9 @@ class OperationFrame
                     CheckValidLedgerViewWrapper const& ledgerView,
                     bool forApply, OperationResult& res,
                     DiagnosticEventManager& diagnosticEvents) const;
+
+    bool checkValidForOverlay(uint32_t ledgerVersion,
+                              OperationResult& res) const;
 
     bool apply(AppConnector& app, SignatureChecker& signatureChecker,
                AbstractLedgerTxn& ltx,

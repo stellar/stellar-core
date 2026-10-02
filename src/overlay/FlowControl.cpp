@@ -111,11 +111,7 @@ FlowControl::processSentMessages(
 
         for (auto const& item : sentMsgs)
         {
-            if (queue.empty() || item != queue.front().mMessage)
-            {
-                // queue got cleaned up from the front, skip this queue
-                continue;
-            }
+            releaseAssert(!queue.empty() && item == queue.front().mMessage);
 
             auto& front = queue.front();
             switch (front.mMessage->type())
@@ -483,13 +479,19 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
         bool isOverLimit = queue.size() > limit ||
                            mTxQueueByteCount > getOutboundQueueByteLimit(guard);
 
-        // If we are at limit, we're probably really behind, so drop the entire
-        // queue
+        // If we are at limit, we're probably really behind, so drop everything
+        // that hasn't be sent yet.
         if (isOverLimit)
         {
-            dropped = queue.size();
-            mTxQueueByteCount = 0;
-            queue.clear();
+            while (!queue.empty() && !queue.back().mBeingSent)
+            {
+                size_t s = mFlowControlBytesCapacity.getMsgResourceCount(
+                    *queue.back().mMessage);
+                releaseAssert(mTxQueueByteCount >= s);
+                mTxQueueByteCount -= s;
+                queue.pop_back();
+                ++dropped;
+            }
             om.mOutboundQueueDropTxs.Mark(dropped);
         }
     }
@@ -545,9 +547,14 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     {
         if (mAdvertQueueTxHashCount > limit)
         {
-            dropped = mAdvertQueueTxHashCount;
-            mAdvertQueueTxHashCount = 0;
-            queue.clear();
+            while (!queue.empty() && !queue.back().mBeingSent)
+            {
+                size_t s = queue.back().mMessage->floodAdvert().txHashes.size();
+                releaseAssert(mAdvertQueueTxHashCount >= s);
+                mAdvertQueueTxHashCount -= s;
+                queue.pop_back();
+                dropped += s;
+            }
             om.mOutboundQueueDropAdvert.Mark(dropped);
         }
     }
@@ -555,9 +562,14 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     {
         if (mDemandQueueTxHashCount > limit)
         {
-            dropped = mDemandQueueTxHashCount;
-            mDemandQueueTxHashCount = 0;
-            queue.clear();
+            while (!queue.empty() && !queue.back().mBeingSent)
+            {
+                size_t s = queue.back().mMessage->floodDemand().txHashes.size();
+                releaseAssert(mDemandQueueTxHashCount >= s);
+                mDemandQueueTxHashCount -= s;
+                queue.pop_back();
+                dropped += s;
+            }
             om.mOutboundQueueDropDemand.Mark(dropped);
         }
     }

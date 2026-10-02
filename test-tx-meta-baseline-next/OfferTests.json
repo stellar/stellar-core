@@ -101960,5 +101960,761 @@
 	"liabilities match created offer|protocol version 6" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
 	"liabilities match created offer|protocol version 7" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
 	"liabilities match created offer|protocol version 8" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
-	"liabilities match created offer|protocol version 9" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ]
+	"liabilities match created offer|protocol version 9" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
+	"offer crossing with minimal receive cap|protocol version 10" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 10|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 10|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 10|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"sHcKW4VLUWc="
+	],
+	"offer crossing with minimal receive cap|protocol version 11" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 11|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 11|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 11|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"sHcKW4VLUWc="
+	],
+	"offer crossing with minimal receive cap|protocol version 12" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 12|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 12|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 12|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"sHcKW4VLUWc="
+	],
+	"offer crossing with minimal receive cap|protocol version 13" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 13|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 13|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 13|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"sHcKW4VLUWc="
+	],
+	"offer crossing with minimal receive cap|protocol version 14" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 14|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 14|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 14|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 15" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 15|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 15|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 15|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 16" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 16|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 16|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 16|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 17" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 17|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 17|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 17|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 18" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 18|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 18|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 18|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 19" : 
+	[
+		"t/0I5GhDssU=",
+		"y0CrJTaN4xM=",
+		"EOhD3ClVDIA=",
+		"t/0I5GhDssU=",
+		"y0CrJTaN4xM=",
+		"EOhD3ClVDIA=",
+		"t/0I5GhDssU=",
+		"y0CrJTaN4xM=",
+		"EOhD3ClVDIA="
+	],
+	"offer crossing with minimal receive cap|protocol version 19|maker offer is adjusted with rounding error" : [ "0kkSvm0VrVU=", "63dEBQjTWc8=", "rbPNlMlk8V0=", "rWNzlwXgxOk=" ],
+	"offer crossing with minimal receive cap|protocol version 19|maker offer is fully taken" : 
+	[
+		"0kkSvm0VrVU=",
+		"C082KYE9D0g=",
+		"rbPNlMlk8V0=",
+		"9RiBti54Qdw=",
+		"Fbt/TCKDUQA=",
+		"FXSl68kl9/o=",
+		"fTwJki2Lw1o=",
+		"BB++28eq+a0=",
+		"Vn9uZG/PTeY="
+	],
+	"offer crossing with minimal receive cap|protocol version 19|taker offer is fully taken" : 
+	[
+		"0kkSvm0VrVU=",
+		"C082KYE9D0g=",
+		"+JqyD9a7rmQ=",
+		"7RO+UBCOtFI=",
+		"k/yIMF7/Cjo=",
+		"Z9kPeeKYNVo=",
+		"tSJnowo2krY=",
+		"+KG+nF3uu3I="
+	],
+	"offer crossing with minimal receive cap|protocol version 20" : 
+	[
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI="
+	],
+	"offer crossing with minimal receive cap|protocol version 20|maker offer is adjusted with rounding error" : [ "/ozdYfrGF50=", "6uwtkQ9KhIs=", "ppn/MSk+RtA=", "VFpqpwzv9TA=" ],
+	"offer crossing with minimal receive cap|protocol version 20|maker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"ppn/MSk+RtA=",
+		"qTNnP0OlW60=",
+		"jcRnjyDd22w=",
+		"XgN4hg/DmBk=",
+		"USaALs/9HIc=",
+		"X3oN2ZaVASk=",
+		"rWdAfqOtUtI="
+	],
+	"offer crossing with minimal receive cap|protocol version 20|taker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"nm79nDjAtsE=",
+		"ysyNCoCfBEQ=",
+		"cvv/9Wtcu/w=",
+		"gbJl/IZ3IsI=",
+		"rBVksDP0EXg=",
+		"c6tR8Jshlqw="
+	],
+	"offer crossing with minimal receive cap|protocol version 21" : 
+	[
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI="
+	],
+	"offer crossing with minimal receive cap|protocol version 21|maker offer is adjusted with rounding error" : [ "/ozdYfrGF50=", "6uwtkQ9KhIs=", "ppn/MSk+RtA=", "VFpqpwzv9TA=" ],
+	"offer crossing with minimal receive cap|protocol version 21|maker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"ppn/MSk+RtA=",
+		"qTNnP0OlW60=",
+		"jcRnjyDd22w=",
+		"XgN4hg/DmBk=",
+		"USaALs/9HIc=",
+		"X3oN2ZaVASk=",
+		"rWdAfqOtUtI="
+	],
+	"offer crossing with minimal receive cap|protocol version 21|taker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"nm79nDjAtsE=",
+		"ysyNCoCfBEQ=",
+		"cvv/9Wtcu/w=",
+		"gbJl/IZ3IsI=",
+		"rBVksDP0EXg=",
+		"c6tR8Jshlqw="
+	],
+	"offer crossing with minimal receive cap|protocol version 22" : 
+	[
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI="
+	],
+	"offer crossing with minimal receive cap|protocol version 22|maker offer is adjusted with rounding error" : [ "/ozdYfrGF50=", "6uwtkQ9KhIs=", "ppn/MSk+RtA=", "VFpqpwzv9TA=" ],
+	"offer crossing with minimal receive cap|protocol version 22|maker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"ppn/MSk+RtA=",
+		"qTNnP0OlW60=",
+		"jcRnjyDd22w=",
+		"XgN4hg/DmBk=",
+		"USaALs/9HIc=",
+		"X3oN2ZaVASk=",
+		"rWdAfqOtUtI="
+	],
+	"offer crossing with minimal receive cap|protocol version 22|taker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"nm79nDjAtsE=",
+		"ysyNCoCfBEQ=",
+		"cvv/9Wtcu/w=",
+		"gbJl/IZ3IsI=",
+		"rBVksDP0EXg=",
+		"c6tR8Jshlqw="
+	],
+	"offer crossing with minimal receive cap|protocol version 23" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 23|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 23|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 23|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 24" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 24|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 24|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 24|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 25" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 25|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 25|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 25|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 26" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 26|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 26|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 26|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 27" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 27|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 27|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 27|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 28" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 28|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 28|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 28|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 29" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 29|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "xs/iaAEzUx8=" ],
+	"offer crossing with minimal receive cap|protocol version 29|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"C2HJqCUw/kA="
+	],
+	"offer crossing with minimal receive cap|protocol version 29|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"y2nAP+T797A="
+	],
+	"offer crossing with minimal receive cap|protocol version 30" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 30|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "xs/iaAEzUx8=" ],
+	"offer crossing with minimal receive cap|protocol version 30|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"C2HJqCUw/kA="
+	],
+	"offer crossing with minimal receive cap|protocol version 30|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"y2nAP+T797A="
+	]
 }

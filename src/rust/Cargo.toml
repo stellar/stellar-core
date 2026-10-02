@@ -119,14 +119,14 @@ tracy-client = { version = "=0.17.0", features = [
 version = "=30.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "169890d50e27ef948bef66401147aba814d9b04e"
+rev = "fddfd567a6cb6ea801fac8bd807daa8f35bfd094"
 optional = true
 
 [dependencies.soroban-env-host-p29]
 version = "=29.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "cb32250d926bd7188f3a6f9075bd48c44550dcac"
+rev = "a721944b5a4ea830a4bf5c2dbb8dbe8c1e1354c5"
 optional = true
 
 [dependencies.soroban-env-host-p28]
@@ -212,7 +212,7 @@ optional = true
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
 git = "https://github.com/stellar/stellar-quorum-analyzer"
-rev = "3a02306036a15cfbc0e4c865d1f70ad06bad9faa"
+rev = "502a354eb9a31cf86098be84aa1b3081767fa3c7"
 
 [features]
 

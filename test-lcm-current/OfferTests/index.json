@@ -4,5 +4,8 @@
    "!test all versions" : false,
    "!versions to test" : [ 29 ],
    "0d735fa46c555204" : "liabilities match created offer|protocol version 29|maximum limits",
+   "268f868c61753146" : "offer crossing with minimal receive cap|protocol version 29|maker offer is adjusted with rounding error",
+   "59bcd23112d15533" : "offer crossing with minimal receive cap|protocol version 29|taker offer is fully taken",
+   "8e173d0ca982a88e" : "offer crossing with minimal receive cap|protocol version 29|maker offer is fully taken",
    "a3aad2ce40a43f5a" : "liabilities match created offer|protocol version 29|minimum limits"
 }

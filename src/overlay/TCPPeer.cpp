@@ -5,6 +5,7 @@
 #include "overlay/TCPPeer.h"
 #include "crypto/CryptoError.h"
 #include "database/Database.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
@@ -670,6 +671,30 @@ TCPPeer::startRead()
 }
 
 size_t
+TCPPeer::getMaxMessageSize() const
+{
+    uint32_t protocolVersion;
+    if (threadIsMain())
+    {
+        protocolVersion = mAppConnector.getLedgerManager()
+                              .getLastClosedLedgerHeader()
+                              .header.ledgerVersion;
+    }
+    else
+    {
+        releaseAssert(
+            mAppConnector.threadIsType(Application::ThreadType::OVERLAY));
+        auto& overlayView = mAppConnector.getOverlayThreadSnapshot();
+        mAppConnector.maybeUpdateImmutableLedgerView(overlayView);
+        protocolVersion = overlayView.getLedgerHeader().current().ledgerVersion;
+    }
+    return protocolVersionIsBefore(protocolVersion,
+                                   LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION)
+               ? PRE_P29_MAX_MESSAGE_SIZE
+               : POST_P29_MAX_MESSAGE_SIZE;
+}
+
+size_t
 TCPPeer::getIncomingMsgLength()
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
@@ -690,7 +715,7 @@ TCPPeer::getIncomingMsgLength()
     if (length <= 0 ||
         (!ignoreLimits &&
          ((!isAuthenticated(guard) && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
-          length > MAX_MESSAGE_SIZE)))
+          length > getMaxMessageSize())))
     {
         mOverlayMetrics.mErrorRead.Mark();
         CLOG_ERROR(Overlay, "{} TCP: message size unacceptable: {}{}",

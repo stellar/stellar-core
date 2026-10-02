@@ -170,6 +170,11 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
         throw std::runtime_error("Invalid peer");
     }
     mCapacityLocked = self->beginMessageProcessing(mMsg);
+    if (!mCapacityLocked)
+    {
+        // This peer is being dropped. No need to process this message further.
+        return;
+    }
     if (mMsg.type() == SCP_MESSAGE || mMsg.type() == TRANSACTION)
     {
         mMaybeHash = xdrBlake2(msg);
@@ -994,6 +999,21 @@ Peer::shouldAbortForTesting() const
 }
 
 void
+Peer::sendAuthenticatedMessageForTesting(
+    std::shared_ptr<StellarMessage const> msg)
+{
+    releaseAssert(mFlowControl);
+    if (OverlayManager::isFloodMessage(*msg))
+    {
+        // Flood messages are tracked by FlowControl's outbound queue, and
+        // processSentMessages expects to find them there once the write
+        // completes
+        mFlowControl->addToQueueAndMaybeTrimForTesting(msg);
+    }
+    sendAuthenticatedMessage(std::move(msg));
+}
+
+void
 Peer::populateSignatureCacheForTesting(AppConnector& app,
                                        TransactionFrameBaseConstPtr tx)
 {
@@ -1056,6 +1076,16 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
     // appropriately. Flow control might not be started at that time
     auto msgTracker = std::make_shared<CapacityTrackedMessage>(
         shared_from_this(), msg.v0().message);
+
+    if (!msgTracker->isCapacityLocked())
+    {
+        // Flow control rejected this message and the peer is being dropped.
+        // It is safe to destruct `msgTracker` on the background thread here as
+        // the destructor does not touch `Peer` state when flow control does not
+        // lock any capacity.
+        releaseAssert(shouldAbort(guard));
+        return false;
+    }
 
     std::string cat;
     Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;

@@ -2121,7 +2121,10 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
 
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
-                                      ProtocolVersion::V_23)
+                                      ProtocolVersion::V_29)
+                ? 981'242
+            : protocolVersionStartsFrom(test.getLedgerVersion(),
+                                        ProtocolVersion::V_23)
                 ? 981'248
                 : 981'527;
         int64_t initialFee = tx->getEnvelope().v1().tx.fee;
@@ -2184,7 +2187,10 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
 
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
-                                      ProtocolVersion::V_23)
+                                      ProtocolVersion::V_29)
+                ? 981'242
+            : protocolVersionStartsFrom(test.getLedgerVersion(),
+                                        ProtocolVersion::V_23)
                 ? 981'248
                 : 981'527;
 
@@ -2267,8 +2273,11 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
     });
 
     int64_t const expectedRentFee =
-        protocolVersionIsBefore(getLclProtocolVersion(test.getApp()),
-                                ProtocolVersion::V_26)
+        protocolVersionStartsFrom(getLclProtocolVersion(test.getApp()),
+                                  ProtocolVersion::V_29)
+            ? 8'705'575'721LL
+        : protocolVersionIsBefore(getLclProtocolVersion(test.getApp()),
+                                  ProtocolVersion::V_26)
             ? 8'395'575'720LL
             : 8'395'575'721LL;
     int64_t const uploadEventsSize = 40;
@@ -3234,21 +3243,29 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             // denominators instead of large write fees in order to get more
             // sensible numbers, but keeping it as is for now in order to
             // ensure that protocols before 23 are not broken.
-            int const rentBumpForWasm =
-                protocolVersionStartsFrom(test.getLedgerVersion(),
-                                          ProtocolVersion::V_23)
-                    ? 8'793
-                    : 943;
-            int const rentBumpForInstance =
-                protocolVersionStartsFrom(test.getLedgerVersion(),
-                                          ProtocolVersion::V_23)
-                    ? 199
-                    : 939;
-            int const rentBumpForInstanceAndWasm =
-                protocolVersionStartsFrom(test.getLedgerVersion(),
-                                          ProtocolVersion::V_23)
-                    ? 8'991
-                    : 1881;
+            int rentBumpForWasm = 0;
+            int rentBumpForInstance = 0;
+            int rentBumpForInstanceAndWasm = 0;
+            if (protocolVersionStartsFrom(test.getLedgerVersion(),
+                                          ProtocolVersion::V_29))
+            {
+                rentBumpForWasm = 9'139;
+                rentBumpForInstance = 199;
+                rentBumpForInstanceAndWasm = 9'337;
+            }
+            else if (protocolVersionStartsFrom(test.getLedgerVersion(),
+                                               ProtocolVersion::V_23))
+            {
+                rentBumpForWasm = 8'793;
+                rentBumpForInstance = 199;
+                rentBumpForInstanceAndWasm = 8'991;
+            }
+            else
+            {
+                rentBumpForWasm = 943;
+                rentBumpForInstance = 939;
+                rentBumpForInstanceAndWasm = 1881;
+            }
 
             SECTION("restore contract instance and wasm")
             {
@@ -5374,7 +5391,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
         makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
     // We need to restore instance, wasm, and data entry
-    auto const refundableRestoreCost = 60'711;
+    auto const refundableRestoreCost = 60'720;
     auto keysToRestore = client.getContract().getKeys();
     keysToRestore.push_back(lk);
     REQUIRE(client.get("key", ContractDataDurability::PERSISTENT,
@@ -5481,7 +5498,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
             auto const expectedSize = 80;
 
             // Restore wasm and instance so we just restore data later
-            test.invokeRestoreOp(contractKeys, 40'546);
+            test.invokeRestoreOp(contractKeys, 40'555);
 
             SECTION("insufficient read bytes")
             {
@@ -8299,7 +8316,7 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
     SECTION("scenario A: restore in one ledger, invoke in next")
     {
         // Restore contract in ledger N+1
-        test.invokeRestoreOp(contractKeys, 40'493);
+        test.invokeRestoreOp(contractKeys, 40'499);
 
         // Invoke in ledger N+2
         // Because we have a gap between restore and invoke, the module
