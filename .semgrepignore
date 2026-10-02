@@ -131,4 +131,6 @@ src/rust/soroban/p25/
 src/rust/soroban/p26/
 src/rust/soroban/p27/
 src/rust/soroban/p28/
+src/rust/soroban/p29/
+src/rust/soroban/p30/
 lib/gperftools/
