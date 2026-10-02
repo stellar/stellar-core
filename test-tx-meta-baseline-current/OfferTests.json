@@ -97186,7 +97186,7 @@
 	"liabilities match created offer|protocol version 7" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
 	"liabilities match created offer|protocol version 8" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
 	"liabilities match created offer|protocol version 9" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
-    "offer crossing with minimal receive cap|protocol version 10" : 
+	"offer crossing with minimal receive cap|protocol version 10" : 
 	[
 		"ToVuigP5v5E=",
 		"Q7bY6elsOt0=",
@@ -97869,5 +97869,41 @@
 		"zx0JpnaaGrI=",
 		"nDnCYr/ak/Q=",
 		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 29" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 29|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "xs/iaAEzUx8=" ],
+	"offer crossing with minimal receive cap|protocol version 29|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"C2HJqCUw/kA="
+	],
+	"offer crossing with minimal receive cap|protocol version 29|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"y2nAP+T797A="
 	]
 }
