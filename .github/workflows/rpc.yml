@@ -11,10 +11,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rpc:
+  # Test against core's next protocol (docker/Dockerfile.testing enables it) so
+  # a protocol bump doesn't require updating this file. Expect failures until
+  # the protocol-next branches support it.
+  protocol:
     if: github.event.repository.visibility != 'private'
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: src/util/ProtocolVersion.h
+          sparse-checkout-cone-mode: false
+      - id: version
+        run: |
+          version=$(sed -nE 's/.*MAX_SUPPORTED_PROTOCOL_VERSION[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' src/util/ProtocolVersion.h)
+          test -n "$version"
+          echo "version=$((version + 1))" >> "$GITHUB_OUTPUT"
+
+  rpc:
+    needs: protocol
     uses: stellar/stellar-rpc/.github/workflows/integration-tests.yml@efd9eb95f1ed8a7d69d28f12e89762c3ecb64bcc
     with:
       rpc_git_ref: protocol-next
       core_git_ref: ${{ github.sha }}
-      protocol_version: '27'
+      protocol_version: ${{ needs.protocol.outputs.version }}
