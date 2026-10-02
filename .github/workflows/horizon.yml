@@ -11,11 +11,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  horizon:
+  # Test against core's next protocol (the integration tests build core with
+  # --enable-next-protocol-version-unsafe-for-production), so a protocol bump
+  # doesn't require updating this file.
+  protocol:
     if: github.event.repository.visibility != 'private'
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: src/main/Config.cpp
+          sparse-checkout-cone-mode: false
+      - id: version
+        run: |
+          current=$(sed -nE 's/.*Config::CURRENT_LEDGER_PROTOCOL_VERSION = ([0-9]+).*/\1/p' src/main/Config.cpp)
+          test -n "$current"
+          echo "version=$((current + 1))" >> "$GITHUB_OUTPUT"
+
+  horizon:
+    needs: protocol
     uses: stellar/stellar-horizon/.github/workflows/integration-tests.yml@c9e78ebefea9721fcb0b386fc898e4c0e76cee33
     with:
       horizon_git_ref: protocol-next
       core_git_ref: ${{ github.sha }}
-      protocol_version: '28'
+      protocol_version: ${{ needs.protocol.outputs.version }}
       stellar_rpc_docker_img: 'stellar/stellar-rpc:29.0.0'
