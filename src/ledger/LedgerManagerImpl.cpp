@@ -342,9 +342,8 @@ LedgerManagerImpl::ApplyState::isCompilationRunning() const
 
 void
 LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+    LedgerKeyRefs deadEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig)
 {
     releaseAssert(mPhase == Phase::SETTING_UP_STATE ||
@@ -958,7 +957,7 @@ LedgerManagerImpl::getSorobanInMemoryStateSizeForTesting()
 }
 #endif
 
-SorobanMetrics&
+SorobanMetricsRegistry&
 LedgerManagerImpl::getSorobanMetrics()
 {
     return mApplyState.getMetrics().mSorobanMetrics;
@@ -1031,8 +1030,10 @@ LedgerManagerImpl::ApplyState::finishPendingCompilation()
     releaseAssert(mPhase == Phase::SETTING_UP_STATE);
     releaseAssert(mCompiler);
     auto newCache = mCompiler->wait();
-    getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.set_count(
+    getMetrics().mSorobanMetrics.mModuleCacheRebuildWasmBytes.set_count(
         (int64)mCompiler->getBytesCompiled());
+    getMetrics().mSorobanMetrics.mModuleCacheRebuildHeapBytes.set_count(
+        mCompiler->getBytesAllocatedDuringCompilation());
     getMetrics().mSorobanMetrics.mModuleCacheNumEntries.set_count(
         (int64)mCompiler->getContractsCompiled());
     getMetrics().mSorobanMetrics.mModuleCacheRebuildTime.Update(
@@ -1178,7 +1179,7 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     // contract-set in the live BL as an event that warrants a rebuild.
 
     int64_t lastCompiledWasmBytesCount =
-        getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.count();
+        getMetrics().mSorobanMetrics.mModuleCacheRebuildWasmBytes.count();
     uint64_t lastCompiledWasmBytes =
         lastCompiledWasmBytesCount < 0
             ? 0
@@ -1198,7 +1199,8 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
 }
 
 void
-LedgerManagerImpl::publishSorobanMetrics()
+LedgerManagerImpl::publishSorobanMetrics(
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     if (!hasLastClosedSorobanNetworkConfig())
     {
@@ -1235,8 +1237,13 @@ LedgerManagerImpl::publishSorobanMetrics()
         conf.sorobanStateTargetSizeBytes());
     m.mConfigFeeWrite1KB.set_count(conf.feeRent1KB());
 
-    // then publish the actual ledger usage
-    m.publishAndResetLedgerWideMetrics();
+    // then publish the actual ledger usage, merged into a single instance
+    auto& totalSorobanMetrics = sorobanApplyMetricsPerThread[0];
+    for (size_t i = 1; i < sorobanApplyMetricsPerThread.size(); ++i)
+    {
+        totalSorobanMetrics.merge(std::move(sorobanApplyMetricsPerThread[i]));
+    }
+    m.recordApplyMetrics(totalSorobanMetrics);
 }
 
 // called by txherder
@@ -1575,7 +1582,8 @@ void
 LedgerManagerImpl::completeLedgerClose(
     uint32_t ledgerSeq, bool calledViaExternalize,
     LedgerCloseData const& ledgerData,
-    ImmutableLedgerDataPtr appliedLedgerState, bool upgradeApplied)
+    ImmutableLedgerDataPtr appliedLedgerState, bool upgradeApplied,
+    std::vector<SorobanApplyMetrics>&& sorobanApplyMetricsPerThread)
 {
 #ifdef BUILD_TESTS
     if (mCompleteLedgerCloseOverride)
@@ -1598,7 +1606,7 @@ LedgerManagerImpl::completeLedgerClose(
 
     // We can publish Soroban metrics at any point after advancing the LCL
     // state.
-    publishSorobanMetrics();
+    publishSorobanMetrics(sorobanApplyMetricsPerThread);
 
     // Maybe kick off publishing on complete checkpoint files
     auto& hm = mApp.getHistoryManager();
@@ -1813,6 +1821,15 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 #endif
 
     TransactionResultSet txResultSet;
+    // Soroban apply metrics are collected by different worker threads, so
+    // in order to avoid synchronization we give every thread its own metrics
+    // container. At least one thread (the apply thread) is going to exist, so
+    // this starts at 1, and is extended on-demand before spawning more workers.
+    // The metrics set in each thread's slot should be considered to be
+    // arbitrary by the consumers - the metrics must commute, and in the end
+    // we merge all the metric containers together without worrying about their
+    // order or origin.
+    std::vector<SorobanApplyMetrics> sorobanApplyMetricsPerThread(1);
 #ifdef BUILD_TESTS
     if (mApp.getRunInOverlayOnlyMode())
     {
@@ -1854,8 +1871,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         // to use
         auto const mutableTxResults = processFeesSeqNums(
             *applicableTxSet, ltx, ledgerCloseMeta, ledgerData);
-        txResultSet = applyTransactions(*applicableTxSet, mutableTxResults, ltx,
-                                        ledgerCloseMeta);
+        txResultSet =
+            applyTransactions(*applicableTxSet, mutableTxResults, ltx,
+                              ledgerCloseMeta, sorobanApplyMetricsPerThread);
     }
 
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
@@ -2081,15 +2099,19 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     if (threadIsMain())
     {
         completeLedgerClose(ledgerSeq, calledViaExternalize, ledgerData,
-                            std::move(appliedLedgerState), upgradeApplied);
+                            std::move(appliedLedgerState), upgradeApplied,
+                            std::move(sorobanApplyMetricsPerThread));
     }
     else
     {
         auto cb = [this, ledgerSeq, calledViaExternalize, ledgerData,
                    appliedLedgerState = std::move(appliedLedgerState),
-                   upgradeApplied]() mutable {
+                   upgradeApplied,
+                   sorobanApplyMetricsPerThread =
+                       std::move(sorobanApplyMetricsPerThread)]() mutable {
             completeLedgerClose(ledgerSeq, calledViaExternalize, ledgerData,
-                                std::move(appliedLedgerState), upgradeApplied);
+                                std::move(appliedLedgerState), upgradeApplied,
+                                std::move(sorobanApplyMetricsPerThread));
         };
         mApp.postOnMainThread(std::move(cb), "completeLedgerClose");
     }
@@ -2604,26 +2626,18 @@ LedgerManagerImpl::applyThread(
     AppConnector& app,
     std::unique_ptr<ThreadParallelApplyLedgerState> threadState,
     Cluster const& cluster, Config const& config, ParallelLedgerInfo ledgerInfo,
-    Hash sorobanBasePrngSeed)
+    Hash sorobanBasePrngSeed, SorobanApplyMetrics& sorobanMetrics)
 {
     for (auto const& txBundle : cluster)
     {
-        // Apply timer; samples go into the thread's metrics batch and are
-        // published at ledger close.
-        std::optional<BatchedTimerScope> txTime;
-        if (!mApp.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
-        {
-            txTime.emplace(getSorobanMetrics(),
-                           &SorobanMetrics::ApplyMetricsBatch::mTxApplyNsecs);
-        }
-
+        auto applyStart = std::chrono::steady_clock::now();
         Hash txSubSeed = subSha256(sorobanBasePrngSeed, txBundle.getTxNum());
 
         threadState->flushRoTTLBumpsInTxWriteFootprint(txBundle);
 
         auto res = txBundle.getTx()->parallelApply(
             app, *threadState, config, ledgerInfo, txBundle.getResPayload(),
-            getSorobanMetrics(), txSubSeed, txBundle.getEffects());
+            sorobanMetrics, txSubSeed, txBundle.getEffects());
 
         if (res)
         {
@@ -2633,6 +2647,10 @@ LedgerManagerImpl::applyThread(
         {
             releaseAssert(!txBundle.getResPayload().isSuccess());
         }
+        sorobanMetrics.mTxApplyNsecs.push_back(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - applyStart)
+                .count());
     }
 
     threadState->flushRemainingRoTTLBumps();
@@ -2652,11 +2670,18 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     AppConnector& app, ApplyStage const& stage,
     GlobalParallelApplyLedgerState const& globalState,
     Hash const& sorobanBasePrngSeed, Config const& config,
-    ParallelLedgerInfo const& ledgerInfo)
+    ParallelLedgerInfo const& ledgerInfo,
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     ZoneScoped;
 
     DeactivateScopeGuard globalStateDeactivateGuard(globalState);
+    // Stages may contain a different number of clusters, so we ensure that
+    // there is a corresponding metrics entry for each cluster.
+    if (sorobanApplyMetricsPerThread.size() < stage.numClusters())
+    {
+        sorobanApplyMetricsPerThread.resize(stage.numClusters());
+    }
 
     std::vector<
         std::function<std::unique_ptr<ThreadParallelApplyLedgerState>()>>
@@ -2665,13 +2690,16 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         tasks.emplace_back([this, &app, &globalState, &stage, i, &config,
-                            &ledgerInfo, &sorobanBasePrngSeed]() {
+                            &ledgerInfo, &sorobanBasePrngSeed,
+                            &sorobanApplyMetricsPerThread]() {
             auto const& cluster = stage.getCluster(i);
             auto threadStatePtr =
                 std::make_unique<ThreadParallelApplyLedgerState>(
                     app, globalState, cluster, i);
+            // Give every thread its own metrics entry to write to.
             return applyThread(app, std::move(threadStatePtr), cluster, config,
-                               ledgerInfo, sorobanBasePrngSeed);
+                               ledgerInfo, sorobanBasePrngSeed,
+                               sorobanApplyMetricsPerThread[i]);
         });
     }
 
@@ -2728,14 +2756,16 @@ void
 LedgerManagerImpl::applySorobanStage(
     AppConnector& app, LedgerHeader const& header,
     GlobalParallelApplyLedgerState& globalParState, ApplyStage const& stage,
-    Hash const& sorobanBasePrngSeed)
+    Hash const& sorobanBasePrngSeed,
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     ZoneScoped;
     auto const& config = app.getConfig();
     auto ledgerInfo = getParallelLedgerInfo(app, header);
 
     auto threadStates = applySorobanStageClustersInParallel(
-        app, stage, globalParState, sorobanBasePrngSeed, config, ledgerInfo);
+        app, stage, globalParState, sorobanBasePrngSeed, config, ledgerInfo,
+        sorobanApplyMetricsPerThread);
 
     if (config.invariantsEnabled())
     {
@@ -2751,27 +2781,50 @@ LedgerManagerImpl::applySorobanStage(
     }
 
     globalParState.commitChangesFromThreads(app, threadStates, stage);
+
+    // Thread states are rather large and can take up to a few ms to be
+    // deallocated. Defer the deallocation to the background worker in order to
+    // not block the apply thread unnecessarily.
+    auto deferredThreadStates = std::make_shared<
+        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>>(
+        std::move(threadStates));
+    app.postOnBackgroundThread(
+        [deferredThreadStates]() { deferredThreadStates->clear(); },
+        "destroy parallel apply thread states");
 }
 
 void
-LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
-                                      std::vector<ApplyStage> const& stages,
-                                      SorobanNetworkConfig const& sorobanConfig,
-                                      Hash const& sorobanBasePrngSeed)
+LedgerManagerImpl::applySorobanStages(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::vector<ApplyStage> const& stages,
+    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     ZoneScoped;
-    GlobalParallelApplyLedgerState globalParState(
+    auto globalParStatePtr = std::make_unique<GlobalParallelApplyLedgerState>(
         app, mApplyState.copyApplyLedgerView(), ltx, stages,
-        mApplyState.getInMemorySorobanState(), sorobanConfig);
+        mApplyState.getInMemorySorobanState(), sorobanConfig,
+        sorobanApplyMetricsPerThread);
+    auto& globalParState = *globalParStatePtr;
     // LedgerTxn is not passed into applySorobanStage, so there's no risk
     // of the header being updated while we apply the stages.
     auto const& header = ltx.loadHeader().current();
     for (auto const& stage : stages)
     {
         applySorobanStage(app, header, globalParState, stage,
-                          sorobanBasePrngSeed);
+                          sorobanBasePrngSeed, sorobanApplyMetricsPerThread);
     }
     globalParState.commitChangesToLedgerTxn(ltx);
+
+    // Global state is rather large and can take up to a few ms to be
+    // deallocated. Defer the deallocation to the background worker in order to
+    // not block the apply thread unnecessarily.
+    auto deferredGlobalState =
+        std::make_shared<std::unique_ptr<GlobalParallelApplyLedgerState>>(
+            std::move(globalParStatePtr));
+    app.postOnBackgroundThread(
+        [deferredGlobalState]() { deferredGlobalState->reset(); },
+        "destroy parallel apply global state");
 }
 
 void
@@ -2837,7 +2890,8 @@ LedgerManagerImpl::applyTransactions(
     ApplicableTxSetFrame const& txSet,
     std::vector<MutableTxResultPtr> const& mutableTxResults,
     AbstractLedgerTxn& ltx,
-    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
     size_t numTxs = txSet.sizeTxTotal();
@@ -2896,7 +2950,8 @@ LedgerManagerImpl::applyTransactions(
                 releaseAssert(sorobanConfig.has_value());
                 applyParallelPhase(phase, applyStages, mutableTxResults, index,
                                    ltx, enableTxMeta, *sorobanConfig,
-                                   sorobanBasePrngSeed);
+                                   sorobanBasePrngSeed,
+                                   sorobanApplyMetricsPerThread);
             }
             catch (std::exception const& e)
             {
@@ -2914,7 +2969,7 @@ LedgerManagerImpl::applyTransactions(
             applySequentialPhase(phase, mutableTxResults, index, ltx,
                                  enableTxMeta, sorobanConfig,
                                  sorobanBasePrngSeed, ledgerCloseMeta,
-                                 txResultSet);
+                                 txResultSet, sorobanApplyMetricsPerThread[0]);
         }
     }
 
@@ -2942,7 +2997,8 @@ LedgerManagerImpl::applyParallelPhase(
     TxSetPhaseFrame const& phase, std::vector<stellar::ApplyStage>& applyStages,
     std::vector<stellar::MutableTxResultPtr> const& mutableTxResults,
     uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta,
-    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed)
+    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
+    std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     ZoneScoped;
 
@@ -2991,7 +3047,7 @@ LedgerManagerImpl::applyParallelPhase(
     }
 
     applySorobanStages(mApp.getAppConnector(), ltx, applyStages, sorobanConfig,
-                       sorobanBasePrngSeed);
+                       sorobanBasePrngSeed, sorobanApplyMetricsPerThread);
 
     // meta will be processed in processPostTxSetApply
 }
@@ -3004,7 +3060,7 @@ LedgerManagerImpl::applySequentialPhase(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     Hash const& sorobanBasePrngSeed,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    TransactionResultSet& txResultSet)
+    TransactionResultSet& txResultSet, SorobanApplyMetrics& sorobanMetrics)
 {
     for (auto const& tx : phase)
     {
@@ -3040,7 +3096,7 @@ LedgerManagerImpl::applySequentialPhase(
         }
 
         tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult,
-                  sorobanConfig, subSeed);
+                  sorobanConfig, subSeed, sorobanMetrics);
         tx->processPostApply(mApp.getAppConnector(), ltx, tm, mutableTxResult);
 
         tm.maybeSetRefundableFeeMeta(mutableTxResult.getRefundableFeeTracker());
@@ -3177,8 +3233,6 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
 {
     ZoneScoped;
     // `ledgerApplied` protects this call with a mutex
-    std::vector<LedgerEntry> initEntries, liveEntries;
-    std::vector<LedgerKey> deadEntries;
 
     EvictedStateVectors evictedState;
     std::vector<LedgerKey> restoredHotArchiveKeys;
@@ -3288,8 +3342,16 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         finalSorobanConfig =
             std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
     }
-    // NB: getAllEntries seals the ltx.
-    ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+
+    // NB: these are borrowed from `ltx`, which stays for the remainder of this
+    // call. Make sure to not store these references anywhere out of scope of
+    // this function (e.g. via async tasks that are not joined before
+    // returning from this function).
+    // sealAndBorrowAllEntries seals the ltx, so the borrowed references are
+    // guaranteed to be immutable.
+    LedgerEntryRefVec initEntries, liveEntries;
+    LedgerKeyRefVec deadEntries;
+    ltx.sealAndBorrowAllEntries(initEntries, liveEntries, deadEntries);
 
     // Launch async task to update in-memory Soroban state. This is independent
     // from both addHotArchiveBatch and addLiveBatch, so all can run in
@@ -3413,11 +3475,11 @@ LedgerManagerImpl::ApplyState::evictFromModuleCache(
 
 void
 LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
-    uint32_t ledgerVersion, std::vector<LedgerEntry> const& le)
+    uint32_t ledgerVersion, LedgerEntryRefs le)
 {
     ZoneScoped;
     assertWritablePhase();
-    for (auto const& e : le)
+    for (LedgerEntry const& e : le)
     {
         if (e.data.type() == CONTRACT_CODE)
         {

@@ -173,7 +173,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             REQUIRE(!doesAccountExist(*app, b1));
             // a1 gets recreated with a sequence number based on the current
             // ledger
-            REQUIRE(a1.loadSequenceNumber() == 0x500000000ull);
+            REQUIRE(a1.getLastSequenceNumber() == 0x500000000ull);
         });
     }
 
@@ -181,8 +181,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
     {
         auto a1Balance = a1.getBalance();
         auto b1Balance = b1.getBalance();
-        auto a1SeqNum = a1.loadSequenceNumber();
-        auto b1SeqNum = b1.loadSequenceNumber();
+        auto a1SeqNum = a1.getLastSequenceNumber();
+        auto b1SeqNum = b1.getLastSequenceNumber();
         auto createBalance = app->getLedgerManager().getLastMinBalance(1);
 
         for_versions_to(4, *app, [&] {
@@ -200,8 +200,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             REQUIRE(doesAccountExist(*app, b1));
             REQUIRE(a1.getBalance() == a1Balance - tx->getInclusionFee());
             REQUIRE(b1.getBalance() == b1Balance);
-            REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
-            REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
+            REQUIRE(a1.getLastSequenceNumber() == a1SeqNum + 1);
+            REQUIRE(b1.getLastSequenceNumber() == b1SeqNum);
         });
 
         for_versions(5, 7, *app, [&] {
@@ -219,8 +219,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             REQUIRE(doesAccountExist(*app, b1));
             REQUIRE(a1.getBalance() == a1Balance - tx->getInclusionFee());
             REQUIRE(b1.getBalance() == b1Balance);
-            REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
-            REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
+            REQUIRE(a1.getLastSequenceNumber() == a1SeqNum + 1);
+            REQUIRE(b1.getLastSequenceNumber() == b1SeqNum);
         });
 
         for_versions_from(8, *app, [&] {
@@ -238,8 +238,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             REQUIRE(doesAccountExist(*app, b1));
             REQUIRE(a1.getBalance() == a1Balance - tx->getInclusionFee());
             REQUIRE(b1.getBalance() == b1Balance);
-            REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
-            REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
+            REQUIRE(a1.getLastSequenceNumber() == a1SeqNum + 1);
+            REQUIRE(b1.getLastSequenceNumber() == b1SeqNum);
         });
     }
 
@@ -248,8 +248,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
         auto c1 = getAccount("c1");
         auto a1Balance = a1.getBalance();
         auto b1Balance = b1.getBalance();
-        auto a1SeqNum = a1.loadSequenceNumber();
-        auto b1SeqNum = b1.loadSequenceNumber();
+        auto a1SeqNum = a1.getLastSequenceNumber();
+        auto b1SeqNum = b1.getLastSequenceNumber();
         auto createBalance = app->getLedgerManager().getLastMinBalance(1);
 
         for_versions_to(7, *app, [&] {
@@ -257,16 +257,17 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                              createAccount(c1.getPublicKey(), createBalance),
                              accountMerge(b1)});
 
-            auto applyResult = expectedResult(txfee * 3, 3, txINTERNAL_ERROR);
-            validateTxResults(tx, *app, {txfee * 3, txSUCCESS}, applyResult);
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txINTERNAL_ERROR);
+            REQUIRE(r.results.at(0).result.feeCharged == txfee * 3);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(doesAccountExist(*app, b1));
             REQUIRE(!doesAccountExist(*app, c1.getPublicKey()));
             REQUIRE(a1.getBalance() == a1Balance - tx->getInclusionFee());
             REQUIRE(b1.getBalance() == b1Balance);
-            REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
-            REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
+            REQUIRE(a1.getLastSequenceNumber() == a1SeqNum + 1);
+            REQUIRE(b1.getLastSequenceNumber() == b1SeqNum);
         });
 
         for_versions_from(8, *app, [&] {
@@ -286,8 +287,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             REQUIRE(!doesAccountExist(*app, c1.getPublicKey()));
             REQUIRE(a1.getBalance() == a1Balance - tx->getInclusionFee());
             REQUIRE(b1.getBalance() == b1Balance);
-            REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
-            REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
+            REQUIRE(a1.getLastSequenceNumber() == a1SeqNum + 1);
+            REQUIRE(b1.getLastSequenceNumber() == b1SeqNum);
         });
     }
 
@@ -385,9 +386,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                        accountMerge(c.getPublicKey()),
                        createAccount(d.getPublicKey(), createBalance)});
 
-            auto applyResult = expectedResult(txfee * 3, 3, txINTERNAL_ERROR);
-            validateTxResults(txFrame, *app, {txfee * 3, txSUCCESS},
-                              applyResult);
+            auto r = closeLedger(*app, {txFrame});
+            checkTx(0, r, txINTERNAL_ERROR);
+            REQUIRE(r.results.at(0).result.feeCharged == txfee * 3);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(!doesAccountExist(*app, c.getPublicKey()));
@@ -502,7 +503,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
         SECTION("success, invalidates dependent tx")
         {
             for_all_versions(*app, [&] {
-                auto tx1 = a1.tx({accountMerge(b1)});
+                auto tx1 = b1.tx({a1.op(accountMerge(b1))});
+                tx1->addSignature(a1.getSecretKey());
                 auto tx2 = a1.tx({payment(*root, 100)});
                 auto a1Balance = a1.getBalance();
                 auto b1Balance = b1.getBalance();
@@ -560,8 +562,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
         auto mergeFrom = root->create(
             "merge-from", app->getLedgerManager().getLastMinBalance(0) + txfee);
         for_versions_to(8, *app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
-                              ex_txINSUFFICIENT_BALANCE);
+            auto tx = mergeFrom.tx({accountMerge(*root)});
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txINSUFFICIENT_BALANCE);
         });
         for_versions_from(9, *app,
                           [&] { REQUIRE_NOTHROW(mergeFrom.merge(*root)); });
@@ -573,8 +576,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + txfee + 1);
         for_versions_to(8, *app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
-                              ex_txINSUFFICIENT_BALANCE);
+            auto tx = mergeFrom.tx({accountMerge(*root)});
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txINSUFFICIENT_BALANCE);
         });
         for_versions_from(9, *app,
                           [&] { REQUIRE_NOTHROW(mergeFrom.merge(*root)); });
@@ -586,8 +590,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + 2 * txfee - 1);
         for_versions_to(8, *app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
-                              ex_txINSUFFICIENT_BALANCE);
+            auto tx = mergeFrom.tx({accountMerge(*root)});
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txINSUFFICIENT_BALANCE);
         });
         for_versions_from(9, *app,
                           [&] { REQUIRE_NOTHROW(mergeFrom.merge(*root)); });
@@ -621,14 +626,14 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             SECTION("at max = success")
             {
                 a1.bumpSequence(maxSeqNum);
-                REQUIRE(a1.loadSequenceNumber() == maxSeqNum);
+                REQUIRE(a1.getLastSequenceNumber() == maxSeqNum);
                 REQUIRE(applyCheck(txFrame, *app));
             }
             SECTION("passed max = failure")
             {
                 maxSeqNum++;
                 a1.bumpSequence(maxSeqNum);
-                REQUIRE(a1.loadSequenceNumber() == maxSeqNum);
+                REQUIRE(a1.getLastSequenceNumber() == maxSeqNum);
 
                 REQUIRE(!applyCheck(txFrame, *app));
                 REQUIRE(txFrame->getResult()
@@ -801,7 +806,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     if (protocolVersionIsBefore(ledgerVersion,
                                                 ProtocolVersion::V_16))
                     {
-                        REQUIRE_THROWS(a1.merge(sponsoringAcc));
+                        auto tx = a1.tx({accountMerge(sponsoringAcc)});
+                        auto r = closeLedger(*app, {tx});
+                        checkTx(0, r, txINTERNAL_ERROR);
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2,
                                          1, 0);
@@ -847,7 +854,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                                                 ProtocolVersion::V_16) &&
                         dest == sponsoringAcc.getPublicKey())
                     {
-                        REQUIRE_THROWS(acc1.merge(dest));
+                        auto tx = acc1.tx({accountMerge(dest)});
+                        auto r = closeLedger(*app, {tx});
+                        checkTx(0, r, txINTERNAL_ERROR);
 
                         LedgerTxn ltx(app->getLedgerTxnRoot());
 

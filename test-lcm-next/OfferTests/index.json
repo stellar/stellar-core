@@ -1,6 +1,8 @@
 {
-   "1f16368433da1628" : "liabilities_match_created_offer-protocol_version_28-minimum_limits",
-   "457999c2534447ae" : "liabilities_match_created_offer-protocol_version_28-maximum_limits",
-   "f7a7364752aecebb" : "liabilities_match_created_offer-protocol_version_26-minimum_limits",
-   "fd69a358c98c0b3e" : "liabilities_match_created_offer-protocol_version_26-maximum_limits"
+   "!cfg protocol version" : 30,
+   "!rng seed" : 12345,
+   "!test all versions" : false,
+   "!versions to test" : [ 30 ],
+   "9a363b756ac27b94" : "liabilities match created offer|protocol version 30|minimum limits",
+   "ac05f5b5102a5237" : "liabilities match created offer|protocol version 30|maximum limits"
 }

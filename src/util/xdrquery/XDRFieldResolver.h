@@ -83,6 +83,21 @@ struct XDRFieldResolver
         }
     }
 
+    // Muxed strkeys (SEP-23) encode the 32-byte key followed by the
+    // big-endian id, unpadded (toStrKey pads the 43-byte payload).
+    static std::string
+    muxedStrKey(uint8_t version, ByteSlice const& key, uint64_t id)
+    {
+        std::vector<uint8_t> payload(key.begin(), key.end());
+        for (int shift = 56; shift >= 0; shift -= 8)
+        {
+            payload.push_back(static_cast<uint8_t>(id >> shift));
+        }
+        auto s = stellar::strKey::toStrKey(version, payload).value;
+        s.erase(s.find_last_not_of('=') + 1);
+        return s;
+    }
+
     // Retrieve SCAddresses in standard string representation.
     template <typename T>
     typename std::enable_if_t<std::is_same_v<SCAddress, T>>
@@ -100,6 +115,18 @@ struct XDRFieldResolver
             case SC_ADDRESS_TYPE_ACCOUNT:
                 mResult = stellar::KeyUtils::toStrKey(k.accountId());
                 break;
+            case SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+                mResult =
+                    muxedStrKey(stellar::strKey::STRKEY_MUXED_ACCOUNT_ED25519,
+                                k.muxedAccount().ed25519, k.muxedAccount().id);
+                break;
+#ifdef CAP_0084_MUXED_CONTRACT
+            case SC_ADDRESS_TYPE_MUXED_CONTRACT:
+                mResult = muxedStrKey(stellar::strKey::STRKEY_MUXED_CONTRACT,
+                                      k.muxedContract().contractId,
+                                      k.muxedContract().id);
+                break;
+#endif
             default:
                 mResult = "UNKNOWN";
                 break;

@@ -19,45 +19,35 @@ Common options can be placed at any place in the command line.
 ## Command line options
 Command options can only by placed after command.
 
-* **apply-load**: Benchmarks Soroban transaction application time using
-    synthetic transactions. By default the benchmark is isolated to mostly just
-    executing the transactions and thus it omits a lot of the supporting
-    mechanisms (such as overlay, SCP, mempool etc). It may also measure tx-set
-    validation and consensus processing via `APPLY_LOAD_TIMING_PHASES` (see
-    below). This command will generate enough
-    transactions to fill up a synthetic transaction queue (it's just a list of
-    transactions with the same limits as the real queue), and then create a
-    transaction set off of that to apply. This can also be used to record the
-    synthetic ledger close metadata emitted during the benchmark, and then use
-    it for benchmarking the meta consumers.
-  * This can only be used when `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`
-  * The mode is selected in the config file using `APPLY_LOAD_MODE`:
-    - `APPLY_LOAD_MODE="ledger-limits"`: the default mode that measures the
-      ledger close time for applying transactions.
-    - `APPLY_LOAD_MODE="max-sac-tps"`: determines maximum TPS for the load
-      consisting only of fast SAC transfer.
-    - `APPLY_LOAD_MODE="benchmark"`: benchmarks a fixed-size ledger of model
-      transactions. Use `APPLY_LOAD_MODEL_TX` to select the model transaction.
-  * `APPLY_LOAD_TIMING_PHASES` selects one of two timing paths:
-    - `"apply"`: the default apply-only benchmark. Its close helper still calls
-      `checkValid`, but that happens before the recorded ledger-close timer and
-      leaves the caches warm, as consensus validation would on a live node.
-    - `"txset-validation-and-apply"`: simulates a non-leader receiving the tx
-      set over the wire, validating it through local consensus (with the node
-      as its own single-validator quorum), and then applying it. It reports
-      validation, ledger close, and end-to-end time in addition to the
-      apply-only output. It does not simulate network transport, peer fetching,
-      or multi-node timing. Leader-side tx-set creation and signing happen
-      before the measured span. The signature verification cache is cleared
-      before validation, then retained so apply sees the warm cache produced by
-      validation.
-    `"txset-validation-and-apply"` is not supported with
-    `APPLY_LOAD_MODE="max-sac-tps"`; that search targets apply-only close time.
-  * Load generation is configured in the Core config file. The relevant settings
-    all begin with `APPLY_LOAD_`. See full example configurations with
-    per-setting documentation in the `docs` directory
-    (all the `apply-load-*.cfg` files demonstrate different modes and use 
-    cases).
+* **apply-load**: Benchmarks tx-set construction, validation and application
+    using synthetic transactions. Every workload reports these phases plus
+    receive-to-close time. It can also record synthetic ledger close metadata
+    for benchmarking meta consumers.
+  * This can only be used when `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`.
+  * `APPLY_LOAD_MODE` selects the workload:
+    - `"ledger-limits"`: generates load against configured resource limits for
+      a fixed number of ledgers.
+    - `"benchmark"`: benchmarks a fixed-size ledger of model transactions
+      selected by `APPLY_LOAD_MODEL_TX`.
+    - `"max-sac-tps"`: uses noisy binary search to find the SAC throughput that
+      meets `APPLY_LOAD_TARGET_CLOSE_TIME_MS`. Every sample reports all phases,
+      but only application timing drives the search. `APPLY_LOAD_TIME_WRITES`
+      selects ledger-close timing (including writes) or transaction-apply
+      timing (excluding writes). Phase summaries cover all sampled search loads.
+  * Construction uses an overfilled synthetic candidate list to simulate a busy
+    validator's queue. All modes use Herder's queue size multipliers (2× ledger
+    capacity by default). They scale model and classic candidate counts; in
+    `ledger-limits` mode the Soroban multiplier scales the candidate resource
+    budget. SAC batching is applied before scaling envelope counts.
+  * Each benchmark builds the set, reconstructs it from wire bytes, then
+    validates and applies it through local consensus with a single-validator
+    quorum. The signature cache is cleared before validation and retained for
+    application. Receive-to-close timing starts at wire decoding and excludes
+    construction. Candidate generation, serialization, signing and setup are
+    outside the reported phases. Network transport, peer fetching, transaction
+    queue submission and multi-node timing are not simulated.
+  * See `docs/apply-load-*.cfg` for example configurations and per-setting
+    documentation.
 
 * **calculate-asset-supply**: Calculates total supply of an asset from the live and hot archive bucket lists IF the total supply fits in a 64 bit signed integer. Also validates against totalCoins for the native asset. Uses `--code <CODE>` and `--issuer <ISSUER>` to specify the asset. Uses the native asset if neither `--code` nor `--issuer` is given.
 * **catchup <DESTINATION-LEDGER/LEDGER-COUNT>**: Perform catchup from history
@@ -229,11 +219,40 @@ Command options can only by placed after command.
       it cannot decode. Each file
       is named with a truncated SHA-256 hash of the test/section path
       (e.g. `a1b2c3d4e5f67890.xdr`), and an `index.json` in each
-      directory maps hashes back to human-readable names. Each file contains
+      directory maps hashes back to the test case and section names, joined
+      with `|`. Each file contains
       stream-framed `LedgerCloseMeta` entries that can be decoded with
       `stellar-xdr decode --type LedgerCloseMeta --input stream-framed`.
-      Meta is normalized (sorted) before writing so that output is
-      deterministic given a fixed `--rng-seed`.
+      Non-deterministic diagnostic events are zeroed before writing, but
+      entries are otherwise written in their original order, which some
+      downstream consumers depend on. Comparisons — both the skip-rewrite
+      check during capture and `--check-lcm` — are done on normalized
+      (sorted) copies, so given a fixed `--rng-seed` files are only
+      rewritten or flagged on semantic changes. Each `index.json` is stamped
+      with the protocol version, rng seed and protocol-version list that
+      produced the data.
+      Capture is a full-corpus operation: after a clean run it rewrites each
+      visited test file's `index.json` from what the run captured and deletes
+      `.xdr` files it did not write, as `--record-test-tx-meta` does for its
+      baselines. A run filtered to a subset of tests therefore deletes the
+      goldens of sibling tests in the same file, so regenerate with the full
+      `[tx]` suite before committing.
+      * Tests whose `LedgerCloseMeta` cannot serve as golden data are skipped
+      automatically: those that inject ledger entries
+      straight into the bucket list (the meta never shows the entries being
+      created), run a multi-node `Simulation`, or use a config whose ledger
+      content depends on thread scheduling or randomized nomination.
+      `--check-lcm` fails if golden data still exists for such a test.
+      * `--check-lcm <DIRNAME>` : check `LedgerCloseMeta` captured from tests
+      against the golden files under `DIRNAME/test-lcm-current/` (or
+      `test-lcm-next/` for vnext builds), where `DIRNAME` is the directory
+      containing the two trees (typically the source tree root). Fails fast
+      if the `index.json` headers don't match the running binary — e.g. after
+      a protocol version bump without regenerating the golden data — and
+      fails at the end of the run if any captured meta differs from the
+      corresponding golden file. Continuous integration runs this mode; after
+      intentional changes, regenerate with `--capture-lcm` under each build
+      configuration and commit the result.
   * The network passphrase is set to `(V) (;,,;) (V)` for all captured meta.
   * For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md)
     on possible options for test.

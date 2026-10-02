@@ -3368,14 +3368,8 @@ TEST_CASE("background signature verification with missing account",
     s->addPendingConnection(senderSecretKey.getPublicKey(),
                             receiverSecretKey.getPublicKey());
     s->startAllNodes();
-    s->crankForAtLeast(std::chrono::seconds(1), false);
-
-    // Get the connected TCPPeer
-    auto receiverPeer = senderNode->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", receiverNode->getConfig().PEER_PORT});
-
-    REQUIRE(receiverPeer);
-    REQUIRE(receiverPeer->isAuthenticatedForTesting());
+    auto [receiverPeer, _] =
+        crankUntilAuthenticated(s, *senderNode, *receiverNode);
 
     // Create a malicious transaction with a non-existent fee source account.
     // NOTE: Because background signature verification occurs before virtually
@@ -3615,7 +3609,7 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         // 1. Transaction to remove the signer (sequence N+1)
         // 2. Transaction signed by the signer that will be removed (sequence
         // N+2)
-        auto currentSeq = testAccount.loadSequenceNumber();
+        auto currentSeq = testAccount.getLastSequenceNumber();
 
         auto removeSignerTx = testAccount.tx({txtest::setOptions(
             txtest::setSigner(txtest::makeSigner(additionalSignerSk, 0)))});

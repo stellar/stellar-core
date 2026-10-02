@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "invariant/OrderBookIsNotCrossed.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/SorobanMetrics.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "test/Catch2.h"
@@ -160,8 +161,12 @@ FuzzTransactionFrame::attemptApplication(Application& app,
                               app.getAppConnector());
     std::optional<SorobanNetworkConfig const> sorobanNetworkConfig;
     Hash sorobanRngSeed;
+    // Fuzzed applies run outside of a ledger close, so the apply metrics
+    // recorded here are simply dropped.
+    SorobanApplyMetrics sorobanMetrics;
     applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
-                    *mTxResult, sorobanNetworkConfig, sorobanRngSeed);
+                    *mTxResult, sorobanNetworkConfig, sorobanRngSeed,
+                    sorobanMetrics);
     if (mTxResult->getResultCode() == txINTERNAL_ERROR)
     {
         throw std::runtime_error("Internal error while fuzzing");
@@ -864,17 +869,20 @@ TxFuzzTarget::storeSetupPoolIDs(AbstractLedgerTxn& ltx,
 void
 TxFuzzTarget::storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx)
 {
-    std::vector<LedgerEntry> init, live;
-    std::vector<LedgerKey> dead;
-    ltx.getAllEntries(init, live, dead);
+    LedgerEntryRefVec initRefs, live;
+    LedgerKeyRefVec dead;
+    ltx.sealAndBorrowAllEntries(initRefs, live, dead);
 
+    // sealAndBorrowAllEntries borrows from `ltx`; copy the init entries out so
+    // they can be sorted and handed to storeSetupPoolIDs.
+    std::vector<LedgerEntry> init(initRefs.begin(), initRefs.end());
     std::sort(init.begin(), init.end());
 
     assert(dead.empty());
     if (live.size() == 1)
     {
-        assert(live[0].data.type() == ACCOUNT);
-        assert(live[0].data.account().accountID ==
+        assert(live[0].get().data.type() == ACCOUNT);
+        assert(live[0].get().data.account().accountID ==
                txtest::getRoot(mApp->getNetworkID()).getPublicKey());
     }
     else

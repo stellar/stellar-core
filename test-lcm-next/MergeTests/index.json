@@ -1,4 +1,7 @@
 {
-   "689f95b5f77609d7" : "merge_event_reconciler-protocol_version_28",
-   "d5cacbf63b606f18" : "merge_event_reconciler-protocol_version_26"
+   "!cfg protocol version" : 30,
+   "!rng seed" : 12345,
+   "!test all versions" : false,
+   "!versions to test" : [ 30 ],
+   "6066e53439f6f65d" : "merge event reconciler|protocol version 30"
 }

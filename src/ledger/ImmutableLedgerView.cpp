@@ -188,6 +188,12 @@ CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
 {
 }
 
+CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
+    std::unique_ptr<AbstractLedgerView const> getter)
+    : mGetter(std::move(getter))
+{
+}
+
 LedgerHeaderWrapper
 CheckValidLedgerViewWrapper::getLedgerHeader() const
 {
@@ -354,6 +360,66 @@ ImmutableLedgerView::executeWithMaybeInnerSnapshot(
     throw std::runtime_error(
         "ImmutableLedgerView::executeWithMaybeInnerSnapshot is illegal: "
         "ImmutableLedgerView has no nested snapshots");
+}
+
+SorobanPreApplyLedgerView::SorobanPreApplyLedgerView(
+    std::shared_ptr<LedgerHeader const> header,
+    UpdatedEntryGetter getUpdatedEntry, ApplyLedgerView const& lclView)
+    : mHeader(std::move(header))
+    , mGetUpdatedEntry(std::move(getUpdatedEntry))
+    , mLclView(lclView)
+{
+    releaseAssert(mGetUpdatedEntry);
+}
+
+LedgerHeaderWrapper
+SorobanPreApplyLedgerView::getLedgerHeader() const
+{
+    return LedgerHeaderWrapper(mHeader);
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(AccountID const& account) const
+{
+    return load(accountKey(account));
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(LedgerHeaderWrapper const& header,
+                                      TransactionFrame const& tx) const
+{
+    return getAccount(tx.getSourceID());
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::getAccount(LedgerHeaderWrapper const& header,
+                                      TransactionFrame const& tx,
+                                      AccountID const& accountID) const
+{
+    return getAccount(accountID);
+}
+
+LedgerEntryWrapper
+SorobanPreApplyLedgerView::load(LedgerKey const& key) const
+{
+    auto updatedEntry = mGetUpdatedEntry(key);
+    if (updatedEntry)
+    {
+        // Modified in this ledger, so this is the authoritative version.
+        // A null entry means it has been deleted.
+        return LedgerEntryWrapper(*updatedEntry);
+    }
+    // Not modified in this ledger, so the last closed ledger snapshot is
+    // up to date.
+    return LedgerEntryWrapper(mLclView.loadLiveEntry(key));
+}
+
+void
+SorobanPreApplyLedgerView::executeWithMaybeInnerSnapshot(
+    std::function<void(CheckValidLedgerViewWrapper const& ledgerView)> f) const
+{
+    throw std::runtime_error("SorobanPreApplyLedgerView::"
+                             "executeWithMaybeInnerSnapshot is not supported");
 }
 
 // === Live BucketList wrapper methods ===
