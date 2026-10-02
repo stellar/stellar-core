@@ -436,7 +436,11 @@ main(int argc, char* const* argv)
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        checkXDRFileIdentity();
+        // Disable the XDR check temporarily until CAP-0084 is ungated. The p30
+        // host builds its XDR with the cap_0084_muxed_contract feature on,
+        // which vCurr C++ XDR doesn't have yet.
+        // When CAP-0084 is ungated, we should re-enable this check.
+        // checkXDRFileIdentity();
 #endif
     }
     catch (...)
