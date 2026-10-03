@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 30,
+	"!cfg protocol version" : 31,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -35,7 +35,8 @@
 		27,
 		28,
 		29,
-		30
+		30,
+		31
 	],
 	"fee bump transactions|protocol version 0|apply|fee bump charge invalidates the inner operation" : [ "Yhe2gNuDHbY=" ],
 	"fee bump transactions|protocol version 0|apply|fee bump signature invalided after fees were charged" : [ "Yhe2gNuDHbY=" ],
@@ -432,6 +433,23 @@
 	"fee bump transactions|protocol version 30|validity|inner transaction invalid, transaction level" : [ "/7ACbejmtbQ=" ],
 	"fee bump transactions|protocol version 30|validity|insufficient balance" : [ "urCUjHnhTso=" ],
 	"fee bump transactions|protocol version 30|validity|valid" : [ "/7ACbejmtbQ=" ],
+	"fee bump transactions|protocol version 31|apply|fee bump charge invalidates the inner operation" : [ "NhEx+s6J1Zs=" ],
+	"fee bump transactions|protocol version 31|apply|fee bump signature invalided after fees were charged" : [ "NhEx+s6J1Zs=" ],
+	"fee bump transactions|protocol version 31|apply|fee bump source removed after fees were charged" : [ "NhEx+s6J1Zs=" ],
+	"fee bump transactions|protocol version 31|apply|inner transaction fails, operation level" : [ "NhEx+s6J1Zs=" ],
+	"fee bump transactions|protocol version 31|apply|inner transaction fails, transaction level" : [ "NhEx+s6J1Zs=" ],
+	"fee bump transactions|protocol version 31|apply|one-time signer removal" : [ "H0brR3zmSJ4=", "N/hrQ2v7Thk=", "H0brR3zmSJ4=", "N/hrQ2v7Thk=" ],
+	"fee bump transactions|protocol version 31|apply|one-time signer removal|not sponsored" : [ "8+/oNk7vshI=", "DaR9c0iTG2k=" ],
+	"fee bump transactions|protocol version 31|apply|one-time signer removal|sponsored" : [ "8+/oNk7vshI=" ],
+	"fee bump transactions|protocol version 31|apply|signature becomes redundant after fee bump charge" : [ "CdLCGSh1huU=", "MOQMoybQQxc=" ],
+	"fee bump transactions|protocol version 31|fee processing" : [ "/7ACbejmtbQ=" ],
+	"fee bump transactions|protocol version 31|validity|bad signatures, signature invalid" : [ "urCUjHnhTso=" ],
+	"fee bump transactions|protocol version 31|validity|bad signatures, signature missing" : [ "urCUjHnhTso=" ],
+	"fee bump transactions|protocol version 31|validity|extra signatures" : [ "/7ACbejmtbQ=" ],
+	"fee bump transactions|protocol version 31|validity|inner transaction invalid, operation level" : [ "/7ACbejmtbQ=" ],
+	"fee bump transactions|protocol version 31|validity|inner transaction invalid, transaction level" : [ "/7ACbejmtbQ=" ],
+	"fee bump transactions|protocol version 31|validity|insufficient balance" : [ "urCUjHnhTso=" ],
+	"fee bump transactions|protocol version 31|validity|valid" : [ "/7ACbejmtbQ=" ],
 	"fee bump transactions|protocol version 3|apply|fee bump charge invalidates the inner operation" : [ "Yhe2gNuDHbY=" ],
 	"fee bump transactions|protocol version 3|apply|fee bump signature invalided after fees were charged" : [ "Yhe2gNuDHbY=" ],
 	"fee bump transactions|protocol version 3|apply|fee bump source removed after fees were charged" : [ "Yhe2gNuDHbY=" ],

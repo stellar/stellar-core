@@ -7848,9 +7848,7 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // On the other hand, sometimes vnext is configured to point to an actual
     // work-in-progress next host, in which case there _is_ a separate module
     // cache and the following line of code should be commented-out.
-    //
-    // p30 is a separate work-in-progress host with its own cache.
-    // moduleCacheProtocolCount -= 1;
+    moduleCacheProtocolCount -= 1;
 #endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()

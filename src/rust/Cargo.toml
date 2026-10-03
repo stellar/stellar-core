@@ -121,6 +121,11 @@ git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "fddfd567a6cb6ea801fac8bd807daa8f35bfd094"
 optional = true
+# This dependency is only enabled by the `fastdev` feature, which implies
+# `next`, so the host is always wanted at its next-protocol number here. The
+# non-fastdev build takes p30 from the submodule rlib instead, where
+# src/Makefile.am passes --features=next to SOROBAN_MAX_PROTOCOL.
+features = ["next"]
 
 [dependencies.soroban-env-host-p29]
 version = "=29.0.0"
@@ -212,7 +217,7 @@ optional = true
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
 git = "https://github.com/stellar/stellar-quorum-analyzer"
-rev = "502a354eb9a31cf86098be84aa1b3081767fa3c7"
+rev = "3a02306036a15cfbc0e4c865d1f70ad06bad9faa"
 
 [features]
 

@@ -32,9 +32,6 @@ use crate::RustBuf;
 // We also alias the latest soroban as soroban_curr to help reduce churn in code
 // that's just "always supposed to use the latest".
 
-#[cfg(not(feature = "next"))]
-pub(crate) use p29 as soroban_curr;
-#[cfg(feature = "next")]
 pub(crate) use p30 as soroban_curr;
 
 // We also pin some protocol _agnostic_ definitions that are technically
@@ -179,7 +176,6 @@ macro_rules! ttl_ledger_entry_meta_stub {
     };
 }
 
-#[cfg(feature = "next")]
 #[path = "."]
 pub(crate) mod p30 {
     pub(crate) extern crate soroban_env_host_p30;
@@ -2218,7 +2214,6 @@ const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p27),
     proto_versioned_functions_for_module!(p28),
     proto_versioned_functions_for_module!(p29),
-    #[cfg(feature = "next")]
     proto_versioned_functions_for_module!(p30),
 ];
 
@@ -2266,9 +2261,16 @@ fn protocol_dispatches_as_expected() {
     assert_eq!(get_host_module_for_protocol(28, 28).unwrap().max_proto, 28);
     assert_eq!(get_host_module_for_protocol(29, 29).unwrap().max_proto, 29);
 
-    #[cfg(feature = "next")]
+    // p30 is built unconditionally. Without the "next" feature it reports
+    // protocol 30; with it, the same submodule reports 31.
+    #[cfg(not(feature = "next"))]
     {
         assert_eq!(get_host_module_for_protocol(30, 30).unwrap().max_proto, 30);
+    }
+
+    #[cfg(feature = "next")]
+    {
+        assert_eq!(get_host_module_for_protocol(31, 31).unwrap().max_proto, 31);
     }
 
     // No protocols past the max known.
