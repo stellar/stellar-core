@@ -9,6 +9,7 @@
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include <functional>
+#include <limits>
 #include <memory>
 
 /**
@@ -222,14 +223,24 @@ class HistoryManager
     // Return checkpoint that contains given ledger. Checkpoint is identified
     // by last ledger in range. This does not consult the network nor take
     // account of manual checkpoints.
+    //
+    // Saturates to UINT32_MAX when rounding up to the next checkpoint would
+    // overflow uint32_t. Callers that take untrusted ledger numbers (e.g.
+    // HAS-derived) must treat a UINT32_MAX result as failure.
     static uint32_t
     checkpointContainingLedger(uint32_t ledger, Config const& cfg)
     {
         uint32_t freq = getCheckpointFrequency(cfg);
         // Round-up to next multiple of freq, then subtract 1 since checkpoints
         // are numbered for (and cover ledgers up to) the last ledger in them,
-        // which is one-before the next multiple of freq.
-        return (((ledger / freq) + 1) * freq) - 1;
+        // which is one-before the next multiple of freq. Done in 64-bit to
+        // avoid wraparound near UINT32_MAX.
+        uint64_t next = (static_cast<uint64_t>(ledger) / freq + 1) * freq;
+        if (next > std::numeric_limits<uint32_t>::max())
+        {
+            return std::numeric_limits<uint32_t>::max();
+        }
+        return static_cast<uint32_t>(next) - 1;
     }
 
     // Return true iff closing `ledger` should cause publishing a checkpoint.
