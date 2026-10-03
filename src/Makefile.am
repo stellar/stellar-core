@@ -1,6 +1,6 @@
 ## Process this file with automake to produce Makefile.in
 
-AUTOMAKE_OPTIONS = serial-tests
+AUTOMAKE_OPTIONS = serial-tests foreign -Wno-portability
 bin_PROGRAMS = stellar-core
 
 include $(top_srcdir)/common.mk
@@ -113,16 +113,43 @@ TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-co
 
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) $(GENERATED_VERSION_SOURCES) $(TEST_FILES)
 
-$(SRC_X_FILES:.x=.h): $(XDRC) Makefile
-XDR_FEATURE_FLAGS =
+XDR_FEATURE_FLAGS = @XDR_FEATURE_FLAGS@
 if CAP_0084_MUXED_CONTRACT
 XDR_FEATURE_FLAGS += -DCAP_0084_MUXED_CONTRACT
 endif
 
 SUFFIXES = .x .h .rs
-.x.h:
-	mkdir -p $(@D)
-	$(XDRC) -hh -pedantic $(XDR_FEATURE_FLAGS) -o $@ $<
+
+# Unchanged headers keep their old timestamps so dependents aren't rebuilt,
+# which leaves them older than xdrc and Makefile. The stamp, not the headers,
+# records that generation ran; without it make would re-run xdrc on every
+# invocation forever.
+xdr-stamp: $(SRC_X_FILES) $(XDRC) Makefile
+	$(AM_V_GEN)set -e; \
+	rm -f $@-t; touch $@-t; \
+	for x in $(SRC_X_FILES); do \
+		h=$${x%.x}.h; \
+		mkdir -p `dirname $$h`; \
+		backup=$$h.tmp; \
+		had_target=false; \
+		if test -f $$h; then cp -p $$h $$backup; had_target=true; fi; \
+		if $(XDRC) -hh -pedantic $(XDR_FEATURE_FLAGS) -o $$h $(srcdir)/$$x; then \
+			if $$had_target && cmp -s $$backup $$h; then mv -f $$backup $$h; else rm -f $$backup; fi; \
+		else \
+			status=$$?; \
+			if $$had_target; then mv -f $$backup $$h; else rm -f $$h; fi; \
+			rm -f $@-t; \
+			exit $$status; \
+		fi; \
+	done; \
+	mv -f $@-t $@
+
+$(SRC_X_FILES:.x=.h): xdr-stamp
+	@test -f $@ || { \
+		mkdir -p $(@D) && \
+		$(XDRC) -hh -pedantic $(XDR_FEATURE_FLAGS) -o $@ $(srcdir)/$(@:.h=.x) || \
+			{ status=$$?; rm -f $@; exit $$status; }; \
+	}
 
 BISON=bison
 FLEX=flex
@@ -709,7 +736,7 @@ endif # ENABLE_FUZZ
 clean-local:
 	rm -rf $(top_builddir)/target $(top_builddir)/src/rust/soroban/*/target $(RUST_DEP_TREE_STAMP) $(SOROBAN_LIBS_STAMP)
 
-CLEANFILES = $(BUILT_SOURCES) *~ */*~ stellar*.log
+CLEANFILES = $(BUILT_SOURCES) xdr-stamp *~ */*~ stellar*.log
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in $(srcdir)/*~ $(srcdir)/*/*~
 
 EXTRA_DIST = $(SRC_X_FILES) test/selftest-nopg test/selftest-pg
