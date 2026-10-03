@@ -40,9 +40,8 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
                       "FROM offers "
                       "WHERE sellerid= :id AND offerid= :offerid";
     auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
-    auto& st = prep.statement();
-    st.exchange(soci::use(actIDStrKey));
-    st.exchange(soci::use(offerID));
+    prep.exchange(soci::use(actIDStrKey));
+    prep.exchange(soci::use(offerID));
 
     std::vector<LedgerEntry> offers;
     {
@@ -90,10 +89,9 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
     sellingAsset = decoder::encode_b64(xdr::xdr_to_opaque(selling));
 
     auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
-    auto& st = prep.statement();
-    st.exchange(soci::use(sellingAsset));
-    st.exchange(soci::use(buyingAsset));
-    st.exchange(soci::use(numOffers));
+    prep.exchange(soci::use(sellingAsset));
+    prep.exchange(soci::use(buyingAsset));
+    prep.exchange(soci::use(numOffers));
 
     {
         auto timer = mApp.getDatabase().getSelectTimer("offer");
@@ -146,17 +144,16 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
     int64_t worseThanOfferID = worseThan.offerID + 1;
 
     auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
-    auto& st = prep.statement();
-    st.exchange(soci::use(sellingAsset));
-    st.exchange(soci::use(buyingAsset));
-    st.exchange(soci::use(worseThanPrice));
-    st.exchange(soci::use(numOffers));
-    st.exchange(soci::use(sellingAsset));
-    st.exchange(soci::use(buyingAsset));
-    st.exchange(soci::use(worseThanPrice));
-    st.exchange(soci::use(worseThanOfferID));
-    st.exchange(soci::use(numOffers));
-    st.exchange(soci::use(numOffers));
+    prep.exchange(soci::use(sellingAsset));
+    prep.exchange(soci::use(buyingAsset));
+    prep.exchange(soci::use(worseThanPrice));
+    prep.exchange(soci::use(numOffers));
+    prep.exchange(soci::use(sellingAsset));
+    prep.exchange(soci::use(buyingAsset));
+    prep.exchange(soci::use(worseThanPrice));
+    prep.exchange(soci::use(worseThanOfferID));
+    prep.exchange(soci::use(numOffers));
+    prep.exchange(soci::use(numOffers));
 
     {
         auto timer = mApp.getDatabase().getSelectTimer("offer");
@@ -228,10 +225,9 @@ LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
     std::string assetStr = decoder::encode_b64(xdr::xdr_to_opaque(asset));
 
     auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
-    auto& st = prep.statement();
-    st.exchange(soci::use(accountStr));
-    st.exchange(soci::use(assetStr));
-    st.exchange(soci::use(assetStr));
+    prep.exchange(soci::use(accountStr));
+    prep.exchange(soci::use(assetStr));
+    prep.exchange(soci::use(assetStr));
 
     std::vector<LedgerEntry> offers;
     {
@@ -253,7 +249,7 @@ processAsset(std::string const& asset)
 
 template <typename T>
 static typename T::const_iterator
-loadOffersHelper(StatementContext& prep, T& offers)
+loadOffersHelper(soci::statement& prep, T& offers)
 {
     ZoneScoped;
 
@@ -266,23 +262,22 @@ loadOffersHelper(StatementContext& prep, T& offers)
     std::string extensionStr;
     std::string ledgerExtStr;
 
-    auto& st = prep.statement();
-    st.exchange(soci::into(actIDStrKey));
-    st.exchange(soci::into(offerID));
-    st.exchange(soci::into(sellingAsset));
-    st.exchange(soci::into(buyingAsset));
-    st.exchange(soci::into(amount));
-    st.exchange(soci::into(price.n));
-    st.exchange(soci::into(price.d));
-    st.exchange(soci::into(flags));
-    st.exchange(soci::into(lastModified));
-    st.exchange(soci::into(extensionStr));
-    st.exchange(soci::into(ledgerExtStr));
-    st.define_and_bind();
-    st.execute(true);
+    prep.exchange(soci::into(actIDStrKey));
+    prep.exchange(soci::into(offerID));
+    prep.exchange(soci::into(sellingAsset));
+    prep.exchange(soci::into(buyingAsset));
+    prep.exchange(soci::into(amount));
+    prep.exchange(soci::into(price.n));
+    prep.exchange(soci::into(price.d));
+    prep.exchange(soci::into(flags));
+    prep.exchange(soci::into(lastModified));
+    prep.exchange(soci::into(extensionStr));
+    prep.exchange(soci::into(ledgerExtStr));
+    prep.define_and_bind();
+    prep.execute(true);
 
     size_t n = 0;
-    while (st.got_data())
+    while (prep.got_data())
     {
         ++n;
         offers.emplace_back();
@@ -303,21 +298,21 @@ loadOffersHelper(StatementContext& prep, T& offers)
 
         decodeOpaqueXDR(ledgerExtStr, le.ext);
 
-        st.fetch();
+        prep.fetch();
     }
 
     return offers.cend() - n;
 }
 
 std::deque<LedgerEntry>::const_iterator
-LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
+LedgerTxnRoot::Impl::loadOffers(soci::statement& prep,
                                 std::deque<LedgerEntry>& offers) const
 {
     return loadOffersHelper(prep, offers);
 }
 
 std::vector<LedgerEntry>
-LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
+LedgerTxnRoot::Impl::loadOffers(soci::statement& prep) const
 {
     std::vector<LedgerEntry> offers;
     loadOffersHelper(prep, offers);
@@ -445,25 +440,24 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
             "extension = excluded.extension, "
             "ledgerext = excluded.ledgerext";
         auto prep = mDB.getPreparedStatement(sql, mSession);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(mSellerIDs));
-        st.exchange(soci::use(mOfferIDs));
-        st.exchange(soci::use(mSellingAssets));
-        st.exchange(soci::use(mBuyingAssets));
-        st.exchange(soci::use(mAmounts));
-        st.exchange(soci::use(mPriceNs));
-        st.exchange(soci::use(mPriceDs));
-        st.exchange(soci::use(mPrices));
-        st.exchange(soci::use(mFlags));
-        st.exchange(soci::use(mLastModifieds));
-        st.exchange(soci::use(mExtensions));
-        st.exchange(soci::use(mLedgerExtensions));
-        st.define_and_bind();
+        prep.exchange(soci::use(mSellerIDs));
+        prep.exchange(soci::use(mOfferIDs));
+        prep.exchange(soci::use(mSellingAssets));
+        prep.exchange(soci::use(mBuyingAssets));
+        prep.exchange(soci::use(mAmounts));
+        prep.exchange(soci::use(mPriceNs));
+        prep.exchange(soci::use(mPriceDs));
+        prep.exchange(soci::use(mPrices));
+        prep.exchange(soci::use(mFlags));
+        prep.exchange(soci::use(mLastModifieds));
+        prep.exchange(soci::use(mExtensions));
+        prep.exchange(soci::use(mLedgerExtensions));
+        prep.define_and_bind();
         {
             auto timer = mDB.getUpsertTimer("offer");
-            st.execute(true);
+            prep.execute(true);
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size())
+        if (static_cast<size_t>(prep.get_affected_rows()) != mOfferIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -533,25 +527,24 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
             "extension = excluded.extension, "
             "ledgerext = excluded.ledgerext";
         auto prep = mDB.getPreparedStatement(sql, mSession);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strSellerIDs));
-        st.exchange(soci::use(strOfferIDs));
-        st.exchange(soci::use(strSellingAssets));
-        st.exchange(soci::use(strBuyingAssets));
-        st.exchange(soci::use(strAmounts));
-        st.exchange(soci::use(strPriceNs));
-        st.exchange(soci::use(strPriceDs));
-        st.exchange(soci::use(strPrices));
-        st.exchange(soci::use(strFlags));
-        st.exchange(soci::use(strLastModifieds));
-        st.exchange(soci::use(strExtensions));
-        st.exchange(soci::use(strLedgerExtensions));
-        st.define_and_bind();
+        prep.exchange(soci::use(strSellerIDs));
+        prep.exchange(soci::use(strOfferIDs));
+        prep.exchange(soci::use(strSellingAssets));
+        prep.exchange(soci::use(strBuyingAssets));
+        prep.exchange(soci::use(strAmounts));
+        prep.exchange(soci::use(strPriceNs));
+        prep.exchange(soci::use(strPriceDs));
+        prep.exchange(soci::use(strPrices));
+        prep.exchange(soci::use(strFlags));
+        prep.exchange(soci::use(strLastModifieds));
+        prep.exchange(soci::use(strExtensions));
+        prep.exchange(soci::use(strLedgerExtensions));
+        prep.define_and_bind();
         {
             auto timer = mDB.getUpsertTimer("offer");
-            st.execute(true);
+            prep.execute(true);
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size())
+        if (static_cast<size_t>(prep.get_affected_rows()) != mOfferIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -588,14 +581,13 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
     {
         std::string sql = "DELETE FROM offers WHERE offerid = :id";
         auto prep = mDB.getPreparedStatement(sql, mSession);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(mOfferIDs));
-        st.define_and_bind();
+        prep.exchange(soci::use(mOfferIDs));
+        prep.define_and_bind();
         {
             auto timer = mDB.getDeleteTimer("offer");
-            st.execute(true);
+            prep.execute(true);
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size() &&
+        if (static_cast<size_t>(prep.get_affected_rows()) != mOfferIDs.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -621,14 +613,13 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
                           "DELETE FROM offers WHERE "
                           "offerid IN (SELECT * FROM r)";
         auto prep = mDB.getPreparedStatement(sql, mSession);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strOfferIDs));
-        st.define_and_bind();
+        prep.exchange(soci::use(strOfferIDs));
+        prep.define_and_bind();
         {
             auto timer = mDB.getDeleteTimer("offer");
-            st.execute(true);
+            prep.execute(true);
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size() &&
+        if (static_cast<size_t>(prep.get_affected_rows()) != mOfferIDs.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -795,7 +786,7 @@ class BulkLoadOffersOperation
             "FROM offers WHERE offerid IN carray(?, ?, 'int64')";
 
         auto prep = mDb.getPreparedStatement(sql, mSession);
-        auto be = prep.statement().get_backend();
+        auto be = prep.get_backend();
         if (be == nullptr)
         {
             throw std::runtime_error("no sql backend");
@@ -808,7 +799,7 @@ class BulkLoadOffersOperation
         sqlite3_reset(st);
         sqlite3_bind_pointer(st, 1, (void*)mOfferIDs.data(), "carray", 0);
         sqlite3_bind_int(st, 2, static_cast<int>(mOfferIDs.size()));
-        return executeAndFetch(prep.statement());
+        return executeAndFetch(prep);
     }
 
 #ifdef USE_POSTGRES
@@ -825,9 +816,8 @@ class BulkLoadOffersOperation
             "ledgerext "
             "FROM offers WHERE offerid IN (SELECT * FROM r)";
         auto prep = mDb.getPreparedStatement(sql, mSession);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strOfferIDs));
-        return executeAndFetch(st);
+        prep.exchange(soci::use(strOfferIDs));
+        return executeAndFetch(prep);
     }
 #endif
 };
