@@ -32,7 +32,16 @@ esac
 case "${skip_submodules}" in
     0|no|false|"")
         git submodule sync
-        git submodule update --init
+        if ! git submodule update --init; then
+            # A release may pin rs-soroban-env commits that are not public
+            # yet. Retry fetching them from internal-soroban-env, which only
+            # works with access to that repo. The commits are pinned by hash,
+            # so the code is the same either way.
+            echo "Retrying rs-soroban-env submodules from internal-soroban-env" >&2
+            GIT_TERMINAL_PROMPT=0 git \
+                -c url.https://github.com/stellar/internal-soroban-env.insteadOf=https://github.com/stellar/rs-soroban-env \
+                submodule update --init
+        fi
         git submodule foreach '
             autogen=$(find . -name autogen.sh)
             if [ -x "$autogen" ]; then
