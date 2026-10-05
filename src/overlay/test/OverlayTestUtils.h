@@ -48,6 +48,11 @@ int numberOfSimulationConnections(std::shared_ptr<Simulation> simulation);
 
 std::shared_ptr<Peer> getPeerConnectedTo(Application& from, Application& to);
 
+// Crank `simulation` until `a` and `b` are authenticated with each other.
+// Returns a pair of non-null pointers with (by position):
+// 1. `a`'s `Peer` object for `b`
+// 2. `b`'s `Peer` object for `a`
+// Throws if `timeout` expires.
 std::pair<std::shared_ptr<Peer>, std::shared_ptr<Peer>> crankUntilAuthenticated(
     std::shared_ptr<Simulation> simulation, Application& a, Application& b,
     std::chrono::seconds timeout = std::chrono::seconds(30));

@@ -22,7 +22,16 @@ FlowControlMessageCapacity::FlowControlMessageCapacity(Config const& cfg,
 uint64_t
 FlowControlMessageCapacity::getMsgResourceCount(StellarMessage const& msg) const
 {
-    // Each message takes one unit of capacity
+    // Handshake messages reserve all local reading capacity so that flow
+    // control stops further reads from this peer until the main thread has
+    // processed the message and released its capacity. Before we've verified
+    // the peer, we don't want to allocate any additional reading capacity.
+    if (msg.type() == HELLO || msg.type() == AUTH)
+    {
+        return mConfig.PEER_READING_CAPACITY;
+    }
+
+    // Each other message takes one unit of capacity.
     return 1;
 }
 

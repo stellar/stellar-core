@@ -749,12 +749,12 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     eveBalances.push_back(eve.getBalance());
     stroopyBalances.push_back(stroopy.getBalance());
 
-    rootSeqs.push_back(root->loadSequenceNumber());
-    aliceSeqs.push_back(alice.loadSequenceNumber());
-    bobSeqs.push_back(bob.loadSequenceNumber());
-    carolSeqs.push_back(carol.loadSequenceNumber());
-    eveSeqs.push_back(eve.loadSequenceNumber());
-    stroopySeqs.push_back(stroopy.loadSequenceNumber());
+    rootSeqs.push_back(root->getLastSequenceNumber());
+    aliceSeqs.push_back(alice.getLastSequenceNumber());
+    bobSeqs.push_back(bob.getLastSequenceNumber());
+    carolSeqs.push_back(carol.getLastSequenceNumber());
+    eveSeqs.push_back(eve.getLastSequenceNumber());
+    stroopySeqs.push_back(stroopy.getLastSequenceNumber());
 }
 
 void
@@ -826,12 +826,12 @@ CatchupSimulation::generateEmptyTxSetLedger()
     eveBalances.push_back(eve.getBalance());
     stroopyBalances.push_back(stroopy.getBalance());
 
-    rootSeqs.push_back(root->loadSequenceNumber());
-    aliceSeqs.push_back(alice.loadSequenceNumber());
-    bobSeqs.push_back(bob.loadSequenceNumber());
-    carolSeqs.push_back(carol.loadSequenceNumber());
-    eveSeqs.push_back(eve.loadSequenceNumber());
-    stroopySeqs.push_back(stroopy.loadSequenceNumber());
+    rootSeqs.push_back(root->getLastSequenceNumber());
+    aliceSeqs.push_back(alice.getLastSequenceNumber());
+    bobSeqs.push_back(bob.getLastSequenceNumber());
+    carolSeqs.push_back(carol.getLastSequenceNumber());
+    eveSeqs.push_back(eve.getLastSequenceNumber());
+    stroopySeqs.push_back(stroopy.getLastSequenceNumber());
 }
 
 void
@@ -1364,12 +1364,12 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     auto wantEveBalance = eve.getBalance();
     auto wantStrpBalance = stroopy.getBalance();
 
-    auto wantRootSeq = root.loadSequenceNumber();
-    auto wantAliceSeq = alice.loadSequenceNumber();
-    auto wantBobSeq = bob.loadSequenceNumber();
-    auto wantCarolSeq = carol.loadSequenceNumber();
-    auto wantEveSeq = eve.loadSequenceNumber();
-    auto wantStrpSeq = stroopy.loadSequenceNumber();
+    auto wantRootSeq = root.getLastSequenceNumber();
+    auto wantAliceSeq = alice.getLastSequenceNumber();
+    auto wantBobSeq = bob.getLastSequenceNumber();
+    auto wantCarolSeq = carol.getLastSequenceNumber();
+    auto wantEveSeq = eve.getLastSequenceNumber();
+    auto wantStrpSeq = stroopy.getLastSequenceNumber();
 
     CHECK(haveRootBalance == wantRootBalance);
     CHECK(haveAliceBalance == wantAliceBalance);

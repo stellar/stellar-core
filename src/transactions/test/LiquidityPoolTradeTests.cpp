@@ -160,6 +160,27 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             a2.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
         }
 
+        auto ledgerVersion = getLclProtocolVersion(app);
+        bool chargesSpeculativeOffers =
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_27);
+        bool dontCountPoolsAsHop =
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_29);
+
+        auto depositIntoPool = [&](TestAccount& acc, Asset const& x,
+                                   Asset const& y, int64_t amountX,
+                                   int64_t amountY) {
+            auto share = makeChangeTrustAssetPoolShare(
+                std::min(x, y), std::max(x, y), LIQUIDITY_POOL_FEE_V18);
+            acc.changeTrust(share, INT64_MAX);
+            if (!(x < y))
+            {
+                std::swap(amountX, amountY);
+            }
+            acc.liquidityPoolDeposit(xdrSha256(share.liquidityPool()), amountX,
+                                     amountY, Price{1, INT32_MAX},
+                                     Price{INT32_MAX, 1});
+        };
+
         SECTION("order book succeeds when crossing limit")
         {
             a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
@@ -187,21 +208,28 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             depositIntoPool12(a1, 100, 2000, Price{1, INT32_MAX},
                               Price{INT32_MAX, 1});
 
-            // Can't cross pool, no offers in book
-            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
-                              ex_opEXCEEDED_WORK_LIMIT);
+            if (dontCountPoolsAsHop)
+            {
+                REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}));
+            }
+            else
+            {
+                // Can't cross pool, no offers in book
+                REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
+                                  ex_opEXCEEDED_WORK_LIMIT);
 
-            // Can't cross pool, offer in book is self trade
-            auto id = a3.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
-            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
-                              ex_opEXCEEDED_WORK_LIMIT);
-            a3.manageOffer(id, cur2, cur1, Price{1, 1}, 0,
-                           MANAGE_OFFER_DELETED);
+                // Can't cross pool, offer in book is self trade
+                auto id = a3.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+                REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
+                                  ex_opEXCEEDED_WORK_LIMIT);
+                a3.manageOffer(id, cur2, cur1, Price{1, 1}, 0,
+                               MANAGE_OFFER_DELETED);
 
-            // Can't cross pool, offer in book exceeds work limit
-            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
-            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
-                              ex_opEXCEEDED_WORK_LIMIT);
+                // Can't cross pool, offer in book exceeds work limit
+                a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+                REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
+                                  ex_opEXCEEDED_WORK_LIMIT);
+            }
         }
 
         SECTION("liquidity pool with deep order book")
@@ -217,22 +245,21 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 }
             };
 
-            bool newLimitBehavior = protocolVersionStartsFrom(
-                getLclProtocolVersion(app), ProtocolVersion::V_27);
+            size_t atLimit = dontCountPoolsAsHop ? 9 : 8;
 
             SECTION("strict send")
             {
                 SECTION("succeeds at limit")
                 {
-                    addExtraOffers(8);
+                    addExtraOffers(atLimit);
                     REQUIRE_NOTHROW(a3.pathPaymentStrictSend(a3, cur1, 100,
                                                              cur3, 1, {cur2}));
                 }
 
                 SECTION("over limit")
                 {
-                    addExtraOffers(9);
-                    if (newLimitBehavior)
+                    addExtraOffers(atLimit + 1);
+                    if (chargesSpeculativeOffers)
                     {
                         REQUIRE_THROWS_AS(a3.pathPaymentStrictSend(
                                               a3, cur1, 100, cur3, 1, {cur2}),
@@ -257,7 +284,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 SECTION("over limit")
                 {
                     addExtraOffers(9);
-                    if (newLimitBehavior)
+                    if (chargesSpeculativeOffers && !dontCountPoolsAsHop)
                     {
                         REQUIRE_THROWS_AS(
                             a3.pay(a3, cur1, 100, cur3, 18, {cur2}),
@@ -269,6 +296,150 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                             a3.pay(a3, cur1, 100, cur3, 18, {cur2}));
                     }
                 }
+            }
+        }
+
+        SECTION("strict send crosses pool after offers exhaust limit")
+        {
+            depositIntoPool12(a1, 100, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            auto addDrainOffers = [&](size_t n) {
+                for (size_t i = 0; i < n; ++i)
+                {
+                    a1.manageOffer(0, cur2, cur3, Price{2, 1}, 10);
+                }
+            };
+
+            SECTION("pool hop fits under limit")
+            {
+                addDrainOffers(9);
+                REQUIRE_NOTHROW(
+                    a3.pathPaymentStrictSend(a3, cur3, 180, cur1, 1, {cur2}));
+            }
+
+            SECTION("offers consume the entire limit")
+            {
+                addDrainOffers(10);
+                if (dontCountPoolsAsHop)
+                {
+                    REQUIRE_NOTHROW(a3.pathPaymentStrictSend(a3, cur3, 200,
+                                                             cur1, 1, {cur2}));
+                }
+                else
+                {
+                    REQUIRE_THROWS_AS(a3.pathPaymentStrictSend(a3, cur3, 200,
+                                                               cur1, 1, {cur2}),
+                                      ex_opEXCEEDED_WORK_LIMIT);
+                }
+            }
+        }
+
+        SECTION("offer limit then multiple pool hops")
+        {
+            auto cur4 = makeAsset(*root, "CUR4");
+            a1.changeTrust(cur4, INT64_MAX);
+            a3.changeTrust(cur4, INT64_MAX);
+            root->pay(a1, cur4, 2000);
+
+            depositIntoPool(a1, cur1, cur2, 2000, 100);
+            depositIntoPool(a1, cur1, cur4, 1000, 1000);
+
+            for (size_t i = 0; i < 10; ++i)
+            {
+                a1.manageOffer(0, cur2, cur3, Price{2, 1}, 10);
+            }
+
+            if (dontCountPoolsAsHop)
+            {
+                auto res = a3.pathPaymentStrictSend(a3, cur3, 200, cur4, 1,
+                                                    {cur2, cur1});
+                auto const& offers = res.success().offers;
+                REQUIRE(offers.size() == 12);
+                for (size_t i = 0; i < 10; ++i)
+                {
+                    REQUIRE(offers[i].type() == CLAIM_ATOM_TYPE_ORDER_BOOK);
+                }
+                REQUIRE(offers[10].type() == CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
+                REQUIRE(offers[11].type() == CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
+            }
+            else
+            {
+                REQUIRE_THROWS_AS(a3.pathPaymentStrictSend(a3, cur3, 200, cur4,
+                                                           1, {cur2, cur1}),
+                                  ex_opEXCEEDED_WORK_LIMIT);
+            }
+        }
+
+        SECTION("pool hops interleaved with order book hops")
+        {
+            auto cur4 = makeAsset(*root, "CUR4");
+            auto cur5 = makeAsset(*root, "CUR5");
+            a1.changeTrust(cur4, INT64_MAX);
+            a1.changeTrust(cur5, INT64_MAX);
+            a3.changeTrust(cur5, INT64_MAX);
+            root->pay(a1, cur4, 5000);
+            root->pay(a1, cur5, 2000);
+
+            depositIntoPool(a1, cur1, cur2, 2000, 100);
+            depositIntoPool(a1, cur4, cur5, 1000, 1000);
+
+            for (size_t i = 0; i < 5; ++i)
+            {
+                a1.manageOffer(0, cur2, cur3, Price{2, 1}, 10);
+            }
+            for (size_t i = 0; i < 4; ++i)
+            {
+                a1.manageOffer(0, cur4, cur1, Price{1, 1}, 133);
+            }
+            a1.manageOffer(0, cur4, cur1, Price{1, 1}, 1000);
+
+            if (dontCountPoolsAsHop)
+            {
+                auto res = a3.pathPaymentStrictSend(a3, cur3, 100, cur5, 1,
+                                                    {cur2, cur1, cur4});
+                auto const& offers = res.success().offers;
+                REQUIRE(offers.size() == 12);
+                for (size_t i = 0; i < 5; ++i)
+                {
+                    REQUIRE(offers[i].type() == CLAIM_ATOM_TYPE_ORDER_BOOK);
+                }
+                REQUIRE(offers[5].type() == CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
+                for (size_t i = 6; i < 11; ++i)
+                {
+                    REQUIRE(offers[i].type() == CLAIM_ATOM_TYPE_ORDER_BOOK);
+                }
+                REQUIRE(offers[11].type() == CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
+            }
+            else
+            {
+                REQUIRE_THROWS_AS(a3.pathPaymentStrictSend(a3, cur3, 100, cur5,
+                                                           1,
+                                                           {cur2, cur1, cur4}),
+                                  ex_opEXCEEDED_WORK_LIMIT);
+            }
+        }
+
+        SECTION("no pool on hop after offers exhaust limit")
+        {
+            for (size_t i = 0; i < 10; ++i)
+            {
+                a1.manageOffer(0, cur2, cur3, Price{2, 1}, 10);
+            }
+
+            SECTION("empty market")
+            {
+                REQUIRE_THROWS_AS(
+                    a3.pathPaymentStrictSend(a3, cur3, 200, cur1, 1, {cur2}),
+                    ex_opEXCEEDED_WORK_LIMIT);
+            }
+
+            SECTION("offers available")
+            {
+                a1.manageOffer(0, cur1, cur2, Price{1, 1}, 200);
+                REQUIRE_THROWS_AS(
+                    a3.pathPaymentStrictSend(a3, cur3, 200, cur1, 1, {cur2}),
+                    ex_opEXCEEDED_WORK_LIMIT);
             }
         }
     }

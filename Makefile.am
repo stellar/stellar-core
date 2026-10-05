@@ -65,6 +65,21 @@ tracy-csvexport: $(TRACY_CSVEXPORT_BUILD)/csvexport-release
 bin_PROGRAMS += tracy-csvexport
 endif # USE_TRACY_CSVEXPORT
 
+if USE_TRACY_IMPORT_CHROME
+TRACY_IMPORT_CHROME_DIR=$(top_srcdir)/lib/tracy/import-chrome
+TRACY_IMPORT_CHROME_SOURCE=$(TRACY_IMPORT_CHROME_DIR)/src
+TRACY_IMPORT_CHROME_BUILD=$(TRACY_IMPORT_CHROME_DIR)/build/unix
+
+$(TRACY_IMPORT_CHROME_BUILD)/import-chrome-release: $(wildcard $(TRACY_IMPORT_CHROME_SOURCE)/*.*)
+	$(MAKE) -C $(TRACY_IMPORT_CHROME_BUILD) release CC="$(CC)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) -DNO_PARALLEL_SORT=1" CFLAGS="$(CFLAGS)" TRACY_NO_ISA_EXTENSIONS=1 TRACY_NO_LTO=1 LEGACY=1
+
+tracy-import-chrome: $(TRACY_IMPORT_CHROME_BUILD)/import-chrome-release
+	cp -v $< $@
+
+bin_PROGRAMS += tracy-import-chrome
+endif # USE_TRACY_IMPORT_CHROME
+
+
 EXTRA_DIST = stellar-core.supp test/testnet/multitail.conf	\
 	test/testnet/run-test.sh README.md make-mks
 

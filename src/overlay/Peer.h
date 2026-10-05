@@ -23,12 +23,13 @@ namespace stellar
 
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
-static size_t const MAX_MESSAGE_SIZE = 1024 * 1024 * 16;     // 16 MB
-static size_t const MAX_TX_SET_ALLOWANCE = 1024 * 1024 * 10; // 10 MB
+static size_t const PRE_P29_MAX_MESSAGE_SIZE = 1024 * 1024 * 16; // 16 MB
+static size_t const POST_P29_MAX_MESSAGE_SIZE = 1024 * 1024 * 5; // 5 MB
+static size_t const MAX_TX_SET_ALLOWANCE = 1024 * 1024 * 4;      // 4 MB
 static size_t const MAX_SOROBAN_BYTE_ALLOWANCE =
-    MAX_TX_SET_ALLOWANCE / 2; // 5 MB
+    MAX_TX_SET_ALLOWANCE / 2; // 2 MB
 static size_t const MAX_CLASSIC_BYTE_ALLOWANCE =
-    MAX_TX_SET_ALLOWANCE / 2; // 5 MB
+    MAX_TX_SET_ALLOWANCE / 2; // 2 MB
 
 static_assert(MAX_TX_SET_ALLOWANCE >=
               MAX_SOROBAN_BYTE_ALLOWANCE + MAX_CLASSIC_BYTE_ALLOWANCE);
@@ -471,6 +472,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     friend class CapacityTrackedMessage;
 
 #ifdef BUILD_TESTS
+    friend class TCPPeerHandshakeTests;
     std::shared_ptr<FlowControl>
     getFlowControl() const
     {
@@ -479,12 +481,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool isAuthenticatedForTesting() const;
     bool shouldAbortForTesting() const;
     bool isConnectedForTesting() const;
-    void
-    sendAuthenticatedMessageForTesting(
-        std::shared_ptr<StellarMessage const> msg)
-    {
-        sendAuthenticatedMessage(std::move(msg));
-    }
+    void sendAuthenticatedMessageForTesting(
+        std::shared_ptr<StellarMessage const> msg);
     void
     sendXdrMessageForTesting(xdr::msg_ptr xdrBytes,
                              std::shared_ptr<StellarMessage const> msg)
@@ -563,6 +561,13 @@ class CapacityTrackedMessage : private NonMovableOrCopyable
     StellarMessage const& getMessage() const;
     ~CapacityTrackedMessage();
     std::optional<Hash> maybeGetHash() const;
+    // Whether flow control admitted this message. If false, the peer was
+    // dropped during construction and no further work was done on the message.
+    bool
+    isCapacityLocked() const
+    {
+        return mCapacityLocked;
+    }
     std::unordered_map<Hash, TransactionFrameBasePtr> const&
     getTxMap() const
     {

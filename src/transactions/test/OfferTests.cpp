@@ -3,12 +3,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "database/Database.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/util/uint128_t.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/Catch2.h"
@@ -18,9 +20,12 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/EventManager.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
+#include "transactions/test/TransactionTestFrame.h"
 #include "util/ProtocolVersion.h"
 
 using namespace stellar;
@@ -127,7 +132,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer without account")
         {
-            auto a1 = TestAccount{*app, getAccount("a1"), 1};
+            auto a1 = TestAccount{*app, getAccount("a1")};
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(market.requireChangesWithOffer(
                                       {},
@@ -1644,14 +1649,16 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         auto check = [&](Price const& wheatPrice, int64_t maxWheatSend,
                          int64_t maxSheepSend) {
             Price sheepPrice(wheatPrice.d, wheatPrice.n);
+            auto ledgerVersion = getLclProtocolVersion(*app);
             auto res =
-                exchangeV10(wheatPrice, maxWheatSend, INT64_MAX, maxSheepSend,
-                            INT64_MAX, RoundingType::NORMAL);
+                exchangeV10(ledgerVersion, wheatPrice, maxWheatSend, INT64_MAX,
+                            maxSheepSend, INT64_MAX, RoundingType::NORMAL);
 
             auto adjWheatAmount =
-                adjustOffer(wheatPrice, maxWheatSend, INT64_MAX);
+                adjustOffer(ledgerVersion, wheatPrice, maxWheatSend, INT64_MAX);
             auto wheatAmount = adjWheatAmount - res.numWheatReceived;
-            wheatAmount = adjustOffer(wheatPrice, wheatAmount, INT64_MAX);
+            wheatAmount =
+                adjustOffer(ledgerVersion, wheatPrice, wheatAmount, INT64_MAX);
             auto wheatState = OfferState::DELETED;
             if (res.wheatStays && wheatAmount > 0)
             {
@@ -1659,7 +1666,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             }
 
             auto sheepAmount = maxSheepSend - res.numSheepSend;
-            sheepAmount = adjustOffer(sheepPrice, sheepAmount, INT64_MAX);
+            sheepAmount =
+                adjustOffer(ledgerVersion, sheepPrice, sheepAmount, INT64_MAX);
             auto sheepState = OfferState::DELETED;
             if (!res.wheatStays && sheepAmount > 0)
             {
@@ -3952,7 +3960,8 @@ TEST_CASE_VERSIONS("liabilities match created offer", "[tx][offers]")
         a1.changeTrust(cur2, buyingLimit);
         issuer.pay(a1, cur1, sellingBalance);
 
-        int64_t remainAmount = adjustOffer(price, amount, buyingLimit);
+        int64_t remainAmount = adjustOffer(getLclProtocolVersion(*app), price,
+                                           amount, buyingLimit);
         REQUIRE(remainAmount > 0);
         OfferState expected = {cur1, cur2, price, remainAmount};
         auto offer = market.requireChangesWithOffer({}, [&] {
@@ -3993,9 +4002,9 @@ TEST_CASE_VERSIONS("liabilities match created offer", "[tx][offers]")
             ++crossAmount;
         }
         Price crossPrice{price.d, price.n};
-        int64_t crossRemainAmount =
-            adjustOffer(crossPrice, crossAmount - liabilities.buying,
-                        INT64_MAX - liabilities.selling);
+        int64_t crossRemainAmount = adjustOffer(
+            getLclProtocolVersion(*app), crossPrice,
+            crossAmount - liabilities.buying, INT64_MAX - liabilities.selling);
         OfferState expectedCross =
             (crossRemainAmount > 0)
                 ? OfferState{cur2, cur1, crossPrice, crossRemainAmount}
@@ -4088,4 +4097,210 @@ TEST_CASE_VERSIONS("liabilities match created offer", "[tx][offers]")
 
     // NOTE: Starting in version 10, it is not possible to create an offer that
     // initially exceeds limits.
+}
+
+TEST_CASE_VERSIONS("offer crossing with minimal receive cap", "[tx][offers]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    for_versions_from(10, *app, [&] {
+        auto& lm = app->getLedgerManager();
+        auto root = app->getRoot();
+        auto issuer = root->create("issuer", lm.getLastMinBalance(10));
+        auto wheat = issuer.asset("CUR1");
+        auto sheep = issuer.asset("CUR2");
+
+        Price sheepForWheatPrice{3, 2};
+        int64_t wheatAmount = 1001;
+        int64_t buyingLiability = std::floor(
+            wheatAmount * sheepForWheatPrice.n / sheepForWheatPrice.d);
+        Price wheatForSheepPrice{sheepForWheatPrice.d, sheepForWheatPrice.n};
+        int64_t sheepAmount = 3000;
+
+        // Prior to p29 the bought and sold amounts during the cross are off by
+        // one because buying liability is rounded down.
+        auto wheatReceived = [&] {
+            return protocolVersionStartsFrom(getLclProtocolVersion(*app),
+                                             ProtocolVersion::V_29)
+                       ? wheatAmount
+                       : wheatAmount - 1;
+        };
+        auto sheepSent = [&] {
+            return protocolVersionStartsFrom(getLclProtocolVersion(*app),
+                                             ProtocolVersion::V_29)
+                       ? buyingLiability
+                       : buyingLiability - 1;
+        };
+        auto maker = root->create("maker", lm.getLastMinBalance(10));
+        auto taker = root->create("taker", lm.getLastMinBalance(10));
+
+        SECTION("maker offer is adjusted with rounding error")
+        {
+            TestMarket market(*app);
+            maker.changeTrust(wheat, INT64_MAX);
+            // The limit is exactly the buying liability of maker's offer.
+            maker.changeTrust(sheep, buyingLiability);
+            issuer.pay(maker, wheat, wheatAmount);
+
+            auto offer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    maker, {wheat, sheep, sheepForWheatPrice, wheatAmount},
+                    // After the maker's offer is added, the adjustment depends
+                    // on whether there is a rounding error.
+                    {wheat, sheep, sheepForWheatPrice, wheatReceived()});
+            });
+        }
+        SECTION("maker offer is fully taken")
+        {
+            TestMarket market(*app);
+            maker.changeTrust(wheat, INT64_MAX);
+
+            maker.changeTrust(sheep, INT64_MAX);
+            issuer.pay(maker, wheat, wheatAmount);
+
+            auto makerOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    maker, {wheat, sheep, sheepForWheatPrice, wheatAmount},
+                    {wheat, sheep, sheepForWheatPrice, wheatAmount});
+            });
+            // Set limit to exactly the buying liability after the offer has
+            // been put into the order book.
+            maker.changeTrust(sheep, buyingLiability);
+
+            taker.changeTrust(wheat, INT64_MAX);
+            taker.changeTrust(sheep, INT64_MAX);
+            issuer.pay(taker, sheep, sheepAmount);
+
+            market.requireChangesWithOffer(
+                {{makerOffer.key, OfferState::DELETED}}, [&] {
+                    return market.addOffer(
+                        taker, {sheep, wheat, wheatForSheepPrice, sheepAmount},
+                        {sheep, wheat, wheatForSheepPrice,
+                         sheepAmount - sheepSent()});
+                });
+
+            market.requireBalances({{maker,
+                                     {{wheat, wheatAmount - wheatReceived()},
+                                      {sheep, sheepSent()}}},
+                                    {taker,
+                                     {{wheat, wheatReceived()},
+                                      {sheep, sheepAmount - sheepSent()}}}});
+        }
+
+        SECTION("taker offer is fully taken")
+        {
+            TestMarket market(*app);
+
+            maker.changeTrust(wheat, INT64_MAX);
+            maker.changeTrust(sheep, INT64_MAX);
+            issuer.pay(maker, wheat, sheepAmount);
+
+            auto makeOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    maker, {wheat, sheep, wheatForSheepPrice, sheepAmount});
+            });
+
+            // The limit is exactly the buying liability of the taker's offer.
+            taker.changeTrust(wheat, buyingLiability);
+            taker.changeTrust(sheep, INT64_MAX);
+            issuer.pay(taker, sheep, wheatAmount);
+
+            market.requireChangesWithOffer(
+                {{makeOffer.key,
+                  {wheat, sheep, wheatForSheepPrice,
+                   sheepAmount - sheepSent()}}},
+                [&] {
+                    return market.addOffer(
+                        taker, {sheep, wheat, sheepForWheatPrice, wheatAmount},
+                        OfferState::DELETED);
+                });
+
+            market.requireBalances(
+                {{maker,
+                  {{wheat, sheepAmount - sheepSent()},
+                   {sheep, wheatReceived()}}},
+                 {taker,
+                  {{wheat, sheepSent()},
+                   {sheep, wheatAmount - wheatReceived()}}}});
+        }
+    });
+}
+
+TEST_CASE_VERSIONS("manageOffer overlay validation", "[offers]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+    auto root = app->getRoot();
+    auto issuer = root->create("issuer", lm.getLastMinBalance(10));
+    auto cur1 = issuer.asset("CUR1");
+    auto cur2 = issuer.asset("CUR2");
+
+    auto a1 = root->create("a1", lm.getLastMinBalance(10));
+    a1.changeTrust(cur1, INT64_MAX);
+    a1.changeTrust(cur2, INT64_MAX);
+    issuer.pay(a1, cur1, 100000);
+    issuer.pay(a1, cur2, 100000);
+
+    auto checkValidation = [&](Operation const& op, bool canClearForZero) {
+        auto tx = transactionFromOperations(
+            *app, a1.getSecretKey(), a1.getLastSequenceNumber() + 1, {op});
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        CheckValidLedgerViewWrapper ledgerView(*app);
+        REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+                               diagnostics)
+                    ->isSuccess());
+        auto res = tx->checkValidForOverlay(app->getAppConnector(), ledgerView,
+                                            0, 0, 0, diagnostics);
+
+        bool const filtered =
+            canClearForZero &&
+            protocolVersionIsBefore(getLclProtocolVersion(*app),
+                                    ProtocolVersion::V_29);
+        if (!filtered)
+        {
+            REQUIRE(res->isSuccess());
+            return;
+        }
+        REQUIRE(res->getResultCode() == txFAILED);
+        auto const& opRes = res->getOpResultAt(0);
+        if (op.body.type() == MANAGE_BUY_OFFER)
+        {
+            REQUIRE(opRes.tr().manageBuyOfferResult().code() ==
+                    MANAGE_BUY_OFFER_MALFORMED);
+        }
+        else
+        {
+            REQUIRE(opRes.tr().manageSellOfferResult().code() ==
+                    MANAGE_SELL_OFFER_MALFORMED);
+        }
+    };
+
+    for_versions_from(28, *app, [&] {
+        // An offer of 20 at price 5/3 satisfies the price error bound when
+        // it's fully cleared, while an offer of 19 doesn't, so both 20 and
+        // 21 can be cleared for zero.
+        checkValidation(manageOffer(0, cur1, cur2, Price{5, 3}, 20), true);
+        checkValidation(manageOffer(0, cur1, cur2, Price{5, 3}, 21), true);
+        checkValidation(createPassiveOffer(cur1, cur2, Price{5, 3}, 20), true);
+        // The selling liability of this offer is 20 at the effective price
+        // of 5/3.
+        checkValidation(manageBuyOffer(0, cur1, cur2, Price{3, 5}, 34), true);
+
+        // Neither the amount nor the amount reduced by a stroop can be
+        // cleared for zero.
+        checkValidation(manageOffer(0, cur1, cur2, Price{5, 3}, 19), false);
+        checkValidation(manageOffer(0, cur1, cur2, Price{5, 3}, 22), false);
+        checkValidation(manageBuyOffer(0, cur1, cur2, Price{3, 5}, 37), false);
+
+        // Only small offers can be cleared for zero.
+        checkValidation(manageOffer(0, cur1, cur2, Price{5, 3}, 1000), false);
+
+        // The price error bound can't be exceeded when the offer buys more
+        // than it sells.
+        checkValidation(manageOffer(0, cur1, cur2, Price{3, 5}, 20), false);
+
+        // Deleting an offer is always allowed.
+        checkValidation(manageOffer(12345, cur1, cur2, Price{5, 3}, 0), false);
+    });
 }

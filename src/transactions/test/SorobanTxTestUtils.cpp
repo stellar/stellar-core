@@ -66,6 +66,35 @@ makeMuxedAccountAddress(AccountID const& accountID, uint64_t id)
     return addr;
 }
 
+#ifdef CAP_0084_MUXED_CONTRACT
+SCAddress
+makeMuxedContractAddress(Hash const& contractId, uint64_t id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_MUXED_CONTRACT);
+    addr.muxedContract().contractId = contractId;
+    addr.muxedContract().id = id;
+    return addr;
+}
+#endif
+
+// CAP-0084: resolve a muxed contract address to its underlying contract id.
+// The SAC keys balances on the underlying contract, so every balance
+// key/value built from an SCAddress must de-mux first. Non-muxed-contract
+// addresses are returned unchanged.
+static SCAddress
+demuxContractAddress(SCAddress const& addr)
+{
+#ifdef CAP_0084_MUXED_CONTRACT
+    if (addr.type() == SC_ADDRESS_TYPE_MUXED_CONTRACT)
+    {
+        SCAddress c(SC_ADDRESS_TYPE_CONTRACT);
+        c.contractId() = addr.muxedContract().contractId;
+        return c;
+    }
+#endif
+    return addr;
+}
+
 SCVal
 makeI32(int32_t i32)
 {
@@ -736,17 +765,17 @@ TestContract::Invocation::deduplicateFootprint()
     xdr::xvector<LedgerKey> readWrite;
     UnorderedSet<LedgerKey> keys;
 
-    auto deduplicate = [&](auto const& fp) {
+    auto deduplicate = [&](auto const& fp, auto& output) {
         for (auto const& key : fp)
         {
             if (keys.insert(key).second)
             {
-                readWrite.push_back(key);
+                output.push_back(key);
             }
         }
     };
-    deduplicate(mSpec.getResources().footprint.readWrite);
-    deduplicate(mSpec.getResources().footprint.readOnly);
+    deduplicate(mSpec.getResources().footprint.readWrite, readWrite);
+    deduplicate(mSpec.getResources().footprint.readOnly, readOnly);
     mSpec =
         mSpec.setReadOnlyFootprint(readOnly).setReadWriteFootprint(readWrite);
 }
@@ -1319,10 +1348,6 @@ SorobanTest::deployAssetContract(Asset const& asset)
 TestAccount&
 SorobanTest::getRoot()
 {
-    // TestAccount caches the next seqno in-memory, assuming all invoked TXs
-    // succeed. This is not true for these tests, so we load the seqno from
-    // disk to circumvent the cache.
-    mRoot->loadSequenceNumber();
     return *mRoot;
 }
 
@@ -1576,7 +1601,7 @@ LedgerKey
 AssetContractTestClient::makeContractDataBalanceKey(SCAddress const& addr)
 {
     SCVal val(SCV_ADDRESS);
-    val.address() = addr;
+    val.address() = demuxContractAddress(addr);
 
     LedgerKey balanceKey(CONTRACT_DATA);
     balanceKey.contractData().contract = mContract.getAddress();
@@ -1628,7 +1653,7 @@ int64_t
 AssetContractTestClient::getBalance(SCAddress const& addr)
 {
     SCVal val(SCV_ADDRESS);
-    val.address() = addr;
+    val.address() = demuxContractAddress(addr);
 
     return addr.type() == SC_ADDRESS_TYPE_ACCOUNT
                ? txtest::getBalance(mApp, addr.accountId(), mAsset)
@@ -1708,6 +1733,7 @@ AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
         mContract
             .prepareInvocation("transfer", {fromVal, toVal, makeI128(amount)},
                                spec)
+            .withDeduplicatedFootprint()
             .withAuthorizedTopCall();
     if (!sourceIsRoot)
     {

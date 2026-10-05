@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 28,
+	"!cfg protocol version" : 29,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -33,7 +33,8 @@
 		25,
 		26,
 		27,
-		28
+		28,
+		29
 	],
 	"deauth removes offers on frozen account" : 
 	[
@@ -1768,7 +1769,7 @@
 	"frozen ledger keys apply time validation|liquidity pool deposit assetB trustline frozen" : [ "68zQEnUoWak=", "94Lxi/EzWuw=" ],
 	"frozen ledger keys apply time validation|liquidity pool withdraw assetA trustline frozen" : [ "68zQEnUoWak=", "94Lxi/EzWuw=" ],
 	"frozen ledger keys apply time validation|liquidity pool withdraw assetB trustline frozen" : [ "68zQEnUoWak=", "94Lxi/EzWuw=" ],
-	"frozen ledger keys in Soroban footprint" : [ "E/Hp+63+Q2Y=" ],
+	"frozen ledger keys in Soroban footprint" : [ "5RWgeNMOLDQ=" ],
 	"operation destination frozen" : 
 	[
 		"tMoQ2Vse5tc=",

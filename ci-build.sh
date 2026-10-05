@@ -121,8 +121,9 @@ fi
 config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
 # NB: use `-gdwarf-3` (not -g or -gdwarf-4 or later) specifically as
 # it produces the highest-fidelity backtraces with our current
-# rust/gimli-backed backtrace system.
-export CFLAGS="-O2 -gdwarf-3 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
+# rust/gimli-backed backtrace system. pass -g1 to limit the size of
+# debuginfo and also the memory cost to create it.
+export CFLAGS="-O2 -gdwarf-3 -g1 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
 export CXXFLAGS="$CFLAGS"
 
 # quarantine_size_mb / malloc_context_size : reduce memory usage to avoid
@@ -215,6 +216,15 @@ echo Running fixed check-test-tx-meta tests
 export TEST_SPEC='[tx]'
 export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --all-versions --rng-seed 12345 --check-test-tx-meta ${SRC_DIR}/test-tx-meta-baseline-${PROTOCOL}"
 export SKIP_SOROBAN_TESTS=true
+time make check
+
+# Reuse the same build to check the captured LedgerCloseMeta golden data
+# under test-lcm-current/ or test-lcm-next/ (the binary picks its tier).
+# No --all-versions: the golden data is captured at the default (latest)
+# protocol version only.
+echo Running fixed check-lcm tests
+export TEST_SPEC='[tx]'
+export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --rng-seed 12345 --check-lcm ${SRC_DIR}"
 time make check
 
 echo All done

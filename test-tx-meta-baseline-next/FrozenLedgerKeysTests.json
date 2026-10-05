@@ -1770,7 +1770,7 @@
 	"frozen ledger keys apply time validation|liquidity pool deposit assetB trustline frozen" : [ "68zQEnUoWak=", "94Lxi/EzWuw=" ],
 	"frozen ledger keys apply time validation|liquidity pool withdraw assetA trustline frozen" : [ "68zQEnUoWak=", "94Lxi/EzWuw=" ],
 	"frozen ledger keys apply time validation|liquidity pool withdraw assetB trustline frozen" : [ "68zQEnUoWak=", "94Lxi/EzWuw=" ],
-	"frozen ledger keys in Soroban footprint" : [ "E/Hp+63+Q2Y=" ],
+	"frozen ledger keys in Soroban footprint" : [ "5RWgeNMOLDQ=" ],
 	"operation destination frozen" : 
 	[
 		"tMoQ2Vse5tc=",

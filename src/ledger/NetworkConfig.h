@@ -301,11 +301,6 @@ class SorobanNetworkConfig
     static void createLedgerEntriesForV26(AbstractLedgerTxn& ltx,
                                           Application& app);
 
-    // Creates the new cost types introduced in v30.
-    // This should happen once during the correspondent protocol version
-    // upgrade.
-    static void createCostTypesForV30(AbstractLedgerTxn& ltx, Application& app);
-
     // Creates the new ledger entries introduced in v23 and updates the existing
     // entries.
     // This should happen once during the correspondent protocol version

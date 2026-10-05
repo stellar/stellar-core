@@ -425,10 +425,9 @@ prepareSorobanNetworkConfigUpgrade(
     auto root = app.getRoot();
 
     auto closeWithTx = [&](TransactionFrameBaseConstPtr tx) {
-        auto res = txtest::closeLedgerOn(
+        txtest::closeLedgerOn(
             app, app.getLedgerManager().getLastClosedLedgerNum() + 1, 2, 1,
             2016, {tx});
-        root->loadSequenceNumber();
     };
 
     auto wasm = rust_bridge::get_write_bytes();
@@ -539,7 +538,6 @@ modifySorobanNetworkConfig(Application& app,
     app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
                                      lclHeader.header.ledgerSeq + 1, closeTime,
                                      {upgrade});
-    app.getRoot()->loadSequenceNumber();
 
     txtest::captureLastClosedLedgerLcm(app);
 

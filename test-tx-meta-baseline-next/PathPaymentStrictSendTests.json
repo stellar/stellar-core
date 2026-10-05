@@ -2987,7 +2987,6 @@
 		"kAd9Akbb8II=",
 		"nuAO7knZdCo="
 	],
-	"pathpayment strict send|protocol version 10|not supported before version 12" : [ "4dEZJU2QB5s=" ],
 	"pathpayment strict send|protocol version 10|rounding" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -3711,7 +3710,6 @@
 		"kAd9Akbb8II=",
 		"nuAO7knZdCo="
 	],
-	"pathpayment strict send|protocol version 11|not supported before version 12" : [ "4dEZJU2QB5s=" ],
 	"pathpayment strict send|protocol version 11|rounding" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -4241,14 +4239,7 @@
 		"lHVQlXdJaOs=",
 		"4jfCFxYDoMo="
 	],
-	"pathpayment strict send|protocol version 12|currency invalid" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"uo/7vKPQGZA=",
-		"ysHbte7Er60=",
-		"dl3RQqatvNw=",
-		"zf8lEW8oNFk="
-	],
+	"pathpayment strict send|protocol version 12|currency invalid" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 12|destination does not exist" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=", "RR4ubV44qAU=" ],
 	"pathpayment strict send|protocol version 12|destination does not have trustline" : 
 	[
@@ -4259,22 +4250,8 @@
 		"uCVRR9zjUrQ=",
 		"2j95cQAtti8="
 	],
-	"pathpayment strict send|protocol version 12|destination is issuer and does not exist for complex paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"blNW3UocZuA="
-	],
-	"pathpayment strict send|protocol version 12|destination is issuer and does not exist for simple paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"/AzkEcGojnA="
-	],
+	"pathpayment strict send|protocol version 12|destination is issuer and does not exist for complex paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
+	"pathpayment strict send|protocol version 12|destination is issuer and does not exist for simple paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
 	"pathpayment strict send|protocol version 12|destination is not authorized" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -4309,7 +4286,7 @@
 		"O1XP5WMiLGM=",
 		"bqx2D5K9VE8="
 	],
-	"pathpayment strict send|protocol version 12|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 12|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 12|does not cross own offer if better is available for first exchange" : 
 	[
 		"hxrMIJO+rjk=",
@@ -4411,9 +4388,6 @@
 		"hsuBF6uLQZY=",
 		"3L5HVMxlXkk="
 	],
-	"pathpayment strict send|protocol version 12|issuer missing|path payment last issuer missing" : [ "sLp4OOobxZQ=", "CBueseRDB/Y=" ],
-	"pathpayment strict send|protocol version 12|issuer missing|path payment middle issuer missing" : [ "2j95cQAtti8=" ],
-	"pathpayment strict send|protocol version 12|issuer missing|path payment send issuer missing" : [ "MBx4YCwRba4=", "CBueseRDB/Y=" ],
 	"pathpayment strict send|protocol version 12|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"56JsRQjTsgA=",
@@ -4566,7 +4540,7 @@
 		"2ykteaC4yA8=",
 		"Cesx7YL/LyU="
 	],
-	"pathpayment strict send|protocol version 12|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 12|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 12|send amount too big" : 
 	[
 		"gQjiHypgItg=",
@@ -5377,14 +5351,7 @@
 		"lHVQlXdJaOs=",
 		"4jfCFxYDoMo="
 	],
-	"pathpayment strict send|protocol version 13|currency invalid" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"uo/7vKPQGZA=",
-		"ysHbte7Er60=",
-		"dl3RQqatvNw=",
-		"zf8lEW8oNFk="
-	],
+	"pathpayment strict send|protocol version 13|currency invalid" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 13|destination does not exist" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=", "RR4ubV44qAU=" ],
 	"pathpayment strict send|protocol version 13|destination does not have trustline" : 
 	[
@@ -5395,22 +5362,8 @@
 		"uCVRR9zjUrQ=",
 		"2j95cQAtti8="
 	],
-	"pathpayment strict send|protocol version 13|destination is issuer and does not exist for complex paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"blNW3UocZuA="
-	],
-	"pathpayment strict send|protocol version 13|destination is issuer and does not exist for simple paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"/AzkEcGojnA="
-	],
+	"pathpayment strict send|protocol version 13|destination is issuer and does not exist for complex paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
+	"pathpayment strict send|protocol version 13|destination is issuer and does not exist for simple paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
 	"pathpayment strict send|protocol version 13|destination is not authorized" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -5445,7 +5398,7 @@
 		"O1XP5WMiLGM=",
 		"bqx2D5K9VE8="
 	],
-	"pathpayment strict send|protocol version 13|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 13|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 13|does not cross own offer if better is available for first exchange" : 
 	[
 		"hxrMIJO+rjk=",
@@ -5547,9 +5500,6 @@
 		"hsuBF6uLQZY=",
 		"3L5HVMxlXkk="
 	],
-	"pathpayment strict send|protocol version 13|issuer missing|path payment last issuer missing" : [ "sLp4OOobxZQ=", "CBueseRDB/Y=" ],
-	"pathpayment strict send|protocol version 13|issuer missing|path payment middle issuer missing" : [ "2j95cQAtti8=" ],
-	"pathpayment strict send|protocol version 13|issuer missing|path payment send issuer missing" : [ "MBx4YCwRba4=", "CBueseRDB/Y=" ],
 	"pathpayment strict send|protocol version 13|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"56JsRQjTsgA=",
@@ -5702,7 +5652,7 @@
 		"2ykteaC4yA8=",
 		"Cesx7YL/LyU="
 	],
-	"pathpayment strict send|protocol version 13|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 13|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 13|send amount too big" : 
 	[
 		"gQjiHypgItg=",
@@ -6513,14 +6463,7 @@
 		"lHVQlXdJaOs=",
 		"4jfCFxYDoMo="
 	],
-	"pathpayment strict send|protocol version 14|currency invalid" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"uo/7vKPQGZA=",
-		"ysHbte7Er60=",
-		"dl3RQqatvNw=",
-		"zf8lEW8oNFk="
-	],
+	"pathpayment strict send|protocol version 14|currency invalid" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 14|destination does not exist" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=", "RR4ubV44qAU=" ],
 	"pathpayment strict send|protocol version 14|destination does not have trustline" : 
 	[
@@ -6531,22 +6474,8 @@
 		"uCVRR9zjUrQ=",
 		"2j95cQAtti8="
 	],
-	"pathpayment strict send|protocol version 14|destination is issuer and does not exist for complex paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"blNW3UocZuA="
-	],
-	"pathpayment strict send|protocol version 14|destination is issuer and does not exist for simple paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"/AzkEcGojnA="
-	],
+	"pathpayment strict send|protocol version 14|destination is issuer and does not exist for complex paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
+	"pathpayment strict send|protocol version 14|destination is issuer and does not exist for simple paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
 	"pathpayment strict send|protocol version 14|destination is not authorized" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -6581,7 +6510,7 @@
 		"O1XP5WMiLGM=",
 		"bqx2D5K9VE8="
 	],
-	"pathpayment strict send|protocol version 14|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 14|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 14|does not cross own offer if better is available for first exchange" : 
 	[
 		"hxrMIJO+rjk=",
@@ -6683,9 +6612,6 @@
 		"hsuBF6uLQZY=",
 		"3L5HVMxlXkk="
 	],
-	"pathpayment strict send|protocol version 14|issuer missing|path payment last issuer missing" : [ "sLp4OOobxZQ=", "CBueseRDB/Y=" ],
-	"pathpayment strict send|protocol version 14|issuer missing|path payment middle issuer missing" : [ "2j95cQAtti8=" ],
-	"pathpayment strict send|protocol version 14|issuer missing|path payment send issuer missing" : [ "MBx4YCwRba4=", "CBueseRDB/Y=" ],
 	"pathpayment strict send|protocol version 14|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"56JsRQjTsgA=",
@@ -6838,7 +6764,7 @@
 		"2ykteaC4yA8=",
 		"Cesx7YL/LyU="
 	],
-	"pathpayment strict send|protocol version 14|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 14|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 14|send amount too big" : 
 	[
 		"gQjiHypgItg=",
@@ -7649,14 +7575,7 @@
 		"lHVQlXdJaOs=",
 		"4jfCFxYDoMo="
 	],
-	"pathpayment strict send|protocol version 15|currency invalid" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"uo/7vKPQGZA=",
-		"ysHbte7Er60=",
-		"dl3RQqatvNw=",
-		"zf8lEW8oNFk="
-	],
+	"pathpayment strict send|protocol version 15|currency invalid" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 15|destination does not exist" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=", "RR4ubV44qAU=" ],
 	"pathpayment strict send|protocol version 15|destination does not have trustline" : 
 	[
@@ -7667,22 +7586,8 @@
 		"uCVRR9zjUrQ=",
 		"2j95cQAtti8="
 	],
-	"pathpayment strict send|protocol version 15|destination is issuer and does not exist for complex paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"blNW3UocZuA="
-	],
-	"pathpayment strict send|protocol version 15|destination is issuer and does not exist for simple paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"/AzkEcGojnA="
-	],
+	"pathpayment strict send|protocol version 15|destination is issuer and does not exist for complex paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
+	"pathpayment strict send|protocol version 15|destination is issuer and does not exist for simple paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
 	"pathpayment strict send|protocol version 15|destination is not authorized" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -7717,7 +7622,7 @@
 		"O1XP5WMiLGM=",
 		"bqx2D5K9VE8="
 	],
-	"pathpayment strict send|protocol version 15|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 15|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 15|does not cross own offer if better is available for first exchange" : 
 	[
 		"hxrMIJO+rjk=",
@@ -7819,9 +7724,6 @@
 		"hsuBF6uLQZY=",
 		"3L5HVMxlXkk="
 	],
-	"pathpayment strict send|protocol version 15|issuer missing|path payment last issuer missing" : [ "sLp4OOobxZQ=", "CBueseRDB/Y=" ],
-	"pathpayment strict send|protocol version 15|issuer missing|path payment middle issuer missing" : [ "2j95cQAtti8=" ],
-	"pathpayment strict send|protocol version 15|issuer missing|path payment send issuer missing" : [ "MBx4YCwRba4=", "CBueseRDB/Y=" ],
 	"pathpayment strict send|protocol version 15|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"56JsRQjTsgA=",
@@ -7974,7 +7876,7 @@
 		"2ykteaC4yA8=",
 		"Cesx7YL/LyU="
 	],
-	"pathpayment strict send|protocol version 15|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 15|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 15|send amount too big" : 
 	[
 		"gQjiHypgItg=",
@@ -8785,14 +8687,7 @@
 		"lHVQlXdJaOs=",
 		"4jfCFxYDoMo="
 	],
-	"pathpayment strict send|protocol version 16|currency invalid" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"uo/7vKPQGZA=",
-		"ysHbte7Er60=",
-		"dl3RQqatvNw=",
-		"zf8lEW8oNFk="
-	],
+	"pathpayment strict send|protocol version 16|currency invalid" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 16|destination does not exist" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=", "RR4ubV44qAU=" ],
 	"pathpayment strict send|protocol version 16|destination does not have trustline" : 
 	[
@@ -8803,22 +8698,8 @@
 		"uCVRR9zjUrQ=",
 		"2j95cQAtti8="
 	],
-	"pathpayment strict send|protocol version 16|destination is issuer and does not exist for complex paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"blNW3UocZuA="
-	],
-	"pathpayment strict send|protocol version 16|destination is issuer and does not exist for simple paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"/AzkEcGojnA="
-	],
+	"pathpayment strict send|protocol version 16|destination is issuer and does not exist for complex paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
+	"pathpayment strict send|protocol version 16|destination is issuer and does not exist for simple paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
 	"pathpayment strict send|protocol version 16|destination is not authorized" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -8853,7 +8734,7 @@
 		"O1XP5WMiLGM=",
 		"bqx2D5K9VE8="
 	],
-	"pathpayment strict send|protocol version 16|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 16|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 16|does not cross own offer if better is available for first exchange" : 
 	[
 		"hxrMIJO+rjk=",
@@ -8955,9 +8836,6 @@
 		"hsuBF6uLQZY=",
 		"3L5HVMxlXkk="
 	],
-	"pathpayment strict send|protocol version 16|issuer missing|path payment last issuer missing" : [ "sLp4OOobxZQ=", "CBueseRDB/Y=" ],
-	"pathpayment strict send|protocol version 16|issuer missing|path payment middle issuer missing" : [ "2j95cQAtti8=" ],
-	"pathpayment strict send|protocol version 16|issuer missing|path payment send issuer missing" : [ "MBx4YCwRba4=", "CBueseRDB/Y=" ],
 	"pathpayment strict send|protocol version 16|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"56JsRQjTsgA=",
@@ -9110,7 +8988,7 @@
 		"2ykteaC4yA8=",
 		"Cesx7YL/LyU="
 	],
-	"pathpayment strict send|protocol version 16|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 16|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 16|send amount too big" : 
 	[
 		"gQjiHypgItg=",
@@ -9921,14 +9799,7 @@
 		"lHVQlXdJaOs=",
 		"4jfCFxYDoMo="
 	],
-	"pathpayment strict send|protocol version 17|currency invalid" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"uo/7vKPQGZA=",
-		"ysHbte7Er60=",
-		"dl3RQqatvNw=",
-		"zf8lEW8oNFk="
-	],
+	"pathpayment strict send|protocol version 17|currency invalid" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 17|destination does not exist" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=", "RR4ubV44qAU=" ],
 	"pathpayment strict send|protocol version 17|destination does not have trustline" : 
 	[
@@ -9939,22 +9810,8 @@
 		"uCVRR9zjUrQ=",
 		"2j95cQAtti8="
 	],
-	"pathpayment strict send|protocol version 17|destination is issuer and does not exist for complex paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"blNW3UocZuA="
-	],
-	"pathpayment strict send|protocol version 17|destination is issuer and does not exist for simple paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"/AzkEcGojnA="
-	],
+	"pathpayment strict send|protocol version 17|destination is issuer and does not exist for complex paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
+	"pathpayment strict send|protocol version 17|destination is issuer and does not exist for simple paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
 	"pathpayment strict send|protocol version 17|destination is not authorized" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -9989,7 +9846,7 @@
 		"O1XP5WMiLGM=",
 		"bqx2D5K9VE8="
 	],
-	"pathpayment strict send|protocol version 17|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 17|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 17|does not cross own offer if better is available for first exchange" : 
 	[
 		"hxrMIJO+rjk=",
@@ -10091,9 +9948,6 @@
 		"hsuBF6uLQZY=",
 		"3L5HVMxlXkk="
 	],
-	"pathpayment strict send|protocol version 17|issuer missing|path payment last issuer missing" : [ "sLp4OOobxZQ=", "CBueseRDB/Y=" ],
-	"pathpayment strict send|protocol version 17|issuer missing|path payment middle issuer missing" : [ "2j95cQAtti8=" ],
-	"pathpayment strict send|protocol version 17|issuer missing|path payment send issuer missing" : [ "MBx4YCwRba4=", "CBueseRDB/Y=" ],
 	"pathpayment strict send|protocol version 17|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"56JsRQjTsgA=",
@@ -10246,7 +10100,7 @@
 		"2ykteaC4yA8=",
 		"Cesx7YL/LyU="
 	],
-	"pathpayment strict send|protocol version 17|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 17|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 17|send amount too big" : 
 	[
 		"gQjiHypgItg=",
@@ -11057,14 +10911,7 @@
 		"lHVQlXdJaOs=",
 		"4jfCFxYDoMo="
 	],
-	"pathpayment strict send|protocol version 18|currency invalid" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"uo/7vKPQGZA=",
-		"ysHbte7Er60=",
-		"dl3RQqatvNw=",
-		"zf8lEW8oNFk="
-	],
+	"pathpayment strict send|protocol version 18|currency invalid" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 18|destination does not exist" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=", "RR4ubV44qAU=" ],
 	"pathpayment strict send|protocol version 18|destination does not have trustline" : 
 	[
@@ -11075,22 +10922,8 @@
 		"uCVRR9zjUrQ=",
 		"2j95cQAtti8="
 	],
-	"pathpayment strict send|protocol version 18|destination is issuer and does not exist for complex paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"blNW3UocZuA="
-	],
-	"pathpayment strict send|protocol version 18|destination is issuer and does not exist for simple paths" : 
-	[
-		"Ai5QQ1d2f7Q=",
-		"HKok3Rczxok=",
-		"V/sybCe1CR0=",
-		"bhO+d+Sk5OM=",
-		"/AzkEcGojnA="
-	],
+	"pathpayment strict send|protocol version 18|destination is issuer and does not exist for complex paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
+	"pathpayment strict send|protocol version 18|destination is issuer and does not exist for simple paths" : [ "Ai5QQ1d2f7Q=", "HKok3Rczxok=", "V/sybCe1CR0=" ],
 	"pathpayment strict send|protocol version 18|destination is not authorized" : 
 	[
 		"Ai5QQ1d2f7Q=",
@@ -11125,7 +10958,7 @@
 		"O1XP5WMiLGM=",
 		"bqx2D5K9VE8="
 	],
-	"pathpayment strict send|protocol version 18|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 18|destination minimum constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 18|does not cross own offer if better is available for first exchange" : 
 	[
 		"hxrMIJO+rjk=",
@@ -11227,9 +11060,6 @@
 		"hsuBF6uLQZY=",
 		"3L5HVMxlXkk="
 	],
-	"pathpayment strict send|protocol version 18|issuer missing|path payment last issuer missing" : [ "sLp4OOobxZQ=", "CBueseRDB/Y=" ],
-	"pathpayment strict send|protocol version 18|issuer missing|path payment middle issuer missing" : [ "2j95cQAtti8=" ],
-	"pathpayment strict send|protocol version 18|issuer missing|path payment send issuer missing" : [ "MBx4YCwRba4=", "CBueseRDB/Y=" ],
 	"pathpayment strict send|protocol version 18|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"56JsRQjTsgA=",
@@ -11382,7 +11212,7 @@
 		"2ykteaC4yA8=",
 		"Cesx7YL/LyU="
 	],
-	"pathpayment strict send|protocol version 18|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=", "ysHbte7Er60=", "dl3RQqatvNw=" ],
+	"pathpayment strict send|protocol version 18|send amount constraints" : [ "Ai5QQ1d2f7Q=", "uo/7vKPQGZA=" ],
 	"pathpayment strict send|protocol version 18|send amount too big" : 
 	[
 		"gQjiHypgItg=",
@@ -12193,14 +12023,7 @@
 		"+aj2naZGtow=",
 		"FwRm/8DBSsk="
 	],
-	"pathpayment strict send|protocol version 19|currency invalid" : 
-	[
-		"7cuUrak3mzw=",
-		"+aCsDQAYwYQ=",
-		"/pKYV1rEWEs=",
-		"nWsO3H5zmIM=",
-		"TT67yizwsGU="
-	],
+	"pathpayment strict send|protocol version 19|currency invalid" : [ "7cuUrak3mzw=", "+aCsDQAYwYQ=" ],
 	"pathpayment strict send|protocol version 19|destination does not exist" : [ "7cuUrak3mzw=", "9CMUzeWQQT4=", "joY17vB+60E=", "Ufcboq+goCg=" ],
 	"pathpayment strict send|protocol version 19|destination does not have trustline" : 
 	[
@@ -12211,22 +12034,8 @@
 		"kSfgq5M36iU=",
 		"EEuSxitvcJI="
 	],
-	"pathpayment strict send|protocol version 19|destination is issuer and does not exist for complex paths" : 
-	[
-		"7cuUrak3mzw=",
-		"9CMUzeWQQT4=",
-		"joY17vB+60E=",
-		"vcABNLQ+IoM=",
-		"hWnaACk0QSk="
-	],
-	"pathpayment strict send|protocol version 19|destination is issuer and does not exist for simple paths" : 
-	[
-		"7cuUrak3mzw=",
-		"9CMUzeWQQT4=",
-		"joY17vB+60E=",
-		"vcABNLQ+IoM=",
-		"ZzwCgN6DDZg="
-	],
+	"pathpayment strict send|protocol version 19|destination is issuer and does not exist for complex paths" : [ "7cuUrak3mzw=", "9CMUzeWQQT4=", "joY17vB+60E=" ],
+	"pathpayment strict send|protocol version 19|destination is issuer and does not exist for simple paths" : [ "7cuUrak3mzw=", "9CMUzeWQQT4=", "joY17vB+60E=" ],
 	"pathpayment strict send|protocol version 19|destination is not authorized" : 
 	[
 		"7cuUrak3mzw=",
@@ -12261,7 +12070,7 @@
 		"NkdWQ1Z7l90=",
 		"WV8mMQs1tKE="
 	],
-	"pathpayment strict send|protocol version 19|destination minimum constraints" : [ "7cuUrak3mzw=", "+aCsDQAYwYQ=", "/pKYV1rEWEs=", "nWsO3H5zmIM=" ],
+	"pathpayment strict send|protocol version 19|destination minimum constraints" : [ "7cuUrak3mzw=", "+aCsDQAYwYQ=" ],
 	"pathpayment strict send|protocol version 19|does not cross own offer if better is available for first exchange" : 
 	[
 		"lmPPeeXEzw8=",
@@ -12363,9 +12172,6 @@
 		"s10hF9DGPFU=",
 		"YZYGEvW8QzE="
 	],
-	"pathpayment strict send|protocol version 19|issuer missing|path payment last issuer missing" : [ "Ksfpuj1TCiQ=", "FTSgdn5cJM4=" ],
-	"pathpayment strict send|protocol version 19|issuer missing|path payment middle issuer missing" : [ "EEuSxitvcJI=" ],
-	"pathpayment strict send|protocol version 19|issuer missing|path payment send issuer missing" : [ "hBr8xfoP6TI=", "FTSgdn5cJM4=" ],
 	"pathpayment strict send|protocol version 19|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"t7GrbU69Bgo=",
@@ -12518,7 +12324,7 @@
 		"4kMmdH+V9n0=",
 		"kPQ09l6gCh8="
 	],
-	"pathpayment strict send|protocol version 19|send amount constraints" : [ "7cuUrak3mzw=", "+aCsDQAYwYQ=", "/pKYV1rEWEs=", "nWsO3H5zmIM=" ],
+	"pathpayment strict send|protocol version 19|send amount constraints" : [ "7cuUrak3mzw=", "+aCsDQAYwYQ=" ],
 	"pathpayment strict send|protocol version 19|send amount too big" : 
 	[
 		"Ytbld15Q6E4=",
@@ -13426,7 +13232,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 1|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 1|rounding" : 
 	[
 		"xC426YWBjUs=",
@@ -14053,14 +13858,7 @@
 		"AsxPE5FRYgc=",
 		"3WRfFw4YgQM="
 	],
-	"pathpayment strict send|protocol version 20|currency invalid" : 
-	[
-		"KuB4UtCNEHA=",
-		"NQdRGVH85bU=",
-		"U5Pk6RlRdDg=",
-		"4EHky5DJH54=",
-		"mteHN9y6taA="
-	],
+	"pathpayment strict send|protocol version 20|currency invalid" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 20|destination does not exist" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=", "8+r6jMw3TJg=" ],
 	"pathpayment strict send|protocol version 20|destination does not have trustline" : 
 	[
@@ -14071,22 +13869,8 @@
 		"1vp0LzwzCXw=",
 		"7xZBz587TlQ="
 	],
-	"pathpayment strict send|protocol version 20|destination is issuer and does not exist for complex paths" : 
-	[
-		"KuB4UtCNEHA=",
-		"V3xAid7m88k=",
-		"+cSWR8UZqzw=",
-		"RlTpCUrchck=",
-		"qPGIsG24J7U="
-	],
-	"pathpayment strict send|protocol version 20|destination is issuer and does not exist for simple paths" : 
-	[
-		"KuB4UtCNEHA=",
-		"V3xAid7m88k=",
-		"+cSWR8UZqzw=",
-		"RlTpCUrchck=",
-		"0of1hFbZYTQ="
-	],
+	"pathpayment strict send|protocol version 20|destination is issuer and does not exist for complex paths" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=" ],
+	"pathpayment strict send|protocol version 20|destination is issuer and does not exist for simple paths" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=" ],
 	"pathpayment strict send|protocol version 20|destination is not authorized" : 
 	[
 		"KuB4UtCNEHA=",
@@ -14121,7 +13905,7 @@
 		"h03fgMXtNyA=",
 		"99SzU/Kj6As="
 	],
-	"pathpayment strict send|protocol version 20|destination minimum constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=", "U5Pk6RlRdDg=", "4EHky5DJH54=" ],
+	"pathpayment strict send|protocol version 20|destination minimum constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 20|does not cross own offer if better is available for first exchange" : 
 	[
 		"Efpj5u8vJxQ=",
@@ -14223,9 +14007,6 @@
 		"kHPos1YTh0s=",
 		"SAeKYrN9GAM="
 	],
-	"pathpayment strict send|protocol version 20|issuer missing|path payment last issuer missing" : [ "0aaIKyMxmvk=", "t+5raMoTPOA=" ],
-	"pathpayment strict send|protocol version 20|issuer missing|path payment middle issuer missing" : [ "7xZBz587TlQ=" ],
-	"pathpayment strict send|protocol version 20|issuer missing|path payment send issuer missing" : [ "BV9fsBvQdbY=", "t+5raMoTPOA=" ],
 	"pathpayment strict send|protocol version 20|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"MQU6VoSNm1Y=",
@@ -14378,7 +14159,7 @@
 		"dtakBG2BN1A=",
 		"SqVUQB6KIb4="
 	],
-	"pathpayment strict send|protocol version 20|send amount constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=", "U5Pk6RlRdDg=", "4EHky5DJH54=" ],
+	"pathpayment strict send|protocol version 20|send amount constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 20|send amount too big" : 
 	[
 		"xPsLZ3WJmfw=",
@@ -15189,14 +14970,7 @@
 		"AsxPE5FRYgc=",
 		"3WRfFw4YgQM="
 	],
-	"pathpayment strict send|protocol version 21|currency invalid" : 
-	[
-		"KuB4UtCNEHA=",
-		"NQdRGVH85bU=",
-		"U5Pk6RlRdDg=",
-		"4EHky5DJH54=",
-		"mteHN9y6taA="
-	],
+	"pathpayment strict send|protocol version 21|currency invalid" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 21|destination does not exist" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=", "8+r6jMw3TJg=" ],
 	"pathpayment strict send|protocol version 21|destination does not have trustline" : 
 	[
@@ -15207,22 +14981,8 @@
 		"1vp0LzwzCXw=",
 		"7xZBz587TlQ="
 	],
-	"pathpayment strict send|protocol version 21|destination is issuer and does not exist for complex paths" : 
-	[
-		"KuB4UtCNEHA=",
-		"V3xAid7m88k=",
-		"+cSWR8UZqzw=",
-		"RlTpCUrchck=",
-		"qPGIsG24J7U="
-	],
-	"pathpayment strict send|protocol version 21|destination is issuer and does not exist for simple paths" : 
-	[
-		"KuB4UtCNEHA=",
-		"V3xAid7m88k=",
-		"+cSWR8UZqzw=",
-		"RlTpCUrchck=",
-		"0of1hFbZYTQ="
-	],
+	"pathpayment strict send|protocol version 21|destination is issuer and does not exist for complex paths" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=" ],
+	"pathpayment strict send|protocol version 21|destination is issuer and does not exist for simple paths" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=" ],
 	"pathpayment strict send|protocol version 21|destination is not authorized" : 
 	[
 		"KuB4UtCNEHA=",
@@ -15257,7 +15017,7 @@
 		"h03fgMXtNyA=",
 		"99SzU/Kj6As="
 	],
-	"pathpayment strict send|protocol version 21|destination minimum constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=", "U5Pk6RlRdDg=", "4EHky5DJH54=" ],
+	"pathpayment strict send|protocol version 21|destination minimum constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 21|does not cross own offer if better is available for first exchange" : 
 	[
 		"Efpj5u8vJxQ=",
@@ -15359,9 +15119,6 @@
 		"kHPos1YTh0s=",
 		"SAeKYrN9GAM="
 	],
-	"pathpayment strict send|protocol version 21|issuer missing|path payment last issuer missing" : [ "0aaIKyMxmvk=", "t+5raMoTPOA=" ],
-	"pathpayment strict send|protocol version 21|issuer missing|path payment middle issuer missing" : [ "7xZBz587TlQ=" ],
-	"pathpayment strict send|protocol version 21|issuer missing|path payment send issuer missing" : [ "BV9fsBvQdbY=", "t+5raMoTPOA=" ],
 	"pathpayment strict send|protocol version 21|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"MQU6VoSNm1Y=",
@@ -15514,7 +15271,7 @@
 		"dtakBG2BN1A=",
 		"SqVUQB6KIb4="
 	],
-	"pathpayment strict send|protocol version 21|send amount constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=", "U5Pk6RlRdDg=", "4EHky5DJH54=" ],
+	"pathpayment strict send|protocol version 21|send amount constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 21|send amount too big" : 
 	[
 		"xPsLZ3WJmfw=",
@@ -16325,14 +16082,7 @@
 		"AsxPE5FRYgc=",
 		"3WRfFw4YgQM="
 	],
-	"pathpayment strict send|protocol version 22|currency invalid" : 
-	[
-		"KuB4UtCNEHA=",
-		"NQdRGVH85bU=",
-		"U5Pk6RlRdDg=",
-		"4EHky5DJH54=",
-		"mteHN9y6taA="
-	],
+	"pathpayment strict send|protocol version 22|currency invalid" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 22|destination does not exist" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=", "8+r6jMw3TJg=" ],
 	"pathpayment strict send|protocol version 22|destination does not have trustline" : 
 	[
@@ -16343,22 +16093,8 @@
 		"1vp0LzwzCXw=",
 		"7xZBz587TlQ="
 	],
-	"pathpayment strict send|protocol version 22|destination is issuer and does not exist for complex paths" : 
-	[
-		"KuB4UtCNEHA=",
-		"V3xAid7m88k=",
-		"+cSWR8UZqzw=",
-		"RlTpCUrchck=",
-		"qPGIsG24J7U="
-	],
-	"pathpayment strict send|protocol version 22|destination is issuer and does not exist for simple paths" : 
-	[
-		"KuB4UtCNEHA=",
-		"V3xAid7m88k=",
-		"+cSWR8UZqzw=",
-		"RlTpCUrchck=",
-		"0of1hFbZYTQ="
-	],
+	"pathpayment strict send|protocol version 22|destination is issuer and does not exist for complex paths" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=" ],
+	"pathpayment strict send|protocol version 22|destination is issuer and does not exist for simple paths" : [ "KuB4UtCNEHA=", "V3xAid7m88k=", "+cSWR8UZqzw=" ],
 	"pathpayment strict send|protocol version 22|destination is not authorized" : 
 	[
 		"KuB4UtCNEHA=",
@@ -16393,7 +16129,7 @@
 		"h03fgMXtNyA=",
 		"99SzU/Kj6As="
 	],
-	"pathpayment strict send|protocol version 22|destination minimum constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=", "U5Pk6RlRdDg=", "4EHky5DJH54=" ],
+	"pathpayment strict send|protocol version 22|destination minimum constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 22|does not cross own offer if better is available for first exchange" : 
 	[
 		"Efpj5u8vJxQ=",
@@ -16495,9 +16231,6 @@
 		"kHPos1YTh0s=",
 		"SAeKYrN9GAM="
 	],
-	"pathpayment strict send|protocol version 22|issuer missing|path payment last issuer missing" : [ "0aaIKyMxmvk=", "t+5raMoTPOA=" ],
-	"pathpayment strict send|protocol version 22|issuer missing|path payment middle issuer missing" : [ "7xZBz587TlQ=" ],
-	"pathpayment strict send|protocol version 22|issuer missing|path payment send issuer missing" : [ "BV9fsBvQdbY=", "t+5raMoTPOA=" ],
 	"pathpayment strict send|protocol version 22|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"MQU6VoSNm1Y=",
@@ -16650,7 +16383,7 @@
 		"dtakBG2BN1A=",
 		"SqVUQB6KIb4="
 	],
-	"pathpayment strict send|protocol version 22|send amount constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=", "U5Pk6RlRdDg=", "4EHky5DJH54=" ],
+	"pathpayment strict send|protocol version 22|send amount constraints" : [ "KuB4UtCNEHA=", "NQdRGVH85bU=" ],
 	"pathpayment strict send|protocol version 22|send amount too big" : 
 	[
 		"xPsLZ3WJmfw=",
@@ -17461,14 +17194,7 @@
 		"HpH1buzQvSA=",
 		"lAHs/LaSaT8="
 	],
-	"pathpayment strict send|protocol version 23|currency invalid" : 
-	[
-		"eLnko7bphqc=",
-		"Tg2dnTcND/8=",
-		"UeEUfbgy3DA=",
-		"FAGaMo6BMVM=",
-		"DtOPgoW8b0Y="
-	],
+	"pathpayment strict send|protocol version 23|currency invalid" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 23|destination does not exist" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=", "Ndf9JTDMTJo=" ],
 	"pathpayment strict send|protocol version 23|destination does not have trustline" : 
 	[
@@ -17479,22 +17205,8 @@
 		"QSlMvh4aNkA=",
 		"PKQzd8AM3+w="
 	],
-	"pathpayment strict send|protocol version 23|destination is issuer and does not exist for complex paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"d7qzlts02Go="
-	],
-	"pathpayment strict send|protocol version 23|destination is issuer and does not exist for simple paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"4XZbjPN7MZU="
-	],
+	"pathpayment strict send|protocol version 23|destination is issuer and does not exist for complex paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
+	"pathpayment strict send|protocol version 23|destination is issuer and does not exist for simple paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
 	"pathpayment strict send|protocol version 23|destination is not authorized" : 
 	[
 		"eLnko7bphqc=",
@@ -17529,7 +17241,7 @@
 		"VVbeS3DLqAQ=",
 		"UQFJuq1KcUo="
 	],
-	"pathpayment strict send|protocol version 23|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 23|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 23|does not cross own offer if better is available for first exchange" : 
 	[
 		"qmQxLyCpOBc=",
@@ -17631,9 +17343,6 @@
 		"uHUSG517pL4=",
 		"cYavsBus95o="
 	],
-	"pathpayment strict send|protocol version 23|issuer missing|path payment last issuer missing" : [ "+e+59OOXpzo=", "tmSLmoNz1mw=" ],
-	"pathpayment strict send|protocol version 23|issuer missing|path payment middle issuer missing" : [ "PKQzd8AM3+w=" ],
-	"pathpayment strict send|protocol version 23|issuer missing|path payment send issuer missing" : [ "N7nC2GbBfNg=", "tmSLmoNz1mw=" ],
 	"pathpayment strict send|protocol version 23|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"0Q71IdJSh6E=",
@@ -17786,7 +17495,7 @@
 		"7+o+VIi9NpQ=",
 		"tRkqHjwReeE="
 	],
-	"pathpayment strict send|protocol version 23|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 23|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 23|send amount too big" : 
 	[
 		"TSReZgxlUww=",
@@ -18597,14 +18306,7 @@
 		"HpH1buzQvSA=",
 		"lAHs/LaSaT8="
 	],
-	"pathpayment strict send|protocol version 24|currency invalid" : 
-	[
-		"eLnko7bphqc=",
-		"Tg2dnTcND/8=",
-		"UeEUfbgy3DA=",
-		"FAGaMo6BMVM=",
-		"DtOPgoW8b0Y="
-	],
+	"pathpayment strict send|protocol version 24|currency invalid" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 24|destination does not exist" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=", "Ndf9JTDMTJo=" ],
 	"pathpayment strict send|protocol version 24|destination does not have trustline" : 
 	[
@@ -18615,22 +18317,8 @@
 		"QSlMvh4aNkA=",
 		"PKQzd8AM3+w="
 	],
-	"pathpayment strict send|protocol version 24|destination is issuer and does not exist for complex paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"d7qzlts02Go="
-	],
-	"pathpayment strict send|protocol version 24|destination is issuer and does not exist for simple paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"4XZbjPN7MZU="
-	],
+	"pathpayment strict send|protocol version 24|destination is issuer and does not exist for complex paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
+	"pathpayment strict send|protocol version 24|destination is issuer and does not exist for simple paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
 	"pathpayment strict send|protocol version 24|destination is not authorized" : 
 	[
 		"eLnko7bphqc=",
@@ -18665,7 +18353,7 @@
 		"VVbeS3DLqAQ=",
 		"UQFJuq1KcUo="
 	],
-	"pathpayment strict send|protocol version 24|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 24|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 24|does not cross own offer if better is available for first exchange" : 
 	[
 		"qmQxLyCpOBc=",
@@ -18767,9 +18455,6 @@
 		"uHUSG517pL4=",
 		"cYavsBus95o="
 	],
-	"pathpayment strict send|protocol version 24|issuer missing|path payment last issuer missing" : [ "+e+59OOXpzo=", "tmSLmoNz1mw=" ],
-	"pathpayment strict send|protocol version 24|issuer missing|path payment middle issuer missing" : [ "PKQzd8AM3+w=" ],
-	"pathpayment strict send|protocol version 24|issuer missing|path payment send issuer missing" : [ "N7nC2GbBfNg=", "tmSLmoNz1mw=" ],
 	"pathpayment strict send|protocol version 24|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"0Q71IdJSh6E=",
@@ -18922,7 +18607,7 @@
 		"7+o+VIi9NpQ=",
 		"tRkqHjwReeE="
 	],
-	"pathpayment strict send|protocol version 24|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 24|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 24|send amount too big" : 
 	[
 		"TSReZgxlUww=",
@@ -19733,14 +19418,7 @@
 		"HpH1buzQvSA=",
 		"lAHs/LaSaT8="
 	],
-	"pathpayment strict send|protocol version 25|currency invalid" : 
-	[
-		"eLnko7bphqc=",
-		"Tg2dnTcND/8=",
-		"UeEUfbgy3DA=",
-		"FAGaMo6BMVM=",
-		"DtOPgoW8b0Y="
-	],
+	"pathpayment strict send|protocol version 25|currency invalid" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 25|destination does not exist" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=", "Ndf9JTDMTJo=" ],
 	"pathpayment strict send|protocol version 25|destination does not have trustline" : 
 	[
@@ -19751,22 +19429,8 @@
 		"QSlMvh4aNkA=",
 		"PKQzd8AM3+w="
 	],
-	"pathpayment strict send|protocol version 25|destination is issuer and does not exist for complex paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"d7qzlts02Go="
-	],
-	"pathpayment strict send|protocol version 25|destination is issuer and does not exist for simple paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"4XZbjPN7MZU="
-	],
+	"pathpayment strict send|protocol version 25|destination is issuer and does not exist for complex paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
+	"pathpayment strict send|protocol version 25|destination is issuer and does not exist for simple paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
 	"pathpayment strict send|protocol version 25|destination is not authorized" : 
 	[
 		"eLnko7bphqc=",
@@ -19801,7 +19465,7 @@
 		"VVbeS3DLqAQ=",
 		"UQFJuq1KcUo="
 	],
-	"pathpayment strict send|protocol version 25|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 25|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 25|does not cross own offer if better is available for first exchange" : 
 	[
 		"qmQxLyCpOBc=",
@@ -19903,9 +19567,6 @@
 		"uHUSG517pL4=",
 		"cYavsBus95o="
 	],
-	"pathpayment strict send|protocol version 25|issuer missing|path payment last issuer missing" : [ "+e+59OOXpzo=", "tmSLmoNz1mw=" ],
-	"pathpayment strict send|protocol version 25|issuer missing|path payment middle issuer missing" : [ "PKQzd8AM3+w=" ],
-	"pathpayment strict send|protocol version 25|issuer missing|path payment send issuer missing" : [ "N7nC2GbBfNg=", "tmSLmoNz1mw=" ],
 	"pathpayment strict send|protocol version 25|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"0Q71IdJSh6E=",
@@ -20058,7 +19719,7 @@
 		"7+o+VIi9NpQ=",
 		"tRkqHjwReeE="
 	],
-	"pathpayment strict send|protocol version 25|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 25|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 25|send amount too big" : 
 	[
 		"TSReZgxlUww=",
@@ -20869,14 +20530,7 @@
 		"HpH1buzQvSA=",
 		"lAHs/LaSaT8="
 	],
-	"pathpayment strict send|protocol version 26|currency invalid" : 
-	[
-		"eLnko7bphqc=",
-		"Tg2dnTcND/8=",
-		"UeEUfbgy3DA=",
-		"FAGaMo6BMVM=",
-		"DtOPgoW8b0Y="
-	],
+	"pathpayment strict send|protocol version 26|currency invalid" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 26|destination does not exist" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=", "Ndf9JTDMTJo=" ],
 	"pathpayment strict send|protocol version 26|destination does not have trustline" : 
 	[
@@ -20887,22 +20541,8 @@
 		"QSlMvh4aNkA=",
 		"PKQzd8AM3+w="
 	],
-	"pathpayment strict send|protocol version 26|destination is issuer and does not exist for complex paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"d7qzlts02Go="
-	],
-	"pathpayment strict send|protocol version 26|destination is issuer and does not exist for simple paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"4XZbjPN7MZU="
-	],
+	"pathpayment strict send|protocol version 26|destination is issuer and does not exist for complex paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
+	"pathpayment strict send|protocol version 26|destination is issuer and does not exist for simple paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
 	"pathpayment strict send|protocol version 26|destination is not authorized" : 
 	[
 		"eLnko7bphqc=",
@@ -20937,7 +20577,7 @@
 		"VVbeS3DLqAQ=",
 		"UQFJuq1KcUo="
 	],
-	"pathpayment strict send|protocol version 26|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 26|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 26|does not cross own offer if better is available for first exchange" : 
 	[
 		"qmQxLyCpOBc=",
@@ -21039,9 +20679,6 @@
 		"uHUSG517pL4=",
 		"cYavsBus95o="
 	],
-	"pathpayment strict send|protocol version 26|issuer missing|path payment last issuer missing" : [ "+e+59OOXpzo=", "tmSLmoNz1mw=" ],
-	"pathpayment strict send|protocol version 26|issuer missing|path payment middle issuer missing" : [ "PKQzd8AM3+w=" ],
-	"pathpayment strict send|protocol version 26|issuer missing|path payment send issuer missing" : [ "N7nC2GbBfNg=", "tmSLmoNz1mw=" ],
 	"pathpayment strict send|protocol version 26|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"0Q71IdJSh6E=",
@@ -21194,7 +20831,7 @@
 		"7+o+VIi9NpQ=",
 		"tRkqHjwReeE="
 	],
-	"pathpayment strict send|protocol version 26|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 26|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 26|send amount too big" : 
 	[
 		"TSReZgxlUww=",
@@ -22005,14 +21642,7 @@
 		"HpH1buzQvSA=",
 		"lAHs/LaSaT8="
 	],
-	"pathpayment strict send|protocol version 27|currency invalid" : 
-	[
-		"eLnko7bphqc=",
-		"Tg2dnTcND/8=",
-		"UeEUfbgy3DA=",
-		"FAGaMo6BMVM=",
-		"DtOPgoW8b0Y="
-	],
+	"pathpayment strict send|protocol version 27|currency invalid" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 27|destination does not exist" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=", "Ndf9JTDMTJo=" ],
 	"pathpayment strict send|protocol version 27|destination does not have trustline" : 
 	[
@@ -22023,22 +21653,8 @@
 		"QSlMvh4aNkA=",
 		"PKQzd8AM3+w="
 	],
-	"pathpayment strict send|protocol version 27|destination is issuer and does not exist for complex paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"d7qzlts02Go="
-	],
-	"pathpayment strict send|protocol version 27|destination is issuer and does not exist for simple paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"4XZbjPN7MZU="
-	],
+	"pathpayment strict send|protocol version 27|destination is issuer and does not exist for complex paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
+	"pathpayment strict send|protocol version 27|destination is issuer and does not exist for simple paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
 	"pathpayment strict send|protocol version 27|destination is not authorized" : 
 	[
 		"eLnko7bphqc=",
@@ -22073,7 +21689,7 @@
 		"VVbeS3DLqAQ=",
 		"UQFJuq1KcUo="
 	],
-	"pathpayment strict send|protocol version 27|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 27|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 27|does not cross own offer if better is available for first exchange" : 
 	[
 		"qmQxLyCpOBc=",
@@ -22175,9 +21791,6 @@
 		"uHUSG517pL4=",
 		"cYavsBus95o="
 	],
-	"pathpayment strict send|protocol version 27|issuer missing|path payment last issuer missing" : [ "+e+59OOXpzo=", "tmSLmoNz1mw=" ],
-	"pathpayment strict send|protocol version 27|issuer missing|path payment middle issuer missing" : [ "PKQzd8AM3+w=" ],
-	"pathpayment strict send|protocol version 27|issuer missing|path payment send issuer missing" : [ "N7nC2GbBfNg=", "tmSLmoNz1mw=" ],
 	"pathpayment strict send|protocol version 27|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"0Q71IdJSh6E=",
@@ -22330,7 +21943,7 @@
 		"7+o+VIi9NpQ=",
 		"tRkqHjwReeE="
 	],
-	"pathpayment strict send|protocol version 27|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 27|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 27|send amount too big" : 
 	[
 		"TSReZgxlUww=",
@@ -23141,14 +22754,7 @@
 		"HpH1buzQvSA=",
 		"lAHs/LaSaT8="
 	],
-	"pathpayment strict send|protocol version 28|currency invalid" : 
-	[
-		"eLnko7bphqc=",
-		"Tg2dnTcND/8=",
-		"UeEUfbgy3DA=",
-		"FAGaMo6BMVM=",
-		"DtOPgoW8b0Y="
-	],
+	"pathpayment strict send|protocol version 28|currency invalid" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 28|destination does not exist" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=", "Ndf9JTDMTJo=" ],
 	"pathpayment strict send|protocol version 28|destination does not have trustline" : 
 	[
@@ -23159,22 +22765,8 @@
 		"QSlMvh4aNkA=",
 		"PKQzd8AM3+w="
 	],
-	"pathpayment strict send|protocol version 28|destination is issuer and does not exist for complex paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"d7qzlts02Go="
-	],
-	"pathpayment strict send|protocol version 28|destination is issuer and does not exist for simple paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"4XZbjPN7MZU="
-	],
+	"pathpayment strict send|protocol version 28|destination is issuer and does not exist for complex paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
+	"pathpayment strict send|protocol version 28|destination is issuer and does not exist for simple paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
 	"pathpayment strict send|protocol version 28|destination is not authorized" : 
 	[
 		"eLnko7bphqc=",
@@ -23209,7 +22801,7 @@
 		"VVbeS3DLqAQ=",
 		"UQFJuq1KcUo="
 	],
-	"pathpayment strict send|protocol version 28|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 28|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 28|does not cross own offer if better is available for first exchange" : 
 	[
 		"qmQxLyCpOBc=",
@@ -23311,9 +22903,6 @@
 		"uHUSG517pL4=",
 		"cYavsBus95o="
 	],
-	"pathpayment strict send|protocol version 28|issuer missing|path payment last issuer missing" : [ "+e+59OOXpzo=", "tmSLmoNz1mw=" ],
-	"pathpayment strict send|protocol version 28|issuer missing|path payment middle issuer missing" : [ "PKQzd8AM3+w=" ],
-	"pathpayment strict send|protocol version 28|issuer missing|path payment send issuer missing" : [ "N7nC2GbBfNg=", "tmSLmoNz1mw=" ],
 	"pathpayment strict send|protocol version 28|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"0Q71IdJSh6E=",
@@ -23466,7 +23055,7 @@
 		"7+o+VIi9NpQ=",
 		"tRkqHjwReeE="
 	],
-	"pathpayment strict send|protocol version 28|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 28|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 28|send amount too big" : 
 	[
 		"TSReZgxlUww=",
@@ -24277,14 +23866,7 @@
 		"HpH1buzQvSA=",
 		"lAHs/LaSaT8="
 	],
-	"pathpayment strict send|protocol version 29|currency invalid" : 
-	[
-		"eLnko7bphqc=",
-		"Tg2dnTcND/8=",
-		"UeEUfbgy3DA=",
-		"FAGaMo6BMVM=",
-		"DtOPgoW8b0Y="
-	],
+	"pathpayment strict send|protocol version 29|currency invalid" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 29|destination does not exist" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=", "Ndf9JTDMTJo=" ],
 	"pathpayment strict send|protocol version 29|destination does not have trustline" : 
 	[
@@ -24295,22 +23877,8 @@
 		"QSlMvh4aNkA=",
 		"PKQzd8AM3+w="
 	],
-	"pathpayment strict send|protocol version 29|destination is issuer and does not exist for complex paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"d7qzlts02Go="
-	],
-	"pathpayment strict send|protocol version 29|destination is issuer and does not exist for simple paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"4XZbjPN7MZU="
-	],
+	"pathpayment strict send|protocol version 29|destination is issuer and does not exist for complex paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
+	"pathpayment strict send|protocol version 29|destination is issuer and does not exist for simple paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
 	"pathpayment strict send|protocol version 29|destination is not authorized" : 
 	[
 		"eLnko7bphqc=",
@@ -24345,7 +23913,7 @@
 		"VVbeS3DLqAQ=",
 		"UQFJuq1KcUo="
 	],
-	"pathpayment strict send|protocol version 29|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 29|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 29|does not cross own offer if better is available for first exchange" : 
 	[
 		"qmQxLyCpOBc=",
@@ -24447,9 +24015,6 @@
 		"uHUSG517pL4=",
 		"cYavsBus95o="
 	],
-	"pathpayment strict send|protocol version 29|issuer missing|path payment last issuer missing" : [ "+e+59OOXpzo=", "tmSLmoNz1mw=" ],
-	"pathpayment strict send|protocol version 29|issuer missing|path payment middle issuer missing" : [ "PKQzd8AM3+w=" ],
-	"pathpayment strict send|protocol version 29|issuer missing|path payment send issuer missing" : [ "N7nC2GbBfNg=", "tmSLmoNz1mw=" ],
 	"pathpayment strict send|protocol version 29|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"0Q71IdJSh6E=",
@@ -24602,7 +24167,7 @@
 		"7+o+VIi9NpQ=",
 		"tRkqHjwReeE="
 	],
-	"pathpayment strict send|protocol version 29|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 29|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 29|send amount too big" : 
 	[
 		"TSReZgxlUww=",
@@ -25510,7 +25075,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 2|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 2|rounding" : 
 	[
 		"xC426YWBjUs=",
@@ -26137,14 +25701,7 @@
 		"HpH1buzQvSA=",
 		"lAHs/LaSaT8="
 	],
-	"pathpayment strict send|protocol version 30|currency invalid" : 
-	[
-		"eLnko7bphqc=",
-		"Tg2dnTcND/8=",
-		"UeEUfbgy3DA=",
-		"FAGaMo6BMVM=",
-		"DtOPgoW8b0Y="
-	],
+	"pathpayment strict send|protocol version 30|currency invalid" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 30|destination does not exist" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=", "Ndf9JTDMTJo=" ],
 	"pathpayment strict send|protocol version 30|destination does not have trustline" : 
 	[
@@ -26155,22 +25712,8 @@
 		"QSlMvh4aNkA=",
 		"PKQzd8AM3+w="
 	],
-	"pathpayment strict send|protocol version 30|destination is issuer and does not exist for complex paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"d7qzlts02Go="
-	],
-	"pathpayment strict send|protocol version 30|destination is issuer and does not exist for simple paths" : 
-	[
-		"eLnko7bphqc=",
-		"YzED6NxAqic=",
-		"i2SPbWGHktM=",
-		"zKSTT8c5Uns=",
-		"4XZbjPN7MZU="
-	],
+	"pathpayment strict send|protocol version 30|destination is issuer and does not exist for complex paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
+	"pathpayment strict send|protocol version 30|destination is issuer and does not exist for simple paths" : [ "eLnko7bphqc=", "YzED6NxAqic=", "i2SPbWGHktM=" ],
 	"pathpayment strict send|protocol version 30|destination is not authorized" : 
 	[
 		"eLnko7bphqc=",
@@ -26205,7 +25748,7 @@
 		"VVbeS3DLqAQ=",
 		"UQFJuq1KcUo="
 	],
-	"pathpayment strict send|protocol version 30|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 30|destination minimum constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 30|does not cross own offer if better is available for first exchange" : 
 	[
 		"qmQxLyCpOBc=",
@@ -26307,9 +25850,6 @@
 		"uHUSG517pL4=",
 		"cYavsBus95o="
 	],
-	"pathpayment strict send|protocol version 30|issuer missing|path payment last issuer missing" : [ "+e+59OOXpzo=", "tmSLmoNz1mw=" ],
-	"pathpayment strict send|protocol version 30|issuer missing|path payment middle issuer missing" : [ "PKQzd8AM3+w=" ],
-	"pathpayment strict send|protocol version 30|issuer missing|path payment send issuer missing" : [ "N7nC2GbBfNg=", "tmSLmoNz1mw=" ],
 	"pathpayment strict send|protocol version 30|liabilities|cannot pay balance below selling liabilities" : 
 	[
 		"0Q71IdJSh6E=",
@@ -26462,7 +26002,7 @@
 		"7+o+VIi9NpQ=",
 		"tRkqHjwReeE="
 	],
-	"pathpayment strict send|protocol version 30|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=", "UeEUfbgy3DA=", "FAGaMo6BMVM=" ],
+	"pathpayment strict send|protocol version 30|send amount constraints" : [ "eLnko7bphqc=", "Tg2dnTcND/8=" ],
 	"pathpayment strict send|protocol version 30|send amount too big" : 
 	[
 		"TSReZgxlUww=",
@@ -27370,7 +26910,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 3|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 3|rounding" : 
 	[
 		"xC426YWBjUs=",
@@ -28094,7 +27633,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 4|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 4|rounding" : 
 	[
 		"xC426YWBjUs=",
@@ -28818,7 +28356,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 5|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 5|rounding" : 
 	[
 		"xC426YWBjUs=",
@@ -29542,7 +29079,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 6|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 6|rounding" : 
 	[
 		"xC426YWBjUs=",
@@ -30266,7 +29802,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 7|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 7|rounding" : 
 	[
 		"xC426YWBjUs=",
@@ -30990,7 +30525,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 8|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 8|rounding" : 
 	[
 		"xC426YWBjUs=",
@@ -31714,7 +31248,6 @@
 		"KXEG4oEg93k=",
 		"z1XYTx5q5u0="
 	],
-	"pathpayment strict send|protocol version 9|not supported before version 12" : [ "/lfj8xIFS8I=" ],
 	"pathpayment strict send|protocol version 9|rounding" : 
 	[
 		"xC426YWBjUs=",

@@ -6,6 +6,7 @@
 
 #include "bucket/LiveBucketList.h"
 #include "ledger/InternalLedgerEntry.h"
+#include "ledger/LedgerEntryRefs.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "util/UnorderedMap.h"
@@ -653,7 +654,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void updateWithoutLoading(InternalLedgerEntry const& entry) = 0;
     virtual void eraseWithoutLoading(InternalLedgerKey const& key) = 0;
 
-    // getChanges, getDelta, and getAllEntries are used to
+    // getChanges, getDelta, and sealAndBorrowAllEntries are used to
     // extract information about changes contained in the AbstractLedgerTxn
     // in different formats. These functions also cause the AbstractLedgerTxn
     // to enter the sealed state, simultaneously updating last modified if
@@ -666,17 +667,17 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     to the LedgerHeader) in a format convenient for answering queries
     //     about how specific entries and the header have changed. To be used
     //     for invariants.
-    // - getAllEntries
-    //     extracts a list of keys that were created (init), updated (live) or
-    //     deleted (dead) in this AbstractLedgerTxn. All these are to be
-    //     inserted into the BucketList.
+    // - sealAndBorrowAllEntries
+    //     seals the LTX, then returns lists of references to keys that were
+    //     created (init), updated (live) or deleted (dead) in this
+    //     AbstractLedgerTxn. All these are to be inserted into the BucketList.
     //
     // All of these functions throw if the AbstractLedgerTxn has a child.
     virtual LedgerEntryChanges getChanges() = 0;
     virtual LedgerTxnDelta getDelta() = 0;
-    virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
-                               std::vector<LedgerEntry>& liveEntries,
-                               std::vector<LedgerKey>& deadEntries) = 0;
+    virtual void sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                         LedgerEntryRefVec& liveEntries,
+                                         LedgerKeyRefVec& deadEntries) = 0;
 
     // Returns all TTL keys that have been modified (create, update, and
     // delete), but does not cause the AbstractLedgerTxn or update last
@@ -814,9 +815,9 @@ class LedgerTxn : public AbstractLedgerTxn
     std::vector<InflationWinner>
     queryInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
-    void getAllEntries(std::vector<LedgerEntry>& initEntries,
-                       std::vector<LedgerEntry>& liveEntries,
-                       std::vector<LedgerKey>& deadEntries) override;
+    void sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                 LedgerEntryRefVec& liveEntries,
+                                 LedgerKeyRefVec& deadEntries) override;
     LedgerKeySet getAllKeysWithoutSealing() const override;
 
     UnorderedMap<LedgerKey, LedgerEntry>

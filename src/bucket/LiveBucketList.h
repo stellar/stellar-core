@@ -46,10 +46,15 @@ class LiveBucketList : public BucketListBase<LiveBucket>
     // and `currProtocolVersion` values should be taken from the ledger at which
     // this batch is being added.
     void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol, LedgerEntryRefs initEntries,
+                  LedgerEntryRefs liveEntries, LedgerKeyRefs deadEntries);
+#ifdef BUILD_TESTS
+    void addBatch(Application& app, uint32_t currLedger,
                   uint32_t currLedgerProtocol,
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
+#endif
 
     BucketEntryCounters sumBucketEntryCounters() const;
 

@@ -2335,9 +2335,9 @@ TEST_CASE("transaction queue starting sequence boundary",
     SECTION("check a single transaction")
     {
         int64_t startingSeq = static_cast<int64_t>(nextLedgerSeq) << 32;
-        REQUIRE(acc1.loadSequenceNumber() < startingSeq);
+        REQUIRE(acc1.getLastSequenceNumber() < startingSeq);
         acc1.bumpSequence(startingSeq - 1);
-        REQUIRE(acc1.loadSequenceNumber() == startingSeq - 1);
+        REQUIRE(acc1.getLastSequenceNumber() == startingSeq - 1);
 
         ClassicTransactionQueue tq(*app, 4, 10, 4);
         REQUIRE(tq.tryAdd(transaction(*app, acc1, 1, 1, 100), false).code ==
@@ -2980,7 +2980,6 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
     auto acc3 = root->create("C", lm.getLastMinBalance(2));
 
     auto tx1a = root->tx({payment(*root, 1)});
-    root->loadSequenceNumber();
     auto tx1b = root->tx({payment(*root, 2)});
     auto tx2 = acc.tx({payment(*root, 1)});
     auto tx3 = acc2.tx({payment(*root, 1)});
@@ -2994,7 +2993,6 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         auto const& lcl = lm.getLastClosedLedgerHeader();
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
-        root->loadSequenceNumber();
         auto [txSet, _] = makeTxSetFromTransactions({tx1b, tx2}, *app, 0, 0);
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
@@ -3318,7 +3316,6 @@ TEST_CASE("TransactionQueue reset and rebuild on upgrades",
         app->getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
                                           lclHeader.header.ledgerSeq + 1,
                                           closeTime, {upgrade});
-        app->getRoot()->loadSequenceNumber();
 
         // Check that the upgrade was actually applied.
         auto postUpgradeCfg = lm.getLastClosedSorobanNetworkConfig();

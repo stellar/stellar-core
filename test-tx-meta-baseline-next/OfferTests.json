@@ -1576,22 +1576,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 10|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 10|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 10|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -1620,7 +1607,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 10|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 10|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 10|create offer errors|create offer without issuer for buying" : 
 	[
@@ -3373,22 +3359,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 11|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 11|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 11|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -3417,7 +3390,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 11|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 11|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 11|create offer errors|create offer without issuer for buying" : 
 	[
@@ -5170,22 +5142,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 12|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 12|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 12|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -5214,7 +5173,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 12|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 12|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 12|create offer errors|create offer without issuer for buying" : 
 	[
@@ -6967,22 +6925,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 13|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 13|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 13|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -7011,7 +6956,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 13|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 13|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 13|create offer errors|create offer without issuer for buying" : 
 	[
@@ -8870,22 +8814,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 14|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 14|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 14|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -8914,7 +8845,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 14|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 14|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 14|create offer errors|create offer without issuer for buying" : 
 	[
@@ -13323,22 +13253,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 15|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 15|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 15|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -13367,7 +13284,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 15|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 15|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 15|create offer errors|create offer without issuer for buying" : 
 	[
@@ -16968,7 +16884,6 @@
 	],
 	"create offer|protocol version 15|modify offer price with liabilities|selling native|decrease price" : [ "+/LOTjUmz5o=" ],
 	"create offer|protocol version 15|modify offer price with liabilities|selling native|increase price" : [ "mCpiWBHZMDY=", "xOscOhFs6pw=", "RTyc1Td0XHA=", "mBuf0wm8u18=" ],
-	"create offer|protocol version 15|negative offerID" : [ "abgbiTYU3BQ=" ],
 	"create offer|protocol version 15|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"wrVhmTEDlGI=",
@@ -17776,22 +17691,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 16|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 16|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 16|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -17820,7 +17722,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 16|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 16|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 16|create offer errors|create offer without issuer for buying" : 
 	[
@@ -21421,7 +21322,6 @@
 	],
 	"create offer|protocol version 16|modify offer price with liabilities|selling native|decrease price" : [ "+/LOTjUmz5o=" ],
 	"create offer|protocol version 16|modify offer price with liabilities|selling native|increase price" : [ "mCpiWBHZMDY=", "xOscOhFs6pw=", "RTyc1Td0XHA=", "mBuf0wm8u18=" ],
-	"create offer|protocol version 16|negative offerID" : [ "abgbiTYU3BQ=" ],
 	"create offer|protocol version 16|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"wrVhmTEDlGI=",
@@ -22240,22 +22140,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 17|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 17|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 17|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -22284,7 +22171,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 17|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 17|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 17|create offer errors|create offer without issuer for buying" : 
 	[
@@ -25885,7 +25771,6 @@
 	],
 	"create offer|protocol version 17|modify offer price with liabilities|selling native|decrease price" : [ "+/LOTjUmz5o=" ],
 	"create offer|protocol version 17|modify offer price with liabilities|selling native|increase price" : [ "mCpiWBHZMDY=", "xOscOhFs6pw=", "RTyc1Td0XHA=", "mBuf0wm8u18=" ],
-	"create offer|protocol version 17|negative offerID" : [ "abgbiTYU3BQ=" ],
 	"create offer|protocol version 17|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"wrVhmTEDlGI=",
@@ -26728,22 +26613,9 @@
 		"d7xWyfkyVtc=",
 		"GVGutEkOcik=",
 		"WC0t9mCH8g0=",
-		"U2Nb/8XNbjc=",
-		"Aej+m1BajA8="
+		"U2Nb/8XNbjc="
 	],
-	"create offer|protocol version 18|create offer errors|create offer with invalid prices" : 
-	[
-		"yGfsE3oBNM4=",
-		"pU2BGHnas4Y=",
-		"aazcnSKwvos=",
-		"WU3WNWafVxA=",
-		"w7m/ZuG2Ark=",
-		"Eo0J8XdYyv4=",
-		"bgT/HFFbGp8=",
-		"24fjSvgjNzQ=",
-		"Pfuy/g5pUt8=",
-		"xJkDl+d2/0E="
-	],
+	"create offer|protocol version 18|create offer errors|create offer with invalid prices" : [ "yGfsE3oBNM4=", "pU2BGHnas4Y=" ],
 	"create offer|protocol version 18|create offer errors|create offer with trustline filled up" : 
 	[
 		"4UVWMQpo4BI=",
@@ -26772,7 +26644,6 @@
 		"GVGutEkOcik=",
 		"DgTsXR1rypA="
 	],
-	"create offer|protocol version 18|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 18|create offer errors|create offer without having any amount of asset" : [ "4UVWMQpo4BI=", "6zLk3iiYywQ=", "PzwLZlnv9Gs=" ],
 	"create offer|protocol version 18|create offer errors|create offer without issuer for buying" : 
 	[
@@ -30373,7 +30244,6 @@
 	],
 	"create offer|protocol version 18|modify offer price with liabilities|selling native|decrease price" : [ "+/LOTjUmz5o=" ],
 	"create offer|protocol version 18|modify offer price with liabilities|selling native|increase price" : [ "mCpiWBHZMDY=", "xOscOhFs6pw=", "RTyc1Td0XHA=", "mBuf0wm8u18=" ],
-	"create offer|protocol version 18|negative offerID" : [ "abgbiTYU3BQ=" ],
 	"create offer|protocol version 18|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"wrVhmTEDlGI=",
@@ -31216,22 +31086,9 @@
 		"nuPtvVf8hxg=",
 		"0eJBypyKw5k=",
 		"YAlI2xBp5FA=",
-		"rvZmpmU73S4=",
-		"0wW9VmxOM9s="
+		"rvZmpmU73S4="
 	],
-	"create offer|protocol version 19|create offer errors|create offer with invalid prices" : 
-	[
-		"GDHx1MQBfhw=",
-		"XeUb8qjTzuA=",
-		"c9MF57F+gJQ=",
-		"JN42ZkfZU3E=",
-		"g59q0+anBJc=",
-		"VrfaTXP1ZAQ=",
-		"A7IiNPFQJTs=",
-		"HDA9Wa2Gpms=",
-		"FwdvrzhtANg=",
-		"EK5xGcGSm8I="
-	],
+	"create offer|protocol version 19|create offer errors|create offer with invalid prices" : [ "GDHx1MQBfhw=", "XeUb8qjTzuA=" ],
 	"create offer|protocol version 19|create offer errors|create offer with trustline filled up" : 
 	[
 		"QIc1LzGtKHQ=",
@@ -31260,7 +31117,6 @@
 		"0eJBypyKw5k=",
 		"K1A088K/+Nk="
 	],
-	"create offer|protocol version 19|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 19|create offer errors|create offer without having any amount of asset" : [ "QIc1LzGtKHQ=", "utexMAR/OkI=", "SajCwVNR3rE=" ],
 	"create offer|protocol version 19|create offer errors|create offer without issuer for buying" : 
 	[
@@ -34861,7 +34717,6 @@
 	],
 	"create offer|protocol version 19|modify offer price with liabilities|selling native|decrease price" : [ "wVurjyPEigs=" ],
 	"create offer|protocol version 19|modify offer price with liabilities|selling native|increase price" : [ "B3hWbw5MIG4=", "roXn7aCubzg=", "4wUKCxpjI/U=", "k5INSYodPxc=" ],
-	"create offer|protocol version 19|negative offerID" : [ "9jutx8P+FGo=" ],
 	"create offer|protocol version 19|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"/Vm1z/egnUc=",
@@ -35361,19 +35216,7 @@
 		"+PvmDcMgVBQ=",
 		"PoaWeZKiPuQ="
 	],
-	"create offer|protocol version 1|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 1|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 1|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -35402,7 +35245,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 1|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 1|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 1|create offer errors|create offer without issuer for buying" : 
 	[
@@ -36993,22 +36835,9 @@
 		"ue/FUk8x480=",
 		"aeU+o+JFSnw=",
 		"29LQMlcVqX0=",
-		"wdzcwa0z7I0=",
-		"4md8b84VGoI="
+		"wdzcwa0z7I0="
 	],
-	"create offer|protocol version 20|create offer errors|create offer with invalid prices" : 
-	[
-		"GNR+pSqcYoc=",
-		"spa6YQYDuoE=",
-		"G9VWoY/4QdE=",
-		"uTxm6wjcL0M=",
-		"mXfC3SMXRio=",
-		"9NVkulkRUKw=",
-		"lIUVywTb0ZU=",
-		"3oQOYst+DjQ=",
-		"yWSZcC2ppCo=",
-		"v9GVCzCEjbU="
-	],
+	"create offer|protocol version 20|create offer errors|create offer with invalid prices" : [ "GNR+pSqcYoc=", "spa6YQYDuoE=" ],
 	"create offer|protocol version 20|create offer errors|create offer with trustline filled up" : 
 	[
 		"V8K72O72RuM=",
@@ -37037,7 +36866,6 @@
 		"aeU+o+JFSnw=",
 		"xJbD/oZFo5Q="
 	],
-	"create offer|protocol version 20|create offer errors|create offer without account" : [ "X54ZIiBJtxs=" ],
 	"create offer|protocol version 20|create offer errors|create offer without having any amount of asset" : [ "V8K72O72RuM=", "j8JllbHnB2E=", "UcgrUuJwrYA=" ],
 	"create offer|protocol version 20|create offer errors|create offer without issuer for buying" : 
 	[
@@ -40638,7 +40466,6 @@
 	],
 	"create offer|protocol version 20|modify offer price with liabilities|selling native|decrease price" : [ "bBjZnIldgII=" ],
 	"create offer|protocol version 20|modify offer price with liabilities|selling native|increase price" : [ "OBRlHg1y9jI=", "gdIm644/Qdc=", "CwNscPQiYE0=", "CEyv5Xiw/88=" ],
-	"create offer|protocol version 20|negative offerID" : [ "IVPZtPrT8ik=" ],
 	"create offer|protocol version 20|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"SE0OyFaZsBw=",
@@ -41481,22 +41308,9 @@
 		"ue/FUk8x480=",
 		"aeU+o+JFSnw=",
 		"29LQMlcVqX0=",
-		"wdzcwa0z7I0=",
-		"4md8b84VGoI="
+		"wdzcwa0z7I0="
 	],
-	"create offer|protocol version 21|create offer errors|create offer with invalid prices" : 
-	[
-		"GNR+pSqcYoc=",
-		"spa6YQYDuoE=",
-		"G9VWoY/4QdE=",
-		"uTxm6wjcL0M=",
-		"mXfC3SMXRio=",
-		"9NVkulkRUKw=",
-		"lIUVywTb0ZU=",
-		"3oQOYst+DjQ=",
-		"yWSZcC2ppCo=",
-		"v9GVCzCEjbU="
-	],
+	"create offer|protocol version 21|create offer errors|create offer with invalid prices" : [ "GNR+pSqcYoc=", "spa6YQYDuoE=" ],
 	"create offer|protocol version 21|create offer errors|create offer with trustline filled up" : 
 	[
 		"V8K72O72RuM=",
@@ -41525,7 +41339,6 @@
 		"aeU+o+JFSnw=",
 		"xJbD/oZFo5Q="
 	],
-	"create offer|protocol version 21|create offer errors|create offer without account" : [ "X54ZIiBJtxs=" ],
 	"create offer|protocol version 21|create offer errors|create offer without having any amount of asset" : [ "V8K72O72RuM=", "j8JllbHnB2E=", "UcgrUuJwrYA=" ],
 	"create offer|protocol version 21|create offer errors|create offer without issuer for buying" : 
 	[
@@ -45126,7 +44939,6 @@
 	],
 	"create offer|protocol version 21|modify offer price with liabilities|selling native|decrease price" : [ "bBjZnIldgII=" ],
 	"create offer|protocol version 21|modify offer price with liabilities|selling native|increase price" : [ "OBRlHg1y9jI=", "gdIm644/Qdc=", "CwNscPQiYE0=", "CEyv5Xiw/88=" ],
-	"create offer|protocol version 21|negative offerID" : [ "IVPZtPrT8ik=" ],
 	"create offer|protocol version 21|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"SE0OyFaZsBw=",
@@ -45969,22 +45781,9 @@
 		"ue/FUk8x480=",
 		"aeU+o+JFSnw=",
 		"29LQMlcVqX0=",
-		"wdzcwa0z7I0=",
-		"4md8b84VGoI="
+		"wdzcwa0z7I0="
 	],
-	"create offer|protocol version 22|create offer errors|create offer with invalid prices" : 
-	[
-		"GNR+pSqcYoc=",
-		"spa6YQYDuoE=",
-		"G9VWoY/4QdE=",
-		"uTxm6wjcL0M=",
-		"mXfC3SMXRio=",
-		"9NVkulkRUKw=",
-		"lIUVywTb0ZU=",
-		"3oQOYst+DjQ=",
-		"yWSZcC2ppCo=",
-		"v9GVCzCEjbU="
-	],
+	"create offer|protocol version 22|create offer errors|create offer with invalid prices" : [ "GNR+pSqcYoc=", "spa6YQYDuoE=" ],
 	"create offer|protocol version 22|create offer errors|create offer with trustline filled up" : 
 	[
 		"V8K72O72RuM=",
@@ -46013,7 +45812,6 @@
 		"aeU+o+JFSnw=",
 		"xJbD/oZFo5Q="
 	],
-	"create offer|protocol version 22|create offer errors|create offer without account" : [ "X54ZIiBJtxs=" ],
 	"create offer|protocol version 22|create offer errors|create offer without having any amount of asset" : [ "V8K72O72RuM=", "j8JllbHnB2E=", "UcgrUuJwrYA=" ],
 	"create offer|protocol version 22|create offer errors|create offer without issuer for buying" : 
 	[
@@ -49614,7 +49412,6 @@
 	],
 	"create offer|protocol version 22|modify offer price with liabilities|selling native|decrease price" : [ "bBjZnIldgII=" ],
 	"create offer|protocol version 22|modify offer price with liabilities|selling native|increase price" : [ "OBRlHg1y9jI=", "gdIm644/Qdc=", "CwNscPQiYE0=", "CEyv5Xiw/88=" ],
-	"create offer|protocol version 22|negative offerID" : [ "IVPZtPrT8ik=" ],
 	"create offer|protocol version 22|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"SE0OyFaZsBw=",
@@ -50457,22 +50254,9 @@
 		"yUcLGytPZVA=",
 		"o+vsh9+4vjM=",
 		"nFcaIqjnkMo=",
-		"HPOItNF5ViM=",
-		"UMvaHUUMq6A="
+		"HPOItNF5ViM="
 	],
-	"create offer|protocol version 23|create offer errors|create offer with invalid prices" : 
-	[
-		"TduHde2iHmg=",
-		"kLdTQSsnWU4=",
-		"m5n9nsLNMaY=",
-		"0Ok6SxRrGR0=",
-		"ehm+8ayTp2M=",
-		"RdgrA1SdQzw=",
-		"dnicyr78wKc=",
-		"uyPYStzcIjM=",
-		"ox4sYMwWLII=",
-		"2fw0j//bItg="
-	],
+	"create offer|protocol version 23|create offer errors|create offer with invalid prices" : [ "TduHde2iHmg=", "kLdTQSsnWU4=" ],
 	"create offer|protocol version 23|create offer errors|create offer with trustline filled up" : 
 	[
 		"gtWbZb+BzI4=",
@@ -50501,7 +50285,6 @@
 		"o+vsh9+4vjM=",
 		"tD7+50CJxD4="
 	],
-	"create offer|protocol version 23|create offer errors|create offer without account" : [ "R6/tPSYNWDY=" ],
 	"create offer|protocol version 23|create offer errors|create offer without having any amount of asset" : [ "gtWbZb+BzI4=", "t5veyk9epYo=", "OPl5DSNzLgE=" ],
 	"create offer|protocol version 23|create offer errors|create offer without issuer for buying" : 
 	[
@@ -54102,7 +53885,6 @@
 	],
 	"create offer|protocol version 23|modify offer price with liabilities|selling native|decrease price" : [ "EUe2j3saCWg=" ],
 	"create offer|protocol version 23|modify offer price with liabilities|selling native|increase price" : [ "lTjk+VgqstM=", "L+kdFckap9Q=", "TKT/wJsDmgA=", "jum+FBgAVYw=" ],
-	"create offer|protocol version 23|negative offerID" : [ "kT6/Ph+MhsY=" ],
 	"create offer|protocol version 23|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"lCrqNKY0rpc=",
@@ -54945,22 +54727,9 @@
 		"yUcLGytPZVA=",
 		"o+vsh9+4vjM=",
 		"nFcaIqjnkMo=",
-		"HPOItNF5ViM=",
-		"UMvaHUUMq6A="
+		"HPOItNF5ViM="
 	],
-	"create offer|protocol version 24|create offer errors|create offer with invalid prices" : 
-	[
-		"TduHde2iHmg=",
-		"kLdTQSsnWU4=",
-		"m5n9nsLNMaY=",
-		"0Ok6SxRrGR0=",
-		"ehm+8ayTp2M=",
-		"RdgrA1SdQzw=",
-		"dnicyr78wKc=",
-		"uyPYStzcIjM=",
-		"ox4sYMwWLII=",
-		"2fw0j//bItg="
-	],
+	"create offer|protocol version 24|create offer errors|create offer with invalid prices" : [ "TduHde2iHmg=", "kLdTQSsnWU4=" ],
 	"create offer|protocol version 24|create offer errors|create offer with trustline filled up" : 
 	[
 		"gtWbZb+BzI4=",
@@ -54989,7 +54758,6 @@
 		"o+vsh9+4vjM=",
 		"tD7+50CJxD4="
 	],
-	"create offer|protocol version 24|create offer errors|create offer without account" : [ "R6/tPSYNWDY=" ],
 	"create offer|protocol version 24|create offer errors|create offer without having any amount of asset" : [ "gtWbZb+BzI4=", "t5veyk9epYo=", "OPl5DSNzLgE=" ],
 	"create offer|protocol version 24|create offer errors|create offer without issuer for buying" : 
 	[
@@ -58590,7 +58358,6 @@
 	],
 	"create offer|protocol version 24|modify offer price with liabilities|selling native|decrease price" : [ "EUe2j3saCWg=" ],
 	"create offer|protocol version 24|modify offer price with liabilities|selling native|increase price" : [ "lTjk+VgqstM=", "L+kdFckap9Q=", "TKT/wJsDmgA=", "jum+FBgAVYw=" ],
-	"create offer|protocol version 24|negative offerID" : [ "kT6/Ph+MhsY=" ],
 	"create offer|protocol version 24|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"lCrqNKY0rpc=",
@@ -59433,22 +59200,9 @@
 		"yUcLGytPZVA=",
 		"o+vsh9+4vjM=",
 		"nFcaIqjnkMo=",
-		"HPOItNF5ViM=",
-		"UMvaHUUMq6A="
+		"HPOItNF5ViM="
 	],
-	"create offer|protocol version 25|create offer errors|create offer with invalid prices" : 
-	[
-		"TduHde2iHmg=",
-		"kLdTQSsnWU4=",
-		"m5n9nsLNMaY=",
-		"0Ok6SxRrGR0=",
-		"ehm+8ayTp2M=",
-		"RdgrA1SdQzw=",
-		"dnicyr78wKc=",
-		"uyPYStzcIjM=",
-		"ox4sYMwWLII=",
-		"2fw0j//bItg="
-	],
+	"create offer|protocol version 25|create offer errors|create offer with invalid prices" : [ "TduHde2iHmg=", "kLdTQSsnWU4=" ],
 	"create offer|protocol version 25|create offer errors|create offer with trustline filled up" : 
 	[
 		"gtWbZb+BzI4=",
@@ -59477,7 +59231,6 @@
 		"o+vsh9+4vjM=",
 		"tD7+50CJxD4="
 	],
-	"create offer|protocol version 25|create offer errors|create offer without account" : [ "R6/tPSYNWDY=" ],
 	"create offer|protocol version 25|create offer errors|create offer without having any amount of asset" : [ "gtWbZb+BzI4=", "t5veyk9epYo=", "OPl5DSNzLgE=" ],
 	"create offer|protocol version 25|create offer errors|create offer without issuer for buying" : 
 	[
@@ -63078,7 +62831,6 @@
 	],
 	"create offer|protocol version 25|modify offer price with liabilities|selling native|decrease price" : [ "EUe2j3saCWg=" ],
 	"create offer|protocol version 25|modify offer price with liabilities|selling native|increase price" : [ "lTjk+VgqstM=", "L+kdFckap9Q=", "TKT/wJsDmgA=", "jum+FBgAVYw=" ],
-	"create offer|protocol version 25|negative offerID" : [ "kT6/Ph+MhsY=" ],
 	"create offer|protocol version 25|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"lCrqNKY0rpc=",
@@ -63921,22 +63673,9 @@
 		"yUcLGytPZVA=",
 		"o+vsh9+4vjM=",
 		"nFcaIqjnkMo=",
-		"HPOItNF5ViM=",
-		"UMvaHUUMq6A="
+		"HPOItNF5ViM="
 	],
-	"create offer|protocol version 26|create offer errors|create offer with invalid prices" : 
-	[
-		"TduHde2iHmg=",
-		"kLdTQSsnWU4=",
-		"m5n9nsLNMaY=",
-		"0Ok6SxRrGR0=",
-		"ehm+8ayTp2M=",
-		"RdgrA1SdQzw=",
-		"dnicyr78wKc=",
-		"uyPYStzcIjM=",
-		"ox4sYMwWLII=",
-		"2fw0j//bItg="
-	],
+	"create offer|protocol version 26|create offer errors|create offer with invalid prices" : [ "TduHde2iHmg=", "kLdTQSsnWU4=" ],
 	"create offer|protocol version 26|create offer errors|create offer with trustline filled up" : 
 	[
 		"gtWbZb+BzI4=",
@@ -63965,7 +63704,6 @@
 		"o+vsh9+4vjM=",
 		"tD7+50CJxD4="
 	],
-	"create offer|protocol version 26|create offer errors|create offer without account" : [ "R6/tPSYNWDY=" ],
 	"create offer|protocol version 26|create offer errors|create offer without having any amount of asset" : [ "gtWbZb+BzI4=", "t5veyk9epYo=", "OPl5DSNzLgE=" ],
 	"create offer|protocol version 26|create offer errors|create offer without issuer for buying" : 
 	[
@@ -67566,7 +67304,6 @@
 	],
 	"create offer|protocol version 26|modify offer price with liabilities|selling native|decrease price" : [ "EUe2j3saCWg=" ],
 	"create offer|protocol version 26|modify offer price with liabilities|selling native|increase price" : [ "lTjk+VgqstM=", "L+kdFckap9Q=", "TKT/wJsDmgA=", "jum+FBgAVYw=" ],
-	"create offer|protocol version 26|negative offerID" : [ "kT6/Ph+MhsY=" ],
 	"create offer|protocol version 26|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"lCrqNKY0rpc=",
@@ -68409,22 +68146,9 @@
 		"yUcLGytPZVA=",
 		"o+vsh9+4vjM=",
 		"nFcaIqjnkMo=",
-		"HPOItNF5ViM=",
-		"UMvaHUUMq6A="
+		"HPOItNF5ViM="
 	],
-	"create offer|protocol version 27|create offer errors|create offer with invalid prices" : 
-	[
-		"TduHde2iHmg=",
-		"kLdTQSsnWU4=",
-		"m5n9nsLNMaY=",
-		"0Ok6SxRrGR0=",
-		"ehm+8ayTp2M=",
-		"RdgrA1SdQzw=",
-		"dnicyr78wKc=",
-		"uyPYStzcIjM=",
-		"ox4sYMwWLII=",
-		"2fw0j//bItg="
-	],
+	"create offer|protocol version 27|create offer errors|create offer with invalid prices" : [ "TduHde2iHmg=", "kLdTQSsnWU4=" ],
 	"create offer|protocol version 27|create offer errors|create offer with trustline filled up" : 
 	[
 		"gtWbZb+BzI4=",
@@ -68453,7 +68177,6 @@
 		"o+vsh9+4vjM=",
 		"tD7+50CJxD4="
 	],
-	"create offer|protocol version 27|create offer errors|create offer without account" : [ "R6/tPSYNWDY=" ],
 	"create offer|protocol version 27|create offer errors|create offer without having any amount of asset" : [ "gtWbZb+BzI4=", "t5veyk9epYo=", "OPl5DSNzLgE=" ],
 	"create offer|protocol version 27|create offer errors|create offer without issuer for buying" : 
 	[
@@ -72054,7 +71777,6 @@
 	],
 	"create offer|protocol version 27|modify offer price with liabilities|selling native|decrease price" : [ "EUe2j3saCWg=" ],
 	"create offer|protocol version 27|modify offer price with liabilities|selling native|increase price" : [ "lTjk+VgqstM=", "L+kdFckap9Q=", "TKT/wJsDmgA=", "jum+FBgAVYw=" ],
-	"create offer|protocol version 27|negative offerID" : [ "kT6/Ph+MhsY=" ],
 	"create offer|protocol version 27|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"lCrqNKY0rpc=",
@@ -72897,22 +72619,9 @@
 		"yUcLGytPZVA=",
 		"o+vsh9+4vjM=",
 		"nFcaIqjnkMo=",
-		"HPOItNF5ViM=",
-		"UMvaHUUMq6A="
+		"HPOItNF5ViM="
 	],
-	"create offer|protocol version 28|create offer errors|create offer with invalid prices" : 
-	[
-		"TduHde2iHmg=",
-		"kLdTQSsnWU4=",
-		"m5n9nsLNMaY=",
-		"0Ok6SxRrGR0=",
-		"ehm+8ayTp2M=",
-		"RdgrA1SdQzw=",
-		"dnicyr78wKc=",
-		"uyPYStzcIjM=",
-		"ox4sYMwWLII=",
-		"2fw0j//bItg="
-	],
+	"create offer|protocol version 28|create offer errors|create offer with invalid prices" : [ "TduHde2iHmg=", "kLdTQSsnWU4=" ],
 	"create offer|protocol version 28|create offer errors|create offer with trustline filled up" : 
 	[
 		"gtWbZb+BzI4=",
@@ -72941,7 +72650,6 @@
 		"o+vsh9+4vjM=",
 		"tD7+50CJxD4="
 	],
-	"create offer|protocol version 28|create offer errors|create offer without account" : [ "R6/tPSYNWDY=" ],
 	"create offer|protocol version 28|create offer errors|create offer without having any amount of asset" : [ "gtWbZb+BzI4=", "t5veyk9epYo=", "OPl5DSNzLgE=" ],
 	"create offer|protocol version 28|create offer errors|create offer without issuer for buying" : 
 	[
@@ -76542,7 +76250,6 @@
 	],
 	"create offer|protocol version 28|modify offer price with liabilities|selling native|decrease price" : [ "EUe2j3saCWg=" ],
 	"create offer|protocol version 28|modify offer price with liabilities|selling native|increase price" : [ "lTjk+VgqstM=", "L+kdFckap9Q=", "TKT/wJsDmgA=", "jum+FBgAVYw=" ],
-	"create offer|protocol version 28|negative offerID" : [ "kT6/Ph+MhsY=" ],
 	"create offer|protocol version 28|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"lCrqNKY0rpc=",
@@ -77385,22 +77092,9 @@
 		"yUcLGytPZVA=",
 		"o+vsh9+4vjM=",
 		"nFcaIqjnkMo=",
-		"HPOItNF5ViM=",
-		"UMvaHUUMq6A="
+		"HPOItNF5ViM="
 	],
-	"create offer|protocol version 29|create offer errors|create offer with invalid prices" : 
-	[
-		"TduHde2iHmg=",
-		"kLdTQSsnWU4=",
-		"m5n9nsLNMaY=",
-		"0Ok6SxRrGR0=",
-		"ehm+8ayTp2M=",
-		"RdgrA1SdQzw=",
-		"dnicyr78wKc=",
-		"uyPYStzcIjM=",
-		"ox4sYMwWLII=",
-		"2fw0j//bItg="
-	],
+	"create offer|protocol version 29|create offer errors|create offer with invalid prices" : [ "TduHde2iHmg=", "kLdTQSsnWU4=" ],
 	"create offer|protocol version 29|create offer errors|create offer with trustline filled up" : 
 	[
 		"gtWbZb+BzI4=",
@@ -77429,7 +77123,6 @@
 		"o+vsh9+4vjM=",
 		"tD7+50CJxD4="
 	],
-	"create offer|protocol version 29|create offer errors|create offer without account" : [ "R6/tPSYNWDY=" ],
 	"create offer|protocol version 29|create offer errors|create offer without having any amount of asset" : [ "gtWbZb+BzI4=", "t5veyk9epYo=", "OPl5DSNzLgE=" ],
 	"create offer|protocol version 29|create offer errors|create offer without issuer for buying" : 
 	[
@@ -81030,7 +80723,6 @@
 	],
 	"create offer|protocol version 29|modify offer price with liabilities|selling native|decrease price" : [ "EUe2j3saCWg=" ],
 	"create offer|protocol version 29|modify offer price with liabilities|selling native|increase price" : [ "lTjk+VgqstM=", "L+kdFckap9Q=", "TKT/wJsDmgA=", "jum+FBgAVYw=" ],
-	"create offer|protocol version 29|negative offerID" : [ "kT6/Ph+MhsY=" ],
 	"create offer|protocol version 29|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"lCrqNKY0rpc=",
@@ -81530,19 +81222,7 @@
 		"+PvmDcMgVBQ=",
 		"PoaWeZKiPuQ="
 	],
-	"create offer|protocol version 2|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 2|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 2|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -81571,7 +81251,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 2|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 2|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 2|create offer errors|create offer without issuer for buying" : 
 	[
@@ -83162,22 +82841,9 @@
 		"yUcLGytPZVA=",
 		"o+vsh9+4vjM=",
 		"nFcaIqjnkMo=",
-		"HPOItNF5ViM=",
-		"UMvaHUUMq6A="
+		"HPOItNF5ViM="
 	],
-	"create offer|protocol version 30|create offer errors|create offer with invalid prices" : 
-	[
-		"TduHde2iHmg=",
-		"kLdTQSsnWU4=",
-		"m5n9nsLNMaY=",
-		"0Ok6SxRrGR0=",
-		"ehm+8ayTp2M=",
-		"RdgrA1SdQzw=",
-		"dnicyr78wKc=",
-		"uyPYStzcIjM=",
-		"ox4sYMwWLII=",
-		"2fw0j//bItg="
-	],
+	"create offer|protocol version 30|create offer errors|create offer with invalid prices" : [ "TduHde2iHmg=", "kLdTQSsnWU4=" ],
 	"create offer|protocol version 30|create offer errors|create offer with trustline filled up" : 
 	[
 		"gtWbZb+BzI4=",
@@ -83206,7 +82872,6 @@
 		"o+vsh9+4vjM=",
 		"tD7+50CJxD4="
 	],
-	"create offer|protocol version 30|create offer errors|create offer without account" : [ "R6/tPSYNWDY=" ],
 	"create offer|protocol version 30|create offer errors|create offer without having any amount of asset" : [ "gtWbZb+BzI4=", "t5veyk9epYo=", "OPl5DSNzLgE=" ],
 	"create offer|protocol version 30|create offer errors|create offer without issuer for buying" : 
 	[
@@ -86807,7 +86472,6 @@
 	],
 	"create offer|protocol version 30|modify offer price with liabilities|selling native|decrease price" : [ "EUe2j3saCWg=" ],
 	"create offer|protocol version 30|modify offer price with liabilities|selling native|increase price" : [ "lTjk+VgqstM=", "L+kdFckap9Q=", "TKT/wJsDmgA=", "jum+FBgAVYw=" ],
-	"create offer|protocol version 30|negative offerID" : [ "kT6/Ph+MhsY=" ],
 	"create offer|protocol version 30|new offer is not created if it does not satisfy thresholds" : 
 	[
 		"lCrqNKY0rpc=",
@@ -87304,22 +86968,9 @@
 		"X9zjM51ddHQ=",
 		"XyEOZZvpI+U=",
 		"FH+xvwjAKfA=",
-		"+PvmDcMgVBQ=",
-		"/lfj8xIFS8I="
+		"+PvmDcMgVBQ="
 	],
-	"create offer|protocol version 3|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 3|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 3|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -87348,7 +86999,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 3|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 3|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 3|create offer errors|create offer without issuer for buying" : 
 	[
@@ -88593,22 +88243,9 @@
 		"X9zjM51ddHQ=",
 		"XyEOZZvpI+U=",
 		"FH+xvwjAKfA=",
-		"+PvmDcMgVBQ=",
-		"/lfj8xIFS8I="
+		"+PvmDcMgVBQ="
 	],
-	"create offer|protocol version 4|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 4|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 4|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -88637,7 +88274,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 4|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 4|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 4|create offer errors|create offer without issuer for buying" : 
 	[
@@ -89882,22 +89518,9 @@
 		"X9zjM51ddHQ=",
 		"XyEOZZvpI+U=",
 		"FH+xvwjAKfA=",
-		"+PvmDcMgVBQ=",
-		"/lfj8xIFS8I="
+		"+PvmDcMgVBQ="
 	],
-	"create offer|protocol version 5|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 5|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 5|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -89926,7 +89549,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 5|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 5|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 5|create offer errors|create offer without issuer for buying" : 
 	[
@@ -91171,22 +90793,9 @@
 		"X9zjM51ddHQ=",
 		"XyEOZZvpI+U=",
 		"FH+xvwjAKfA=",
-		"+PvmDcMgVBQ=",
-		"/lfj8xIFS8I="
+		"+PvmDcMgVBQ="
 	],
-	"create offer|protocol version 6|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 6|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 6|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -91215,7 +90824,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 6|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 6|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 6|create offer errors|create offer without issuer for buying" : 
 	[
@@ -92460,22 +92068,9 @@
 		"X9zjM51ddHQ=",
 		"XyEOZZvpI+U=",
 		"FH+xvwjAKfA=",
-		"+PvmDcMgVBQ=",
-		"/lfj8xIFS8I="
+		"+PvmDcMgVBQ="
 	],
-	"create offer|protocol version 7|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 7|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 7|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -92504,7 +92099,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 7|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 7|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 7|create offer errors|create offer without issuer for buying" : 
 	[
@@ -93749,22 +93343,9 @@
 		"X9zjM51ddHQ=",
 		"XyEOZZvpI+U=",
 		"FH+xvwjAKfA=",
-		"+PvmDcMgVBQ=",
-		"/lfj8xIFS8I="
+		"+PvmDcMgVBQ="
 	],
-	"create offer|protocol version 8|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 8|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 8|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -93793,7 +93374,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 8|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 8|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 8|create offer errors|create offer without issuer for buying" : 
 	[
@@ -95038,22 +94618,9 @@
 		"X9zjM51ddHQ=",
 		"XyEOZZvpI+U=",
 		"FH+xvwjAKfA=",
-		"+PvmDcMgVBQ=",
-		"/lfj8xIFS8I="
+		"+PvmDcMgVBQ="
 	],
-	"create offer|protocol version 9|create offer errors|create offer with invalid prices" : 
-	[
-		"IcFiPkuzvbU=",
-		"tQIkzvRMF0Q=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I=",
-		"/lfj8xIFS8I="
-	],
+	"create offer|protocol version 9|create offer errors|create offer with invalid prices" : [ "IcFiPkuzvbU=", "tQIkzvRMF0Q=" ],
 	"create offer|protocol version 9|create offer errors|create offer with trustline filled up" : 
 	[
 		"XuDATGliI38=",
@@ -95082,7 +94649,6 @@
 		"XyEOZZvpI+U=",
 		"/lfj8xIFS8I="
 	],
-	"create offer|protocol version 9|create offer errors|create offer without account" : [ "/lfj8xIFS8I=" ],
 	"create offer|protocol version 9|create offer errors|create offer without having any amount of asset" : [ "XuDATGliI38=", "oSNMkC0ZXHY=", "/lfj8xIFS8I=" ],
 	"create offer|protocol version 9|create offer errors|create offer without issuer for buying" : 
 	[
@@ -102394,5 +101960,761 @@
 	"liabilities match created offer|protocol version 6" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
 	"liabilities match created offer|protocol version 7" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
 	"liabilities match created offer|protocol version 8" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
-	"liabilities match created offer|protocol version 9" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ]
+	"liabilities match created offer|protocol version 9" : [ "b5C50yVNh3U=", "b5C50yVNh3U=" ],
+	"offer crossing with minimal receive cap|protocol version 10" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 10|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 10|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 10|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"sHcKW4VLUWc="
+	],
+	"offer crossing with minimal receive cap|protocol version 11" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 11|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 11|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 11|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"sHcKW4VLUWc="
+	],
+	"offer crossing with minimal receive cap|protocol version 12" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 12|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 12|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 12|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"sHcKW4VLUWc="
+	],
+	"offer crossing with minimal receive cap|protocol version 13" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 13|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 13|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 13|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"sHcKW4VLUWc="
+	],
+	"offer crossing with minimal receive cap|protocol version 14" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 14|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 14|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 14|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 15" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 15|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 15|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 15|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 16" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 16|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 16|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 16|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 17" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 17|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 17|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 17|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 18" : 
+	[
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8=",
+		"ToVuigP5v5E=",
+		"Q7bY6elsOt0=",
+		"CbbM+jojzE8="
+	],
+	"offer crossing with minimal receive cap|protocol version 18|maker offer is adjusted with rounding error" : [ "aAroHDGU+No=", "lM+foJZLu8Y=", "uiZh+RQkTEs=", "sqFSfsCQdFE=" ],
+	"offer crossing with minimal receive cap|protocol version 18|maker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"uiZh+RQkTEs=",
+		"r6FiDa1FxDE=",
+		"1w7im7DK5vQ=",
+		"8CZgqxVMMqo=",
+		"TC9qQ38hOKk=",
+		"XU4h1ZRXpGM=",
+		"xcOjFJSTWeo="
+	],
+	"offer crossing with minimal receive cap|protocol version 18|taker offer is fully taken" : 
+	[
+		"aAroHDGU+No=",
+		"nGgqFSCejjc=",
+		"ML/erLnIro0=",
+		"oLr9LY1r2fg=",
+		"blibCKGyL0E=",
+		"m6wAzb6dO0s=",
+		"4EglXIkDZXE=",
+		"RFz7cb3bVAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 19" : 
+	[
+		"t/0I5GhDssU=",
+		"y0CrJTaN4xM=",
+		"EOhD3ClVDIA=",
+		"t/0I5GhDssU=",
+		"y0CrJTaN4xM=",
+		"EOhD3ClVDIA=",
+		"t/0I5GhDssU=",
+		"y0CrJTaN4xM=",
+		"EOhD3ClVDIA="
+	],
+	"offer crossing with minimal receive cap|protocol version 19|maker offer is adjusted with rounding error" : [ "0kkSvm0VrVU=", "63dEBQjTWc8=", "rbPNlMlk8V0=", "rWNzlwXgxOk=" ],
+	"offer crossing with minimal receive cap|protocol version 19|maker offer is fully taken" : 
+	[
+		"0kkSvm0VrVU=",
+		"C082KYE9D0g=",
+		"rbPNlMlk8V0=",
+		"9RiBti54Qdw=",
+		"Fbt/TCKDUQA=",
+		"FXSl68kl9/o=",
+		"fTwJki2Lw1o=",
+		"BB++28eq+a0=",
+		"Vn9uZG/PTeY="
+	],
+	"offer crossing with minimal receive cap|protocol version 19|taker offer is fully taken" : 
+	[
+		"0kkSvm0VrVU=",
+		"C082KYE9D0g=",
+		"+JqyD9a7rmQ=",
+		"7RO+UBCOtFI=",
+		"k/yIMF7/Cjo=",
+		"Z9kPeeKYNVo=",
+		"tSJnowo2krY=",
+		"+KG+nF3uu3I="
+	],
+	"offer crossing with minimal receive cap|protocol version 20" : 
+	[
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI="
+	],
+	"offer crossing with minimal receive cap|protocol version 20|maker offer is adjusted with rounding error" : [ "/ozdYfrGF50=", "6uwtkQ9KhIs=", "ppn/MSk+RtA=", "VFpqpwzv9TA=" ],
+	"offer crossing with minimal receive cap|protocol version 20|maker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"ppn/MSk+RtA=",
+		"qTNnP0OlW60=",
+		"jcRnjyDd22w=",
+		"XgN4hg/DmBk=",
+		"USaALs/9HIc=",
+		"X3oN2ZaVASk=",
+		"rWdAfqOtUtI="
+	],
+	"offer crossing with minimal receive cap|protocol version 20|taker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"nm79nDjAtsE=",
+		"ysyNCoCfBEQ=",
+		"cvv/9Wtcu/w=",
+		"gbJl/IZ3IsI=",
+		"rBVksDP0EXg=",
+		"c6tR8Jshlqw="
+	],
+	"offer crossing with minimal receive cap|protocol version 21" : 
+	[
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI="
+	],
+	"offer crossing with minimal receive cap|protocol version 21|maker offer is adjusted with rounding error" : [ "/ozdYfrGF50=", "6uwtkQ9KhIs=", "ppn/MSk+RtA=", "VFpqpwzv9TA=" ],
+	"offer crossing with minimal receive cap|protocol version 21|maker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"ppn/MSk+RtA=",
+		"qTNnP0OlW60=",
+		"jcRnjyDd22w=",
+		"XgN4hg/DmBk=",
+		"USaALs/9HIc=",
+		"X3oN2ZaVASk=",
+		"rWdAfqOtUtI="
+	],
+	"offer crossing with minimal receive cap|protocol version 21|taker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"nm79nDjAtsE=",
+		"ysyNCoCfBEQ=",
+		"cvv/9Wtcu/w=",
+		"gbJl/IZ3IsI=",
+		"rBVksDP0EXg=",
+		"c6tR8Jshlqw="
+	],
+	"offer crossing with minimal receive cap|protocol version 22" : 
+	[
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI=",
+		"tPpqlsju688=",
+		"ewAu6GEDXA0=",
+		"KXIRnkKI1lI="
+	],
+	"offer crossing with minimal receive cap|protocol version 22|maker offer is adjusted with rounding error" : [ "/ozdYfrGF50=", "6uwtkQ9KhIs=", "ppn/MSk+RtA=", "VFpqpwzv9TA=" ],
+	"offer crossing with minimal receive cap|protocol version 22|maker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"ppn/MSk+RtA=",
+		"qTNnP0OlW60=",
+		"jcRnjyDd22w=",
+		"XgN4hg/DmBk=",
+		"USaALs/9HIc=",
+		"X3oN2ZaVASk=",
+		"rWdAfqOtUtI="
+	],
+	"offer crossing with minimal receive cap|protocol version 22|taker offer is fully taken" : 
+	[
+		"/ozdYfrGF50=",
+		"rSBvvkLLRx8=",
+		"nm79nDjAtsE=",
+		"ysyNCoCfBEQ=",
+		"cvv/9Wtcu/w=",
+		"gbJl/IZ3IsI=",
+		"rBVksDP0EXg=",
+		"c6tR8Jshlqw="
+	],
+	"offer crossing with minimal receive cap|protocol version 23" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 23|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 23|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 23|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 24" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 24|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 24|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 24|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 25" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 25|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 25|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 25|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 26" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 26|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 26|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 26|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 27" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 27|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 27|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 27|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 28" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 28|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "krc2Zi76ut0=" ],
+	"offer crossing with minimal receive cap|protocol version 28|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"hMQy7qkAbcs="
+	],
+	"offer crossing with minimal receive cap|protocol version 28|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"G/5yXVDnDAs="
+	],
+	"offer crossing with minimal receive cap|protocol version 29" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 29|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "xs/iaAEzUx8=" ],
+	"offer crossing with minimal receive cap|protocol version 29|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"C2HJqCUw/kA="
+	],
+	"offer crossing with minimal receive cap|protocol version 29|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"y2nAP+T797A="
+	],
+	"offer crossing with minimal receive cap|protocol version 30" : 
+	[
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8=",
+		"x5I6WxWC2ws=",
+		"FGhgYVNM11w=",
+		"t/Odpjd+cz8="
+	],
+	"offer crossing with minimal receive cap|protocol version 30|maker offer is adjusted with rounding error" : [ "tPpJTdxQ0w0=", "dICZoRb38Fk=", "BBwEdeZ9rm4=", "xs/iaAEzUx8=" ],
+	"offer crossing with minimal receive cap|protocol version 30|maker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"BBwEdeZ9rm4=",
+		"T3KUpbg1er0=",
+		"zE4dVeAtY7M=",
+		"agsdl8YRq6w=",
+		"a8skmz8emPY=",
+		"WhgGdNYTDDk=",
+		"C2HJqCUw/kA="
+	],
+	"offer crossing with minimal receive cap|protocol version 30|taker offer is fully taken" : 
+	[
+		"tPpJTdxQ0w0=",
+		"j1l2pqnLsqI=",
+		"bQn2VIpTSZc=",
+		"tJeBgQJBI4o=",
+		"tI0AlSwu0fc=",
+		"zx0JpnaaGrI=",
+		"nDnCYr/ak/Q=",
+		"y2nAP+T797A="
+	]
 }

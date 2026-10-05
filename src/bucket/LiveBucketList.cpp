@@ -14,9 +14,8 @@ namespace stellar
 void
 LiveBucketList::addBatch(Application& app, uint32_t currLedger,
                          uint32_t currLedgerProtocol,
-                         std::vector<LedgerEntry> const& initEntries,
-                         std::vector<LedgerEntry> const& liveEntries,
-                         std::vector<LedgerKey> const& deadEntries)
+                         LedgerEntryRefs initEntries,
+                         LedgerEntryRefs liveEntries, LedgerKeyRefs deadEntries)
 {
     ZoneScoped;
     addBatchInternal(app, currLedger, currLedgerProtocol, initEntries,
@@ -25,6 +24,21 @@ LiveBucketList::addBatch(Application& app, uint32_t currLedger,
     // Initialize caches for any new buckets we might have added
     maybeInitializeCaches(app.getConfig());
 }
+
+#ifdef BUILD_TESTS
+void
+LiveBucketList::addBatch(Application& app, uint32_t currLedger,
+                         uint32_t currLedgerProtocol,
+                         std::vector<LedgerEntry> const& initEntries,
+                         std::vector<LedgerEntry> const& liveEntries,
+                         std::vector<LedgerKey> const& deadEntries)
+{
+    auto initRefs = toRefs(initEntries);
+    auto liveRefs = toRefs(liveEntries);
+    auto deadRefs = toRefs(deadEntries);
+    addBatch(app, currLedger, currLedgerProtocol, initRefs, liveRefs, deadRefs);
+}
+#endif
 
 BucketEntryCounters
 LiveBucketList::sumBucketEntryCounters() const

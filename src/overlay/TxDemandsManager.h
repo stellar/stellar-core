@@ -61,7 +61,7 @@ class TxDemandsManager : private NonMovableOrCopyable
 
     Application& mApp;
     VirtualTimer mDemandTimer;
-    UnorderedMap<Hash, DemandHistory, FullHash256> mDemandHistoryMap;
+    UnorderedMap<Hash, DemandHistory> mDemandHistoryMap;
     std::queue<Hash> mPendingDemands;
 
     // Begin demanding on schedule
