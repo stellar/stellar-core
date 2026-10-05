@@ -105,8 +105,8 @@ class ConsensusTime
     fromSystemTime(std::chrono::system_clock::time_point time,
                    uint32_t protocolVersion);
 #ifdef MS_CLOSE_TIME
-    static ConsensusTime fromMilliseconds(TimePointMilliseconds milliseconds);
-    TimePointMilliseconds milliseconds() const;
+    static ConsensusTime fromMilliseconds(TimePointMs milliseconds);
+    TimePointMs milliseconds() const;
 #endif // MS_CLOSE_TIME
 
     bool isWholeSecond() const;

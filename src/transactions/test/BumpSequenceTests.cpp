@@ -231,18 +231,19 @@ TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
 
     SECTION("sub-second ledger in the same whole second: age still 0")
     {
-        auto r =
-            closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 800), {tx2},
-                          /*strictOrder=*/true);
+        closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 800));
 
         // We always round down to whole seconds, so a subsecond ledger should
         // not advance minSeqAge.
-        checkTx(0, r, txBAD_MIN_SEQ_AGE_OR_GAP);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(
+            !tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(tx2->getResultCode() == txBAD_MIN_SEQ_AGE_OR_GAP);
     }
     SECTION("whole-second ledger one second later: age requirement met")
     {
-        auto r = closeLedgerOn(*app, nextSeq(), T + 1, {tx2},
-                               /*strictOrder=*/true);
+        closeLedgerOn(*app, nextSeq(), T + 1);
+        auto r = closeLedger(*app, {tx2});
         checkTx(0, r, txSUCCESS);
     }
 }

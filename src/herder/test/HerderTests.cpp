@@ -1837,8 +1837,8 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         PerPhaseTransactionList invalidPhases;
         invalidPhases.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
         auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
-            PerPhaseTransactionList{classicTxs, sorobanTxs}, *app, 0, 0,
-            invalidPhases);
+            PerPhaseTransactionList{classicTxs, sorobanTxs}, *app,
+            ApplyTimeOffset{}, invalidPhases);
 
         REQUIRE(
             invalidPhases[static_cast<size_t>(TxSetPhase::CLASSIC)].empty());
@@ -6517,12 +6517,14 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
 
     // Let A and B advance a couple of ledgers past `target` so their SCP
     // state contains EXTERNALIZE messages for `target` we can replay. C
-    // has no peers at this point and stays put.
+    // has no peers at this point and stays put. With C unreachable, a slot
+    // whose leader schedule keeps electing C can fast-timeout through
+    // several nomination rounds, so leave room for the longer round timeouts.
     simulation->crankUntil(
         [&] {
             return A->getLedgerManager().getLastClosedLedgerNum() >= target + 2;
         },
-        std::chrono::seconds(20), false);
+        std::chrono::seconds(60), false);
     REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target - 1);
 
     // Capture EXTERNALIZE envelopes for slot `target` from A and B.

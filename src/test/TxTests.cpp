@@ -390,12 +390,14 @@ TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder,
               xdr::xvector<UpgradeType, 6> const& upgrades,
-              ParallelSorobanOrder const& parallelSorobanOrder)
+              ParallelSorobanOrder const& parallelSorobanOrder,
+              bool disableTxValidationForLegacyScenario)
 {
     return closeLedgerOn(
         app, ledgerSeq,
         ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(closeTime)), txs,
-        strictOrder, upgrades, parallelSorobanOrder);
+        strictOrder, upgrades, parallelSorobanOrder,
+        disableTxValidationForLegacyScenario);
 }
 
 TransactionResultSet

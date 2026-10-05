@@ -3371,12 +3371,16 @@ TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
         auto tx = a1.tx({payment(*root, 1)});
         setMinTime(tx, T + 1);
         reSign(tx, a1);
-        auto r = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400), {tx},
-                               /*strictOrder=*/true);
-        checkTx(0, r, txTOO_EARLY);
+        closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400));
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
+                                              0));
+            REQUIRE(tx->getResultCode() == txTOO_EARLY);
+        }
         // The same transaction applies once the next whole second is reached
-        auto r2 = closeLedgerOn(*app, nextSeq(), T + 1, {tx},
-                                /*strictOrder=*/true);
+        closeLedgerOn(*app, nextSeq(), T + 1);
+        auto r2 = closeLedger(*app, {tx});
         checkTx(0, r2, txSUCCESS);
     }
 }

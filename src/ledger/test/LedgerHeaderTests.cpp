@@ -196,8 +196,7 @@ TEST_CASE("close time helpers", "[ledger][herder]")
         // the values carry no lcValueSignature
         TimePoint const T = 1'700'000'000;
 
-        auto msValue = [](TimePoint closeTime,
-                          TimePointMilliseconds closeTimeMs) {
+        auto msValue = [](TimePoint closeTime, TimePointMs closeTimeMs) {
             StellarValue sv;
             sv.ext.v(STELLAR_VALUE_SIGNED_MS);
             sv.closeTime = closeTime;

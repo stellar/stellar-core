@@ -121,7 +121,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false,
               xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
-              ParallelSorobanOrder const& parallelSorobanOrder = {});
+              ParallelSorobanOrder const& parallelSorobanOrder = {},
+              bool disableTxValidationForLegacyScenario = false);
 
 // A sub-second consensus close time is only valid once the protocol uses
 // millisecond close times.

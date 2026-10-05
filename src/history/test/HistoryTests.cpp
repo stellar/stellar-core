@@ -1335,7 +1335,7 @@ TEST_CASE("ApplyCheckpointWork rejects malformed ms close time ledger headers",
     auto const msVersion =
         static_cast<uint32_t>(MS_CLOSE_TIME_PROTOCOL_VERSION);
     auto setMsValue = [](StellarValue& sv, TimePoint closeTime,
-                         TimePointMilliseconds closeTimeMs) {
+                         TimePointMs closeTimeMs) {
         sv.ext.v(STELLAR_VALUE_SIGNED_MS);
         sv.closeTime = closeTime;
         sv.ext.signedMsValue().closeTimeMs = closeTimeMs;

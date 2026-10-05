@@ -97,12 +97,12 @@ ConsensusTime::fromSystemTime(std::chrono::system_clock::time_point time,
 
 #ifdef MS_CLOSE_TIME
 ConsensusTime
-ConsensusTime::fromMilliseconds(TimePointMilliseconds milliseconds)
+ConsensusTime::fromMilliseconds(TimePointMs milliseconds)
 {
     return ConsensusTime(milliseconds);
 }
 
-TimePointMilliseconds
+TimePointMs
 ConsensusTime::milliseconds() const
 {
     return mMilliseconds;
