@@ -2865,6 +2865,79 @@ TEST_CASE("upgrade to version 26 and check cost types", "[upgrades]")
     }
 }
 
+#ifdef CAP_0087_ML_DSA
+TEST_CASE("upgrade to version 30 and check cost types", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(29));
+
+    LedgerKey cpuKey(CONFIG_SETTING);
+    cpuKey.configSetting().configSettingID =
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+    LedgerKey memKey(CONFIG_SETTING);
+    memKey.configSetting().configSettingID =
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(ltx.load(cpuKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsCpuInsns()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
+        REQUIRE(ltx.load(memKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsMemBytes()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
+    }
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(30));
+
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        auto cpuLtxe = ltx.load(cpuKey);
+        auto const& cpuParams =
+            cpuLtxe.current().data.configSetting().contractCostParamsCpuInsns();
+        auto memLtxe = ltx.load(memKey);
+        auto const& memParams =
+            memLtxe.current().data.configSetting().contractCostParamsMemBytes();
+
+        REQUIRE(cpuParams.size() ==
+                static_cast<uint32>(ContractCostType::VerifyMlDsa87Sig) + 1);
+        REQUIRE(memParams.size() ==
+                static_cast<uint32>(ContractCostType::VerifyMlDsa87Sig) + 1);
+        REQUIRE(SorobanNetworkConfig::isValidCostParams(cpuParams, 30));
+        REQUIRE(SorobanNetworkConfig::isValidCostParams(memParams, 30));
+        REQUIRE(!SorobanNetworkConfig::isValidCostParams(cpuParams, 29));
+
+        auto cpu = [&](ContractCostType t) {
+            return cpuParams[static_cast<size_t>(t)];
+        };
+        auto mem = [&](ContractCostType t) {
+            return memParams[static_cast<size_t>(t)];
+        };
+        REQUIRE(cpu(ContractCostType::MlDsa87DecodeVerifyingKey).constTerm ==
+                2625760);
+        REQUIRE(cpu(ContractCostType::VerifyMlDsa44Sig).constTerm == 685165);
+        REQUIRE(cpu(ContractCostType::VerifyMlDsa44Sig).linearTerm == 6103);
+        REQUIRE(cpu(ContractCostType::VerifyMlDsa87Sig).constTerm == 1437210);
+        REQUIRE(cpu(ContractCostType::VerifyMlDsa87Sig).linearTerm == 6102);
+        REQUIRE(mem(ContractCostType::MlDsa87DecodeVerifyingKey).constTerm ==
+                73808);
+        REQUIRE(mem(ContractCostType::VerifyMlDsa87Sig).constTerm == 0);
+    }
+}
+#endif
+
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be

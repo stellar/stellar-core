@@ -694,6 +694,69 @@ updateCpuCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+#ifdef CAP_0087_ML_DSA
+void
+updateCpuCostParamsEntryForV30(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
+
+    // Resize to fit the new cost types added in v30
+    params.resize(static_cast<uint32>(ContractCostType::VerifyMlDsa87Sig) + 1);
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+
+    // While we loop over the full ContractCostType enum, we only set the
+    // entries that have been newly created in v30
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        case MlDsa44DecodeVerifyingKey:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 849110, 0);
+            break;
+        case MlDsa65DecodeVerifyingKey:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1505271, 0);
+            break;
+        case MlDsa87DecodeVerifyingKey:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2625760, 0);
+            break;
+        case MlDsa44DecodeSignature:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 37888, 0);
+            break;
+        case MlDsa65DecodeSignature:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 47691, 0);
+            break;
+        case MlDsa87DecodeSignature:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 66346, 0);
+            break;
+        case VerifyMlDsa44Sig:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 685165, 6103);
+            break;
+        case VerifyMlDsa65Sig:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 983619, 6103);
+            break;
+        case VerifyMlDsa87Sig:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 1437210, 6102);
+            break;
+        default:
+            break;
+        }
+    }
+    ltx.commit();
+}
+#endif
+
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
 {
@@ -1188,6 +1251,66 @@ updateMemCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
 
     ltx.commit();
 }
+
+#ifdef CAP_0087_ML_DSA
+void
+updateMemCostParamsEntryForV30(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsMemBytes();
+
+    // Resize to fit the new cost types added in v30
+    params.resize(static_cast<uint32>(ContractCostType::VerifyMlDsa87Sig) + 1);
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+
+    // While we loop over the full ContractCostType enum, we only set the
+    // entries that have been newly created in v30
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        case MlDsa44DecodeVerifyingKey:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 24656, 0);
+            break;
+        case MlDsa65DecodeVerifyingKey:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 43088, 0);
+            break;
+        case MlDsa87DecodeVerifyingKey:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 73808, 0);
+            break;
+        case MlDsa44DecodeSignature:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 4104, 0);
+            break;
+        case MlDsa65DecodeSignature:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 5128, 0);
+            break;
+        case MlDsa87DecodeSignature:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 7176, 0);
+            break;
+        case VerifyMlDsa44Sig:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case VerifyMlDsa65Sig:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case VerifyMlDsa87Sig:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        default:
+            break;
+        }
+    }
+    ltx.commit();
+}
+#endif
 
 ConfigSettingEntry
 initialParallelComputeEntry()
@@ -1688,6 +1811,17 @@ SorobanNetworkConfig::updateCostTypesForV26(AbstractLedgerTxn& ltx,
     updateMemCostParamsEntryForV26(ltx);
 }
 
+#ifdef CAP_0087_ML_DSA
+void
+SorobanNetworkConfig::createCostTypesForV30(AbstractLedgerTxn& ltx,
+                                            Application& app)
+{
+    ZoneScoped;
+    updateCpuCostParamsEntryForV30(ltx);
+    updateMemCostParamsEntryForV30(ltx);
+}
+#endif
+
 void
 SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
                                                          Application& app)
@@ -1760,6 +1894,12 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
         SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
         SorobanNetworkConfig::createLedgerEntriesForV26(ltx, app);
     }
+#ifdef CAP_0087_ML_DSA
+    if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_30))
+    {
+        SorobanNetworkConfig::createCostTypesForV30(ltx, app);
+    }
+#endif
 }
 
 SorobanNetworkConfig
@@ -2836,6 +2976,14 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
         {
             return static_cast<uint32_t>(ContractCostType::Bn254FrInv) + 1;
         }
+#ifdef CAP_0087_ML_DSA
+        else if (protocolVersionStartsFrom(ledgerVersion,
+                                           ProtocolVersion::V_30))
+        {
+            return static_cast<uint32_t>(ContractCostType::VerifyMlDsa87Sig) +
+                   1;
+        }
+#endif
         else
         {
             return static_cast<uint32_t>(ContractCostType::Bn254G1Msm) + 1;

@@ -19,6 +19,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
@@ -40,6 +41,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/MlDsaTestVectors.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Decoder.h"
@@ -6713,6 +6715,86 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
                 InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
     }
 }
+
+#ifdef CAP_0087_ML_DSA
+TEST_CASE("CAP-0087 ML-DSA signature verification", "[tx][soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg);
+
+    auto spec = SorobanInvocationSpec()
+                    .setInstructions(test.getNetworkCfg().txMaxInstructions())
+                    .setReadBytes(test.getNetworkCfg().txMaxDiskReadBytes())
+                    .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
+
+    auto check = [&](uint32_t paramSet, char const* pkHex, char const* msgHex,
+                     char const* sigHex, char const* ctxHex) {
+        TestContract& contract = test.deployWasmContract(
+            rust_bridge::get_ml_dsa_verify_wasm(paramSet), spec.getResources());
+
+        auto pk = hexToBin(pkHex);
+        auto msg = hexToBin(msgHex);
+        auto sig = hexToBin(sigHex);
+        auto ctx = hexToBin(ctxHex);
+
+        auto invoke = [&](std::vector<uint8_t> const& p,
+                          std::vector<uint8_t> const& s,
+                          std::vector<uint8_t> const& c) {
+            auto invocation = contract.prepareInvocation(
+                "verify",
+                {makeBytesSCVal(p), makeBytesSCVal(msg), makeBytesSCVal(s),
+                 makeBytesSCVal(c)},
+                spec);
+            bool success = invocation.invoke();
+            if (!success)
+            {
+                REQUIRE(invocation.getResultCode() ==
+                        INVOKE_HOST_FUNCTION_TRAPPED);
+            }
+            return success;
+        };
+
+        REQUIRE(invoke(pk, sig, ctx));
+
+        auto badSig = sig;
+        badSig[0] ^= 0xff;
+        REQUIRE(!invoke(pk, badSig, ctx));
+
+        auto badCtx = ctx;
+        badCtx.push_back(0);
+        REQUIRE(!invoke(pk, sig, badCtx));
+
+        auto shortPk = pk;
+        shortPk.pop_back();
+        REQUIRE(!invoke(shortPk, sig, ctx));
+
+        auto shortSig = sig;
+        shortSig.resize(sig.size() - 2);
+        REQUIRE(!invoke(pk, shortSig, ctx));
+
+        REQUIRE(!invoke(pk, sig, std::vector<uint8_t>(256, 0)));
+    };
+
+    SECTION("ML-DSA-44, empty context")
+    {
+        check(44, ML_DSA_44_NO_CTX_PK, ML_DSA_44_NO_CTX_MSG,
+              ML_DSA_44_NO_CTX_SIG, ML_DSA_44_NO_CTX_CTX);
+    }
+    SECTION("ML-DSA-44")
+    {
+        check(44, ML_DSA_44_PK, ML_DSA_44_MSG, ML_DSA_44_SIG, ML_DSA_44_CTX);
+    }
+    SECTION("ML-DSA-65")
+    {
+        check(65, ML_DSA_65_PK, ML_DSA_65_MSG, ML_DSA_65_SIG, ML_DSA_65_CTX);
+    }
+    SECTION("ML-DSA-87")
+    {
+        check(87, ML_DSA_87_PK, ML_DSA_87_MSG, ML_DSA_87_SIG, ML_DSA_87_CTX);
+    }
+}
+#endif
 
 TEST_CASE("Soroban delegated signer authentication", "[soroban]")
 {

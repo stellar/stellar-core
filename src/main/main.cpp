@@ -254,6 +254,10 @@ checkXDRFileIdentity()
     cppFeatures.push_back("cap_0084_muxed_contract");
 #endif
 
+#ifdef CAP_0087_ML_DSA
+    cppFeatures.push_back("cap_0087_ml_dsa");
+#endif
+
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // If we're not building for the next protocol, no XDR feature flags
     // should be enabled. If any are, it's a build misconfiguration.
