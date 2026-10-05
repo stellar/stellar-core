@@ -833,14 +833,75 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
 
     // Acceptor sends too many flood messages, causing initiator to drop it
     auto msgPtr = std::make_shared<StellarMessage>(msg);
-    conn.getAcceptor()->sendAuthenticatedMessage(msgPtr);
-    conn.getAcceptor()->sendAuthenticatedMessage(msgPtr);
+    conn.getAcceptor()->sendAuthenticatedMessageForTesting(msgPtr);
+    conn.getAcceptor()->sendAuthenticatedMessageForTesting(msgPtr);
     testutil::crankSome(clock);
 
     REQUIRE(!conn.getInitiator()->isConnectedForTesting());
     REQUIRE(!conn.getAcceptor()->isConnectedForTesting());
     REQUIRE(conn.getInitiator()->getDropReason() ==
             "unexpected flood message, peer at capacity");
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
+TEST_CASE("failed flow control admission stops preprocessing",
+          "[overlay][flowcontrol]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    testutil::crankSome(clock);
+    REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(conn.getAcceptor()->isAuthenticatedForTesting());
+
+    auto acceptor = conn.getAcceptor();
+    auto floodCapacity =
+        app2->getOverlayManager().getFlowControlFloodByteCapacity();
+
+    auto msgSize = [](StellarMessage const& msg) {
+        return FlowControlCapacity::msgBodySize(msg);
+    };
+
+    SECTION("admission succeeds, message is preprocessed")
+    {
+        auto msg = makeStellarMessage(1000);
+        REQUIRE(msgSize(*msg) < floodCapacity);
+
+        auto tracker = std::make_shared<CapacityTrackedMessage>(acceptor, *msg);
+
+        // Admission succeeded, so the peer stays up and the message is
+        // hashed and turned into a transaction frame.
+        REQUIRE(!acceptor->shouldAbortForTesting());
+        REQUIRE(tracker->maybeGetHash().has_value());
+        REQUIRE(tracker->getTxMap().size() == 1);
+    }
+
+    SECTION("admission fails, message is not preprocessed")
+    {
+        // A TRANSACTION larger than the flood byte capacity can never be
+        // admitted: FlowControlCapacity::canLockLocalCapacity fails on its
+        // first comparison.
+        auto msg = makeStellarMessage(floodCapacity + 10000);
+        REQUIRE(msgSize(*msg) > floodCapacity);
+
+        auto tracker = std::make_shared<CapacityTrackedMessage>(acceptor, *msg);
+
+        // Admission failed, so the peer drop was initiated synchronously.
+        REQUIRE(acceptor->shouldAbortForTesting());
+        REQUIRE(acceptor->getDropReason() ==
+                "unexpected flood message, peer at capacity");
+
+        // The message will never be processed, so nothing should have been
+        // computed for it.
+        REQUIRE(!tracker->maybeGetHash().has_value());
+        REQUIRE(tracker->getTxMap().empty());
+    }
 
     testutil::shutdownWorkScheduler(*app2);
     testutil::shutdownWorkScheduler(*app1);
@@ -3716,5 +3777,103 @@ TEST_CASE(
 
     asio::error_code ec;
     rawSocket.close(ec);
+}
+
+TEST_CASE("outbound tx queue byte limit bounds bytes retained by transport",
+          "[overlay][flowcontrol]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY);
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    testutil::crankSome(clock);
+    auto sender = conn.getInitiator();
+    auto receiver = conn.getAcceptor();
+    REQUIRE(sender->isAuthenticatedForTesting());
+    REQUIRE(receiver->isAuthenticatedForTesting());
+
+    // The "attacker" grants us effectively unlimited flow-control capacity, so
+    // our local byte limit is the only thing standing between us and unbounded
+    // memory growth.
+    receiver->sendSendMore(UINT32_MAX, UINT32_MAX);
+    testutil::crankSome(clock);
+    REQUIRE(sender->getOutboundCapacity() >= UINT32_MAX);
+    REQUIRE(
+        sender->getFlowControl()->getCapacityBytes().getOutboundCapacity() >=
+        UINT32_MAX);
+
+    // ...and then stops reading. Corking the loopback peer models a socket
+    // whose async_write never completes: messages accumulate in the transport
+    // write queue and processSentMessages is never called.
+    sender->setCorked(true);
+    REQUIRE(sender->getMessagesQueued() == 0);
+    auto& txQueue = sender->getQueues()[1];
+    REQUIRE(txQueue.empty());
+    REQUIRE(sender->getTxQueueByteCount() == 0);
+
+    StellarMessage tx;
+    tx.type(TRANSACTION);
+    tx.transaction().type(ENVELOPE_TYPE_TX);
+    auto const txSize =
+        sender->getFlowControl()->getCapacityBytes().getMsgResourceCount(tx);
+    REQUIRE(txSize > 0);
+    REQUIRE(txSize <= app1->getHerder().getMaxTxSize());
+
+    // Allow at most `maxRetained` transactions worth of bytes
+    size_t const maxRetained = 5;
+    sender->getFlowControl()->setOutboundQueueLimit(txSize * maxRetained);
+
+    auto sendTxs = [&](size_t n) {
+        for (size_t i = 0; i < n; ++i)
+        {
+            sender->sendMessage(std::make_shared<StellarMessage const>(tx));
+        }
+    };
+
+    // Retained state must agree between flow control and the transport, and
+    // must never exceed the configured limit.
+    auto checkBounded = [&]() {
+        REQUIRE(sender->getMessagesQueued() <= maxRetained);
+        REQUIRE(sender->getMessagesQueued() == txQueue.size());
+        REQUIRE(sender->getTxQueueByteCount() == txQueue.size() * txSize);
+        REQUIRE(sender->getTxQueueByteCount() <=
+                sender->getFlowControl()->getOutboundQueueByteLimit());
+        for (auto const& m : txQueue)
+        {
+            REQUIRE(m.mBeingSent);
+        }
+    };
+
+    size_t const numTxs = 100;
+    sendTxs(numTxs);
+    // Exactly the limit made it to the transport; everything else was shed
+    checkBounded();
+    REQUIRE(sender->getMessagesQueued() == maxRetained);
+
+    // Keep hammering: still bounded (the peer isn't reading, so nothing has
+    // completed and no new admissions should happen)
+    sendTxs(numTxs);
+    checkBounded();
+    REQUIRE(sender->getMessagesQueued() == maxRetained);
+
+    auto& om = app1->getOverlayManager().getOverlayMetrics();
+    REQUIRE(om.mOutboundQueueDropTxs.count() == 2 * numTxs - maxRetained);
+
+    // Once the peer starts reading again and writes complete, in-flight
+    // messages are released and admission reopens.
+    sender->setCorked(false);
+    sender->deliverAll();
+    REQUIRE(sender->getMessagesQueued() == 0);
+    REQUIRE(txQueue.empty());
+    REQUIRE(sender->getTxQueueByteCount() == 0);
+
+    sender->setCorked(true);
+    sendTxs(numTxs);
+    checkBounded();
+    REQUIRE(sender->getMessagesQueued() == maxRetained);
 }
 }

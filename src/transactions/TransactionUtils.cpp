@@ -948,8 +948,8 @@ getOfferBuyingLiabilities(LedgerTxnHeader const& header,
     }
     auto const& oe = entry.data.offer();
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX,
-        RoundingType::NORMAL);
+        header.current().ledgerVersion, oe.price, oe.amount, INT64_MAX,
+        INT64_MAX, INT64_MAX, RoundingType::NORMAL);
     return res.numSheepSend;
 }
 
@@ -972,8 +972,8 @@ getOfferSellingLiabilities(LedgerTxnHeader const& header,
     }
     auto const& oe = entry.data.offer();
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX,
-        RoundingType::NORMAL);
+        header.current().ledgerVersion, oe.price, oe.amount, INT64_MAX,
+        INT64_MAX, INT64_MAX, RoundingType::NORMAL);
     return res.numWheatReceived;
 }
 

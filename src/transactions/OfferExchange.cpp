@@ -224,6 +224,41 @@ calculateOfferValue(int32_t priceN, int32_t priceD, int64_t maxSend,
     return std::min({sendValue, receiveValue});
 }
 
+// Computes the offer amount from its own value.
+// This is a bit more nuanced than just dividing `calculateOfferValue` result
+// by the price denominator. Specifically, when the offer amount is capped by
+// its own receive limit, we should end up with the original offer amount.
+// However, since in that scenario the minimum receive cap is
+// `floor(priceN * amount / priceD)` (offer's buying liability), dividing this
+// by price again to get the amount may result in off-by-one error, i.e.
+//   floor(floor(priceN * amount / priceD) * priceD / priceN) == either `amount`
+//   or `amount - 1`.
+// This function compensates for the potential rounding error by emulating
+// rounding up in `maxReceive` computation and thus ensures that we always end
+// up with `amount` in that scenario (unless overflow occurs, at which point
+// the truncation still may need to happen).
+static int64_t
+calculateOfferAmountFromValue(int32_t priceN, int32_t priceD, int64_t maxSend,
+                              int64_t maxReceive)
+{
+    uint128_t sendValue = bigMultiply(maxSend, priceN);
+    // Compute the maximum possible value that we could get by computing
+    // `ceil(priceN * amount / priceD) * priceD`, given
+    // `maxReceive = floor(priceN * amount / priceD)` - the difference is at
+    // most `priceD - 1` (when `(priceN * amount) % priceD == 1`) .
+    // Notice, that if we divide `receiveValue` by `priceD` rounding down, we
+    // will still get at most `maxReceive`, i.e. the value here is not inflated
+    // enough to exceed `maxReceive`, unless we're at int64 limit (which we fix
+    // below).
+    uint128_t receiveValue = bigMultiply(maxReceive, priceD) +
+                             uint128_t(static_cast<uint64_t>(priceD - 1));
+    // Cap the receive value by the maximum possible receive value representable
+    // by int64.
+    receiveValue = std::min(receiveValue, bigMultiply(INT64_MAX, priceD));
+    auto offerValue = std::min(sendValue, receiveValue);
+    return bigDivideOrThrow128(offerValue, priceN, ROUND_DOWN);
+}
+
 // exchangeV10 is a system for crossing offers that provides guarantees
 // regarding the direction and magnitude of rounding errors:
 // - When considering two crossing offers subject to a variety of limits,
@@ -549,13 +584,14 @@ calculateOfferValue(int32_t priceN, int32_t priceD, int64_t maxSend,
 // maxWheatReceive, then the operation will cross additional offers since
 // !wheatStays.
 ExchangeResultV10
-exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
-            int64_t maxSheepSend, int64_t maxSheepReceive, RoundingType round)
+exchangeV10(uint32_t ledgerVersion, Price price, int64_t maxWheatSend,
+            int64_t maxWheatReceive, int64_t maxSheepSend,
+            int64_t maxSheepReceive, RoundingType round)
 {
     ZoneScoped;
     auto beforeThresholds = exchangeV10WithoutPriceErrorThresholds(
-        price, maxWheatSend, maxWheatReceive, maxSheepSend, maxSheepReceive,
-        round);
+        ledgerVersion, price, maxWheatSend, maxWheatReceive, maxSheepSend,
+        maxSheepReceive, round);
     return applyPriceErrorThresholds(price, beforeThresholds.numWheatReceived,
                                      beforeThresholds.numSheepSend,
                                      beforeThresholds.wheatStays, round);
@@ -629,7 +665,8 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
 // received. In either case, we have reached a contradiction because we would
 // not be crossing in either case. We conclude that sheepSend > 0.
 ExchangeResultV10
-exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
+exchangeV10WithoutPriceErrorThresholds(uint32_t protocolVersion, Price price,
+                                       int64_t maxWheatSend,
                                        int64_t maxWheatReceive,
                                        int64_t maxSheepSend,
                                        int64_t maxSheepReceive,
@@ -659,7 +696,12 @@ exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
         }
         else // Sheep is more valuable
         {
-            sheepSend = bigDivideOrThrow128(sheepValue, price.d, ROUND_DOWN);
+            sheepSend =
+                protocolVersionStartsFrom(protocolVersion,
+                                          ProtocolVersion::V_29)
+                    ? calculateOfferAmountFromValue(
+                          price.d, price.n, maxSheepSend, maxWheatReceive)
+                    : bigDivideOrThrow128(sheepValue, price.d, ROUND_DOWN);
             wheatReceive =
                 bigDivideOrThrow(sheepSend, price.d, price.n, ROUND_DOWN);
         }
@@ -668,7 +710,12 @@ exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
     {
         if (price.n > price.d) // Wheat is more valuable
         {
-            wheatReceive = bigDivideOrThrow128(wheatValue, price.n, ROUND_DOWN);
+            wheatReceive =
+                protocolVersionStartsFrom(protocolVersion,
+                                          ProtocolVersion::V_29)
+                    ? calculateOfferAmountFromValue(
+                          price.n, price.d, maxWheatSend, maxSheepReceive)
+                    : bigDivideOrThrow128(wheatValue, price.n, ROUND_DOWN);
             sheepSend =
                 bigDivideOrThrow(wheatReceive, price.n, price.d, ROUND_DOWN);
         }
@@ -780,6 +827,34 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
     return res;
 }
 
+static bool
+priceErrorBoundHoldsForFullClear(Price const& price, int64_t wheat)
+{
+    if (wheat <= 0)
+    {
+        return false;
+    }
+    int64_t const prod = wheat * price.n;
+    return 100 * (prod % price.d) <= prod;
+}
+
+bool
+offerCanClearForZero(Price const& price, int64_t amount)
+{
+    if (price.n <= price.d)
+    {
+        return false;
+    }
+    if (amount < 1 || amount > 100)
+    {
+        return false;
+    }
+    int64_t const prod = amount * price.n;
+    return priceErrorBoundHoldsForFullClear(price, amount) &&
+           (prod % price.d) != 0 &&
+           !priceErrorBoundHoldsForFullClear(price, amount - 1);
+}
+
 static void
 adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
             LedgerTxnEntry const& account, Asset const& wheat,
@@ -790,7 +865,8 @@ adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
     int64_t maxWheatSend =
         std::min({oe.amount, canSellAtMost(header, account, wheat, wheatLine)});
     int64_t maxSheepReceive = canBuyAtMost(header, account, sheep, sheepLine);
-    oe.amount = adjustOffer(oe.price, maxWheatSend, maxSheepReceive);
+    oe.amount = adjustOffer(header.current().ledgerVersion, oe.price,
+                            maxWheatSend, maxSheepReceive);
 }
 
 // The central property of adjustOffer is that it has no effect when applied to
@@ -919,11 +995,12 @@ adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
 //                   = wheatReceive
 // so we conclude that the adjusted offer is not modified by adjustOffer.
 int64_t
-adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive)
+adjustOffer(uint32_t protocolVersion, Price const& price, int64_t maxWheatSend,
+            int64_t maxSheepReceive)
 {
     ZoneScoped;
-    auto res = exchangeV10(price, maxWheatSend, INT64_MAX, INT64_MAX,
-                           maxSheepReceive, RoundingType::NORMAL);
+    auto res = exchangeV10(protocolVersion, price, maxWheatSend, INT64_MAX,
+                           INT64_MAX, maxSheepReceive, RoundingType::NORMAL);
     return res.numWheatReceived;
 }
 
@@ -1148,8 +1225,8 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     int64_t maxSheepReceive =
         canBuyAtMost(header, accountB, sheep, sheepLineAccountB);
     auto exchangeResult =
-        exchangeV10(offer.price, maxWheatSend, maxWheatReceived, maxSheepSend,
-                    maxSheepReceive, round);
+        exchangeV10(header.current().ledgerVersion, offer.price, maxWheatSend,
+                    maxWheatReceived, maxSheepSend, maxSheepReceive, round);
 
     numWheatReceived = exchangeResult.numWheatReceived;
     numSheepSend = exchangeResult.numSheepSend;
@@ -1402,7 +1479,9 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
         // Only exchange with pools for path payments
         return false;
     }
-    if (maxOffersToCross == 0)
+    if (maxOffersToCross == 0 &&
+        protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_29))
     {
         // offerTrail is going to be too long after exchanging with the
         // liquidity pool
@@ -1723,6 +1802,10 @@ convertWithOffersAndPools(
     // will not be imposed correctly.
     releaseAssertOrThrow(offerTrail.empty());
 
+    auto ledgerVersion = ltxOuter.loadHeader().current().ledgerVersion;
+    bool countPoolHop =
+        protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_29);
+
     sheepSend = 0;
     wheatReceived = 0;
 
@@ -1737,13 +1820,11 @@ convertWithOffersAndPools(
             maxOffersToCross -= static_cast<int64_t>(offerTrail.size());
             return convertRes;
         }
-        if (protocolVersionStartsFrom(
-                ltxOuter.loadHeader().current().ledgerVersion,
-                ProtocolVersion::V_27))
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_27))
         {
             // `>=` leaves room for the pool atom appended below (one unit).
-            if (nonCommittedOffersCrossed >=
-                static_cast<size_t>(maxOffersToCross))
+            if (countPoolHop && nonCommittedOffersCrossed >=
+                                    static_cast<size_t>(maxOffersToCross))
             {
                 return ConvertResult::eCrossedTooMany;
             }
@@ -1766,7 +1847,10 @@ convertWithOffersAndPools(
         ClaimLiquidityAtom(getPoolID(sheep, wheat, LIQUIDITY_POOL_FEE_V18),
                            wheat, wheatReceived, sheep, sheepSend);
     offerTrail.emplace_back(atom);
-    maxOffersToCross -= 1;
+    if (countPoolHop)
+    {
+        maxOffersToCross -= 1;
+    }
     return ConvertResult::eOK;
 }
 }

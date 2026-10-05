@@ -363,6 +363,21 @@ OperationFrame::checkValid(AppConnector& app,
 }
 
 bool
+OperationFrame::checkValidForOverlay(uint32_t ledgerVersion,
+                                     OperationResult& res) const
+{
+    ZoneScoped;
+    return doCheckValidForOverlay(ledgerVersion, res);
+}
+
+bool
+OperationFrame::doCheckValidForOverlay(uint32_t ledgerVersion,
+                                       OperationResult& res) const
+{
+    return true;
+}
+
+bool
 OperationFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& config, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,

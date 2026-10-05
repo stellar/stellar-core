@@ -21,6 +21,10 @@ static auto const MAX_UNAUTH_MESSAGE_SIZE = 0x1000;
 // Peer that communicates via a TCP socket.
 class TCPPeer : public Peer
 {
+#ifdef BUILD_TESTS
+    friend class TCPPeerHandshakeTests;
+#endif
+
   public:
     typedef asio::buffered_read_stream<asio::ip::tcp::socket> SocketType;
     static constexpr size_t BUFSZ = 0x40000; // 256KB
@@ -90,6 +94,9 @@ class TCPPeer : public Peer
                      std::shared_ptr<StellarMessage const> msgPtr) override;
 
     void messageSender();
+
+    // Returns the maximum message size allowed by the current protocol version
+    size_t getMaxMessageSize() const;
 
     size_t getIncomingMsgLength();
     virtual void connected() override;

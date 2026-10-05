@@ -82,11 +82,26 @@ class FlowControl
     AppConnector& mAppConnector;
     bool const mUseBackgroundThread;
 
-    // Outbound queues indexes by priority
+    // Outbound queues indexed by priority
     // Priority 0 - SCP messages
     // Priority 1 - transactions
     // Priority 2 - flood demands
     // Priority 3 - flood adverts
+    //
+    // Lifecycle of a queued message:
+    // * addMsgAndMaybeTrimQueue: message is queued, and the queue is load-shed
+    // if over limit
+    // * getNextBatchToSend: message is marked `mBeingSent` once the peer has
+    // capacity for it, and is handed to the transport (serialized and placed
+    // on the TCP write queue)
+    // * processSentMessages: message is popped once async_write completes
+    //
+    // Invariant: If a message has been forwarded to the TCP buffer, it is never
+    // removed from the queue until it's been fully written. Load shedding
+    // therefore only ever drops messages that are _not_ `mBeingSent`. Because
+    // in-flight messages are marked in order and popped from the front, they
+    // always form a prefix of the queue.
+
     FloodQueues<QueuedOutboundMessage>
         mOutboundQueues GUARDED_BY(mFlowControlMutex);
 

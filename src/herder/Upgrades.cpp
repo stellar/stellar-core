@@ -868,7 +868,8 @@ updateOffer(
     // liabilities for this offer, so the only applicable limit is the
     // offer amount. We then use adjustOffer to check that it will
     // satisfy thresholds.
-    if (!erase && adjustOffer(offer.price, offer.amount, INT64_MAX) == 0)
+    if (!erase && adjustOffer(header.current().ledgerVersion, offer.price,
+                              offer.amount, INT64_MAX) == 0)
     {
         erase = true;
         res = UpdateOfferResult::AdjustedToZero;
@@ -879,7 +880,8 @@ updateOffer(
         // The same logic for adjustOffer discussed above applies here,
         // except that we now actually update the offer to reflect the
         // adjustment.
-        auto adjAmount = adjustOffer(offer.price, offer.amount, INT64_MAX);
+        auto adjAmount = adjustOffer(header.current().ledgerVersion,
+                                     offer.price, offer.amount, INT64_MAX);
         if (adjAmount != offer.amount)
         {
             offer.amount = adjAmount;

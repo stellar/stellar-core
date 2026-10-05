@@ -1737,17 +1737,50 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         }
     };
 
-    auto testPhaseWithOverlayLimit = [&](TxSetPhase const& phase) {
+    // Builds transactions for `phase` from consecutive genesis accounts,
+    // starting at `nextAccount`, until their total envelope size reaches
+    // `targetBytes`.
+    auto buildTxs = [&](TxSetPhase phase, uint32_t& nextAccount,
+                        size_t targetBytes) {
         TxFrameList txs;
         size_t totalSize = 0;
-        int txCount = 0;
-
-        while (totalSize < MAX_TX_SET_ALLOWANCE)
+        while (totalSize < targetBytes)
         {
-            auto a = txtest::getGenesisAccount(*app, txCount++);
+            auto a = txtest::getGenesisAccount(*app, nextAccount++);
             txs.emplace_back(makeTx(a, phase));
             totalSize += xdr::xdr_size(txs.back()->getEnvelope());
         }
+        return txs;
+    };
+
+    // Checks that `phase` was trimmed down to its byte allowance
+    auto checkPhaseTrimmed = [&](ApplicableTxSetFrameConstPtr const& txSet,
+                                 TxSetPhase phase) {
+        auto const& phaseTxs = txSet->getPhase(phase);
+        auto trimmedSize =
+            std::accumulate(phaseTxs.begin(), phaseTxs.end(), size_t(0),
+                            [&](size_t a, TransactionFrameBasePtr const& tx) {
+                                return a += xdr::xdr_size(tx->getEnvelope());
+                            });
+
+        auto byteAllowance = phase == TxSetPhase::SOROBAN
+                                 ? app->getConfig().getSorobanByteAllowance()
+                                 : app->getConfig().getClassicByteAllowance();
+        REQUIRE(trimmedSize > byteAllowance - conf().txMaxSizeBytes());
+        REQUIRE(trimmedSize <= byteAllowance);
+    };
+
+    // The size a peer compares against its message size cap: the XDR record
+    // length of the AuthenticatedMessage carrying the tx set.
+    auto wireSize = [](TxSetXDRFrameConstPtr const& txSet) {
+        AuthenticatedMessage amsg;
+        amsg.v0().message = txSet->toStellarMessage();
+        return xdr::xdr_argpack_size(amsg);
+    };
+
+    auto testPhaseWithOverlayLimit = [&](TxSetPhase const& phase) {
+        uint32_t nextAccount = 0;
+        auto txs = buildTxs(phase, nextAccount, MAX_TX_SET_ALLOWANCE);
 
         PerPhaseTransactionList invalidPhases;
         invalidPhases.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
@@ -1764,21 +1797,13 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 
         auto [txSet, applicableTxSet] =
             makeTxSetFromTransactions(phases, *app, 0, 0, invalidPhases);
-        REQUIRE(txSet->encodedSize() <= MAX_MESSAGE_SIZE);
+        // Whatever protocol the set was built under, the framed message must
+        // fit the post-p29 cap, because construction is capped at the post-p29
+        // allowances.
+        REQUIRE(wireSize(txSet) <= POST_P29_MAX_MESSAGE_SIZE);
 
         REQUIRE(invalidPhases[static_cast<size_t>(phase)].empty());
-        auto const& phaseTxs = applicableTxSet->getPhase(phase);
-        auto trimmedSize =
-            std::accumulate(phaseTxs.begin(), phaseTxs.end(), size_t(0),
-                            [&](size_t a, TransactionFrameBasePtr const& tx) {
-                                return a += xdr::xdr_size(tx->getEnvelope());
-                            });
-
-        auto byteAllowance = phase == TxSetPhase::SOROBAN
-                                 ? app->getConfig().getSorobanByteAllowance()
-                                 : app->getConfig().getClassicByteAllowance();
-        REQUIRE(trimmedSize > byteAllowance - conf().txMaxSizeBytes());
-        REQUIRE(trimmedSize <= byteAllowance);
+        checkPhaseTrimmed(applicableTxSet, phase);
     };
 
     SECTION("soroban")
@@ -1788,6 +1813,32 @@ TEST_CASE("tx set hits overlay byte limit during construction",
     SECTION("classic")
     {
         testPhaseWithOverlayLimit(TxSetPhase::CLASSIC);
+    }
+    SECTION("both phases")
+    {
+        // Fill both phases to their allowances.  Share the account counter so
+        // that no source account appears in both phases.
+        uint32_t nextAccount = 0;
+        auto classicTxs = buildTxs(TxSetPhase::CLASSIC, nextAccount,
+                                   app->getConfig().getClassicByteAllowance());
+        auto sorobanTxs = buildTxs(TxSetPhase::SOROBAN, nextAccount,
+                                   app->getConfig().getSorobanByteAllowance());
+
+        PerPhaseTransactionList invalidPhases;
+        invalidPhases.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
+        auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
+            PerPhaseTransactionList{classicTxs, sorobanTxs}, *app, 0, 0,
+            invalidPhases);
+
+        REQUIRE(
+            invalidPhases[static_cast<size_t>(TxSetPhase::CLASSIC)].empty());
+        REQUIRE(
+            invalidPhases[static_cast<size_t>(TxSetPhase::SOROBAN)].empty());
+        // Both phases were trimmed at their allowance, so this is a maximal
+        // set. It must fit the post-p29 cap as it goes over the wire
+        checkPhaseTrimmed(applicableTxSet, TxSetPhase::CLASSIC);
+        checkPhaseTrimmed(applicableTxSet, TxSetPhase::SOROBAN);
+        REQUIRE(wireSize(txSet) <= POST_P29_MAX_MESSAGE_SIZE);
     }
 }
 
@@ -2551,8 +2602,11 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
 
     uint32_t const rentFee =
-        protocolVersionIsBefore(getLclProtocolVersion(*app),
-                                ProtocolVersion::V_26)
+        protocolVersionStartsFrom(getLclProtocolVersion(*app),
+                                  ProtocolVersion::V_29)
+            ? 20'370
+        : protocolVersionIsBefore(getLclProtocolVersion(*app),
+                                  ProtocolVersion::V_26)
             ? 20'368
             : 20'369;
     resourceFee += rentFee;
