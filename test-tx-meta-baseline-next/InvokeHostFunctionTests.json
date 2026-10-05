@@ -37,6 +37,7 @@
 		29,
 		30
 	],
+	"CAP-0087 ML-DSA signature verification" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
 	"Failed write still causes ttl observation" : [ "+cR3oq2qY0I=", "qJ8KIK1AUN8=", "mvtbiiIU4+E=", "tLtF1ukXymY=" ],
 	"Module cache" : [ "MR6BJ3xmn2c=" ],
 	"Module cache across protocol versions" : [ "bKDF6V5IzTo=" ],
