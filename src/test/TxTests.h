@@ -148,7 +148,7 @@ TransactionResultSet closeLedgerOn(Application& app, uint32 ledgerSeq,
 ConsensusTime withMsCloseTime(Application& app, TimePoint closeTimeSec);
 
 // A consensus close time `milliseconds` (in [0, 999]) into the whole second
-// `timePoint`. Non-zero `milliseconds` require an MS_CLOSE_TIME build.
+// `timePoint`. Non-zero `milliseconds` require a protocol with ms close times.
 ConsensusTime makeConsensusTime(TimePoint timePoint, uint32_t milliseconds = 0);
 
 TransactionResultSet

@@ -482,13 +482,11 @@ ApplicationImpl::getJsonInfo(bool verbose)
     info["ledger"]["hash"] = binToHex(lcl.hash);
     info["ledger"]["closeTime"] =
         (Json::UInt64)getApplyTime(lcl.header.scpValue).timePoint();
-#ifdef MS_CLOSE_TIME
     if (isMsCloseTimeStellarValue(lcl.header.scpValue))
     {
         info["ledger"]["closeTimeMs"] =
             (Json::UInt64)getConsensusTime(lcl.header.scpValue).milliseconds();
     }
-#endif // MS_CLOSE_TIME
     info["ledger"]["version"] = lcl.header.ledgerVersion;
     info["ledger"]["baseFee"] = lcl.header.baseFee;
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;

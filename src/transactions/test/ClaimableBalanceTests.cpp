@@ -1264,52 +1264,51 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
     });
 }
 
-#ifdef MS_CLOSE_TIME
 TEST_CASE("claimable balance absBefore under sub-second ledgers",
           "[tx][claimablebalance]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& lm = app->getLedgerManager();
     auto root = app->getRoot();
 
-    // These test networks run the ms protocol from genesis
-    REQUIRE(protocolVersionStartsFrom(
-        lm.getLastClosedLedgerHeader().header.ledgerVersion,
-        MS_CLOSE_TIME_PROTOCOL_VERSION));
-
-    // Establish a known whole-second close time and a funded account
-    TimePoint const T =
-        lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
-    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
-    auto a1 = root->create("a1", lm.getLastMinBalance(3) + 100000);
+    TimePoint const T = 2;
     auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
 
     ClaimPredicate pred;
     pred.type(CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME);
     pred.absBefore() = static_cast<int64_t>(T + 1);
-    Claimant claimant;
-    claimant.v0().destination = a1.getPublicKey();
-    claimant.v0().predicate = pred;
+    auto claimant = makeClaimant(*root, pred);
 
     auto rc = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 100),
                             {root->tx({createClaimableBalance(
                                 makeNativeAsset(), 100, {claimant})})});
     checkTx(0, rc, txSUCCESS);
+    REQUIRE(getConsensusTime(lm.getLastClosedLedgerHeader().header.scpValue) ==
+            makeConsensusTime(T, 100));
     auto balanceID = root->getBalanceID(0);
 
     SECTION("claim within the same second succeeds")
     {
         auto r = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 900),
-                               {a1.tx({claimClaimableBalance(balanceID)})});
+                               {root->tx({claimClaimableBalance(balanceID)})});
         checkTx(0, r, txSUCCESS);
     }
     SECTION("claim in the next second fails")
     {
         auto r = closeLedgerOn(*app, nextSeq(), T + 1,
-                               {a1.tx({claimClaimableBalance(balanceID)})},
+                               {root->tx({claimClaimableBalance(balanceID)})},
                                /*strictOrder=*/true);
         checkTx(0, r, txFAILED);
+        REQUIRE(r.results[0]
+                    .result.result.results()[0]
+                    .tr()
+                    .claimClaimableBalanceResult()
+                    .code() == CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM);
     }
 }
-#endif // MS_CLOSE_TIME

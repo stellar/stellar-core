@@ -91,14 +91,7 @@ constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
 constexpr ProtocolVersion LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION =
     ProtocolVersion::V_29;
 
-// MS_CLOSE_TIME_PROTOCOL_VERSION should always be whatever the vnext protocol
-// version is.
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 constexpr ProtocolVersion MS_CLOSE_TIME_PROTOCOL_VERSION =
-    static_cast<ProtocolVersion>(MAX_SUPPORTED_PROTOCOL_VERSION);
-#else
-constexpr ProtocolVersion MS_CLOSE_TIME_PROTOCOL_VERSION =
-    static_cast<ProtocolVersion>(MAX_SUPPORTED_PROTOCOL_VERSION + 1);
-#endif
+    ProtocolVersion::V_30;
 
 } // namespace stellar

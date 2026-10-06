@@ -65,7 +65,6 @@ stellarValueToString(Config const& c, StellarValue const& sv)
         res << " EMPTY_TXSET@"
             << c.toShortString(sv.ext.proposedValue().lcValueSignature.nodeID);
         break;
-#ifdef MS_CLOSE_TIME
     case STELLAR_VALUE_SIGNED_MS:
         res << " SIGNED_MS@"
             << c.toShortString(sv.ext.signedMsValue().lcValueSignature.nodeID);
@@ -75,7 +74,6 @@ stellarValueToString(Config const& c, StellarValue const& sv)
             << c.toShortString(
                    sv.ext.proposedMsValue().lcValueSignature.nodeID);
         break;
-#endif // MS_CLOSE_TIME
     default:
         res << " UNKNOWN";
         break;

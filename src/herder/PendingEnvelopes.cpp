@@ -350,7 +350,6 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             case STELLAR_VALUE_EMPTY_TX_SET:
                 return !beyondLocalProtocol &&
                        !scpDriver.protocolAllowsEmptyTxSetValues();
-#ifdef MS_CLOSE_TIME
             case STELLAR_VALUE_SIGNED_MS:
                 // Millisecond close times are only permitted once the
                 // protocol uses them
@@ -360,7 +359,6 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                 return !beyondLocalProtocol &&
                        !(scpDriver.protocolAllowsEmptyTxSetValues() &&
                          scpDriver.protocolUsesMsCloseTime());
-#endif // MS_CLOSE_TIME
             default:
                 releaseAssert(false);
             }

@@ -7,6 +7,7 @@
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
 #include "herder/Herder.h"
+#include "herder/TxSetFrame.h"
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -3322,55 +3323,43 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
     }
 }
 
-#ifdef MS_CLOSE_TIME
 TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& lm = app->getLedgerManager();
     auto root = app->getRoot();
 
-    // These test networks run the ms protocol from genesis
-    REQUIRE(protocolVersionStartsFrom(
-        lm.getLastClosedLedgerHeader().header.ledgerVersion,
-        MS_CLOSE_TIME_PROTOCOL_VERSION));
-
-    // Establish a known whole-second close time and a funded account
-    TimePoint const T =
-        lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
-    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
-    auto a1 = root->create("a1", lm.getLastMinBalance(3) + 100000);
-
-    auto reSign = [](TransactionTestFramePtr const& tx, TestAccount& acc) {
-        auto& sig = tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
-                        ? tx->getMutableEnvelope().v0().signatures
-                        : tx->getMutableEnvelope().v1().signatures;
-        sig.clear();
-        tx->addSignature(acc.getSecretKey());
-    };
+    TimePoint const T = 2;
     auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
+    closeLedgerOn(*app, nextSeq(), T);
+    auto tx = root->tx({payment(*root, 1)});
 
     SECTION("tx expiring at the current second applies in a same-second "
             "ledger")
     {
-        auto tx = a1.tx({payment(*root, 1)});
         setMaxTime(tx, T);
-        reSign(tx, a1);
+        getSignatures(tx).clear();
+        tx->addSignature(root->getSecretKey());
         auto r =
             closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400), {tx});
         checkTx(0, r, txSUCCESS);
         auto const& lclValue = lm.getLastClosedLedgerHeader().header.scpValue;
         REQUIRE(getConsensusTime(lclValue).milliseconds() == T * 1000 + 400);
         REQUIRE(lclValue.closeTime == T);
-        REQUIRE(getConsensusTime(lclValue).milliseconds() == T * 1000 + 400);
     }
 
     SECTION("tx valid from the next second stays too early in a same-second "
             "ledger")
     {
-        auto tx = a1.tx({payment(*root, 1)});
         setMinTime(tx, T + 1);
-        reSign(tx, a1);
+        getSignatures(tx).clear();
+        tx->addSignature(root->getSecretKey());
         closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400));
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -3379,12 +3368,13 @@ TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
             REQUIRE(tx->getResultCode() == txTOO_EARLY);
         }
         // The same transaction applies once the next whole second is reached
-        closeLedgerOn(*app, nextSeq(), T + 1);
-        auto r2 = closeLedger(*app, {tx});
+        auto txSet = makeTxSetFromTransactions({tx}, *app,
+                                               ApplyTimeOffset::fromSeconds(1))
+                         .first;
+        auto r2 = closeLedgerOn(*app, nextSeq(), T + 1, txSet);
         checkTx(0, r2, txSUCCESS);
     }
 }
-#endif // MS_CLOSE_TIME
 
 TEST_CASE("getUpperBoundCloseTimeOffset under sub-second ledgers",
           "[tx][envelope]")

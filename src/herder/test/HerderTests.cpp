@@ -2958,7 +2958,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         REQUIRE(isSignedStellarValue(sv));
         REQUIRE(sv.txSetHash == txSetL2->getContentsHash());
 
-#ifdef MS_CLOSE_TIME
         if (protocolVersionStartsFrom(protocolVersion,
                                       MS_CLOSE_TIME_PROTOCOL_VERSION))
         {
@@ -2978,7 +2977,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             REQUIRE(getConsensusTime(sv2).milliseconds() == 20007);
             REQUIRE(sv2.txSetHash == txSetL3->getContentsHash());
         }
-#endif // MS_CLOSE_TIME
     }
 
     SECTION("validateValue signatures")
@@ -3469,7 +3467,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         }
     }
 
-#ifdef MS_CLOSE_TIME
     SECTION("validateValue ms close times")
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -3801,7 +3798,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                     SCPDriver::kMaybeValidNotCurrentValue);
         }
     }
-#endif // MS_CLOSE_TIME
 }
 
 TEST_CASE("SCP Driver", "[herder][acceptance]")
@@ -9956,9 +9952,13 @@ TEST_CASE("trigger timer switches anchor at protocol 28 upgrade",
     }
 }
 
-#ifdef MS_CLOSE_TIME
 TEST_CASE("ms close times support subsecond ledgers", "[herder]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
     auto mode = Simulation::OVER_LOOPBACK;
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     // Close ledgers every 400ms so that consecutive ledgers land within the
@@ -10027,11 +10027,14 @@ TEST_CASE("ms close times support subsecond ledgers", "[herder]")
     }
     REQUIRE(sameSecondPairs > 0);
 }
-#endif // MS_CLOSE_TIME
 
-#ifdef MS_CLOSE_TIME
 TEST_CASE("info reports the ms close time", "[herder]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& lm = app->getLedgerManager();
@@ -10050,4 +10053,3 @@ TEST_CASE("info reports the ms close time", "[herder]")
     // closeTimeMs is the full close time in ms, not just the ms remainder
     REQUIRE(ledgerInfo["closeTimeMs"].asUInt64() == T * 1000 + 250);
 }
-#endif // MS_CLOSE_TIME

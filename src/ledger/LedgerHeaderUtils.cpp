@@ -32,12 +32,10 @@ getLcValueSignatureImpl(T& sv)
         return sv.ext.lcValueSignature();
     case STELLAR_VALUE_EMPTY_TX_SET:
         return sv.ext.proposedValue().lcValueSignature;
-#ifdef MS_CLOSE_TIME
     case STELLAR_VALUE_SIGNED_MS:
         return sv.ext.signedMsValue().lcValueSignature;
     case STELLAR_VALUE_EMPTY_TX_SET_MS:
         return sv.ext.proposedMsValue().lcValueSignature;
-#endif
     default:
         releaseAssert(false);
     }
@@ -83,19 +81,13 @@ ConsensusTime::fromSystemTime(std::chrono::system_clock::time_point time,
             time.time_since_epoch());
     releaseAssert(sinceEpoch.count() >= 0);
     auto const milliseconds = static_cast<uint64_t>(sinceEpoch.count());
-#ifdef MS_CLOSE_TIME
     if (protocolHasMsCloseTime(protocolVersion))
     {
         return ConsensusTime(milliseconds);
     }
-#else
-    // A build without ms close times must never run a protocol that has them
-    releaseAssert(!protocolHasMsCloseTime(protocolVersion));
-#endif // MS_CLOSE_TIME
     return fromApplyTime(ApplyTime::fromTimePoint(milliseconds / 1000));
 }
 
-#ifdef MS_CLOSE_TIME
 ConsensusTime
 ConsensusTime::fromMilliseconds(TimePointMs milliseconds)
 {
@@ -107,7 +99,6 @@ ConsensusTime::milliseconds() const
 {
     return mMilliseconds;
 }
-#endif // MS_CLOSE_TIME
 
 bool
 ConsensusTime::isWholeSecond() const
@@ -132,16 +123,11 @@ ConsensusTime::toSystemTime() const
 ConsensusTime
 ConsensusTime::next(uint32_t protocolVersion) const
 {
-#ifdef MS_CLOSE_TIME
     if (protocolHasMsCloseTime(protocolVersion))
     {
         return ConsensusTime(mMilliseconds == UINT64_MAX ? UINT64_MAX
                                                          : mMilliseconds + 1);
     }
-#else
-    // A build without ms close times must never run a protocol that has them
-    releaseAssert(!protocolHasMsCloseTime(protocolVersion));
-#endif // MS_CLOSE_TIME
     // A whole-second protocol can only ever have produced whole-second values
     releaseAssert(isWholeSecond());
     return fromApplyTime(ApplyTime::fromTimePoint(mMilliseconds / 1000 + 1));
@@ -159,11 +145,9 @@ isMsCloseTimeStellarValue(StellarValue const& sv)
 {
     switch (sv.ext.v())
     {
-#ifdef MS_CLOSE_TIME
     case STELLAR_VALUE_SIGNED_MS:
     case STELLAR_VALUE_EMPTY_TX_SET_MS:
         return true;
-#endif
     default:
         return false;
     }
@@ -181,14 +165,12 @@ getConsensusTime(StellarValue const& sv)
 {
     switch (sv.ext.v())
     {
-#ifdef MS_CLOSE_TIME
     case STELLAR_VALUE_SIGNED_MS:
         return ConsensusTime::fromMilliseconds(
             sv.ext.signedMsValue().closeTimeMs);
     case STELLAR_VALUE_EMPTY_TX_SET_MS:
         return ConsensusTime::fromMilliseconds(
             sv.ext.proposedMsValue().closeTimeMs);
-#endif
     default:
         return ConsensusTime::fromApplyTime(getApplyTime(sv));
     }
@@ -206,9 +188,7 @@ isSignedStellarValue(StellarValue const& sv)
     switch (sv.ext.v())
     {
     case STELLAR_VALUE_SIGNED:
-#ifdef MS_CLOSE_TIME
     case STELLAR_VALUE_SIGNED_MS:
-#endif
         return true;
     default:
         return false;
@@ -221,9 +201,7 @@ isEmptyTxSetStellarValue(StellarValue const& sv)
     switch (sv.ext.v())
     {
     case STELLAR_VALUE_EMPTY_TX_SET:
-#ifdef MS_CLOSE_TIME
     case STELLAR_VALUE_EMPTY_TX_SET_MS:
-#endif
         return true;
     default:
         return false;
@@ -245,12 +223,10 @@ getLcValueSignature(StellarValue const& sv)
 Hash const&
 getProposedTxSetHash(StellarValue const& sv)
 {
-#ifdef MS_CLOSE_TIME
     if (sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET_MS)
     {
         return sv.ext.proposedMsValue().txSetHash;
     }
-#endif
     releaseAssert(sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
     return sv.ext.proposedValue().txSetHash;
 }
@@ -258,12 +234,10 @@ getProposedTxSetHash(StellarValue const& sv)
 Hash const&
 getProposedPreviousLedgerHash(StellarValue const& sv)
 {
-#ifdef MS_CLOSE_TIME
     if (sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET_MS)
     {
         return sv.ext.proposedMsValue().previousLedgerHash;
     }
-#endif
     releaseAssert(sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
     return sv.ext.proposedValue().previousLedgerHash;
 }
@@ -271,12 +245,10 @@ getProposedPreviousLedgerHash(StellarValue const& sv)
 uint32_t
 getProposedPreviousLedgerVersion(StellarValue const& sv)
 {
-#ifdef MS_CLOSE_TIME
     if (sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET_MS)
     {
         return sv.ext.proposedMsValue().previousLedgerVersion;
     }
-#endif
     releaseAssert(sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
     return sv.ext.proposedValue().previousLedgerVersion;
 }

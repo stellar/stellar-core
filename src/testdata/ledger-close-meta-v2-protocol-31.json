@@ -6,19 +6,22 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "776e1b3702bbc40bf550f698b66aaf58f49c2a48713dc67e14978a51227c6cbe",
+                "hash": "1ddf4ae0f900c809f74e0e3a5c30ca29836b0c0cd9af834128a8ca61e9aa7406",
                 "header": {
                     "ledgerVersion": 31,
-                    "previousLedgerHash": "11e7480017e40393a198c44fb78fe55381b58fcce74401e2f450bdda37f1be78",
+                    "previousLedgerHash": "e9030c3976eab4ac65bc533d9cd8b9e04d831dafd368d4187ac76eab70d54985",
                     "scpValue": {
-                        "txSetHash": "d8ae3d87986678c10835c60d6ac1f520b162d4a04f9a2bbd3984ec49668c76ab",
+                        "txSetHash": "83d906c348ca3e6598159dbe68646b4fbab8b2d440dd5fa9ab942f186b98fc6e",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
-                            "v": "STELLAR_VALUE_SIGNED",
-                            "lcValueSignature": {
-                                "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "63bbf2eab13b256600a780026c4bb681a664b8f76395764c217489f865b60c5a43721426dbc18e09c630abf94ed18c67715c6142e1e2fabba333580cc8e4d200"
+                            "v": "STELLAR_VALUE_SIGNED_MS",
+                            "signedMsValue": {
+                                "closeTimeMs": 1451692801000,
+                                "lcValueSignature": {
+                                    "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
+                                    "signature": "2f10af72e794857d34cc38c467f047101afd8d5cf4989b4d2f6d95eb0db727f13f49aab29649449260f2bb83e1b629fc9a1d88d606f16ad6ff4d749a2455b804"
+                                }
                             }
                         }
                     },
@@ -49,7 +52,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "11e7480017e40393a198c44fb78fe55381b58fcce74401e2f450bdda37f1be78",
+                    "previousLedgerHash": "e9030c3976eab4ac65bc533d9cd8b9e04d831dafd368d4187ac76eab70d54985",
                     "phases": [
                         {
                             "v": 0,

@@ -2904,16 +2904,12 @@ HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
         isEmptyTxSetStellarValue(sv) ? getProposedTxSetHash(sv) : sv.txSetHash;
     if (isMsCloseTimeStellarValue(sv))
     {
-#ifdef MS_CLOSE_TIME
         return PubKeyUtils::verifySig(
                    signature.nodeID, signature.signature,
                    xdr::xdr_to_opaque(
                        mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE, txSetHash,
                        sv.closeTime, getConsensusTime(sv).milliseconds()))
             .valid;
-#else
-        releaseAssert(false);
-#endif
     }
 
     return PubKeyUtils::verifySig(signature.nodeID, signature.signature,
@@ -2940,7 +2936,6 @@ HerderImpl::makeStellarValue(Hash const& txSetHash, ConsensusTime closeTime,
     sv.upgrades = upgrades;
     if (useMsCloseTime)
     {
-#ifdef MS_CLOSE_TIME
         sv.ext.v(STELLAR_VALUE_SIGNED_MS);
         sv.ext.signedMsValue().closeTimeMs = closeTime.milliseconds();
         auto& signature = getLcValueSignature(sv);
@@ -2950,9 +2945,6 @@ HerderImpl::makeStellarValue(Hash const& txSetHash, ConsensusTime closeTime,
         signature.signature = s.sign(xdr::xdr_to_opaque(
             mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE, sv.txSetHash,
             sv.closeTime, getConsensusTime(sv).milliseconds()));
-#else
-        releaseAssert(false);
-#endif
     }
     else
     {

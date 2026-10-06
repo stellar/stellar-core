@@ -158,7 +158,6 @@ TEST_CASE("close time helpers", "[ledger][herder]")
         REQUIRE(top.next(msVersion - 1) == top);
     }
 
-#ifdef MS_CLOSE_TIME
     SECTION("sub-second conversions")
     {
         auto const t = ConsensusTime::fromMilliseconds(123456);
@@ -222,5 +221,4 @@ TEST_CASE("close time helpers", "[ledger][herder]")
         header.scpValue.closeTime = T;
         REQUIRE_NOTHROW(LedgerHeaderUtils::encodeHeader(header));
     }
-#endif // MS_CLOSE_TIME
 }

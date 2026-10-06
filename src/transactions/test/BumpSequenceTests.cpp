@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SignerKey.h"
+#include "herder/TxSetFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
@@ -192,34 +193,30 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
     }
 }
 
-#ifdef MS_CLOSE_TIME
 TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& lm = app->getLedgerManager();
     auto root = app->getRoot();
 
-    // These test networks run the ms protocol from genesis
-    REQUIRE(protocolVersionStartsFrom(
-        lm.getLastClosedLedgerHeader().header.ledgerVersion,
-        MS_CLOSE_TIME_PROTOCOL_VERSION));
-
-    // Establish a known whole-second close time and a funded account
-    TimePoint const T =
-        lm.getLastClosedLedgerHeader().header.scpValue.closeTime + 2;
-    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
-    auto a1 = root->create("a1", lm.getLastMinBalance(3) + 100000);
+    TimePoint const T = 2;
     auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
 
-    // a1's sequence number moves in a sub-second ledger; seqTime records the
-    // whole second only
+    // Updating the sequence number records only the whole second in seqTime.
     auto r0 = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 100),
-                            {a1.tx({payment(*root, 1)})});
+                            {root->tx({payment(*root, 1)})});
     checkTx(0, r0, txSUCCESS);
+    REQUIRE(getConsensusTime(lm.getLastClosedLedgerHeader().header.scpValue) ==
+            makeConsensusTime(T, 100));
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto acc = stellar::loadAccount(ltx, a1.getPublicKey());
+        auto acc = stellar::loadAccount(ltx, root->getPublicKey());
         REQUIRE(
             getAccountEntryExtensionV3(acc.current().data.account()).seqTime ==
             T);
@@ -227,7 +224,7 @@ TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
 
     PreconditionsV2 cond;
     cond.minSeqAge = 1;
-    auto tx2 = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+    auto tx2 = transactionWithV2Precondition(*app, *root, 1, 100, cond);
 
     SECTION("sub-second ledger in the same whole second: age still 0")
     {
@@ -242,9 +239,10 @@ TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
     }
     SECTION("whole-second ledger one second later: age requirement met")
     {
-        closeLedgerOn(*app, nextSeq(), T + 1);
-        auto r = closeLedger(*app, {tx2});
+        auto txSet = makeTxSetFromTransactions({tx2}, *app,
+                                               ApplyTimeOffset::fromSeconds(1))
+                         .first;
+        auto r = closeLedgerOn(*app, nextSeq(), T + 1, txSet);
         checkTx(0, r, txSUCCESS);
     }
 }
-#endif // MS_CLOSE_TIME

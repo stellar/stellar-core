@@ -526,7 +526,6 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
                 Herder::ENVELOPE_STATUS_DISCARDED);
     }
 
-#ifdef MS_CLOSE_TIME
     SECTION("ms value arms gated by MS_CLOSE_TIME_PROTOCOL_VERSION")
     {
         uint64_t const nextSlot = lcl.header.ledgerSeq + 1;
@@ -577,7 +576,6 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
             });
         }
     }
-#endif // MS_CLOSE_TIME
 
     SECTION("empty-tx-set value envelopes gated by "
             "EMPTY_TX_SET_PROTOCOL_VERSION")

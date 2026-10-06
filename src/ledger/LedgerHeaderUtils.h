@@ -89,10 +89,9 @@ class ApplyTime
 // the upgrade boundary, where a whole-second LCL meets the first sub-second
 // value.
 //
-// Sub-second values can only be created in MS_CLOSE_TIME builds: without the
-// flag the ms constructor and accessor do not exist, and fromSystemTime() and
-// next() always round to whole seconds, so a non-ms build can neither produce
-// nor observe a sub-second close time.
+// Before MS_CLOSE_TIME_PROTOCOL_VERSION, fromSystemTime() and next() always
+// round to whole seconds and ms-format StellarValues are rejected, so a
+// whole-second protocol can neither produce nor accept a sub-second close time.
 class ConsensusTime
 {
   public:
@@ -100,14 +99,12 @@ class ConsensusTime
 
     static ConsensusTime fromApplyTime(ApplyTime applyTime);
     // The system time rounded down to the whole second, unless
-    // protocolVersion has ms close times (MS_CLOSE_TIME builds only).
+    // protocolVersion has ms close times.
     static ConsensusTime
     fromSystemTime(std::chrono::system_clock::time_point time,
                    uint32_t protocolVersion);
-#ifdef MS_CLOSE_TIME
     static ConsensusTime fromMilliseconds(TimePointMs milliseconds);
     TimePointMs milliseconds() const;
-#endif // MS_CLOSE_TIME
 
     bool isWholeSecond() const;
     // Rounded down to the whole second: the value StellarValue::closeTime
@@ -115,8 +112,7 @@ class ConsensusTime
     ApplyTime toApplyTime() const;
     std::chrono::system_clock::time_point toSystemTime() const;
     // The smallest close time strictly after this one: 1ms later once
-    // protocolVersion has ms close times (MS_CLOSE_TIME builds only), the next
-    // whole second before that.
+    // protocolVersion has ms close times, the next whole second before that.
     ConsensusTime next(uint32_t protocolVersion) const;
     std::string toString() const;
 

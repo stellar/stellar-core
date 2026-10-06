@@ -538,7 +538,6 @@ HerderSCPDriver::deserializeAndValidateStellarValue(uint64_t slotIndex,
         return false;
     }
 
-#ifdef MS_CLOSE_TIME
     // An ms value's closeTime must agree with its closeTimeMs
     if (!hasValidCloseTime(sv))
     {
@@ -576,7 +575,6 @@ HerderSCPDriver::deserializeAndValidateStellarValue(uint64_t slotIndex,
     {
         return false;
     }
-#endif // MS_CLOSE_TIME
 
     // Values must be signed or empty-tx-set values
     bool const isSigned = isSignedStellarValue(sv);
@@ -738,7 +736,6 @@ HerderSCPDriver::makeEmptyTxSetValueFromValue(Value const& v) const
     sv.txSetHash = Herder::EMPTY_TX_SET_HASH;
     sv.closeTime = proposedValue.closeTime;
     sv.upgrades = proposedValue.upgrades;
-#ifdef MS_CLOSE_TIME
     if (proposedValue.ext.v() == STELLAR_VALUE_SIGNED_MS)
     {
         sv.ext.v(STELLAR_VALUE_EMPTY_TX_SET_MS);
@@ -751,7 +748,6 @@ HerderSCPDriver::makeEmptyTxSetValueFromValue(Value const& v) const
             proposedValue.ext.signedMsValue().lcValueSignature;
         return xdr::xdr_to_opaque(sv);
     }
-#endif // MS_CLOSE_TIME
     sv.ext.v(STELLAR_VALUE_EMPTY_TX_SET);
     sv.ext.proposedValue().txSetHash = proposedValue.txSetHash;
     sv.ext.proposedValue().previousLedgerHash = lcl.hash;

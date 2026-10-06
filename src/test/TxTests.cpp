@@ -513,7 +513,6 @@ makeConsensusTime(TimePoint timePoint, uint32_t milliseconds)
     releaseAssert(milliseconds < 1000);
     auto const wholeSecond =
         ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(timePoint));
-#ifdef MS_CLOSE_TIME
     if (milliseconds != 0)
     {
         auto const base = wholeSecond.milliseconds();
@@ -521,17 +520,12 @@ makeConsensusTime(TimePoint timePoint, uint32_t milliseconds)
                                                    ? UINT64_MAX
                                                    : base + milliseconds);
     }
-#else
-    // Sub-second close times do not exist in builds without MS_CLOSE_TIME
-    releaseAssert(milliseconds == 0);
-#endif // MS_CLOSE_TIME
     return wholeSecond;
 }
 
 ConsensusTime
 withMsCloseTime(Application& app, TimePoint closeTimeSec)
 {
-#ifdef MS_CLOSE_TIME
     if (protocolHasMsCloseTime(app.getLedgerManager()
                                    .getLastClosedLedgerHeader()
                                    .header.ledgerVersion))
@@ -539,7 +533,6 @@ withMsCloseTime(Application& app, TimePoint closeTimeSec)
         // A random offset within the same whole second
         return makeConsensusTime(closeTimeSec, rand_uniform<uint32_t>(0, 999));
     }
-#endif // MS_CLOSE_TIME
     return makeConsensusTime(closeTimeSec);
 }
 

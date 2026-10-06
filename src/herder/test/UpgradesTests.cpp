@@ -338,7 +338,6 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     header.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
     header.scpValue.closeTime = VirtualClock::to_time_t(genesis(0, 0));
 
-#ifdef MS_CLOSE_TIME
     // Every case below also runs against a header whose ms close time lands a
     // random nonzero number of ms into the same whole second. Upgrade
     // scheduling rounds down to the whole second, so execution is identical.
@@ -348,7 +347,6 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         header.scpValue.ext.signedMsValue().closeTimeMs =
             header.scpValue.closeTime * 1000 + rand_uniform<uint32_t>(1, 999);
     }
-#endif // MS_CLOSE_TIME
 
     auto protocolVersionUpgrade =
         makeProtocolVersionUpgrade(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
@@ -4275,10 +4273,14 @@ TEST_CASE("upgrades endpoint sets nomination timeout and expiration minutes",
     }
 }
 
-#ifdef MS_CLOSE_TIME
 TEST_CASE("millisecond close time upgrade boundary",
           "[upgrades][herder][acceptance]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
     // A 4-node network (quorum threshold 3) upgrades to the ms close-time
     // protocol while one node is partitioned away. The remaining three must
     // keep closing ledgers across the boundary, switching value types
@@ -4390,75 +4392,38 @@ TEST_CASE("millisecond close time upgrade boundary",
                 STELLAR_VALUE_SIGNED_MS);
     }
 
-    // Scan node0's externalized SCP state across the boundary: value types
-    // must flip from legacy to ms exactly once, the upgrade ledger itself
-    // carries a legacy value with the version-upgrade step, and combined
-    // close times strictly increase throughout
+    // Every retained slot must advance time, with the first ms value
+    // immediately following the ledger that applies the protocol upgrade.
+    auto& scp = static_cast<HerderImpl&>(node(0)->getHerder()).getSCP();
+    auto previousTime = getConsensusTime(lclHeader(3).header.scpValue);
+    bool upgraded = false;
+    for (uint32_t slot = laggingSeq + 1; slot <= lclSeq(0); ++slot)
     {
-        auto& herder0 = static_cast<HerderImpl&>(node(0)->getHerder());
-        auto& scp = herder0.getSCP();
-        // Slots below the remembering window (and any slot still mid-flight)
-        // may not have an externalizing state to inspect
-        uint32_t const scanStart = std::max<uint32_t>(
-            laggingSeq + 1, herder0.getMinLedgerSeqToRemember());
-        std::vector<std::pair<uint32_t, StellarValue>> values;
-        for (uint32_t slot = scanStart; slot <= lclSeq(0); slot++)
+        auto const envs = scp.getExternalizingState(slot);
+        auto const ext =
+            std::find_if(envs.begin(), envs.end(), [](SCPEnvelope const& e) {
+                return e.statement.pledges.type() == SCP_ST_EXTERNALIZE;
+            });
+        REQUIRE(ext != envs.end());
+        StellarValue sv;
+        xdr::xdr_from_opaque(ext->statement.pledges.externalize().commit.value,
+                             sv);
+        REQUIRE(getConsensusTime(sv) > previousTime);
+        REQUIRE(isMsCloseTimeStellarValue(sv) == upgraded);
+        previousTime = getConsensusTime(sv);
+        for (auto const& step : sv.upgrades)
         {
-            auto const envs = scp.getExternalizingState(slot);
-            auto const ext = std::find_if(
-                envs.begin(), envs.end(), [](SCPEnvelope const& e) {
-                    return e.statement.pledges.type() == SCP_ST_EXTERNALIZE;
-                });
-            if (ext == envs.end())
+            LedgerUpgrade upgrade;
+            xdr::xdr_from_opaque(step, upgrade);
+            if (upgrade.type() == LEDGER_UPGRADE_VERSION)
             {
-                continue;
+                REQUIRE(!upgraded);
+                REQUIRE(upgrade.newLedgerVersion() == msVersion);
+                upgraded = true;
             }
-            StellarValue sv;
-            xdr::xdr_from_opaque(
-                ext->statement.pledges.externalize().commit.value, sv);
-            values.emplace_back(slot, sv);
-        }
-        // The captured window must span the boundary
-        REQUIRE(values.size() >= 2);
-        REQUIRE(!isMsCloseTimeStellarValue(values.front().second));
-        REQUIRE(isMsCloseTimeStellarValue(values.back().second));
-
-        // Close times strictly increase throughout
-        for (size_t i = 1; i < values.size(); i++)
-        {
-            REQUIRE(getConsensusTime(values[i].second) >
-                    getConsensusTime(values[i - 1].second));
-        }
-
-        // Value types must flip from legacy to ms exactly once: every value
-        // before the first ms value is legacy (by construction of find_if),
-        // and every value from it onwards must be ms. The window checks
-        // above guarantee the flip exists and firstMs is neither the first
-        // nor past the last value
-        auto const isMsValue = [](auto const& slotAndValue) {
-            return isMsCloseTimeStellarValue(slotAndValue.second);
-        };
-        auto const firstMs =
-            std::find_if(values.begin(), values.end(), isMsValue);
-        REQUIRE(std::all_of(firstMs, values.end(), isMsValue));
-
-        // When the scan captured the two sides of the flip as adjacent
-        // slots, the last legacy value is the upgrade ledger itself and must
-        // carry the version upgrade step
-        auto const& [lastLegacySlot, lastLegacyValue] = *std::prev(firstMs);
-        if (lastLegacySlot + 1 == firstMs->first)
-        {
-            REQUIRE(std::any_of(
-                lastLegacyValue.upgrades.begin(),
-                lastLegacyValue.upgrades.end(), [&](UpgradeType const& step) {
-                    LedgerUpgrade up;
-                    xdr::xdr_from_opaque(
-                        xdr::opaque_vec<>(step.begin(), step.end()), up);
-                    return up.type() == LEDGER_UPGRADE_VERSION &&
-                           up.newLedgerVersion() == msVersion;
-                }));
         }
     }
+    REQUIRE(upgraded);
 
     // Reconnect the lagging node
     for (int i = 0; i < 3; i++)
@@ -4471,7 +4436,7 @@ TEST_CASE("millisecond close time upgrade boundary",
         [&]() {
             for (int i = 0; i < 4; i++)
             {
-                if (lclSeq(i) < target)
+                if (lclSeq(i) < target || lclSeq(i) != lclSeq(3))
                 {
                     return false;
                 }
@@ -4492,20 +4457,19 @@ TEST_CASE("millisecond close time upgrade boundary",
     REQUIRE(!node(3)->getLedgerApplyManager().isCatchupInitialized());
 
     // All nodes converged on the same chain
-    auto const seq3 = lclSeq(3);
     for (int i = 0; i < 3; i++)
     {
-        if (lclSeq(i) == seq3)
-        {
-            REQUIRE(lclHeader(i).hash == lclHeader(3).hash);
-        }
+        REQUIRE(lclHeader(i).hash == lclHeader(3).hash);
     }
 }
-#endif // MS_CLOSE_TIME
 
-#ifdef MS_CLOSE_TIME
 TEST_CASE("upgrade scheduling under sub-second ledgers", "[upgrades]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
     VirtualClock clock;
     auto cfg = getTestConfig(0);
     auto app = createTestApplication(clock, cfg);
@@ -4547,4 +4511,3 @@ TEST_CASE("upgrade scheduling under sub-second ledgers", "[upgrades]")
                       .createUpgradesFor(header, ledgerView, app->getConfig());
     REQUIRE(notDue.empty());
 }
-#endif // MS_CLOSE_TIME
