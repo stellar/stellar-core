@@ -1774,6 +1774,16 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     mTransactionQueue.ban(
         invalidTxPhases[static_cast<size_t>(TxSetPhase::CLASSIC)]);
 
+#ifdef BUILD_TESTS
+    if (mNominatedTxSetOverride)
+    {
+        proposedSet = mNominatedTxSetOverride(lcl);
+        CLOG_INFO(Herder, "Nominating overridden tx set {} for slot {}",
+                  hexAbbrev(proposedSet->getContentsHash()),
+                  lcl.header.ledgerSeq + 1);
+    }
+#endif
+
     // Stop before addTxSet below: its side effects can include SCP callbacks
     // and even externalizing a ledger, which are not tx set building.
     mSCPMetrics.mTxSetBuild.Update(

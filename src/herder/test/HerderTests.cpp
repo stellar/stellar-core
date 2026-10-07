@@ -9409,6 +9409,95 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
         });
 }
 
+// One of four validators nominates a non-canonical empty tx set (a tx set
+// without transactions that isn't encoded as `TxSetXDRFrame::makeEmpty`,
+// which history can't replay) on every ledger. Before the protocol gate the
+// network externalizes it, after the gate it's rejected as invalid.
+TEST_CASE("network does not externalize non-canonical empty tx set",
+          "[herder][txset]")
+{
+    auto runTest = [](uint32_t protocolVersion, bool expectExternalized) {
+        auto makeConfig = [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+            cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
+            // Measured in wall-clock time, so it would never expire here
+            cfg.TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds{0};
+            return cfg;
+        };
+
+        // No transactions, but the parallel Soroban phase carries a base fee,
+        // so this doesn't hash like `makeEmpty`
+        auto makeNonCanonicalEmptyTxSet = [](Hash const& prevHash) {
+            GeneralizedTransactionSet xdr(1);
+            xdr.v1TxSet().previousLedgerHash = prevHash;
+            xdr.v1TxSet().phases.emplace_back(0);
+            xdr.v1TxSet()
+                .phases.emplace_back(1)
+                .parallelTxsComponent()
+                .baseFee.activate() = 12345;
+            return TxSetXDRFrame::makeFromWire(xdr);
+        };
+        auto simulation = Topologies::core(
+            4, 0.75, Simulation::OVER_LOOPBACK,
+            sha256(getTestConfig().NETWORK_PASSPHRASE), makeConfig);
+        auto nodes = simulation->getNodes();
+        static_cast<HerderImpl&>(nodes[0]->getHerder())
+            .mNominatedTxSetOverride =
+            [&](LedgerHeaderHistoryEntry const& lcl) {
+                return makeNonCanonicalEmptyTxSet(lcl.hash);
+            };
+        simulation->startAllNodes();
+
+        // Inspect every ledger an honest node closes
+        auto& lm = nodes[1]->getLedgerManager();
+        uint32_t seen = lm.getLastClosedLedgerNum();
+        uint32_t const target = seen + 20;
+        uint32_t externalized = 0, replaced = 0;
+        simulation->crankUntil(
+            [&]() {
+                auto const& lcl = lm.getLastClosedLedgerHeader();
+                if (lcl.header.ledgerSeq > seen)
+                {
+                    REQUIRE(lcl.header.ledgerSeq == seen + 1);
+                    seen = lcl.header.ledgerSeq;
+                    auto const& sv = lcl.header.scpValue;
+                    externalized +=
+                        sv.txSetHash == makeNonCanonicalEmptyTxSet(
+                                            lcl.header.previousLedgerHash)
+                                            ->getContentsHash();
+                    replaced += isEmptyTxSetStellarValue(sv);
+                }
+                return seen >= target;
+            },
+            30 * simulation->getExpectedLedgerCloseTime(), false);
+
+        CAPTURE(externalized, replaced);
+        if (expectExternalized)
+        {
+            REQUIRE(externalized > 0);
+        }
+        else
+        {
+            REQUIRE(externalized == 0);
+            REQUIRE(replaced > 0);
+        }
+    };
+
+    SECTION("before protocol gate")
+    {
+        runTest(static_cast<uint32_t>(
+                    CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION) -
+                    1,
+                /*expectExternalized=*/true);
+    }
+    SECTION("current protocol")
+    {
+        runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                /*expectExternalized=*/false);
+    }
+}
+
 // This tests that the network externalizes an empty-tx-set value when a
 // voted-for value is not available on the network.
 TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
