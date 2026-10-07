@@ -308,6 +308,7 @@ pub(crate) mod rust_bridge {
 
         // Utility functions for generating wasms using soroban-synth-wasm.
         fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf>;
+        fn get_ml_dsa_verify_wasm(param_set: u32) -> Result<RustBuf>;
 
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
