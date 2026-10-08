@@ -174,7 +174,6 @@ TEST_CASE("XDR field resolver", "[xdrquery]")
                     "MA3D5KRYM6CB7OWQ6TWYRR3Z4T7GNZLKERYNZGGA5SOAOPIFY6YQGAAAAA"
                     "AAAAPCICBKU");
         }
-#ifdef CAP_0084_MUXED_CONTRACT
         SECTION("muxed contract")
         {
             addr.type(SC_ADDRESS_TYPE_MUXED_CONTRACT);
@@ -185,7 +184,6 @@ TEST_CASE("XDR field resolver", "[xdrquery]")
                     "WA3D5KRYM6CB7OWQ6TWYRR3Z4T7GNZLKERYNZGGA5SOAOPIFY6YQGAAAAA"
                     "AAAAPCIA6IG");
         }
-#endif
     }
 
     SECTION("null field")
