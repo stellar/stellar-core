@@ -1,9 +1,9 @@
 {
-   "!cfg protocol version" : 29,
+   "!cfg protocol version" : 30,
    "!rng seed" : 12345,
    "!test all versions" : false,
-   "!versions to test" : [ 29 ],
-   "5cf9693f2120a6e9" : "path payment uses all offers in a loop|protocol version 29|inside issuers missing",
-   "cc63270983ba4cc8" : "path payment uses all offers in a loop|protocol version 29|no issuers missing",
-   "d53bb397f808b878" : "path payment uses all offers in a loop|protocol version 29|outside issuers missing"
+   "!versions to test" : [ 30 ],
+   "34519f44ec59503a" : "path payment uses all offers in a loop|protocol version 30|no issuers missing",
+   "92470472b9a9f5bc" : "path payment uses all offers in a loop|protocol version 30|outside issuers missing",
+   "f00935f099695391" : "path payment uses all offers in a loop|protocol version 30|inside issuers missing"
 }
