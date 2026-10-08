@@ -119,8 +119,13 @@ tracy-client = { version = "=0.17.0", features = [
 version = "=30.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "fddfd567a6cb6ea801fac8bd807daa8f35bfd094"
+rev = "8abed902b850b7c1aebddf131a6521684231bb93"
 optional = true
+# This dependency is only enabled by the `fastdev` feature, which implies
+# `next`, so the host is always wanted at its next-protocol number here. The
+# non-fastdev build takes p30 from the submodule rlib instead, where
+# src/Makefile.am passes --features=next to SOROBAN_MAX_PROTOCOL.
+features = ["next"]
 
 [dependencies.soroban-env-host-p29]
 version = "=29.0.0"
@@ -212,14 +217,13 @@ optional = true
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
 git = "https://github.com/stellar/stellar-quorum-analyzer"
-rev = "502a354eb9a31cf86098be84aa1b3081767fa3c7"
+rev = "811d19a1a523f035f9a442e9197a6fed609550f1"
 
 [features]
 
 # Turn on the optional fastdev build. This is typically only useful in an IDE or when
 # orchestrated by the build system. See note above and in docs/CONTRIBUTING.md.
-fastdev = ["dep:soroban-env-host-p28",
-           "dep:soroban-env-host-p29",
+fastdev = ["dep:soroban-env-host-p29",
            "dep:soroban-env-host-p30",
            "next"]
 

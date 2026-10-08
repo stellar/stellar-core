@@ -43,6 +43,7 @@ enum class ProtocolVersion : uint32_t
     V_28,
     V_29,
     V_30,
+    V_31,
     V_UINT32_MAX = UINT32_MAX,
 };
 
