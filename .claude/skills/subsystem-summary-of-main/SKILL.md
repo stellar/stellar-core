@@ -123,7 +123,7 @@ Comprehensive configuration object parsed from TOML files. Copied locally by eac
 
 **Key methods:** `load(filename)`, `load(istream)`, `adjust()` (fixes connection-related settings), `logBasicInfo()`, `parallelLedgerClose()`, `setNoListen()`, `setNoPublish()`, `toShortString()`, `resolveNodeID()`.
 
-**TestDbMode enum:** `TESTDB_DEFAULT`, `TESTDB_IN_MEMORY`, `TESTDB_POSTGRESQL`, `TESTDB_BUCKET_DB_VOLATILE`, `TESTDB_BUCKET_DB_PERSISTENT`.
+**TestDbMode enum:** `TESTDB_DEFAULT`, `TESTDB_IN_MEMORY`, `TESTDB_BUCKET_DB_VOLATILE`, `TESTDB_BUCKET_DB_PERSISTENT`.
 
 ### `PersistentState`
 

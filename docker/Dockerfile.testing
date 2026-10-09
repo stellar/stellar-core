@@ -4,9 +4,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get -y install iproute2 procps lsb-release \
                        git build-essential pkg-config autoconf automake libtool \
-                       bison flex sed perl libpq-dev parallel \
+                       bison flex sed perl parallel \
                        clang-20 libc++abi-20-dev libc++-20-dev libclang-rt-20-dev \
-                       postgresql curl
+                       curl
 
 COPY . stellar-core/
 WORKDIR stellar-core
@@ -36,7 +36,7 @@ RUN make clean
 FROM ubuntu:noble
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get -y install postgresql curl sqlite3 iproute2 libc++abi1-20 libc++1-20
+    apt-get -y install curl sqlite3 iproute2 libc++abi1-20 libc++1-20
 
 COPY --from=buildstage /usr/local/bin/stellar-core /usr/local/bin/stellar-core
 EXPOSE 11625

@@ -118,9 +118,7 @@ mind.
     These are not servers we necessarily run (though we can run extras).
 
 - Observation channel for validators notifying public HTTP nodes of tx
-  results. TBD. Simplest technique is to use the LISTEN/NOTIFY machinery
-  built into postgres/libpq, though that commits us to postgres pretty
-  firmly. If unacceptable, use an external message queue. This is just to
+  results. TBD. Use an external message queue to
   trigger wakeups on public HTTP nodes awaiting tx results. Worst case /
   failure mode, they can timeout/poll. Messages are idempotent,
   content-free pings.

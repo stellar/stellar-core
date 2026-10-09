@@ -46,10 +46,6 @@ Here are some common configuration flags you might want to change:
     test-support infrastructure from core. We want this build variant to work
     since it is the one we ship, but it is uncommon when doing development.
 
-  - `--disable-postgres` turns off postgresql backend support in core, leaving
-    only sqlite. tests will run faster, and also this is a configuration we want
-    to work (we will remove postgres entirely someday).
- 
 There are also some flags that turn on compile-time instrumentation for
 different sorts of testing. Turn these on if doing specific diagnostic tests,
 and/or to check for "anything breaking by accident". If you turn any on, you

@@ -85,7 +85,7 @@ jobs:
       - name: install cargo-sweep
         run: cargo install --locked cargo-sweep --version 0.7.0
       - name: install dependencies
-        run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev sed perl
+        run: sudo apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex parallel libunwind-dev sed perl
       - name: Build
         run: |
           if test "${{ matrix.toolchain }}" = "gcc" ; then

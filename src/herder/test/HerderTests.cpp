@@ -3953,12 +3953,6 @@ TEST_CASE("SCP State", "[herder]")
             configure(Config::TestDbMode::TESTDB_BUCKET_DB_PERSISTENT);
         }
 
-#ifdef USE_POSTGRES
-        SECTION("postgres")
-        {
-            configure(Config::TestDbMode::TESTDB_POSTGRESQL);
-        }
-#endif
         // add node0 and node1, in lockstep
         {
             SCPQuorumSet qSet;
@@ -4658,14 +4652,13 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
             });
     }
 
-// Background ledger close requires postgres
-#ifdef USE_POSTGRES
     SECTION("background ledger close")
     {
         // Set threshold to 1 so all have to vote
         simulation =
             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
-                auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+                auto cfg =
+                    getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(500);
@@ -4677,7 +4670,6 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
                 return cfg;
             });
     }
-#endif
 
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
@@ -4754,25 +4746,6 @@ TEST_CASE("randomized parallel features with jitter injection",
 
             std::shared_ptr<Simulation> simulation;
 
-            SECTION("postgres")
-            {
-                // Set threshold to 1 so all have to vote
-                simulation = Topologies::core(
-                    4, 1, Simulation::OVER_TCP, networkID, [](int i) {
-                        auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
-                        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-                        // Enable ALL parallel features
-                        cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
-                        cfg.BACKGROUND_OVERLAY_PROCESSING = true;
-                        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
-                        // Tight DB tuning to trigger cache
-                        // evictions and batching scenarios
-                        cfg.ENTRY_CACHE_SIZE = 1;
-                        cfg.PREFETCH_BATCH_SIZE = 1;
-
-                        return cfg;
-                    });
-            }
             SECTION("SQLite")
             {
                 // Set threshold to 1 so all have to vote
@@ -8913,16 +8886,6 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation;
-#ifdef USE_POSTGRES
-    SECTION("with parallel apply, PostgreSQL")
-    {
-        simulation = Topologies::core(
-            3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-                auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
-                return cfg;
-            });
-    }
-#endif
     SECTION("with parallel apply, SQLite")
     {
         simulation = Topologies::core(

@@ -2735,19 +2735,13 @@
     <None Include="..\..\src\test\check-nondet">
       <Filter>test</Filter>
     </None>
-    <None Include="..\..\src\test\run-selftest-nopg">
+    <None Include="..\..\src\test\run-selftest">
       <Filter>test</Filter>
     </None>
-    <None Include="..\..\src\test\run-selftest-pg">
-      <Filter>test</Filter>
-    </None>
-    <None Include="..\..\src\test\selftest-nopg">
+    <None Include="..\..\src\test\selftest">
       <Filter>test</Filter>
     </None>
     <None Include="..\..\src\test\selftest-parallel">
-      <Filter>test</Filter>
-    </None>
-    <None Include="..\..\src\test\selftest-pg">
       <Filter>test</Filter>
     </None>
     <None Include="..\..\src\bucket\readme.md">

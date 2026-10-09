@@ -323,7 +323,7 @@ jobs:
       - name: Install prerequisites and uninstall brew rust, add rustup
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
-          brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils
+          brew install libsodium libtool autoconf automake pkg-config openssl parallel ccache bison gnu-sed perl coreutils
           brew uninstall rust rustup
           brew install rustup
 
@@ -364,14 +364,13 @@ jobs:
       - name: Build
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
           export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
           export PATH="$(brew --prefix bison)/bin:$PATH"
           export CC='clang'
           export CXX='clang++'
           export CLANG_VERSION=none
           export SKIP_FORMAT_CHECK=1
-          ./ci-build.sh --disable-postgres --protocol current
+          ./ci-build.sh --protocol current
 
       - name: Record successful test commit
         if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}

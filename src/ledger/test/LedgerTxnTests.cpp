@@ -494,13 +494,6 @@ TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgertxn]")
     {
         runTest(Config::TESTDB_DEFAULT);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
@@ -670,13 +663,6 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
     {
         runTestWithDbMode(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTestWithDbMode(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgertxn]")
@@ -883,13 +869,6 @@ TEST_CASE("LedgerTxn createWithoutLoading and updateWithoutLoading",
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 TEST_CASE("LedgerTxn erase", "[ledgertxn]")
@@ -978,13 +957,6 @@ TEST_CASE("LedgerTxn erase", "[ledgertxn]")
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
@@ -1078,13 +1050,6 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 static void
@@ -1539,13 +1504,6 @@ TEST_CASE("LedgerTxn loadHeader", "[ledgertxn]")
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
@@ -1646,13 +1604,6 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
@@ -1996,13 +1947,6 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgertxn]")
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 static void
@@ -2427,13 +2371,6 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 static void
@@ -2850,13 +2787,6 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
     {
         runTest(getTestConfig(Config::TESTDB_BUCKET_DB_PERSISTENT));
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(getTestConfig(0, Config::TESTDB_POSTGRESQL));
-    }
-#endif
 }
 
 TEST_CASE("Create performance benchmark", "[!hide][createbench]")
@@ -2916,14 +2846,6 @@ TEST_CASE("Create performance benchmark", "[!hide][createbench]")
         runTest(Config::TESTDB_BUCKET_DB_PERSISTENT, true);
         runTest(Config::TESTDB_BUCKET_DB_PERSISTENT, false);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL, true);
-        runTest(Config::TESTDB_POSTGRESQL, false);
-    }
-#endif
 }
 
 TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
@@ -2981,14 +2903,6 @@ TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
         runTest(Config::TESTDB_BUCKET_DB_PERSISTENT, true);
         runTest(Config::TESTDB_BUCKET_DB_PERSISTENT, false);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL, true);
-        runTest(Config::TESTDB_POSTGRESQL, false);
-    }
-#endif
 }
 
 TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
@@ -3150,13 +3064,6 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
         CLOG_WARNING(Ledger, "Done ({}, {}, {})", getTimeSpent(*app, "create"),
                      getTimeSpent(*app, "write"), getTimeSpent(*app, "load"));
     };
-
-#ifdef USE_POSTGRES
-    SECTION("postgres")
-    {
-        runTest(Config::TESTDB_POSTGRESQL, 10, 5, 25000);
-    }
-#endif
 
     SECTION("sqlite")
     {
@@ -3577,13 +3484,6 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 TEST_CASE("Access deactivated entry", "[ledgertxn]")
@@ -3720,13 +3620,6 @@ TEST_CASE("Access deactivated entry", "[ledgertxn]")
     {
         runTest(Config::TESTDB_IN_MEMORY);
     }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }
 
 TEST_CASE("LedgerTxn generalized ledger entries", "[ledgertxn]")
