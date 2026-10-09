@@ -806,9 +806,7 @@ VALIDATORS=[")" + otherKey + R"( A"]
     SECTION("DATABASE from file in config")
     {
         std::string tmpPath = "/tmp/stellar_test_db_conn";
-        std::string dbConn =
-            "postgresql://dbname=stellar user=stellar password=secret "
-            "host=127.0.0.1";
+        std::string dbConn = "sqlite3:///tmp/stellar.db";
         {
             std::ofstream ofs(tmpPath);
             ofs << dbConn << "\n";
@@ -848,5 +846,24 @@ VALIDATORS=[")" + otherKey + R"( A"]
         std::stringstream ss(configStr);
         c.load(ss);
         REQUIRE(c.DATABASE.value == "sqlite3://test.db");
+    }
+
+    SECTION("reject non-SQLite DATABASE")
+    {
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
+        std::string configStr = R"(
+DATABASE="unsupported://database"
+NODE_SEED=")" + testSeed +
+                                R"( self"
+UNSAFE_QUORUM=true
+[QUORUM_SET]
+THRESHOLD_PERCENT=100
+VALIDATORS=[")" + otherKey +
+                                R"( A"]
+)";
+        Config c;
+        std::stringstream ss(configStr);
+        REQUIRE_THROWS_WITH(c.load(ss),
+                            Catch::Contains("DATABASE must use sqlite3://"));
     }
 }

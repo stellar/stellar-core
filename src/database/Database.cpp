@@ -4,7 +4,6 @@
 
 #include "database/Database.h"
 #include "crypto/Hex.h"
-#include "database/DatabaseConnectionString.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -35,12 +34,9 @@
 #include "xdr/Stellar-ledger-entries.h"
 
 #include <lib/soci/src/backends/sqlite3/soci-sqlite3.h>
-#include <string>
-#ifdef USE_POSTGRES
-#include <lib/soci/src/backends/postgresql/soci-postgresql.h>
-#endif
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -69,34 +65,9 @@ static int const MIN_SQLITE_MINOR_VERSION = 45;
 static int const MIN_SQLITE_VERSION =
     (1000000 * MIN_SQLITE_MAJOR_VERSION) + (1000 * MIN_SQLITE_MINOR_VERSION);
 
-// PostgreSQL pre-10.0 actually used its "minor number" as a major one
-// (meaning: 9.4 and 9.5 were considered different major releases, with
-// compatibility differences and so forth). After 10.0 they started doing
-// what everyone else does, where 10.0 and 10.1 were only "minor". Either
-// way though, we have a minimum minor version.
-static int const MIN_POSTGRESQL_MAJOR_VERSION = 9;
-static int const MIN_POSTGRESQL_MINOR_VERSION = 5;
-static int const MIN_POSTGRESQL_VERSION =
-    (10000 * MIN_POSTGRESQL_MAJOR_VERSION) +
-    (100 * MIN_POSTGRESQL_MINOR_VERSION);
-
 // Tables that are moved from main DB to misc DB during schema migration.
 static std::vector<std::string> const kMiscTables = {
     "peers", "ban", "quoruminfo", "scpquorums", "scphistory", "slotstate"};
-
-#ifdef USE_POSTGRES
-static std::string
-badPgVersion(int vers)
-{
-    std::ostringstream msg;
-    int maj = (vers / 10000);
-    int min = (vers - (maj * 10000)) / 100;
-    msg << "PostgreSQL version " << maj << '.' << min
-        << " is too old, must use at least " << MIN_POSTGRESQL_MAJOR_VERSION
-        << '.' << MIN_POSTGRESQL_MINOR_VERSION;
-    return msg.str();
-}
-#endif
 
 static std::string
 badSqliteVersion(int vers)
@@ -133,9 +104,6 @@ Database::registerDrivers()
     if (!gDriversRegistered)
     {
         register_factory_sqlite3();
-#ifdef USE_POSTGRES
-        register_factory_postgresql();
-#endif
         gDriversRegistered = true;
     }
 }
@@ -180,20 +148,6 @@ class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation<void>
         // Register the sqlite carray() extension we use for bulk operations.
         sqlite3_carray_init(sq->conn_, nullptr, nullptr);
     }
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        int vers = PQserverVersion(pg->conn_);
-        if (vers < MIN_POSTGRESQL_VERSION)
-        {
-            throw std::runtime_error(badPgVersion(vers));
-        }
-        mSession
-            << "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL "
-               "SERIALIZABLE";
-    }
-#endif
 };
 
 Database::Database(Application& app)
@@ -205,9 +159,7 @@ Database::Database(Application& app)
 {
     registerDrivers();
 
-    CLOG_INFO(
-        Database, "Connecting to: {}",
-        removePasswordFromConnectionString(app.getConfig().DATABASE.value));
+    CLOG_INFO(Database, "Connecting to: {}", app.getConfig().DATABASE.value);
     open();
 }
 
@@ -231,7 +183,6 @@ Database::open()
 std::string
 Database::getSQLiteDBLocation(soci::session& session)
 {
-    releaseAssert(isSqlite());
     std::string loc;
     int i;
     std::string databaseName, databaseLocation;
@@ -408,7 +359,7 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 27:
         // Add banned accounts table for persistent account filtering.
         // For SQLite-on-disk this is handled by misc schema upgrade v2;
-        // for Postgres and in-memory SQLite, create in the main DB.
+        // for in-memory SQLite, create in the main DB.
         if (!canUseMiscDB())
         {
             getRawSession() << "DROP TABLE IF EXISTS bannedaccounts;";
@@ -589,39 +540,6 @@ Database::getUpsertTimer(std::string const& entityName)
         .TimeScope();
 }
 
-void
-Database::setCurrentTransactionReadOnly()
-{
-    if (!isSqlite())
-    {
-        auto prep =
-            getPreparedStatement("SET TRANSACTION READ ONLY", getSession());
-        auto& st = prep.statement();
-        st.define_and_bind();
-        st.execute(false);
-    }
-}
-
-bool
-Database::isSqlite() const
-{
-    return mApp.getConfig().DATABASE.value.find("sqlite3://") !=
-           std::string::npos;
-}
-
-std::string
-Database::getSimpleCollationClause() const
-{
-    if (isSqlite())
-    {
-        return "";
-    }
-    else
-    {
-        return " COLLATE \"C\" ";
-    }
-}
-
 bool
 Database::canUsePool() const
 {
@@ -631,33 +549,30 @@ Database::canUsePool() const
 bool
 Database::canUseMiscDB() const
 {
-    return canUsePool() && isSqlite();
+    return canUsePool();
 }
 
 void
 Database::initialize()
 {
-    if (isSqlite())
+    auto cleanup = [&](soci::session& sess) {
+        std::string fn = getSQLiteDBLocation(sess);
+        if (!fn.empty() && fs::exists(fn))
+        {
+            sess.close();
+            std::remove(fn.c_str());
+            return true;
+        }
+        return false;
+    };
+    bool shouldOpen = cleanup(mSession.session());
+    if (canUseMiscDB())
     {
-        auto cleanup = [&](soci::session& sess) {
-            std::string fn = getSQLiteDBLocation(sess);
-            if (!fn.empty() && fs::exists(fn))
-            {
-                sess.close();
-                std::remove(fn.c_str());
-                return true;
-            }
-            return false;
-        };
-        bool shouldOpen = cleanup(mSession.session());
-        if (canUseMiscDB())
-        {
-            releaseAssert(cleanup(mMiscSession.session()) == shouldOpen);
-        }
-        if (shouldOpen)
-        {
-            open();
-        }
+        releaseAssert(cleanup(mMiscSession.session()) == shouldOpen);
+    }
+    if (shouldOpen)
+    {
+        open();
     }
     // normally you do not want to touch this section as
     // schema updates are done in applySchemaUpgrade
@@ -692,7 +607,7 @@ Database::getMiscSession()
 {
     // global session can only be used from the main thread
     releaseAssert(threadIsMain());
-    // Use the main session if misc DB is not supported (e.g. Postgres)
+    // In-memory SQLite cannot use a separate miscellaneous database.
     if (!canUseMiscDB())
     {
         return mSession;
@@ -722,7 +637,7 @@ createPool(Database const& db, Config const& cfg,
         if (!db.canUsePool())
         {
             std::string s("Can't create connection pool to ");
-            s += removePasswordFromConnectionString(c.value);
+            s += c.value;
             throw std::runtime_error(s);
         }
         size_t n = std::thread::hardware_concurrency();
@@ -731,7 +646,7 @@ createPool(Database const& db, Config const& cfg,
             n = std::max<size_t>(n / 2, 1);
         }
         LOG_INFO(DEFAULT_LOG, "Establishing {}-entry connection pool to: {}", n,
-                 removePasswordFromConnectionString(c.value));
+                 c.value);
         pool = std::make_unique<soci::connection_pool>(n);
         for (size_t i = 0; i < n; ++i)
         {

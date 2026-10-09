@@ -1433,10 +1433,6 @@ dbModeName(Config::TestDbMode mode)
     {
     case Config::TESTDB_IN_MEMORY:
         return "TESTDB_IN_MEMORY";
-#ifdef USE_POSTGRES
-    case Config::TESTDB_POSTGRESQL:
-        return "TESTDB_POSTGRESQL";
-#endif
     case Config::TESTDB_BUCKET_DB_PERSISTENT:
         return "TESTDB_BUCKET_DB_PERSISTENT";
     case Config::TESTDB_BUCKET_DB_VOLATILE:
@@ -1636,10 +1632,6 @@ TEST_CASE("History catchup with different modes",
 {
     std::vector<Config::TestDbMode> dbModes = {
         Config::TESTDB_BUCKET_DB_PERSISTENT};
-#ifdef USE_POSTGRES
-    if (!force_sqlite)
-        dbModes.push_back(Config::TESTDB_POSTGRESQL);
-#endif
 
     for (auto dbMode : dbModes)
     {

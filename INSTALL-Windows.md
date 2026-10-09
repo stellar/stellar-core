@@ -34,26 +34,6 @@ Easiest is to use rustup, found on [rust-lang.org](https://www.rust-lang.org/too
 
 Install the x64 MSVC toolchain (`stable-x86_64-pc-windows-msvc`), and make sure that `rustc.exe` is in your `PATH`.
 
-## Download and install PostgreSQL
-
-Note: if you do not want to use postgres you can select `DebugNoPostgres` as the build target.
-
-Get version 15 from https://www.enterprisedb.com/download-postgresql-binaries
-
-The default project file defines USE_POSTGRES and links against it.
-* Pick a directory for the database
-* Set an admin password for the database
-* Accept the default port (5432)
-* Accept `default` for the locale (not clear if anything depends on this. The `default` locale will
-presumably depend on your operating system's setting might cause inconsistencies)
-* Add `c:\Program Files\PostgreSQL\15\lib` to your PATH (else the binary will fail to start,
-    not finding `libpq.dll`)
-* If you install postgres in a different folder, you will have to update the project file in two places:
-    * "additional include locations" and
-    * "Linker input"
-
-> If the installation fails, look into `%TEMP%\install-postgresql.log` for hints.
-
 ## Building xdrc
  In order to compile xdrc and run the binary you will need to either
 * Download and install MinGW from http://sourceforge.net/projects/mingw/files/
@@ -103,9 +83,6 @@ For making changes to the code, you should install the clang-format tool and Vis
 To setup the subsystem, go to https://msdn.microsoft.com/en-us/commandline/wsl/install_guide
 
 Then, you can simply follow the [Linux instructions](./README.md)
-
-Note that you can (and should) install the Windows version of postgres even when running stellar-core from within WSL.
-
 
 # Basic Installation
 

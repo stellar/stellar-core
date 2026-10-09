@@ -34,8 +34,6 @@
 ## How do I build once I'm in the container?
 
 In general, you build just like you would normally on Ubuntu.
-Only difference is that tests that rely on postgresql will not run under root, so you need to run tests with a non priviledged account like `vscode`.
-So before building etc, just run `su vscode` if needed.
 
 ### Build straight from the shared workspace
 The shared folder is mounted in something like `/workspaces/stellar-core`.

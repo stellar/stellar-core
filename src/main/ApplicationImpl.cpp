@@ -685,14 +685,6 @@ ApplicationImpl::validateAndLogConfig()
             "RUN_STANDALONE is not set");
     }
 
-    if (!mDatabase->isSqlite())
-    {
-        CLOG_WARNING(Database,
-                     "Non-sqlite3 database detected. Support for other sql "
-                     "backends is deprecated and will be removed in a future "
-                     "release. Please use sqlite3 for non-ledger state data.");
-    }
-
     auto pageSizeExp = mConfig.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
 
     // If the page size is less than 256 bytes, it is essentially

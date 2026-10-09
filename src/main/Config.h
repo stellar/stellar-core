@@ -166,9 +166,7 @@ class Config : public std::enable_shared_from_this<Config>
     //    tests that required writes to the ledger state that cannot be achieved
     //    via valid TX application, such as testing invalid TX error codes or
     //    low level op testing.
-    // 3. TESTDB_POSTGRESQL: Should only be used to test POSTGRESQL specific
-    //    database operations.
-    // 4. TESTDB_BUCKET_DB_PERSISTENT: Same as TESTDB_BUCKET_DB_VOLATILE, but
+    // 3. TESTDB_BUCKET_DB_PERSISTENT: Same as TESTDB_BUCKET_DB_VOLATILE, but
     //    persists the BucketList and SQL DB over restart. This mode is very
     //    slow and should only be used for testing restart behavior or some low
     //    level BucketList features or for testing SQLite DB specific behavior.
@@ -176,9 +174,6 @@ class Config : public std::enable_shared_from_this<Config>
     {
         TESTDB_DEFAULT,
         TESTDB_IN_MEMORY,
-#ifdef USE_POSTGRES
-        TESTDB_POSTGRESQL,
-#endif
         TESTDB_BUCKET_DB_VOLATILE,
         TESTDB_BUCKET_DB_PERSISTENT,
         TESTDB_MODES

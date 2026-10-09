@@ -15,7 +15,7 @@ stellar-core is the C++ reference implementation of the Stellar network consensu
 **Key external dependencies:**
 - **ASIO** — async I/O and event loop (standalone, no Boost).
 - **libsodium** — Ed25519, SHA-256, Curve25519 ECDH, AEAD.
-- **SOCI** — database abstraction (SQLite / PostgreSQL).
+- **SOCI** — database abstraction over SQLite.
 - **medida** — metrics (counters, meters, timers, histograms).
 - **spdlog** — structured logging with partition-independent levels.
 - **cereal** — serialization (JSON for HAS, binary for bucket indexes).
@@ -172,10 +172,10 @@ Manages TCP connections to peers and message flooding.
 
 ### 3.7 Database
 
-SOCI-based SQL abstraction supporting SQLite and PostgreSQL.
+SOCI-based SQL abstraction supporting SQLite.
 
 - **DatabasePool** — pool of `Database` sessions. One primary session for main-thread use, additional sessions from the pool for worker threads.
-- **Dual-database architecture** (SQLite only): main database for ledger state, misc database for historical data (SCP messages, peer records). Reduces I/O contention.
+- **Dual-database architecture**: main database for ledger state, misc database for historical data (SCP messages, peer records). Reduces I/O contention.
 - **Schema versioning**: `PersistentState` stores `databaseschema` version; `upgradeToCurrentSchema()` runs DDL migrations on startup.
 - **BucketListDB mode** (v23+): replaces SQL-based ledger entry storage with BucketList point lookups, using SQL only for offers (order book) and other specialized queries.
 

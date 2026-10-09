@@ -10,12 +10,6 @@
 #include "util/RandomEvictionCache.h"
 #include "util/UnorderedSet.h"
 #include <optional>
-#ifdef USE_POSTGRES
-#include <iomanip>
-#include <libpq-fe.h>
-#include <limits>
-#include <sstream>
-#endif
 
 namespace stellar
 {
@@ -48,11 +42,7 @@ class EntryIterator::AbstractImpl
 // Helper struct to accumulate common cases that we can sift out of the
 // commit stream and perform in bulk (as single SQL statements per-type)
 // rather than making each insert/update/delete individually. This uses the
-// postgres and sqlite-supported "ON CONFLICT"-style upserts, and uses
-// soci's bulk operations where it can (i.e. for sqlite, or potentially
-// others), and manually-crafted postgres unnest([array]) calls where it
-// can't. This is not great, but it appears to be less work than
-// reorganizing the relevant parts of soci.
+// SQLite-supported "ON CONFLICT"-style upserts and SOCI bulk operations.
 class BulkLedgerEntryChangeAccumulator
 {
     std::vector<EntryIterator> mOffersToUpsert;
@@ -815,60 +805,4 @@ fromOpaqueBase64(T& res, std::string const& opaqueBase64)
     xdr::xdr_from_opaque(opaque, res);
 }
 
-#ifdef USE_POSTGRES
-template <typename T>
-inline void
-marshalToPGArrayItem(PGconn* conn, std::ostringstream& oss, const T& item)
-{
-    // NB: This setprecision is very important to ensuring that a double
-    // gets marshaled to enough decimal digits to reconstruct exactly the
-    // same double on the postgres side (that precision-level is exactly
-    // what max_digits10 is defined as). Do not remove it!
-    oss << std::setprecision(std::numeric_limits<T>::max_digits10) << item;
-}
-
-template <>
-inline void
-marshalToPGArrayItem<std::string>(PGconn* conn, std::ostringstream& oss,
-                                  std::string const& item)
-{
-    std::vector<char> buf(item.size() * 2 + 1, '\0');
-    int err = 0;
-    size_t len =
-        PQescapeStringConn(conn, buf.data(), item.c_str(), item.size(), &err);
-    if (err != 0)
-    {
-        throw std::runtime_error("Could not escape string in SQL");
-    }
-    oss << '"';
-    oss.write(buf.data(), len);
-    oss << '"';
-}
-
-template <typename T>
-inline void
-marshalToPGArray(PGconn* conn, std::string& out, std::vector<T> const& v,
-                 std::vector<soci::indicator> const* ind = nullptr)
-{
-    std::ostringstream oss;
-    oss << '{';
-    for (size_t i = 0; i < v.size(); ++i)
-    {
-        if (i > 0)
-        {
-            oss << ',';
-        }
-        if (ind && (*ind)[i] == soci::i_null)
-        {
-            oss << "NULL";
-        }
-        else
-        {
-            marshalToPGArrayItem(conn, oss, v[i]);
-        }
-    }
-    oss << '}';
-    out = oss.str();
-}
-#endif
 }

@@ -31,7 +31,7 @@ For purposes of understanding performance, the following subsystems of `stellar-
   3. **Herder**: This subsystem mediates the relationship between **overlay** and **SCP**, collecting, requesting and fulfilling dependencies of each step in **SCP** and responding to such requests from other nodes.
   4. **Transactions**: This subsystem evaluates the validity of each transaction during pre-consensus flooding, and then applies each consensus set of transactions to the ledger. It therefore generates a moderate CPU load in terms of signature and transaction-semantics verification most of the time, and then a spike of significant CPU and **database** load (via the **ledger**) once every 5 seconds, during ledger-close.
   5. **Ledger**: This subsystem reads and writes to and from the **database** the set of _ledger entries_ modified in a given ledger, calculates each new ledger header, emits changed entries to the **bucket list**, and queues records for publication through **history**. Roughly speaking, **transactions** generate performance load on **ledger** which generates performance load on **database** and **bucket list**. 
-  6. **Database**: This subsystem is a small wrapper (with some caches and connection pooling) around SQLite or PostgreSQL. It receives load almost exclusively from **ledger**.
+  6. **Database**: This subsystem is a small wrapper (with some caches and connection pooling) around SQLite. It receives load almost exclusively from **ledger**.
   7. **History**: This subsystem is responsible for queueing outgoing history records being sent to a _history archive_, as well as fetching and applying history records _from_ such an archive if the node falls out of sync with its peers and needs to catch up. Usually history is lightly loaded, but when it is active it can generate load on CPU and network, as well as against **ledger** (and thereby **database**).
   8. **Bucket list**: This subsystem maintains a redundant copy of the database in a log-structured merge tree form on disk, that is amenable to efficient delta calculation and cryptographic hashing. The former is used for "fast" catch-up, the latter for calculating a state-of-the-world hash at each ledger close. Buckets in the bucket list are written to disk and rewritten at exponentially-distributed intervals, with less-frequently-written buckets being commensurately exponentially larger. Thus periodic spikes in IO load will occur when larger buckets are (re)written; this happens on background threads and is optimized to be mostly-sequential, but it is still noticeable.
 
@@ -78,25 +78,13 @@ Several key steps in the `stellar-core` operating loop latency-sensitive: it wil
 Some key configuration choices concerning storage access will greatly affect performance:
 
   1. The `BUCKET_DIR_PATH` config option sets the location that `stellar-core` places its buckets while (re)writing the bucket list. This should be located on a relatively fast, low-latency local disk. Ideally SSD or NVMe or similar. The faster the better. It does not need to be _very_ large and should not grow in usage _very_ fast, though `stellar-core` will fail if it fills up, so keep an eye on its utilization and make sure there's plenty of room.
-  2. The `DATABASE` config value controls not only which _kind_ of database the node is performing transactions against, but also _where_ the database is located. Unlike with many database-backed programs, the _content_ of the database in a `stellar-core` installation is somewhat ephemeral: every node has a complete copy of it, as does every history archive, and the database can always be restored / rebuilt from history archives (it is in fact being continuously backed up every 5 minutes). So the main thing to optimize for here is latency, especially on nodes doing consensus. We recommend either:
+  2. The `DATABASE` config value controls where the SQLite database is located. Unlike with many database-backed programs, the _content_ of the database in a `stellar-core` installation is somewhat ephemeral: every node has a complete copy of it, as does every history archive, and the database can always be restored / rebuilt from history archives (it is in fact being continuously backed up every 5 minutes). Use SQLite on a fast, local SSD or NVMe disk to minimize ledger-close latency.
 
-     * SQLite on a fast, local disk. This is probably the fastest option and is perfectly adequate for many types of node. Note: if you are running Horizon, it will need to access stellar-core's database to ingest data. It is not compatible with SQLite. 
-     * The newest version of PostgreSQL supported (a minimum version is listed in installation instructions but we usually test with newer versions as well).
-
-         * Ideally running on the same physical machine as `stellar-core`
-         * Ideally on instance storage, though RDS on modern instances is often reasonably low-latency.
-         * Ideally communicating through a unix-domain socket. That is, with a connection string like `postgresql://dbname=core host=/var/run/postgresql`. This may require adjustments to PostgreSQL's `pg_hba.conf` file and/or `postgresql.conf`.
-
-For illustration sake, the following table shows some latency numbers around ledger close-times measured on a test cluster running in AWS, with varying database configurations:
+For illustration, this table shows ledger close-time latency measured on a test cluster running in AWS:
 
 | Database connection type                                  | median  |    p75 |    p99 |   max |
 |-----------------------------------------------------------|---------|--------|--------|-------|
 | SQLite on NVMe instance storage                           |     1ms |    2ms |    2ms |  12ms |
-| Local PostgreSQL on NVMe instance storage, Unix socket    |     3ms |    3ms |    3ms |  31ms |
-| Local PostgreSQL on NVMe instance storage, TCP socket     |     3ms |    4ms |    4ms |  50ms |
-| Local PostgreSQL on SSD EBS, Unix socket                  |     5ms |   20ms |   27ms | 169ms |
-| Local PostgreSQL on SSD EBS, TCP socket                   |     4ms |   19ms |   54ms | 173ms |
-| Remote PostgreSQL on RDS, TCP socket                      |    27ms |   87ms |  120ms | 170ms |
 
 ## Notes and advice from existing node operators
 
