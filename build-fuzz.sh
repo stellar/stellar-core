@@ -24,7 +24,7 @@ export CCACHE_DIR="$(pwd)/.ccache"
 export CCACHE_COMPRESS=true
 export CCACHE_COMPRESSLEVEL=9
 # cache size should be large enough for a full build
-export CCACHE_MAXSIZE=800M
+export CCACHE_MAXSIZE=3G
 export CCACHE_CPP2=true
 
 # periodically check to see if caches are old and purge them if so
@@ -42,6 +42,8 @@ ccache -z
 
 . "${HOME}/.cargo/env"
 (cd "${SRC_DIR}" && ./autogen.sh)
+RUST_TOOLCHAIN_CHANNEL=$(sed -n 's/channel *= *"\([^"]*\)"/\1/p' "${SRC_DIR}/rust-toolchain.toml")
+rustup toolchain install "${RUST_TOOLCHAIN_CHANNEL}"
 
 # NB: the oss-fuzz driver injects sanitizer flags to CFLAGS and CXXFLAGS. This
 # overlaps with our own support for sanitizers, but not fatally. Note that this
@@ -50,4 +52,7 @@ ccache -z
 "${SRC_DIR}/configure" --enable-fuzz --enable-sdfprefs --enable-fastdev-unsafe-for-production --disable-postgres --enable-ccache
 make -j $(nproc)
 make -C src fuzz-targets
+if command -v cargo-sweep >/dev/null; then
+    (cd "${SRC_DIR}" && CARGO_TARGET_DIR=build-clang-libfuzzer/target cargo sweep --maxsize 5GB)
+fi
 cp src/fuzz_* "${OUT}"

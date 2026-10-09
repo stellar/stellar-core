@@ -13,6 +13,11 @@ lto = true
 # debug-and-no-opt).
 debug = true
 
+[profile.ci]
+inherits = "release"
+codegen-units = 16
+lto = "thin"
+
 [profile.fastdev]
 inherits = "release"
 lto = "off"
