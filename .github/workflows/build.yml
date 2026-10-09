@@ -13,6 +13,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  BATCHSIZE: 1
+  RUST_PROFILE: ci
+  SOROBAN_JOBS: 4
+
 jobs:
 
   complete:

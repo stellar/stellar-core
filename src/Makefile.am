@@ -178,25 +178,32 @@ RUST_TARGET_DIR=$(top_builddir)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 
 if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
-RUST_PROFILE=fastdev
+RUST_PROFILE ?= fastdev
 else
-RUST_PROFILE=release
+RUST_PROFILE ?= release
 endif
 
 check-rust-profile: Makefile
 	@case "$(RUST_PROFILE)" in \
-		release|dev|fastdev) ;; \
-		*) echo "Error: RUST_PROFILE must be 'release', 'dev', or 'fastdev', got '$(RUST_PROFILE)'" >&2; exit 1;; \
+		release|dev|fastdev|ci) ;; \
+		*) echo "Error: RUST_PROFILE must be 'release', 'dev', 'fastdev', or 'ci', got '$(RUST_PROFILE)'" >&2; exit 1;; \
 	esac
 
-# Of course, RUST_PROFILE can't be used as an argument directly because cargo
-# doesn't let you pass --debug, that's the default! you can only pass --release.
-# So we have to derive a new variable here.
-RUST_PROFILE_ARG := $(if $(findstring fastdev,$(RUST_PROFILE)),--profile fastdev,$(if $(findstring release,$(RUST_PROFILE)),--release,))
+# Cargo calls its default debug profile `dev`, but it is selected by omitting
+# --profile. All other supported profiles can be passed through directly.
+RUST_PROFILE_ARG := $(if $(filter dev,$(RUST_PROFILE)),,--profile $(RUST_PROFILE))
 
 # Also for even more nonsense reasons the debug profile name is actually `dev`
 # but only in the command line, the target subdirectory gets called `debug`.
-RUST_PROFILE_DIR := $(if $(findstring fastdev,$(RUST_PROFILE)),fastdev,$(if $(findstring release,$(RUST_PROFILE)),release,debug))
+RUST_PROFILE_DIR := $(if $(filter dev,$(RUST_PROFILE)),debug,$(RUST_PROFILE))
+
+# The root CI profile controls LTO when the separately-built Soroban rlibs are
+# combined into librust_stellar_core. Build those rlibs with their existing
+# release profiles, which preserve LLVM bitcode and already default to 16 CGUs.
+SOROBAN_RUST_PROFILE := $(if $(filter ci,$(RUST_PROFILE)),release,$(RUST_PROFILE))
+SOROBAN_RUST_PROFILE_ARG := $(if $(filter dev,$(SOROBAN_RUST_PROFILE)),,--profile $(SOROBAN_RUST_PROFILE))
+SOROBAN_RUST_PROFILE_DIR := $(if $(filter dev,$(SOROBAN_RUST_PROFILE)),debug,$(SOROBAN_RUST_PROFILE))
+SOROBAN_JOBS ?= 1
 
 RUST_DEP_TREE_STAMP=$(RUST_BUILD_DIR)/src/dep-trees/equal-trees.stamp
 SOROBAN_LIBS_STAMP=$(RUST_BUILD_DIR)/soroban/soroban-libs.stamp
@@ -256,7 +263,7 @@ SOROBAN_MAX_PROTOCOL=$(lastword $(sort $(ALL_SOROBAN_PROTOCOLS)))
 export SOROBAN_PROTOCOLS_TO_TEST=$(ALL_SOROBAN_PROTOCOLS)
 
 define soroban_lib_dir
-$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE_DIR)' $(1))
+$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(SOROBAN_RUST_PROFILE_DIR)' $(1))
 endef
 
 define soroban_git_state_stamp
@@ -431,9 +438,9 @@ else # !ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 # features to (only those post-p22 versions that support the tracy delayed-init
 # feature).
 #
-# We also have to sequentialize the builds of the sorobans after the
-# dep-tree-stamp files and before the stellar-core build, because rustup gets
-# invoked and it is not concurrency-safe.
+# The toolchain must be installed before this rule runs because rustup itself is
+# not concurrency-safe. Once installed, the independent protocol builds can run
+# concurrently.
 #
 # We also have to set pass all the CC, CXX, CFLAGS and CXXFLAGS we were called
 # with explicitly, because make does not implicitly export them to its rules,
@@ -444,8 +451,8 @@ else # !ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 # -stdlib=libc++ or -stdlib=libstdc++
 $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_STATE_STAMPS) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES) $(RUST_TOOLCHAIN_FILE)
 	rm -f $@
-	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
-	do \
+	printf '%s\n' $(ALL_SOROBAN_PROTOCOLS) | parallel --halt now,fail=1 --line-buffer -j $(SOROBAN_JOBS) ' \
+		proto={} ; \
 		FEATURE_FLAGS="" ; \
 		case "$$proto" in \
 			p21) \
@@ -467,11 +474,10 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
 			--package soroban-env-host \
-			$(RUST_PROFILE_ARG) \
+			$(SOROBAN_RUST_PROFILE_ARG) \
 			--locked \
 			$$FEATURE_FLAGS \
-		|| exit 1; \
-	done
+	'
 	@sha256sum $(ALL_SOROBAN_LIBS) | cut -d' ' -f1 | sha256sum | cut -d' ' -f1 > $@.tmp
 	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
