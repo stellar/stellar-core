@@ -4,6 +4,11 @@
    "!test all versions" : false,
    "!versions to test" : [ 30 ],
    "1238ceb2dd9e02c1" : "soroban transaction validation|protocol version 30|footprint limit|read-write key over size limit",
+   "5a95566d9bddaf3a" : "transaction time bounds under sub-second ledgers|tx valid from the next second stays too early in a same-second ledger",
+   "5ffe1146b2ecd8c0" : "getUpperBoundCloseTimeOffset under sub-second ledgers|whole-second close times keep the legacy 2x buffer",
+   "70d42ec05b0da982" : "transaction time bounds under sub-second ledgers|tx expiring at the current second applies in a same-second ledger",
    "8c2395b250372f24" : "txset - correct apply order",
-   "bd2eacd94f956f79" : "soroban transaction validation|protocol version 30|footprint limit|read-only key over size limit"
+   "b061a97a2c407404" : "getUpperBoundCloseTimeOffset under sub-second ledgers|fractional-second close times round up, not down",
+   "bd2eacd94f956f79" : "soroban transaction validation|protocol version 30|footprint limit|read-only key over size limit",
+   "c7915489d216c46a" : "getUpperBoundCloseTimeOffset under sub-second ledgers|sub-second close times round the buffer up to a whole second"
 }

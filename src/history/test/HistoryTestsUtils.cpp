@@ -14,6 +14,7 @@
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -571,7 +572,8 @@ CatchupSimulation::getLastCheckpointLedger(uint32_t checkpointIndex) const
 }
 
 void
-CatchupSimulation::generateRandomLedger(uint32_t version)
+CatchupSimulation::generateRandomLedger(
+    uint32_t version, std::optional<ConsensusTime> closeTimeOverride)
 {
     uint32_t const setupLedgers = 4;
     auto& lm = getApp().getLedgerManager();
@@ -579,7 +581,9 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     uint64_t minBalance = lm.getLastMinBalance(5);
     uint64_t big = minBalance + ledgerSeq;
     uint64_t small = 100 + ledgerSeq;
-    uint64_t closeTime = 60 * 5 * ledgerSeq;
+    ConsensusTime const closeTime = closeTimeOverride
+                                        ? *closeTimeOverride
+                                        : makeConsensusTime(60 * 5 * ledgerSeq);
 
     auto root = getApp().getRoot();
 
@@ -702,7 +706,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                       ? PerPhaseTransactionList{txs, sorobanTxs}
                       : PerPhaseTransactionList{txs};
     TxSetXDRFrameConstPtr txSet =
-        makeTxSetFromTransactions(phases, getApp(), 0, 0).first;
+        makeTxSetFromTransactions(phases, getApp(), ApplyTimeOffset{}).first;
 
     CLOG_INFO(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
               ledgerSeq, txSet->sizeTxTotal(),
@@ -763,7 +767,7 @@ CatchupSimulation::generateEmptyTxSetLedger()
     auto& lm = getApp().getLedgerManager();
     auto const lcl = lm.getLastClosedLedgerHeader();
     uint32_t ledgerSeq = lcl.header.ledgerSeq + 1;
-    uint64_t closeTime = 60 * 5 * ledgerSeq;
+    TimePoint closeTime = 60 * 5 * ledgerSeq;
 
     // An empty-tx-set value replaces a proposed value whose tx set the network
     // gave up waiting for. Craft such a proposal (the referenced tx set
@@ -772,7 +776,7 @@ CatchupSimulation::generateEmptyTxSetLedger()
     Hash proposedTxSetHash;
     proposedTxSetHash.fill(0xAB);
     StellarValue proposal = getApp().getHerder().makeStellarValue(
-        proposedTxSetHash, closeTime, emptyUpgradeSteps,
+        proposedTxSetHash, makeConsensusTime(closeTime), emptyUpgradeSteps,
         getApp().getConfig().NODE_SEED);
 
     auto& herder = static_cast<HerderImpl&>(getApp().getHerder());
@@ -794,7 +798,7 @@ CatchupSimulation::generateEmptyTxSetLedger()
     // The header must record the empty-tx-set hash, not the applied
     // (empty) tx set's contents hash.
     REQUIRE(lclh.header.scpValue.txSetHash == Herder::EMPTY_TX_SET_HASH);
-    REQUIRE(lclh.header.scpValue.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
+    REQUIRE(isEmptyTxSetStellarValue(lclh.header.scpValue));
 
     auto root = getApp().getRoot();
     auto alice = TestAccount{getApp(), getAccount("alice")};

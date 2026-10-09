@@ -21,6 +21,7 @@
 #include "simulation/Simulation.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
@@ -497,7 +498,8 @@ closeLedgerWithProtocolUpgrade(Simulation& sim, Application& app,
 
     auto txSet = TxSetXDRFrame::makeEmpty(lcl);
     auto sv = app.getHerder().makeStellarValue(
-        txSet->getContentsHash(), lcl.header.scpValue.closeTime + 1, upgrades,
+        txSet->getContentsHash(),
+        txtest::makeConsensusTime(lcl.header.scpValue.closeTime + 1), upgrades,
         app.getConfig().NODE_SEED);
     lm.valueExternalized(LedgerCloseData(lcl.header.ledgerSeq + 1, txSet, sv),
                          /* isLatestSlot */ true);

@@ -18,6 +18,7 @@
 #include "herder/TxSetFrame.h"
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "main/Application.h"
@@ -965,7 +966,12 @@ ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
     auto& herder = static_cast<HerderImpl&>(mApp.getHerder());
     auto const lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
     auto const ledgerSeq = lcl.header.ledgerSeq + 1;
-    uint64_t const closeTime = lcl.header.scpValue.closeTime + 1;
+    auto const closeTime =
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion);
+    // Mirror the validation path: the tx set is built for the apply time
+    // implied by the close time we are about to nominate.
+    auto const closeTimeOffset =
+        closeTime.toApplyTime() - getApplyTime(lcl.header.scpValue);
 
     xdr::opaque_vec<> wireBytes;
     StellarValue nominatedValue;
@@ -979,7 +985,7 @@ ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
         // timer.
         auto const buildStart = std::chrono::steady_clock::now();
         auto [txSet, applicableTxSet] =
-            makeTxSetFromTransactions(txs, mApp, 1, 1);
+            makeTxSetFromTransactions(txs, mApp, closeTimeOffset);
         constructionMs = std::chrono::duration<double, std::milli>(
                              std::chrono::steady_clock::now() - buildStart)
                              .count();
@@ -1047,8 +1053,8 @@ ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
             FMT_STRING(
                 "SCP did not externalize ledger {} within 60s ({} cranks); "
                 "close time {} is {}s from the wall clock (slip limit {}s)"),
-            ledgerSeq, cranks, closeTime,
-            static_cast<int64_t>(closeTime) -
+            ledgerSeq, cranks, closeTime.toString(),
+            static_cast<int64_t>(closeTime.toApplyTime().timePoint()) -
                 static_cast<int64_t>(mApp.timeNow()),
             Herder::MAX_TIME_SLIP_SECONDS.count()));
     }

@@ -1,0 +1,8 @@
+{
+   "!cfg protocol version" : 30,
+   "!rng seed" : 12345,
+   "!test all versions" : false,
+   "!versions to test" : [ 30 ],
+   "27d2533d64835282" : "minSeqAge under sub-second ledgers|whole-second ledger one second later: age requirement met",
+   "fa3e2dcc9ad7fa98" : "minSeqAge under sub-second ledgers|sub-second ledger in the same whole second: age still 0"
+}

@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SignerKey.h"
+#include "herder/TxSetFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
@@ -17,6 +18,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
 
@@ -124,7 +126,15 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
             // Close two ledgers (sequence number is advanced twice), and set
             // the close time to 1 day from the initial close time.
             closeLedgerOn(*app, 2, 1, 2020);
-            closeLedgerOn(*app, 2, 1, 2020);
+            // Re-close at the same close time, adding an ms remainder once
+            // ms close times are active: minSeqAge/minSeqLedgerGap read
+            // whole seconds and must behave identically against a
+            // sub-second LCL
+            closeLedgerOn(
+                *app, app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                withMsCloseTime(*app, app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.scpValue.closeTime));
 
             auto tx1 = transactionFrameFromOps(app->getNetworkID(), *root,
                                                {a.op(bumpSequence(0))}, {a});
@@ -180,5 +190,59 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
                 runTest(cond);
             }
         });
+    }
+}
+
+TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+    auto root = app->getRoot();
+
+    TimePoint const T = 2;
+    auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
+
+    // Updating the sequence number records only the whole second in seqTime.
+    auto r0 = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 100),
+                            {root->tx({payment(*root, 1)})});
+    checkTx(0, r0, txSUCCESS);
+    REQUIRE(getConsensusTime(lm.getLastClosedLedgerHeader().header.scpValue) ==
+            makeConsensusTime(T, 100));
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto acc = stellar::loadAccount(ltx, root->getPublicKey());
+        REQUIRE(
+            getAccountEntryExtensionV3(acc.current().data.account()).seqTime ==
+            T);
+    }
+
+    PreconditionsV2 cond;
+    cond.minSeqAge = 1;
+    auto tx2 = transactionWithV2Precondition(*app, *root, 1, 100, cond);
+
+    SECTION("sub-second ledger in the same whole second: age still 0")
+    {
+        closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 800));
+
+        // We always round down to whole seconds, so a subsecond ledger should
+        // not advance minSeqAge.
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(
+            !tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(tx2->getResultCode() == txBAD_MIN_SEQ_AGE_OR_GAP);
+    }
+    SECTION("whole-second ledger one second later: age requirement met")
+    {
+        auto txSet = makeTxSetFromTransactions({tx2}, *app,
+                                               ApplyTimeOffset::fromSeconds(1))
+                         .first;
+        auto r = closeLedgerOn(*app, nextSeq(), T + 1, txSet);
+        checkTx(0, r, txSUCCESS);
     }
 }
