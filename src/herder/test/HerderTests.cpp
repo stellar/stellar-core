@@ -57,6 +57,7 @@
 #include "xdrpp/autocheck.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <fmt/format.h>
 #include <memory>
@@ -5572,7 +5573,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
         // would set isApplying to false
         LedgerManagerImpl& lmCImpl =
             static_cast<LedgerManagerImpl&>(getC()->getLedgerManager());
-        lmCImpl.mCompleteLedgerCloseOverride = [&] { return true; };
+        lmCImpl.mCompleteLedgerCloseOverride = [&](uint32_t) { return true; };
 
         // Receive first ledger - this will start applying with delay
         receiveLedger(currentLedger + 1, herderC);
@@ -6328,12 +6329,12 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                              });
 
         sim->startAllNodes();
+        auto nodes = sim->getNodes();
         sim->crankUntil([&]() { return sim->haveAllExternalized(2, 1); },
                         std::chrono::seconds(20), false);
 
-        auto configBeforeUpgrade = sim->getNodes()[0]
-                                       ->getLedgerManager()
-                                       .getLastClosedSorobanNetworkConfig();
+        auto configBeforeUpgrade =
+            nodes[0]->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
         // Start a network upgrade, such that on the next ledger, network
         // settings will be updated
@@ -6345,7 +6346,7 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
             sim, /*applyUpgrade=*/false);
 
         std::vector<uint32_t> ledgers;
-        for (auto const& node : sim->getNodes())
+        for (auto const& node : nodes)
         {
             ledgers.push_back(
                 node->getLedgerManager().getLastClosedLedgerNum());
@@ -6354,20 +6355,63 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
 
         SECTION("read-only state stays immutable during apply")
         {
-            for (auto const& node : sim->getNodes())
+            auto completedTargetLedgers =
+                std::make_shared<std::vector<std::atomic<bool>>>(nodes.size());
+            auto latestCompletedLedgers =
+                std::make_shared<std::vector<std::atomic<uint32_t>>>(
+                    nodes.size());
+            for (size_t i = 0; i < nodes.size(); ++i)
             {
+                auto const& node = nodes[i];
+                (*completedTargetLedgers)[i].store(false,
+                                                   std::memory_order_relaxed);
+                (*latestCompletedLedgers)[i].store(0,
+                                                   std::memory_order_relaxed);
                 auto& lm =
                     static_cast<LedgerManagerImpl&>(node->getLedgerManager());
                 REQUIRE(lm.getLastClosedLedgerNum() <= lcl);
 
                 // No-op, so we don't update read-only state after apply
-                lm.mCompleteLedgerCloseOverride = [&] { return true; };
+                lm.mCompleteLedgerCloseOverride =
+                    [completedTargetLedgers, latestCompletedLedgers, i,
+                     targetLedger = lcl + 1](uint32_t ledgerSeq) {
+                        if (ledgerSeq == targetLedger)
+                        {
+                            (*completedTargetLedgers)[i].store(
+                                true, std::memory_order_release);
+                        }
+                        (*latestCompletedLedgers)[i].store(
+                            ledgerSeq, std::memory_order_release);
+                        return ledgerSeq >= targetLedger;
+                    };
             }
 
-            // Crank until one more ledger is externalized
-            sim->crankForAtLeast(std::chrono::seconds(10), false);
+            // The override runs after apply state commits but before the new
+            // LCL is published. Also wait for any later ledgers that were
+            // already queued by the pipelined apply path.
+            sim->crankUntil(
+                [&]() {
+                    for (size_t i = 0; i < nodes.size(); ++i)
+                    {
+                        auto completedTarget =
+                            (*completedTargetLedgers)[i].load(
+                                std::memory_order_acquire);
+                        auto latestCompleted =
+                            (*latestCompletedLedgers)[i].load(
+                                std::memory_order_acquire);
+                        auto maxQueued = nodes[i]
+                                             ->getLedgerApplyManager()
+                                             .getMaxQueuedToApply();
+                        if (!completedTarget || latestCompleted < maxQueued)
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                },
+                10 * sim->getExpectedLedgerCloseTime(), false);
 
-            for (auto const& node : sim->getNodes())
+            for (auto const& node : nodes)
             {
                 auto& lm = node->getLedgerManager();
                 auto prevConfig = lm.getLastClosedSorobanNetworkConfig();
@@ -6389,9 +6433,9 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 {
                     LedgerTxn ltx(node->getLedgerTxnRoot());
                     auto header = ltx.loadHeader().current();
-                    REQUIRE(header.ledgerSeq == lcl + 1);
+                    REQUIRE(header.ledgerSeq >= lcl + 1);
                     lhe.header = header;
-                    lhe.hash = header.previousLedgerHash;
+                    lhe.hash = xdrSha256(lastHeader);
                 }
 
                 // This test exercises a race where we start applying ledger N +
@@ -6403,27 +6447,36 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 if (enableParallelApply)
                 {
                     auto txSet = TxSetXDRFrame::makeEmpty(lhe);
+                    auto const nextLedger = lhe.header.ledgerSeq + 1;
 
                     // close this ledger
                     StellarValue sv = node->getHerder().makeStellarValue(
                         txSet->getContentsHash(), makeConsensusTime(1),
                         emptyUpgradeSteps, node->getConfig().NODE_SEED);
-                    LedgerCloseData ledgerData(lcl + 1, txSet, sv);
+                    LedgerCloseData ledgerData(nextLedger, txSet, sv);
                     lm.applyLedger(ledgerData);
 
                     LedgerTxn ltx(node->getLedgerTxnRoot());
-                    REQUIRE(ltx.loadHeader().current().ledgerSeq == lcl + 2);
+                    REQUIRE(ltx.loadHeader().current().ledgerSeq == nextLedger);
                 }
             }
         }
         SECTION("read-only state gets updated post apply")
         {
-            // Crank until one more ledger is externalized
+            // If apply is slow, the next slot may already be in progress when
+            // the upgrade is armed, so wait for the upgrade itself.
             sim->crankUntil(
-                [&]() { return sim->haveAllExternalized(lcl + 1, 1); },
-                std::chrono::seconds(10), false);
+                [&]() {
+                    return std::all_of(
+                        nodes.begin(), nodes.end(), [&](auto const& node) {
+                            return !(node->getLedgerManager()
+                                         .getLastClosedSorobanNetworkConfig() ==
+                                     configBeforeUpgrade);
+                        });
+                },
+                10 * sim->getExpectedLedgerCloseTime(), false);
 
-            for (auto const& node : sim->getNodes())
+            for (auto const& node : nodes)
             {
                 auto& lm = node->getLedgerManager();
                 auto prevConfig = lm.getLastClosedSorobanNetworkConfig();
@@ -6431,18 +6484,20 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
 
                 // LCL reports the new ledger
                 auto readOnly = lm.getLastClosedLedgerHeader();
-                REQUIRE(readOnly.header.ledgerSeq == lcl + 1);
-                REQUIRE(lm.getLastClosedLedgerNum() == lcl + 1);
+                REQUIRE(readOnly.header.ledgerSeq >= lcl + 1);
+                REQUIRE(lm.getLastClosedLedgerNum() ==
+                        readOnly.header.ledgerSeq);
                 REQUIRE(
                     lm.copyImmutableLedgerView().getLedgerHeader().current() ==
                     readOnly.header);
                 auto has = lm.getLastClosedLedgerHAS();
                 REQUIRE(has.currentLedger == readOnly.header.ledgerSeq);
 
-                // Apply state got committed, and has been propagated to
-                // read-only state
+                // Apply state includes the published ledger, but may already
+                // be ahead when parallel apply is enabled.
                 LedgerTxn ltx(node->getLedgerTxnRoot());
-                REQUIRE(ltx.loadHeader().current().ledgerSeq == lcl + 1);
+                REQUIRE(ltx.loadHeader().current().ledgerSeq >=
+                        readOnly.header.ledgerSeq);
             }
         }
     };

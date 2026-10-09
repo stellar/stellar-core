@@ -575,7 +575,7 @@ class LedgerManagerImpl : public LedgerManager
     getLastClosedLedgerCloseMeta() override;
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
-    std::function<void()> mCompleteLedgerCloseOverride;
+    std::function<bool(uint32_t)> mCompleteLedgerCloseOverride;
     InMemorySorobanState const& getInMemorySorobanStateForTesting() override;
     ::rust::Box<rust_bridge::SorobanModuleCache>
     getModuleCacheForTesting() override;
