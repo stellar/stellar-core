@@ -6,6 +6,7 @@
 
 #include "history/CheckpointBuilder.h"
 #include "history/HistoryManager.h"
+#include "util/ThreadAnnotations.h"
 #include "util/TmpDir.h"
 #include "work/Work.h"
 #include <memory>
@@ -32,7 +33,9 @@ class HistoryManagerImpl : public HistoryManager
     medida::Meter& mPublishFailure;
 
     medida::Timer& mEnqueueToPublishTimer;
-    UnorderedMap<uint32_t, std::chrono::steady_clock::time_point> mEnqueueTimes;
+    ANNOTATED_MUTEX(mEnqueueTimesMtx);
+    UnorderedMap<uint32_t, std::chrono::steady_clock::time_point>
+        mEnqueueTimes GUARDED_BY(mEnqueueTimesMtx);
     CheckpointBuilder mCheckpointBuilder;
 
 #ifdef BUILD_TESTS

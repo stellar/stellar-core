@@ -186,7 +186,7 @@ BucketOutputIteratorForTesting<BucketT>::BucketOutputIteratorForTesting(
     std::string const& tmpDir, uint32_t protocolVersion, MergeCounters& mc,
     asio::io_context& ctx)
     : BucketOutputIterator<BucketT>{
-          tmpDir, true, testutil::testBucketMetadata(protocolVersion),
+          tmpDir, true, testutil::testBucketMetadata<BucketT>(protocolVersion),
           mc,     ctx,  /*doFsync=*/true}
 {
 }

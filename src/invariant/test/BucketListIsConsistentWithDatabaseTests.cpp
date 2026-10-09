@@ -178,7 +178,7 @@ struct BucketListGenerator
         for (uint32_t i = 0; i <= LiveBucketList::kNumLevels - 1; i++)
         {
             auto& level = blGenerate.getLevel(i);
-            auto meta = testutil::testBucketMetadata(vers);
+            auto meta = testutil::testBucketMetadata<LiveBucket>(vers);
             auto keepDead = LiveBucketList::keepTombstoneEntries(i);
 
             auto writeBucketFile = [&](auto b) {
