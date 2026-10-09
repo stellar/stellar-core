@@ -1170,7 +1170,7 @@ TEST_CASE("History catchup over empty-tx-set ledgers", "[history][catchup]")
     }
 }
 
-TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
+TEST_CASE("History catchup rejects forged tx sets for empty-tx-set ledgers",
           "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
@@ -1180,6 +1180,8 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
     {
         catchupSimulation.generateRandomLedger();
     }
+    Hash const prevLedgerHash =
+        simApp.getLedgerManager().getLastClosedLedgerHeader().hash;
     catchupSimulation.generateEmptyTxSetLedger();
     uint32_t const emptyTxSetSeq =
         simApp.getLedgerManager().getLastClosedLedgerNum();
@@ -1187,7 +1189,7 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 
-    // Forge a non-empty TransactionHistoryEntry for the empty-tx-set ledger
+    // Forge a TransactionHistoryEntry for the empty-tx-set ledger
     // into the published transactions file, keeping the file sorted by
     // ledgerSeq.
     std::string archiveDir =
@@ -1214,9 +1216,49 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
         REQUIRE(!txs.empty());
         REQUIRE(std::filesystem::remove(nonGzPath));
 
-        // Copy an existing non-empty entry and retarget it at the empty-tx-set
-        // ledger
-        TransactionHistoryEntry forged = txs.front();
+        // Honest archives never contain an entry for an empty-tx-set ledger,
+        // as it has no transactions. Nothing in the header binds such an
+        // entry, so replay must reject any of them.
+        TransactionHistoryEntry forged;
+        SECTION("tx set with transactions")
+        {
+            // Copy an existing non-empty entry
+            forged = txs.front();
+        }
+        SECTION("legacy tx set without transactions")
+        {
+            // Applying this would crash the node when populating the
+            // (generalized) tx set in the ledger close meta.
+            forged.txSet.previousLedgerHash = prevLedgerHash;
+        }
+        SECTION("non-canonical tx set without transactions")
+        {
+            // No transactions, but the parallel Soroban phase carries a base
+            // fee, so this doesn't hash like `makeEmpty`
+            forged.ext.v(1);
+            auto& xdr = forged.ext.generalizedTxSet();
+            xdr.v(1);
+            xdr.v1TxSet().previousLedgerHash = prevLedgerHash;
+            xdr.v1TxSet().phases.emplace_back(0);
+            xdr.v1TxSet()
+                .phases.emplace_back(1)
+                .parallelTxsComponent()
+                .baseFee.activate() = 12345;
+        }
+        SECTION("canonical tx set with legacy transactions")
+        {
+            // Both the legacy and the generalized tx set are populated,
+            // which is malformed and rejected before it's looked at (so the
+            // legacy transaction contents don't matter).
+            forged.ext.v(1);
+            TxSetXDRFrame::makeEmpty(prevLedgerHash,
+                                     simApp.getLedgerManager()
+                                         .getLastClosedLedgerHeader()
+                                         .header.ledgerVersion)
+                ->toXDR(forged.ext.generalizedTxSet());
+            forged.txSet.txs.emplace_back();
+        }
+        // Retarget the entry at the empty-tx-set ledger
         forged.ledgerSeq = emptyTxSetSeq;
         auto insertAt =
             std::find_if(txs.begin(), txs.end(), [&](auto const& e) {
@@ -1255,7 +1297,7 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
     auto work = appWm.executeWork<DownloadApplyTxsWork>(
         tmpDir, range, lastApplied, /*waitForPublish=*/true, nullptr);
     REQUIRE(work->getState() == BasicWork::State::WORK_FAILURE);
-    // Replay stops exactly at the skip ledger whose forged entry was rejected
+    // Replay stops exactly at the ledger whose forged entry was rejected
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
             emptyTxSetSeq - 1);
 }

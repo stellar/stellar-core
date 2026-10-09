@@ -149,6 +149,11 @@ class HerderImpl : public Herder
     {
         mFlowControlExtraBuffer = std::make_optional<uint32_t>(bytes);
     }
+
+    // When set, this node nominates the tx set returned by this function
+    // (given the LCL) instead of the one it builds.
+    std::function<TxSetXDRFrameConstPtr(LedgerHeaderHistoryEntry const&)>
+        mNominatedTxSetOverride;
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 

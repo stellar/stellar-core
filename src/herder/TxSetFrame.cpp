@@ -104,8 +104,20 @@ validateSequentialPhaseXDRStructure(TransactionPhase const& phase)
 }
 
 bool
-validateParallelComponent(ParallelTxsComponent const& component)
+validateParallelComponent(ParallelTxsComponent const& component,
+                          uint32_t ledgerVersion)
 {
+    // A base fee without any transactions to apply it to has no effect, so
+    // base fee should be 0, (see
+    // CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION) comment in
+    // ProtocolVersion.h for more details).
+    if (component.executionStages.empty() && component.baseFee &&
+        protocolVersionStartsFrom(
+            ledgerVersion, CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION))
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: base fee without stages");
+        return false;
+    }
     for (auto const& stage : component.executionStages)
     {
         if (stage.empty())
@@ -126,7 +138,8 @@ validateParallelComponent(ParallelTxsComponent const& component)
 }
 
 bool
-validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
+validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet,
+                          uint32_t ledgerVersion)
 {
     int const MAX_PHASE = 1;
 
@@ -164,7 +177,8 @@ validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
                            phase.v());
                 return false;
             }
-            if (!validateParallelComponent(phase.parallelTxsComponent()))
+            if (!validateParallelComponent(phase.parallelTxsComponent(),
+                                           ledgerVersion))
             {
                 return false;
             }
@@ -1133,7 +1147,7 @@ TxSetXDRFrame::prepareForApply(Application& app,
     if (isGeneralizedTxSet())
     {
         auto const& xdrTxSet = std::get<GeneralizedTransactionSet>(mXDRTxSet);
-        if (!validateTxSetXDRStructure(xdrTxSet))
+        if (!validateTxSetXDRStructure(xdrTxSet, lclHeader.ledgerVersion))
         {
             CLOG_DEBUG(Herder,
                        "Got bad generalized txSet with invalid XDR structure");

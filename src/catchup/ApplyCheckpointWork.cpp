@@ -155,6 +155,15 @@ ApplyCheckpointWork::getCurrentTxSet()
         }
         else
         {
+            // The legacy field has to be empty when the generalized tx set
+            // is present.
+            if (!mTxHistoryEntry.txSet.txs.empty())
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("txset entry for {:d} has both legacy and "
+                               "generalized transactions"),
+                    seq));
+            }
             return TxSetXDRFrame::makeFromWire(
                 mTxHistoryEntry.ext.generalizedTxSet());
         }
@@ -348,6 +357,18 @@ ApplyCheckpointWork::getNextLedgerCloseData()
                            "but its ledger header carries the empty-tx-set "
                            "hash"),
                 header.ledgerSeq, txset->sizeTxTotal()));
+        }
+
+        // Empty tx sets are not stored in history archives, so if no txs are
+        // present, the tx set must match the canonical empty tx set.
+        if (txset->getContentsHash() !=
+            TxSetXDRFrame::makeEmpty(lclHeader)->getContentsHash())
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("replay txset for {:d} is not the canonical empty "
+                           "tx set, but its ledger header carries the "
+                           "empty-tx-set hash"),
+                header.ledgerSeq));
         }
     }
     else if (header.scpValue.txSetHash != txset->getContentsHash())

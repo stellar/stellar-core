@@ -328,11 +328,21 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
 
         auto prevScenariosSize = scenarios[1].size();
 
+        // A base fee without transactions is only allowed prior to
+        // CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION.
+        bool const baseFeeWithoutTxsValid = protocolVersionIsBefore(
+            cfg.LEDGER_PROTOCOL_VERSION,
+            CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION);
+
         // Valid scenarios
         scenarios[1].emplace_back(parallelPhase({}), true,
                                   "parallel Soroban - no txs");
-        scenarios[1].emplace_back(parallelPhase({}, true, 1000), true,
+        scenarios[1].emplace_back(parallelPhase({}, true, 1000),
+                                  baseFeeWithoutTxsValid,
                                   "parallel Soroban - no txs, fee discount");
+        scenarios[1].emplace_back(
+            parallelPhase({}, true, 0), baseFeeWithoutTxsValid,
+            "parallel Soroban - no txs, zero fee discount");
         scenarios[1].emplace_back(parallelPhase({{10}}), true,
                                   "parallel Soroban - 1 stage, 1 cluster");
         scenarios[1].emplace_back(
@@ -458,10 +468,17 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                 bool valid = classicIsValid && sorobanIsValid;
                 if (valid)
                 {
-                    REQUIRE(txSet->prepareForApply(
-                                *app, app->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header) != nullptr);
+                    auto applicableTxSet = txSet->prepareForApply(
+                        *app, app->getLedgerManager()
+                                  .getLastClosedLedgerHeader()
+                                  .header);
+                    REQUIRE(applicableTxSet != nullptr);
+                    // Every structurally valid tx set must be canonical, i.e.
+                    // the frame we interpret it as is encoded exactly as the
+                    // original tx set.
+                    REQUIRE(applicableTxSet->toWireTxSetFrame()
+                                ->getContentsHash() ==
+                            txSet->getContentsHash());
                 }
                 else
                 {

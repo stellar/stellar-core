@@ -94,4 +94,18 @@ constexpr ProtocolVersion LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION =
 constexpr ProtocolVersion MS_CLOSE_TIME_PROTOCOL_VERSION =
     ProtocolVersion::V_30;
 
+// Starting from this protocol, a parallel Soroban phase without execution
+// stages must not specify a base fee. Without this rule a tx set with no
+// transactions can take many forms and hash to many different values. The
+// problem is, we don't actually upload empty phases to history, we just rebuild
+// them on the fly assuming the base fee is 0. A non-zero base fee with empty
+// execution stages is essentially lost in history, blocking catchup.
+//
+// The protocol gate only protects the upgrade period, during which validators
+// on older builds still accept such tx sets. Once the network is on protocol
+// 30 it can likely be removed (i.e. the rule enforced for all protocols), as
+// long as no pre-30 ledger contains such a phase.
+constexpr ProtocolVersion CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION =
+    ProtocolVersion::V_30;
+
 } // namespace stellar
