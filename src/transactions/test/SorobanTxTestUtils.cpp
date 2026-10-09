@@ -66,7 +66,6 @@ makeMuxedAccountAddress(AccountID const& accountID, uint64_t id)
     return addr;
 }
 
-#ifdef CAP_0084_MUXED_CONTRACT
 SCAddress
 makeMuxedContractAddress(Hash const& contractId, uint64_t id)
 {
@@ -75,7 +74,6 @@ makeMuxedContractAddress(Hash const& contractId, uint64_t id)
     addr.muxedContract().id = id;
     return addr;
 }
-#endif
 
 // CAP-0084: resolve a muxed contract address to its underlying contract id.
 // The SAC keys balances on the underlying contract, so every balance
@@ -84,14 +82,12 @@ makeMuxedContractAddress(Hash const& contractId, uint64_t id)
 static SCAddress
 demuxContractAddress(SCAddress const& addr)
 {
-#ifdef CAP_0084_MUXED_CONTRACT
     if (addr.type() == SC_ADDRESS_TYPE_MUXED_CONTRACT)
     {
         SCAddress c(SC_ADDRESS_TYPE_CONTRACT);
         c.contractId() = addr.muxedContract().contractId;
         return c;
     }
-#endif
     return addr;
 }
 

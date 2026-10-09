@@ -120,13 +120,11 @@ struct XDRFieldResolver
                     muxedStrKey(stellar::strKey::STRKEY_MUXED_ACCOUNT_ED25519,
                                 k.muxedAccount().ed25519, k.muxedAccount().id);
                 break;
-#ifdef CAP_0084_MUXED_CONTRACT
             case SC_ADDRESS_TYPE_MUXED_CONTRACT:
                 mResult = muxedStrKey(stellar::strKey::STRKEY_MUXED_CONTRACT,
                                       k.muxedContract().contractId,
                                       k.muxedContract().id);
                 break;
-#endif
             default:
                 mResult = "UNKNOWN";
                 break;
