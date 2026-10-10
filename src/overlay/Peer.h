@@ -171,6 +171,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
                                PeerMetrics& peerMetrics);
         xdr::msg_ptr mMessage;
         std::shared_ptr<StellarMessage const> mMsgPtr;
+#ifdef BUILD_TESTS
+        // Whether transport completion should bypass FlowControl bookkeeping.
+        bool mBypassFlowControlForTesting{false};
+#endif
     };
 
     // NB: all Peer's protected state should have some synchronization
@@ -343,7 +347,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
     virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
-                             std::shared_ptr<StellarMessage const> msg) = 0;
+                             std::shared_ptr<StellarMessage const> msg
+#ifdef BUILD_TESTS
+                             ,
+                             bool bypassFlowControlForTesting
+#endif
+                             ) = 0;
     virtual void scheduleRead() = 0;
     virtual void
     connected()
@@ -359,7 +368,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendAuthenticatedMessage(
         std::shared_ptr<StellarMessage const> msg,
-        std::optional<VirtualClock::time_point> timePlaced = std::nullopt);
+        std::optional<VirtualClock::time_point> timePlaced = std::nullopt
+#ifdef BUILD_TESTS
+        ,
+        bool bypassFlowControlForTesting = false
+#endif
+    );
     bool beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
 
@@ -481,13 +495,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool isAuthenticatedForTesting() const;
     bool shouldAbortForTesting() const;
     bool isConnectedForTesting() const;
-    void sendAuthenticatedMessageForTesting(
+    void sendAuthenticatedMessageBypassingFlowControlForTesting(
         std::shared_ptr<StellarMessage const> msg);
     void
     sendXdrMessageForTesting(xdr::msg_ptr xdrBytes,
                              std::shared_ptr<StellarMessage const> msg)
     {
-        sendMessage(std::move(xdrBytes), msg);
+        sendMessage(std::move(xdrBytes), msg, true);
     }
 
     std::string
