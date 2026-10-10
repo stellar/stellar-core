@@ -7,6 +7,7 @@
 #include "lib/util/finally.h"
 #include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
+#include "util/StackThread.h"
 
 #include <algorithm>
 #include <atomic>
@@ -17,12 +18,12 @@
 #include <functional>
 #include <mutex>
 #include <optional>
-#include <thread>
 #include <type_traits>
 #include <vector>
 
 namespace stellar
 {
+inline constexpr size_t WORKER_STACK_BYTES = 1 << 23; // 8 MiB
 
 // Executes batches of CPU-bound tasks in parallel on a pool of worker threads.
 //
@@ -111,7 +112,7 @@ class BatchExecutor : private NonMovableOrCopyable
     // with std::condition_variable.
     std::mutex mMutex;
     std::condition_variable mCondition;
-    std::vector<std::thread> mWorkers;
+    std::vector<StackThread> mWorkers;
     // All allowed logical CPUs in pinning-preference order.
     std::vector<unsigned> mPinCpuOrder;
     // Number of distinct physical cores found in the allowed logical CPUs.
@@ -154,11 +155,11 @@ BatchExecutor::executeBatch(std::vector<std::function<T()>> tasks)
     {
         return results;
     }
-    if (tasks.size() == 1)
-    {
-        results[0] = tasks[0]();
-        return results;
-    }
+
+    // NB: there used to be a special case here that ran singleton tasks on the
+    // current thread. We now intentionally omit this in favor of ensuring that
+    // all tasks run on the threads created for the executor, which have large
+    // stacks even when running on mac or windows.
 
     // Only one executeBatch that uses pinned workers may be in progress at a
     // time.
