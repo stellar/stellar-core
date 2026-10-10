@@ -1587,9 +1587,8 @@ LedgerManagerImpl::completeLedgerClose(
     std::vector<SorobanApplyMetrics>&& sorobanApplyMetricsPerThread)
 {
 #ifdef BUILD_TESTS
-    if (mCompleteLedgerCloseOverride)
+    if (mCompleteLedgerCloseOverride && mCompleteLedgerCloseOverride(ledgerSeq))
     {
-        mCompleteLedgerCloseOverride();
         return;
     }
 #endif

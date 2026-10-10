@@ -56,7 +56,8 @@ class LoopbackPeer : public Peer
     Stats mStats;
 
     void sendMessage(xdr::msg_ptr&& xdrBytes,
-                     std::shared_ptr<StellarMessage const> msg) override;
+                     std::shared_ptr<StellarMessage const> msg,
+                     bool bypassFlowControlForTesting) override;
     AuthCert getAuthCert() override;
 
     void processInQueue() NO_THREAD_SAFETY_ANALYSIS;
