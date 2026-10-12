@@ -315,13 +315,12 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     AppConnector& app, ApplyLedgerView applyView, AbstractLedgerTxn& ltx,
     std::vector<ApplyStage> const& stages,
     InMemorySorobanState const& inMemoryState,
-    SorobanNetworkConfig const& sorobanConfig,
     std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
     , mLCLApplyView(std::move(applyView))
     , mInMemorySorobanState(inMemoryState)
-    , mSorobanConfig(sorobanConfig)
 {
+    releaseAssertOrThrow(mLCLApplyView.getSorobanNetworkConfig() != nullptr);
     releaseAssertOrThrow(mLCLApplyView.getLedgerSeq() ==
                          mInMemorySorobanState.getLedgerSeq());
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
@@ -460,15 +459,14 @@ GlobalParallelApplyLedgerState::readOnlyParallelPreApply(
         [&](size_t begin, size_t end, size_t taskIndex) {
             // NB: mLCLApplyView is not thread-safe, so we need to copy it into
             // a thread-local view.
-            CheckValidLedgerViewWrapper ledgerView(
-                std::make_unique<SorobanPreApplyLedgerView>(
-                    header, getUpdatedEntry, mLCLApplyView));
+            SorobanPreApplyLedgerView ledgerView(header, getUpdatedEntry,
+                                                 mLCLApplyView);
             for (size_t i = begin; i < end; ++i)
             {
                 auto const* txBundle = txBundles[i];
                 txBundle->getTx()->preParallelApplyReadOnly(
                     app, ledgerView, txBundle->getEffects().getMeta(),
-                    txBundle->getResPayload(), mSorobanConfig,
+                    txBundle->getResPayload(),
                     sorobanApplyMetricsPerThread[taskIndex]);
             }
         });
@@ -699,7 +697,6 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     : LedgerEntryScope(ScopeIdT(clusterIdx, global.mScopeID.mLedger))
     , mLCLApplyView(global.mLCLApplyView)
     , mInMemorySorobanState(global.mInMemorySorobanState)
-    , mSorobanConfig(global.mSorobanConfig)
     , mModuleCache(app.getModuleCache())
 {
     releaseAssertOrThrow(global.getSnapshotLedgerSeq() ==
@@ -937,12 +934,6 @@ uint32_t
 ThreadParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
     return mInMemorySorobanState.getLedgerSeq();
-}
-
-SorobanNetworkConfig const&
-ThreadParallelApplyLedgerState::getSorobanConfig() const
-{
-    return mSorobanConfig;
 }
 
 ApplyLedgerView const&

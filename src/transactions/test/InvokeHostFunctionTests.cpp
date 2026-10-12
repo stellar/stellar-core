@@ -1244,9 +1244,9 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
             MutableTxResultPtr result;
             {
                 auto diagnostics = DiagnosticEventManager::createDisabled();
-                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0,
-                                        0, 0, diagnostics);
+                auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+                result = tx->checkValid(test.getApp().getAppConnector(),
+                                        *ledgerView, 0, 0, 0, diagnostics);
             }
             REQUIRE(result->isSuccess() == shouldBeValid);
 
@@ -1262,9 +1262,9 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         MutableTxResultPtr result;
         {
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                    0, diagnostics);
+            auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+            result = tx->checkValid(test.getApp().getAppConnector(),
+                                    *ledgerView, 0, 0, 0, diagnostics);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
@@ -1292,9 +1292,9 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         MutableTxResultPtr result;
         {
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                    0, diagnostics);
+            auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+            result = tx->checkValid(test.getApp().getAppConnector(),
+                                    *ledgerView, 0, 0, 0, diagnostics);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
@@ -2321,10 +2321,10 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
                      txEnvelope.v1());
         auto tx = TransactionFrameBase::makeTransactionFromWire(
             test.getApp().getNetworkID(), txEnvelope);
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
         auto diagnostics = DiagnosticEventManager::createDisabled();
         auto innerCheckValidResult = tx->checkValid(
-            test.getApp().getAppConnector(), ledgerView, 0, 0, 0, diagnostics);
+            test.getApp().getAppConnector(), *ledgerView, 0, 0, 0, diagnostics);
 
         int64_t feeBumpFullFee = resourceFee + inclusionFee;
         auto feeBumpTx = feeBump(test.getApp(), feeBumper, tx, feeBumpFullFee,
@@ -2333,7 +2333,7 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
         REQUIRE(feeBumpTx->getInclusionFee() == inclusionFee);
 
         auto checkValidResult = feeBumpTx->checkValid(
-            test.getApp().getAppConnector(), ledgerView, 0, 0, 0, diagnostics);
+            test.getApp().getAppConnector(), *ledgerView, 0, 0, 0, diagnostics);
         if (!checkValidResult->isSuccess())
         {
             return checkValidResult->getResultCode();
@@ -2555,9 +2555,9 @@ TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
 
     auto diagnosticEvents = DiagnosticEventManager::createForValidation(cfg);
     {
-        LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-        auto result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                     0, diagnosticEvents);
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+        auto result = tx->checkValid(test.getApp().getAppConnector(),
+                                     *ledgerView, 0, 0, 0, diagnosticEvents);
     }
     REQUIRE(!test.isTxValid(tx));
 
@@ -9303,8 +9303,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txFAILED);
 
             // Verify that a1 no longer exists after the merge
-            CheckValidLedgerViewWrapper ledgerView(test.getApp());
-            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
+            auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+            REQUIRE(!ledgerView->getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus merge fee)
             auto expectedBalance =
@@ -9335,8 +9335,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txFAILED);
 
             // Verify that a1 no longer exists after the merge
-            CheckValidLedgerViewWrapper ledgerView(test.getApp());
-            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
+            auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+            REQUIRE(!ledgerView->getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus merge fee)
             auto expectedBalance =
@@ -9373,8 +9373,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txNO_ACCOUNT);
 
             // Verify that a1 no longer exists after the merge
-            CheckValidLedgerViewWrapper ledgerView(test.getApp());
-            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
+            auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+            REQUIRE(!ledgerView->getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus the soroban
             // transactions fee which a1 paid before it was merged).
@@ -9635,7 +9635,7 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
     {
         std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
         auto resources = lm.maxLedgerResources(true);
-        CheckValidLedgerViewWrapper ledgerView(app);
+        auto ledgerView = app.getLedgerManager().getLCLView();
         for (int txId = 0; txId < MAX_TRANSACTIONS_PER_LEDGER; ++txId)
         {
             auto account = txtest::getGenesisAccount(app, accountId++);
@@ -9676,7 +9676,7 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
             auto tx = invocation.withExactNonRefundableResourceFee().createTx(
                 &account);
 
-            REQUIRE(tx->checkValid(app.getAppConnector(), ledgerView, 0, 0, 0)
+            REQUIRE(tx->checkValid(app.getAppConnector(), *ledgerView, 0, 0, 0)
                         ->isSuccess());
             if (!anyGreater(tx->getResources(false, test.getLedgerVersion()),
                             resources))
@@ -10066,8 +10066,8 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
         {
             auto ledgerKey = client.getContract().getDataKey(
                 makeSymbolSCVal(key), durability);
-            CheckValidLedgerViewWrapper ledgerView(test.getApp());
-            auto le = ledgerView.load(ledgerKey);
+            auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+            auto le = ledgerView->load(ledgerKey);
             if (le)
             {
                 // We only deal with the data entries here, so no need to
@@ -10279,9 +10279,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ledgerView.load(ttlKey);
+        auto ttlEntry = ledgerView->load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -10328,9 +10328,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ledgerView.load(ttlKey);
+        auto ttlEntry = ledgerView->load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -10382,9 +10382,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ledgerView.load(ttlKey);
+        auto ttlEntry = ledgerView->load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -10773,8 +10773,8 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
         REQUIRE(innerRes.result.code() == txNO_ACCOUNT);
 
         // Verify that innerAccount no longer exists after the merge
-        CheckValidLedgerViewWrapper ledgerView(test.getApp());
-        REQUIRE(!ledgerView.getAccount(innerAccount.getPublicKey()));
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+        REQUIRE(!ledgerView->getAccount(innerAccount.getPublicKey()));
 
         auto expectedDestinationBalance = startingBalance + startingBalance;
         REQUIRE(destination.getBalance() == expectedDestinationBalance);
@@ -11240,9 +11240,8 @@ TEST_CASE("create and invoke external ref contract", "[tx][soroban]")
     REQUIRE(isSuccessResult(test.invokeTx(createTx)));
 
     {
-        auto ledgerView =
-            test.getApp().getLedgerManager().copyImmutableLedgerView();
-        auto le = ledgerView.load(contractInstanceKey);
+        auto ledgerView = test.getApp().getLedgerManager().getLCLView();
+        auto le = ledgerView->load(contractInstanceKey);
         REQUIRE(le);
         REQUIRE(le.current().data.contractData().val.instance().executable ==
                 executable);
@@ -11307,13 +11306,12 @@ TEST_CASE_VERSIONS("Soroban pre-apply removes pre-auth tx signers",
 
             if (sponsored)
             {
-                auto ledgerView =
-                    app.getLedgerManager().copyImmutableLedgerView();
+                auto ledgerView = app.getLedgerManager().getLCLView();
                 auto accountEntry =
-                    ledgerView.load(accountKey(account.getPublicKey()));
+                    ledgerView->load(accountKey(account.getPublicKey()));
                 REQUIRE(getNumSponsored(accountEntry.current()) == 1);
                 auto sponsorEntry =
-                    ledgerView.load(accountKey(sponsor.getPublicKey()));
+                    ledgerView->load(accountKey(sponsor.getPublicKey()));
                 REQUIRE(getNumSponsoring(sponsorEntry.current()) == 1);
             }
         };
@@ -11390,14 +11388,14 @@ TEST_CASE_VERSIONS("Soroban pre-apply removes pre-auth tx signers",
         REQUIRE(isSuccessResult(
             closeLedger(*app, {signerTx}).results.front().result));
         {
-            auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+            auto ledgerView = app->getLedgerManager().getLCLView();
             auto entry =
-                ledgerView.load(accountKey(sharedSigner.getPublicKey()));
+                ledgerView->load(accountKey(sharedSigner.getPublicKey()));
             REQUIRE(entry.current().data.account().signers.size() ==
                     SHARED_SIGNER_COUNT);
             REQUIRE(getNumSponsored(entry.current()) == sponsoredCount);
             auto sponsorEntry =
-                ledgerView.load(accountKey(sponsor.getPublicKey()));
+                ledgerView->load(accountKey(sponsor.getPublicKey()));
             REQUIRE(getNumSponsoring(sponsorEntry.current()) == sponsoredCount);
         }
 
@@ -11438,14 +11436,15 @@ TEST_CASE_VERSIONS("Soroban pre-apply removes pre-auth tx signers",
             REQUIRE(isSuccessResult(resultFor(r, tx)));
         }
 
-        auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+        auto ledgerView = app->getLedgerManager().getLCLView();
         // Every one-time signer is gone for the sharedSigner, and all the
         // sponsorships are removed.
         auto sharedEntry =
-            ledgerView.load(accountKey(sharedSigner.getPublicKey()));
+            ledgerView->load(accountKey(sharedSigner.getPublicKey()));
         REQUIRE(sharedEntry.current().data.account().signers.empty());
         REQUIRE(getNumSponsored(sharedEntry.current()) == 0);
-        auto sponsorEntry = ledgerView.load(accountKey(sponsor.getPublicKey()));
+        auto sponsorEntry =
+            ledgerView->load(accountKey(sponsor.getPublicKey()));
         REQUIRE(getNumSponsoring(sponsorEntry.current()) == 0);
 
         // Every one-time signer is gone from the tx sources, and all the
@@ -11453,13 +11452,13 @@ TEST_CASE_VERSIONS("Soroban pre-apply removes pre-auth tx signers",
         for (int i = 0; i < txs.size(); ++i)
         {
             auto& source = txSources[i];
-            auto entry = ledgerView.load(accountKey(source.getPublicKey()));
+            auto entry = ledgerView->load(accountKey(source.getPublicKey()));
             REQUIRE(entry.current().data.account().signers.empty());
             REQUIRE(getNumSponsored(entry.current()) == 0);
 
             if (i >= SHARED_SIGNER_COUNT)
             {
-                auto ownSponsorEntry = ledgerView.load(accountKey(
+                auto ownSponsorEntry = ledgerView->load(accountKey(
                     ownSponsors[i - SHARED_SIGNER_COUNT].getPublicKey()));
                 REQUIRE(getNumSponsoring(ownSponsorEntry.current()) == 0);
             }

@@ -82,10 +82,6 @@ class ThreadParallelApplyLedgerState
     // of mLiveSnapshot.
     InMemorySorobanState const& mInMemorySorobanState;
 
-    // Reference to the Soroban configuration common for all the transactions
-    // and thus common for all the threads.
-    SorobanNetworkConfig const& mSorobanConfig;
-
     rust::Box<rust_bridge::SorobanModuleCache> mModuleCache;
 
     // Contains entries restored by any tx/op in the current thread's tx cluster
@@ -173,8 +169,6 @@ class ThreadParallelApplyLedgerState
     // applying ledger sequence number.
     uint32_t getSnapshotLedgerSeq() const;
 
-    SorobanNetworkConfig const& getSorobanConfig() const;
-
     ApplyLedgerView const& getSnapshot() const;
 
     rust::Box<rust_bridge::SorobanModuleCache> const& getModuleCache() const;
@@ -195,10 +189,6 @@ class GlobalParallelApplyLedgerState
     // returns null for a key, it does NOT indicate a "cache miss," rather the
     // key does not exist as part of the live state.
     InMemorySorobanState const& mInMemorySorobanState;
-
-    // Reference to the common global Soroban configuration to use during the
-    // transaction application.
-    SorobanNetworkConfig const& mSorobanConfig;
 
     // Contains restorations that happened during each stage of the parallel
     // soroban phase. As with mGlobalEntryMap, this is propagated stage to
@@ -255,7 +245,6 @@ class GlobalParallelApplyLedgerState
         AppConnector& app, ApplyLedgerView applyView, AbstractLedgerTxn& ltx,
         std::vector<ApplyStage> const& stages,
         InMemorySorobanState const& inMemoryState,
-        SorobanNetworkConfig const& sorobanConfig,
         std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     ParallelApplyEntryMap<staticScope> const& getGlobalEntryMap() const;

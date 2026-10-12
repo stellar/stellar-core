@@ -256,9 +256,10 @@ class ExtendFootprintTTLParallelApplyHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, ExtendFootprintTTLOpFrame const& opFrame,
         SorobanApplyMetrics& sorobanMetrics)
-        : ExtendFootprintTTLApplyHelper(app, res, refundableFeeTracker, opMeta,
-                                        opFrame, threadState.getSorobanConfig(),
-                                        sorobanMetrics)
+        : ExtendFootprintTTLApplyHelper(
+              app, res, refundableFeeTracker, opMeta, opFrame,
+              *threadState.getSnapshot().getSorobanNetworkConfig(),
+              sorobanMetrics)
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
     }

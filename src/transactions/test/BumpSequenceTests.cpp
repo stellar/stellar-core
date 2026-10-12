@@ -144,8 +144,8 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
                 // The precondition is satisfied against the last closed
                 // ledger, i.e. the transaction is valid on its own.
                 REQUIRE(tx2->checkValid(app->getAppConnector(),
-                                        CheckValidLedgerViewWrapper(*app), 0, 0,
-                                        0)
+                                        *app->getLedgerManager().getLCLView(),
+                                        0, 0, 0)
                             ->isSuccess());
 
                 auto preTxSeqNum = a.getLastSequenceNumber();
@@ -232,9 +232,9 @@ TEST_CASE("minSeqAge under sub-second ledgers", "[tx][bumpsequence]")
 
         // We always round down to whole seconds, so a subsecond ledger should
         // not advance minSeqAge.
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(
-            !tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(!tx2->checkValidForTesting(
+            app->getAppConnector(), *app->getLedgerManager().getLCLView(), 0, 0,
+            0));
         REQUIRE(tx2->getResultCode() == txBAD_MIN_SEQ_AGE_OR_GAP);
     }
     SECTION("whole-second ledger one second later: age requirement met")

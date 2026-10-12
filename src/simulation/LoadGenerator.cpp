@@ -1269,16 +1269,16 @@ LoadGenerator::checkSorobanStateSynced(Application& app,
     }
 
     std::vector<LedgerKey> result;
-    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
     for (auto const& lk : mContractInstanceKeys)
     {
-        if (!ledgerView.load(lk))
+        if (!ledgerView->load(lk))
         {
             result.emplace_back(lk);
         }
     }
 
-    if (mCodeKey && !ledgerView.load(*mCodeKey))
+    if (mCodeKey && !ledgerView->load(*mCodeKey))
     {
         result.emplace_back(*mCodeKey);
     }

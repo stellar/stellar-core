@@ -364,6 +364,8 @@ struct RestoredEntries
 };
 
 class AbstractLedgerTxn;
+class LedgerTxnView;
+class SorobanNetworkConfig;
 
 // LedgerTxnDelta represents the difference between a LedgerTxn and its
 // parent. Used in the Invariants subsystem.
@@ -568,6 +570,13 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     friend class LedgerTxnHeader::Impl;
     virtual void deactivateHeader() = 0;
 
+    // registerView and unregisterView track the read-only views of this
+    // AbstractLedgerTxn. Registering the first view deactivates all the active
+    // LedgerTxnEntry and LedgerTxnHeader objects.
+    friend class LedgerTxnView;
+    virtual void registerView() = 0;
+    virtual void unregisterView() = 0;
+
   public:
     // Automatically rollback the data stored in the AbstractLedgerTxn if it
     // has not already been committed or rolled back.
@@ -737,6 +746,22 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // SPONSORSHIP_COUNTER entry type. Throws if the AbstractLedgerTxn has a
     // child.
     virtual bool hasSponsorshipEntry() const = 0;
+
+    // Creates a read-only view of this AbstractLedgerTxn. While the view is
+    // alive, any operation that modifies this AbstractLedgerTxn, hands out
+    // mutable entries or header, or creates a child, throws.
+    // This may take an externally provided Soroban config (nullptr before the
+    // Soroban protocol version) instead of loading it from ltx. This capability
+    // only exists as optimization to avoid re-loading the config when many
+    // short-term views are created (e.g. for transaction/operation processing);
+    // most views can just load the config from the LTX.
+    LedgerTxnView makeView(SorobanNetworkConfig const* sorobanConfig = nullptr);
+    // Creates a view that does not prevent all modifications of this
+    // AbstractLedgerTxn.
+    // This is only necessary for the transaction validation in protocols
+    // before 8, where account loading has side effects, and is not allowed in
+    // the later protocols.
+    LedgerTxnView makeMutableViewForLegacyProtocol();
 };
 
 class LedgerTxn : public AbstractLedgerTxn
@@ -748,6 +773,9 @@ class LedgerTxn : public AbstractLedgerTxn
     void deactivate(InternalLedgerKey const& key) override;
 
     void deactivateHeader() override;
+
+    void registerView() override;
+    void unregisterView() override;
 
     std::unique_ptr<Impl> const& getImpl() const;
 

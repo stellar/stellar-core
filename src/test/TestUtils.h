@@ -136,6 +136,13 @@ void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);
 
+// Returns true if the static configuration settings between two Soroban configs
+// are equivalent.
+// Most of the settings are static, the few dynamic settings are those that
+// depend on the current state size, and the eviction iterator.
+bool staticConfigSettingsAreEqual(SorobanNetworkConfig const& lhs,
+                                  SorobanNetworkConfig const& rhs);
+
 bool appProtocolVersionStartsFrom(Application& app,
                                   ProtocolVersion fromVersion);
 

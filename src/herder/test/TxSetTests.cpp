@@ -5,6 +5,7 @@
 #include "crypto/SHA.h"
 #include "herder/ParallelTxSetBuilder.h"
 #include "herder/TxSetFrame.h"
+#include "herder/TxSetUtils.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -18,6 +19,7 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
@@ -1191,8 +1193,8 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
                         1)},
                     2000);
             }
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1352,8 +1354,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             auto tx = sorobanTransactionFrameFromOps(
                 app->getNetworkID(), source, {op}, {}, resources, 2000,
                 100'000'000);
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1721,9 +1723,10 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // tx1 is valid on its own
         {
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(
+                tx1->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
         }
 
         SECTION("build block")
@@ -1755,11 +1758,13 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // Both txs individually are valid
         {
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
-            REQUIRE(tx2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(
+                tx1->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
+            REQUIRE(
+                tx2->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
         }
 
         SECTION("build block")
@@ -1926,7 +1931,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
         if (validateTx)
         {
             REQUIRE(tx->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                   *app->getLedgerManager().getLCLView(), 0, 0,
+                                   0)
                         ->isSuccess());
         }
         return tx;
@@ -2133,7 +2139,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             auto feeBumpTx = feeBump(*app, *root, tx, 300);
             REQUIRE(feeBumpTx
                         ->checkValid(app->getAppConnector(),
-                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                     *app->getLedgerManager().getLCLView(), 0,
+                                     0, 0)
                         ->isSuccess());
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -2172,7 +2179,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             auto feeBumpTx = feeBump(*app, *root, tx, 200);
             REQUIRE(feeBumpTx
                         ->checkValid(app->getAppConnector(),
-                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                     *app->getLedgerManager().getLCLView(), 0,
+                                     0, 0)
                         ->isSuccess());
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -2672,8 +2680,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         // its resources.
         auto tx = createUploadWasmTx(*app, source, inclusionFee, resourceFee,
                                      resources);
-        CheckValidLedgerViewWrapper ledgerView(*app);
-        REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+        auto ledgerView = app->getLedgerManager().getLCLView();
+        REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                     ->isSuccess());
 
         return tx;
@@ -3572,5 +3580,6 @@ TEST_CASE("parallel tx set building benchmark",
     runBenchmark(50, 50, 5);
     std::cout << "===" << std::endl;
 }
+
 } // namespace
 } // namespace stellar

@@ -75,13 +75,11 @@ class AppConnector
 
     bool isStopping() const;
 
-    ImmutableLedgerView copyImmutableLedgerView();
     ApplyLedgerView copyApplyLedgerView();
-    void maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView);
 
     // Get a snapshot of ledger state for use by the overlay thread only. Must
     // only be called from the overlay thread.
-    ImmutableLedgerView& getOverlayThreadSnapshot();
+    AbstractLedgerView const& getOverlayThreadSnapshot();
 
     // Protocol 23 data corruption bug data verifier. This typically is null,
     // unless a path to a CSV file containing the corruption data was provided

@@ -1334,7 +1334,7 @@ class InvokeHostFunctionParallelApplyHelper
         SorobanApplyMetrics& sorobanMetrics)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
-              opFrame, threadState.getSorobanConfig(),
+              opFrame, *threadState.getSnapshot().getSorobanNetworkConfig(),
               threadState.getSnapshot(), threadState.getModuleCache(),
               ledgerInfo.getLedgerVersion(), sorobanMetrics)
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)

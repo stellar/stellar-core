@@ -100,9 +100,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions({12}, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee, fee, 1);
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txNOT_SUPPORTED);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -114,9 +114,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee - 1, 1, 1);
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -128,9 +128,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee + 1, 101, 1);
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(result->getFeeCharged() == 2 * 101);
@@ -143,9 +143,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txNO_ACCOUNT);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -163,9 +163,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -186,9 +186,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -201,9 +201,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txINSUFFICIENT_BALANCE);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -223,9 +223,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txBAD_AUTH_EXTRA);
                 REQUIRE(result->getFeeCharged() == 2 * fee);
@@ -242,9 +242,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
                 auto const& fbRes = result->getXDR();
@@ -261,9 +261,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, -1);
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
                 auto const& fbRes = result->getXDR();
@@ -283,9 +283,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
-                auto result =
-                    fb->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = fb->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(result->isSuccess());
                 REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
                 auto const& fbRes = result->getXDR();
@@ -326,10 +326,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
                 {
-                    REQUIRE(fb->checkValid(app->getAppConnector(),
-                                           CheckValidLedgerViewWrapper(*app), 0,
-                                           0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
 
                 auto mergeTx = acc.tx({accountMerge(*root)});
@@ -351,10 +352,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
                                   2 * fee, fee, 1);
                 {
-                    REQUIRE(fb->checkValid(app->getAppConnector(),
-                                           CheckValidLedgerViewWrapper(*app), 0,
-                                           0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
                 // Clear the fee source's master weight in the same ledger,
                 // before the fee bump, so that the fee bump is applied with a
@@ -381,10 +383,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, acc, *root, 2 * fee,
                                   fee, 2 * fee);
                 {
-                    REQUIRE(fb->checkValid(app->getAppConnector(),
-                                           CheckValidLedgerViewWrapper(*app), 0,
-                                           0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
                 auto result = closeLedgerWithTx(fb);
                 REQUIRE(result.result.code() == txFEE_BUMP_INNER_FAILED);
@@ -415,10 +418,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     app->getNetworkID(), fbXDR);
                 auto fb = TransactionTestFrame::fromTxFrame(rawTx);
                 {
-                    REQUIRE(fb->checkValid(app->getAppConnector(),
-                                           CheckValidLedgerViewWrapper(*app), 0,
-                                           0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
 
                 // Drop the low threshold to 1 in the same ledger, so on of the
@@ -445,10 +449,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, acc, 2 * fee,
                                   fee, 1);
                 {
-                    REQUIRE(fb->checkValid(app->getAppConnector(),
-                                           CheckValidLedgerViewWrapper(*app), 0,
-                                           0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
                 // Invalidate the inner transaction signature before it is
                 // applied.
@@ -477,10 +482,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, *root, acc, 2 * fee,
                                   fee, INT64_MAX);
                 {
-                    REQUIRE(fb->checkValid(app->getAppConnector(),
-                                           CheckValidLedgerViewWrapper(*app), 0,
-                                           0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        fb->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
                 }
                 auto result = closeLedgerWithTx(fb);
                 REQUIRE(result.result.code() == txFEE_BUMP_INNER_FAILED);
@@ -529,10 +535,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                          acc.op(endSponsoringFutureReserves())},
                         {sponsoring});
 
-                    REQUIRE(tx->checkValid(app->getAppConnector(),
-                                           CheckValidLedgerViewWrapper(*app), 0,
-                                           0, 0)
-                                ->isSuccess());
+                    REQUIRE(
+                        tx->checkValid(app->getAppConnector(),
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
+                            ->isSuccess());
 
                     auto result = closeLedgerWithTx(tx);
                     REQUIRE(result.result.code() == txSUCCESS);
@@ -548,8 +555,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 }
 
                 REQUIRE(fb->checkValid(app->getAppConnector(),
-                                       CheckValidLedgerViewWrapper(*app), 0, 0,
-                                       0)
+                                       *app->getLedgerManager().getLCLView(), 0,
+                                       0, 0)
                             ->isSuccess());
 
                 {

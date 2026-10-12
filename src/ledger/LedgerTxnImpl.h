@@ -100,6 +100,7 @@ class LedgerTxn::Impl
     UnorderedMap<InternalLedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
+    uint32_t mActiveViewCount;
     LedgerTxnConsistency mConsistency;
     std::thread::id const mActiveThreadId;
 
@@ -275,6 +276,7 @@ class LedgerTxn::Impl
 
     void throwIfChild() const;
     void throwIfSealed() const;
+    void throwIfViewActive() const;
     void abortIfWrongThread(char const* functionName) const;
     void throwIfNotExactConsistency() const;
     void throwIfErasingConfig(InternalLedgerKey const& key) const;
@@ -299,6 +301,9 @@ class LedgerTxn::Impl
     EntryIterator getEntryIterator(EntryMap const& entries) const;
 
     void maybeUpdateLastModified() noexcept;
+
+    // Deactivates all the active entries and the header.
+    void deactivateAll() noexcept;
 
     // f should not throw
     // C++ doesn't support "std::function<void(EntryMap const&) nothrow>" yet
@@ -351,6 +356,10 @@ class LedgerTxn::Impl
 
     // deactivateHeader has the strong exception safety guarantee
     void deactivateHeader();
+
+    // registerView/unregisterView have the strong exception safety guarantee
+    void registerView();
+    void unregisterView() noexcept;
 
     // erase has the basic exception safety guarantee. If it throws an
     // exception, then

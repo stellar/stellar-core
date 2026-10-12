@@ -226,9 +226,9 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
             {
                 auto tx = source.tx({pathPaymentStrictSend(
                     destination, xlm, amount, xlm, 1, {})});
-                auto result =
-                    tx->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = tx->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getXDR()
                             .result.results()
@@ -249,9 +249,9 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
             {
                 auto tx = source.tx({pathPaymentStrictSend(destination, xlm, 1,
                                                            xlm, amount, {})});
-                auto result =
-                    tx->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = tx->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getXDR()
                             .result.results()
@@ -269,9 +269,9 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
         auto destination = root->create("destination", minBalance);
         for_versions_from(12, *app, [&] {
             auto checkMalformed = [&](TransactionTestFramePtr const& tx) {
-                auto result =
-                    tx->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+                auto result = tx->checkValid(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0);
                 REQUIRE(!result->isSuccess());
                 REQUIRE(result->getXDR()
                             .result.results()

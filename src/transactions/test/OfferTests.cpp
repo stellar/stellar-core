@@ -4246,11 +4246,11 @@ TEST_CASE_VERSIONS("manageOffer overlay validation", "[offers]")
         auto tx = transactionFromOperations(
             *app, a1.getSecretKey(), a1.getLastSequenceNumber() + 1, {op});
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        CheckValidLedgerViewWrapper ledgerView(*app);
-        REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+        auto ledgerView = app->getLedgerManager().getLCLView();
+        REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0,
                                diagnostics)
                     ->isSuccess());
-        auto res = tx->checkValidForOverlay(app->getAppConnector(), ledgerView,
+        auto res = tx->checkValidForOverlay(app->getAppConnector(), *ledgerView,
                                             0, 0, 0, diagnostics);
 
         bool const filtered =

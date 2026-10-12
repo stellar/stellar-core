@@ -2676,6 +2676,83 @@ TEST_CASE("LedgerTxn unsealHeader", "[ledgertxn]")
     }
 }
 
+TEST_CASE("LedgerTxn view", "[ledgertxn]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+
+    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+        {CONFIG_SETTING});
+    le.lastModifiedLedgerSeq = 1;
+    LedgerKey key = LedgerEntryKey(le);
+    LedgerEntry le2 = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+        {CONFIG_SETTING});
+    le2.lastModifiedLedgerSeq = 1;
+
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    REQUIRE(ltx.create(le));
+
+    SECTION("reads the ledger state")
+    {
+        auto header = ltx.loadHeader().current();
+        auto view = ltx.makeView();
+        REQUIRE(view.load(key).current() == le);
+        REQUIRE(view.getLedgerHeader().current() == header);
+        REQUIRE(view.getSorobanNetworkConfig() != nullptr);
+    }
+
+    SECTION("prevents modifications while alive")
+    {
+        {
+            auto view = ltx.makeView();
+            REQUIRE_THROWS_AS(ltx.create(le2), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.load(key), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.erase(key), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.loadHeader(), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.createWithoutLoading(le2),
+                              std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.updateWithoutLoading(le), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.eraseWithoutLoading(key), std::runtime_error);
+            REQUIRE_THROWS_AS(LedgerTxn(ltx), std::runtime_error);
+            REQUIRE(ltx.loadWithoutRecord(key));
+
+            auto view2 = ltx.makeView();
+            REQUIRE(view2.load(key).current() == le);
+        }
+        REQUIRE(ltx.load(key));
+        REQUIRE(ltx.create(le2));
+    }
+
+    SECTION("deactivates the active entries and header")
+    {
+        auto entry = ltx.load(key);
+        auto header = ltx.loadHeader();
+        auto view = ltx.makeView();
+        REQUIRE_THROWS_AS(entry.current(), std::runtime_error);
+        REQUIRE_THROWS_AS(header.current(), std::runtime_error);
+    }
+
+    SECTION("fails with children")
+    {
+        LedgerTxn child(ltx);
+        REQUIRE_THROWS_AS(ltx.makeView(), std::runtime_error);
+    }
+
+    SECTION("legacy mutable view does not prevent modifications")
+    {
+        ltx.loadHeader().current().ledgerVersion = 7;
+        auto view = ltx.makeMutableViewForLegacyProtocol();
+        REQUIRE(view.load(key).current() == le);
+        REQUIRE(ltx.create(le2));
+    }
+
+    SECTION("legacy mutable view requires legacy protocol")
+    {
+        REQUIRE_THROWS_AS(ltx.makeMutableViewForLegacyProtocol(),
+                          std::runtime_error);
+    }
+}
+
 TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgertxn]")
 {
     VirtualClock clock;

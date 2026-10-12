@@ -40,7 +40,8 @@ class TransactionTestFrame : public TransactionFrameBase
                    std::nullopt,
                Hash const& sorobanBasePrngSeed = Hash{});
 
-    bool checkValidForTesting(AppConnector& app, AbstractLedgerTxn& ltxOuter,
+    bool checkValidForTesting(AppConnector& app,
+                              AbstractLedgerView const& ledgerView,
                               SequenceNumber current,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset);
@@ -72,18 +73,13 @@ class TransactionTestFrame : public TransactionFrameBase
                Hash const& sorobanBasePrngSeed,
                SorobanApplyMetrics& sorobanMetrics) const override;
 
-    MutableTxResultPtr checkValid(AppConnector& app,
-                                  AbstractLedgerTxn& ltxOuter,
-                                  SequenceNumber current,
-                                  uint64_t lowerBoundCloseTimeOffset,
-                                  uint64_t upperBoundCloseTimeOffset) const;
     MutableTxResultPtr checkValid(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        AppConnector& app, AbstractLedgerView const& ledgerView,
         SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset,
         std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
     MutableTxResultPtr checkValid(AppConnector& app,
-                                  CheckValidLedgerViewWrapper const& ledgerView,
+                                  AbstractLedgerView const& ledgerView,
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset,
@@ -91,7 +87,7 @@ class TransactionTestFrame : public TransactionFrameBase
                                   std::optional<uint32_t> validationLedgerSeq =
                                       std::nullopt) const override;
     MutableTxResultPtr checkValidForOverlay(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        AppConnector& app, AbstractLedgerView const& ledgerView,
         SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset,
         DiagnosticEventManager& diagnosticEvents,
@@ -132,7 +128,7 @@ class TransactionTestFrame : public TransactionFrameBase
 
     bool checkOperationSignatures(
         SignatureChecker& signatureChecker,
-        CheckValidLedgerViewWrapper const& ledgerView,
+        AbstractLedgerView const& ledgerView,
         MutableTransactionResultBase* txResult) const override;
 
     bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,
@@ -165,9 +161,8 @@ class TransactionTestFrame : public TransactionFrameBase
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     void preParallelApplyReadOnly(
-        AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+        AppConnector& app, AbstractLedgerView const& ls,
         TransactionMetaBuilder& meta, MutableTransactionResultBase& resPayload,
-        SorobanNetworkConfig const& sorobanConfig,
         SorobanApplyMetrics& sorobanMetrics) const override;
 
     void preParallelApplyWrite(

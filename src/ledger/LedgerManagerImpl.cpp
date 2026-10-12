@@ -1893,9 +1893,8 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
-        CheckValidLedgerViewWrapper ledgerView(ltx);
         auto valid = Upgrades::isValidForApply(sv.upgrades[i], lupgrade, mApp,
-                                               ledgerView);
+                                               ltx.makeView());
         switch (valid)
         {
         case Upgrades::UpgradeValidity::VALID:
@@ -2349,18 +2348,9 @@ LedgerManagerImpl::buildLedgerState(
     lcl.header = header;
     lcl.hash = xdrSha256(header);
 
-    if (sorobanConfig)
-    {
-        // Caller already loaded config (e.g. from LTX during ledger close)
-        return std::make_shared<ImmutableLedgerData>(
-            bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
-            std::move(sorobanConfig), mApp.getMetrics());
-    }
-
-    // Auto-load SorobanNetworkConfig from the BucketList
-    return ImmutableLedgerData::createAndMaybeLoadConfig(
+    return std::make_shared<ImmutableLedgerData>(
         bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
-        mApp.getMetrics());
+        std::move(sorobanConfig), mApp.getMetrics());
 }
 
 ImmutableLedgerDataPtr
@@ -2371,6 +2361,18 @@ LedgerManagerImpl::advanceApplySnapshotAndMakeLedgerState(
     auto state = buildLedgerState(header, has, std::move(sorobanConfig));
     mApplyState.setLedgerState(state);
     return state;
+}
+
+void
+LedgerManagerImpl::scanLCLForLiveEntriesOfType(
+    LedgerEntryType type,
+    std::function<Loop(BucketEntry const&)> callback) const
+{
+#ifdef BUILD_TESTS
+    // The BucketList isn't populated in the in-memory ledger mode.
+    releaseAssert(!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER);
+#endif
+    copyImmutableLedgerView().scanLiveEntriesOfType(type, std::move(callback));
 }
 
 ImmutableLedgerView
@@ -2386,6 +2388,83 @@ LedgerManagerImpl::copyImmutableLedgerView() const
     return ImmutableLedgerView(mLastClosedLedgerState, mApp.getMetrics());
 }
 
+#ifdef BUILD_TESTS
+namespace
+{
+// A read-only view that owns the LedgerTxn it reads from. Only needed for the
+// in-memory ledger mode, where the state lives in a never-committing LedgerTxn
+// rather than in the BucketList, so a view has to hold a child LedgerTxn of it
+// alive for as long as it is used.
+class OwnedLedgerTxnView : public AbstractLedgerView,
+                           public NonMovableOrCopyable
+{
+    // Declared first so that it outlives the view reading from it.
+    LedgerTxn mLedgerTxn;
+    LedgerTxnView mView;
+
+  public:
+    explicit OwnedLedgerTxnView(AbstractLedgerTxnParent& root)
+        : mLedgerTxn(root, /* shouldUpdateLastModified */ false,
+                     TransactionMode::READ_ONLY_WITHOUT_SQL_TXN)
+        , mView(mLedgerTxn.makeView())
+    {
+    }
+
+    LedgerHeaderWrapper
+    getLedgerHeader() const override
+    {
+        return mView.getLedgerHeader();
+    }
+
+    SorobanNetworkConfig const*
+    getSorobanNetworkConfig() const override
+    {
+        return mView.getSorobanNetworkConfig();
+    }
+
+    LedgerEntryWrapper
+    getAccount(AccountID const& account) const override
+    {
+        return mView.getAccount(account);
+    }
+
+    LedgerEntryWrapper
+    getAccount(LedgerHeaderWrapper const& header,
+               TransactionFrame const& tx) const override
+    {
+        return mView.getAccount(header, tx);
+    }
+
+    LedgerEntryWrapper
+    getAccount(LedgerHeaderWrapper const& header, TransactionFrame const& tx,
+               AccountID const& accountID) const override
+    {
+        return mView.getAccount(header, tx, accountID);
+    }
+
+    LedgerEntryWrapper
+    load(LedgerKey const& key) const override
+    {
+        return mView.load(key);
+    }
+};
+}
+#endif
+
+std::unique_ptr<AbstractLedgerView const>
+LedgerManagerImpl::getLCLView() const
+{
+#ifdef BUILD_TESTS
+    if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        // The BucketList isn't populated in this mode, so the state can only
+        // be read through the never-committing LedgerTxn.
+        return std::make_unique<OwnedLedgerTxnView>(mApp.getLedgerTxnRoot());
+    }
+#endif
+    return std::make_unique<ImmutableLedgerView>(copyImmutableLedgerView());
+}
+
 ApplyLedgerView
 LedgerManagerImpl::copyApplyLedgerView() const
 {
@@ -2396,19 +2475,20 @@ LedgerManagerImpl::copyApplyLedgerView() const
 }
 
 void
-LedgerManagerImpl::maybeUpdateImmutableLedgerView(
-    ImmutableLedgerView& ledgerView) const
+LedgerManagerImpl::syncWithLCLView(
+    std::unique_ptr<ImmutableLedgerView const>& ledgerView) const
 {
     JITTER_INJECT_DELAY();
     SharedLockShared guard(mLastClosedLedgerStateMutex);
     JITTER_INJECT_DELAY();
 
     releaseAssert(mLastClosedLedgerState);
-    if (ledgerView.getLedgerSeq() !=
-        mLastClosedLedgerState->getLastClosedLedgerHeader().header.ledgerSeq)
+    if (!ledgerView || ledgerView->getLedgerHeader().current().ledgerSeq !=
+                           mLastClosedLedgerState->getLastClosedLedgerHeader()
+                               .header.ledgerSeq)
     {
-        ledgerView =
-            ImmutableLedgerView(mLastClosedLedgerState, mApp.getMetrics());
+        ledgerView = std::make_unique<ImmutableLedgerView>(
+            mLastClosedLedgerState, mApp.getMetrics());
     }
 }
 
@@ -2796,15 +2876,13 @@ LedgerManagerImpl::applySorobanStage(
 void
 LedgerManagerImpl::applySorobanStages(
     AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages,
-    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
+    std::vector<ApplyStage> const& stages, Hash const& sorobanBasePrngSeed,
     std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     ZoneScoped;
     auto globalParStatePtr = std::make_unique<GlobalParallelApplyLedgerState>(
         app, mApplyState.copyApplyLedgerView(), ltx, stages,
-        mApplyState.getInMemorySorobanState(), sorobanConfig,
-        sorobanApplyMetricsPerThread);
+        mApplyState.getInMemorySorobanState(), sorobanApplyMetricsPerThread);
     auto& globalParState = *globalParStatePtr;
     // LedgerTxn is not passed into applySorobanStage, so there's no risk
     // of the header being updated while we apply the stages.
@@ -2933,13 +3011,6 @@ LedgerManagerImpl::applyTransactions(
         enableTxMeta = true;
     }
 #endif
-    std::optional<SorobanNetworkConfig> sorobanConfig;
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        sorobanConfig =
-            std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
-    }
     std::vector<ApplyStage> applyStages;
     for (auto const& phase : phases)
     {
@@ -2947,10 +3018,8 @@ LedgerManagerImpl::applyTransactions(
         {
             try
             {
-                releaseAssert(sorobanConfig.has_value());
                 applyParallelPhase(phase, applyStages, mutableTxResults, index,
-                                   ltx, enableTxMeta, *sorobanConfig,
-                                   sorobanBasePrngSeed,
+                                   ltx, enableTxMeta, sorobanBasePrngSeed,
                                    sorobanApplyMetricsPerThread);
             }
             catch (std::exception const& e)
@@ -2967,9 +3036,9 @@ LedgerManagerImpl::applyTransactions(
         else
         {
             applySequentialPhase(phase, mutableTxResults, index, ltx,
-                                 enableTxMeta, sorobanConfig,
-                                 sorobanBasePrngSeed, ledgerCloseMeta,
-                                 txResultSet, sorobanApplyMetricsPerThread[0]);
+                                 enableTxMeta, sorobanBasePrngSeed,
+                                 ledgerCloseMeta, txResultSet,
+                                 sorobanApplyMetricsPerThread[0]);
         }
     }
 
@@ -2997,7 +3066,7 @@ LedgerManagerImpl::applyParallelPhase(
     TxSetPhaseFrame const& phase, std::vector<stellar::ApplyStage>& applyStages,
     std::vector<stellar::MutableTxResultPtr> const& mutableTxResults,
     uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta,
-    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
+    Hash const& sorobanBasePrngSeed,
     std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread)
 {
     ZoneScoped;
@@ -3046,7 +3115,7 @@ LedgerManagerImpl::applyParallelPhase(
         applyStages.emplace_back(std::move(applyClusters));
     }
 
-    applySorobanStages(mApp.getAppConnector(), ltx, applyStages, sorobanConfig,
+    applySorobanStages(mApp.getAppConnector(), ltx, applyStages,
                        sorobanBasePrngSeed, sorobanApplyMetricsPerThread);
 
     // meta will be processed in processPostTxSetApply
@@ -3056,12 +3125,17 @@ void
 LedgerManagerImpl::applySequentialPhase(
     TxSetPhaseFrame const& phase,
     std::vector<MutableTxResultPtr> const& mutableTxResults, uint32_t& index,
-    AbstractLedgerTxn& ltx, bool enableTxMeta,
-    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    Hash const& sorobanBasePrngSeed,
+    AbstractLedgerTxn& ltx, bool enableTxMeta, Hash const& sorobanBasePrngSeed,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     TransactionResultSet& txResultSet, SorobanApplyMetrics& sorobanMetrics)
 {
+    std::optional<SorobanNetworkConfig> sorobanConfig;
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        sorobanConfig =
+            std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
+    }
     for (auto const& tx : phase)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
@@ -3244,11 +3318,11 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     {
         bool hotArchiveBatchedAdded = false;
 
+        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
         // In `getAllTTLKeysWithoutSealing` it is important not to seal ltx,
         // because it is still being modified by the eviction flow.
         // `getAllTTLKeysWithoutSealing` must be called at the right time
         // _after_ all operations have been applied, but _before_ evictions.
-        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
         evictedState = mApp.getBucketManager().resolveBackgroundEvictionScan(
             lclApplyView, ltx, ltx.getAllKeysWithoutSealing());
 

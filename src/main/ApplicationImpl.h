@@ -11,6 +11,7 @@
 #include "util/MetricResetter.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include <atomic>
 #include <optional>
 #include <thread>
 
@@ -251,7 +252,9 @@ class ApplicationImpl : public Application
     std::atomic<bool> mStopping;
 
 #ifdef BUILD_TESTS
-    bool mRunInOverlayOnlyMode;
+    // Read from the parallel transaction validation threads while the
+    // `toggleoverlayonlymode` command may flip it from the main thread.
+    std::atomic<bool> mRunInOverlayOnlyMode;
 #endif
 
     VirtualTimer mStoppingTimer;
