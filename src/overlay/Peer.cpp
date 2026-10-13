@@ -926,7 +926,12 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 void
 Peer::sendAuthenticatedMessage(
     std::shared_ptr<StellarMessage const> msg,
-    std::optional<VirtualClock::time_point> timePlaced)
+    std::optional<VirtualClock::time_point> timePlaced
+#ifdef BUILD_TESTS
+    ,
+    bool bypassFlowControlForTesting
+#endif
+)
 {
     ZoneScoped;
     {
@@ -942,7 +947,12 @@ Peer::sendAuthenticatedMessage(
         }
     }
 
-    auto cb = [msg, timePlaced](std::shared_ptr<Peer> self) {
+    auto cb = [msg, timePlaced
+#ifdef BUILD_TESTS
+               ,
+               bypassFlowControlForTesting
+#endif
+    ](std::shared_ptr<Peer> self) {
         // Construct an authenticated message and place it in the queue
         // _synchronously_ This is important because we assign auth sequence to
         // each message, which must be ordered
@@ -954,7 +964,12 @@ Peer::sendAuthenticatedMessage(
             ZoneNamedN(xdrZone, "XDR serialize", true);
             xdrBytes = xdr::xdr_to_msg(amsg);
         }
-        self->sendMessage(std::move(xdrBytes), msg);
+        self->sendMessage(std::move(xdrBytes), msg
+#ifdef BUILD_TESTS
+                          ,
+                          bypassFlowControlForTesting
+#endif
+        );
         if (timePlaced)
         {
             self->mFlowControl->updateMsgMetrics(msg, *timePlaced);
@@ -999,18 +1014,10 @@ Peer::shouldAbortForTesting() const
 }
 
 void
-Peer::sendAuthenticatedMessageForTesting(
+Peer::sendAuthenticatedMessageBypassingFlowControlForTesting(
     std::shared_ptr<StellarMessage const> msg)
 {
-    releaseAssert(mFlowControl);
-    if (OverlayManager::isFloodMessage(*msg))
-    {
-        // Flood messages are tracked by FlowControl's outbound queue, and
-        // processSentMessages expects to find them there once the write
-        // completes
-        mFlowControl->addToQueueAndMaybeTrimForTesting(msg);
-    }
-    sendAuthenticatedMessage(std::move(msg));
+    sendAuthenticatedMessage(std::move(msg), std::nullopt, true);
 }
 
 void

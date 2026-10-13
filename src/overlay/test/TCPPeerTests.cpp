@@ -447,7 +447,7 @@ sendAndExpectAccepted(Simulation& sim, Peer::pointer fromPeer,
         toApp.getOverlayManager().getOverlayMetrics().mRecvTxSetTimer;
     auto const before = recvTxSet.count();
 
-    fromPeer->sendAuthenticatedMessageForTesting(msg);
+    fromPeer->sendAuthenticatedMessageBypassingFlowControlForTesting(msg);
     sim.crankUntil([&]() { return recvTxSet.count() > before; },
                    std::chrono::seconds(60), false);
 
@@ -467,7 +467,7 @@ sendAndExpectSizeDrop(Simulation& sim, Peer::pointer fromPeer,
     auto const errorsBefore = metrics.mErrorRead.count();
     auto const recvBefore = metrics.mRecvTxSetTimer.count();
 
-    fromPeer->sendAuthenticatedMessageForTesting(msg);
+    fromPeer->sendAuthenticatedMessageBypassingFlowControlForTesting(msg);
     sim.crankUntil(
         [&]() {
             return !fromPeer->isConnectedForTesting() &&
@@ -685,8 +685,9 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay][tcppeer]")
         auto bigMessage = makeTxSetMessage(PRE_P29_MAX_MESSAGE_SIZE * 2);
         REQUIRE(xdr::xdr_size(*bigMessage) > PRE_P29_MAX_MESSAGE_SIZE);
 
-        p0->sendAuthenticatedMessageForTesting(bigMessage);
-        p0->sendAuthenticatedMessageForTesting(makeTxSetMessage(1000));
+        p0->sendAuthenticatedMessageBypassingFlowControlForTesting(bigMessage);
+        p0->sendAuthenticatedMessageBypassingFlowControlForTesting(
+            makeTxSetMessage(1000));
         crankAndValidateDrop("error during read", false);
     }
     SECTION("bad auth sequence")
@@ -699,7 +700,7 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay][tcppeer]")
                 p0->sendXdrMessageForTesting(xdr::xdr_to_msg(amsg), msg);
                 // Follow by a regular message so there's something in the
                 // socket
-                p0->sendAuthenticatedMessageForTesting(msg);
+                p0->sendAuthenticatedMessageBypassingFlowControlForTesting(msg);
             },
             "send");
 
@@ -713,7 +714,7 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay][tcppeer]")
                 p0->sendXdrMessageForTesting(std::move(corruptMsg), msg);
                 // Send a normal message to make sure there's something to read
                 // in the socket
-                p0->sendAuthenticatedMessageForTesting(msg);
+                p0->sendAuthenticatedMessageBypassingFlowControlForTesting(msg);
             },
             "send");
         crankAndValidateDrop("received corrupt XDR", true);
@@ -861,8 +862,8 @@ TEST_CASE("TCPPeer drop at capacity", "[overlay][tcppeer][flowcontrol]")
     auto p0 = peers.first;
     auto p1 = peers.second;
 
-    p0->sendAuthenticatedMessageForTesting(txMsgPtr);
-    p0->sendAuthenticatedMessageForTesting(txMsgPtr);
+    p0->sendAuthenticatedMessageBypassingFlowControlForTesting(txMsgPtr);
+    p0->sendAuthenticatedMessageBypassingFlowControlForTesting(txMsgPtr);
 
     crankUntilDisconnected(s, p0, p1);
     REQUIRE(p1->getDropReason() ==

@@ -226,7 +226,12 @@ TCPPeer::~TCPPeer()
 
 void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes,
-                     std::shared_ptr<StellarMessage const> msgPtr)
+                     std::shared_ptr<StellarMessage const> msgPtr
+#ifdef BUILD_TESTS
+                     ,
+                     bool bypassFlowControlForTesting
+#endif
+)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
@@ -234,6 +239,9 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes,
     msg.mEnqueuedTime = mAppConnector.now();
     msg.mMessage = std::move(xdrBytes);
     msg.mMsgPtr = msgPtr;
+#ifdef BUILD_TESTS
+    msg.mBypassFlowControlForTesting = bypassFlowControlForTesting;
+#endif
     mThreadVars.getWriteQueue().emplace_back(std::move(msg));
 
     if (!mThreadVars.isWriting())
@@ -369,7 +377,11 @@ TCPPeer::messageSender()
                 i->mCompletedTime = now;
                 i->recordWriteTiming(self->mOverlayMetrics, self->mPeerMetrics);
                 auto const& msg = *(i->mMsgPtr);
-                if (OverlayManager::isFloodMessage(msg))
+                if (
+#ifdef BUILD_TESTS
+                    !i->mBypassFlowControlForTesting &&
+#endif
+                    OverlayManager::isFloodMessage(msg))
                 {
                     sentMessages[FlowControl::getMessagePriority(msg)]
                         .emplace_back(i->mMsgPtr);

@@ -91,7 +91,12 @@ class TCPPeer : public Peer
 
     bool recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes,
-                     std::shared_ptr<StellarMessage const> msgPtr) override;
+                     std::shared_ptr<StellarMessage const> msgPtr
+#ifdef BUILD_TESTS
+                     ,
+                     bool bypassFlowControlForTesting
+#endif
+                     ) override;
 
     void messageSender();
 

@@ -97,7 +97,8 @@ LoopbackPeer::scheduleRead()
 }
 
 void
-LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, ConstStellarMessagePtr msgPtr)
+LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, ConstStellarMessagePtr msgPtr,
+                          bool bypassFlowControlForTesting)
 {
     if (mRemote.expired())
     {
@@ -115,6 +116,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, ConstStellarMessagePtr msgPtr)
     tsm.mMessage = std::move(msg);
     tsm.mEnqueuedTime = mAppConnector.now();
     tsm.mMsgPtr = msgPtr;
+    tsm.mBypassFlowControlForTesting = bypassFlowControlForTesting;
     mOutQueue.emplace_back(std::move(tsm));
     // Possibly flush some queued messages if queue's full.
     while (mOutQueue.size() > mMaxQueueDepth && !mCorked)
@@ -222,6 +224,10 @@ duplicateMessage(Peer::TimestampedMessage const& msg)
     Peer::TimestampedMessage msg2;
     msg2.mEnqueuedTime = msg.mEnqueuedTime;
     msg2.mMessage = std::move(m2);
+    msg2.mMsgPtr = msg.mMsgPtr;
+    // NB: a duplicate message risks breaking flow control invariants
+    // so we mark the duplicate as bypassing flow control.
+    msg2.mBypassFlowControlForTesting = true;
     return msg2;
 }
 
@@ -349,7 +355,8 @@ LoopbackPeer::deliverOne()
 
             FloodQueues<ConstStellarMessagePtr> sentMessages{};
             auto const& sm = *(msg.mMsgPtr);
-            if (OverlayManager::isFloodMessage(sm))
+            if (!msg.mBypassFlowControlForTesting &&
+                OverlayManager::isFloodMessage(sm))
             {
                 sentMessages[FlowControl::getMessagePriority(sm)].emplace_back(
                     msg.mMsgPtr);

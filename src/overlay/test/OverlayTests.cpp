@@ -752,7 +752,8 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
                 auto m = std::make_shared<StellarMessage>();
                 m->type(SEND_MORE);
                 m->sendMoreMessage().numMessages = 1;
-                conn.getAcceptor()->sendAuthenticatedMessageForTesting(m);
+                conn.getAcceptor()
+                    ->sendAuthenticatedMessageBypassingFlowControlForTesting(m);
                 dropReason = "unexpected message type SEND_MORE";
             }
             testutil::crankSome(clock);
@@ -833,8 +834,10 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
 
     // Acceptor sends too many flood messages, causing initiator to drop it
     auto msgPtr = std::make_shared<StellarMessage>(msg);
-    conn.getAcceptor()->sendAuthenticatedMessageForTesting(msgPtr);
-    conn.getAcceptor()->sendAuthenticatedMessageForTesting(msgPtr);
+    conn.getAcceptor()->sendAuthenticatedMessageBypassingFlowControlForTesting(
+        msgPtr);
+    conn.getAcceptor()->sendAuthenticatedMessageBypassingFlowControlForTesting(
+        msgPtr);
     testutil::crankSome(clock);
 
     REQUIRE(!conn.getInitiator()->isConnectedForTesting());
@@ -3499,7 +3502,8 @@ TEST_CASE("background signature verification with missing account",
     REQUIRE(recvTxCount.count() == 0);
 
     // Send the transaction
-    receiverPeer->sendAuthenticatedMessageForTesting(tx);
+    receiverPeer->sendAuthenticatedMessageBypassingFlowControlForTesting(tx);
+    REQUIRE(receiverPeer->getFlowControl()->getQueuesForTesting()[1].empty());
 
     // Crank simulation to process the message on the overlay thread
     s->crankUntil([&recvTxCount]() { return recvTxCount.count() == 1; },
