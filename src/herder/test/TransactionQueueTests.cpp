@@ -3320,7 +3320,8 @@ TEST_CASE("TransactionQueue reset and rebuild on upgrades",
 
         // Check that the upgrade was actually applied.
         auto postUpgradeCfg = lm.getLastClosedSorobanNetworkConfig();
-        releaseAssertOrThrow(postUpgradeCfg == upgradeCfg);
+        releaseAssertOrThrow(
+            staticConfigSettingsAreEqual(postUpgradeCfg, upgradeCfg));
     };
 
     SECTION("ledger limit decreases")

@@ -126,8 +126,9 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     // Malformed operations are rejected during validation, so the transaction
     // never makes it into a ledger and no balances change.
     auto checkMalformed = [&](TransactionTestFramePtr const& tx) {
-        auto result = tx->checkValid(
-            app->getAppConnector(), CheckValidLedgerViewWrapper(*app), 0, 0, 0);
+        auto result =
+            tx->checkValid(app->getAppConnector(),
+                           *app->getLedgerManager().getLCLView(), 0, 0, 0);
         REQUIRE(!result->isSuccess());
         REQUIRE(result->getXDR()
                     .result.results()

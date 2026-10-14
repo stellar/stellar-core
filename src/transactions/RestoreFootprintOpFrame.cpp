@@ -309,9 +309,10 @@ class RestoreFootprintParallelApplyHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, RestoreFootprintOpFrame const& opFrame,
         SorobanApplyMetrics& sorobanMetrics)
-        : RestoreFootprintApplyHelper(app, res, refundableFeeTracker, opMeta,
-                                      opFrame, threadState.getSorobanConfig(),
-                                      sorobanMetrics)
+        : RestoreFootprintApplyHelper(
+              app, res, refundableFeeTracker, opMeta, opFrame,
+              *threadState.getSnapshot().getSorobanNetworkConfig(),
+              sorobanMetrics)
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
         , mApplyLedgerView(threadState.getSnapshot())
     {

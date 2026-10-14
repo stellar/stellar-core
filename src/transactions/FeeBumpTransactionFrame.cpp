@@ -84,16 +84,15 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
 
 void
 FeeBumpTransactionFrame::preParallelApplyReadOnly(
-    AppConnector& app, CheckValidLedgerViewWrapper const& ls,
+    AppConnector& app, AbstractLedgerView const& ls,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig,
     SorobanApplyMetrics& sorobanMetrics) const
 {
     try
     {
         mInnerTx->preParallelApplyReadOnlyWithOptionallyChargedFee(
-            /*chargeFee=*/false, app, ls, meta, txResult, sorobanConfig,
-            getContentsHash(), sorobanMetrics);
+            /*chargeFee=*/false, app, ls, meta, txResult, getContentsHash(),
+            sorobanMetrics);
     }
     catch (std::exception& e)
     {
@@ -260,8 +259,7 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 
 bool
 FeeBumpTransactionFrame::checkOperationSignatures(
-    SignatureChecker& signatureChecker,
-    CheckValidLedgerViewWrapper const& ledgerView,
+    SignatureChecker& signatureChecker, AbstractLedgerView const& ledgerView,
     MutableTransactionResultBase* txResult) const
 {
     // Fee bumps do not contain explicit operations, so this check trivially
@@ -286,7 +284,7 @@ FeeBumpTransactionFrame::checkAllTransactionSignatures(
 
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValidImpl(
-    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    AppConnector& app, AbstractLedgerView const& ledgerView,
     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
@@ -321,8 +319,9 @@ FeeBumpTransactionFrame::checkValidImpl(
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         // CAP-77: Check if fee bump source account is frozen
-        auto const& sorobanConfig =
-            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        auto const* sorobanConfigPtr = ledgerView.getSorobanNetworkConfig();
+        releaseAssertOrThrow(sorobanConfigPtr != nullptr);
+        auto const& sorobanConfig = *sorobanConfigPtr;
         if (sorobanConfig.hasFrozenKeys())
         {
             auto feeAcctKey = accountKey(getFeeSourceID());
@@ -351,7 +350,7 @@ FeeBumpTransactionFrame::checkValidImpl(
 
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(
-    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    AppConnector& app, AbstractLedgerView const& ledgerView,
     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents,
@@ -364,7 +363,7 @@ FeeBumpTransactionFrame::checkValid(
 
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValidForOverlay(
-    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    AppConnector& app, AbstractLedgerView const& ledgerView,
     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents,
@@ -386,7 +385,7 @@ FeeBumpTransactionFrame::checkSorobanResources(
 
 std::optional<LedgerEntryWrapper>
 FeeBumpTransactionFrame::commonValidPreSeqNum(
-    CheckValidLedgerViewWrapper const& ledgerView,
+    AbstractLedgerView const& ledgerView,
     MutableTransactionResultBase& txResult) const
 {
     // this function does validations that are independent of the account state
@@ -465,9 +464,8 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
 
 FeeBumpTransactionFrame::ValidationType
 FeeBumpTransactionFrame::commonValid(
-    SignatureChecker& signatureChecker,
-    CheckValidLedgerViewWrapper const& ledgerView, bool applying,
-    MutableTransactionResultBase& txResult) const
+    SignatureChecker& signatureChecker, AbstractLedgerView const& ledgerView,
+    bool applying, MutableTransactionResultBase& txResult) const
 {
     ValidationType res = ValidationType::kInvalid;
 

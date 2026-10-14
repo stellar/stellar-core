@@ -697,7 +697,6 @@ TCPPeer::getMaxMessageSize() const
         releaseAssert(
             mAppConnector.threadIsType(Application::ThreadType::OVERLAY));
         auto& overlayView = mAppConnector.getOverlayThreadSnapshot();
-        mAppConnector.maybeUpdateImmutableLedgerView(overlayView);
         protocolVersion = overlayView.getLedgerHeader().current().ledgerVersion;
     }
     return protocolVersionIsBefore(protocolVersion,

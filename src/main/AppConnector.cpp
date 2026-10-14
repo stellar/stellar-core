@@ -175,25 +175,13 @@ AppConnector::getBatchExecutor()
     return mApp.getBatchExecutor();
 }
 
-ImmutableLedgerView
-AppConnector::copyImmutableLedgerView()
-{
-    return mApp.getLedgerManager().copyImmutableLedgerView();
-}
-
 ApplyLedgerView
 AppConnector::copyApplyLedgerView()
 {
     return mApp.getLedgerManager().copyApplyLedgerView();
 }
 
-void
-AppConnector::maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView)
-{
-    mApp.getLedgerManager().maybeUpdateImmutableLedgerView(ledgerView);
-}
-
-ImmutableLedgerView&
+AbstractLedgerView const&
 AppConnector::getOverlayThreadSnapshot()
 {
     return mApp.getOverlayManager().getOverlayThreadSnapshot();

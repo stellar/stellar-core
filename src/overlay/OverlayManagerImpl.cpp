@@ -1432,17 +1432,14 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     }
 }
 
-ImmutableLedgerView&
+AbstractLedgerView const&
 OverlayManagerImpl::getOverlayThreadSnapshot()
 {
     releaseAssert(mApp.threadIsType(Application::ThreadType::OVERLAY));
     JITTER_INJECT_DELAY();
-    if (!mOverlayThreadSnapshot)
-    {
-        // Create a new snapshot
-        mOverlayThreadSnapshot =
-            mApp.getLedgerManager().copyImmutableLedgerView();
-    }
+    // Creates the snapshot on the first call, and refreshes it whenever the
+    // last closed ledger has moved on.
+    mApp.getLedgerManager().syncWithLCLView(mOverlayThreadSnapshot);
     return *mOverlayThreadSnapshot;
 }
 

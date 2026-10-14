@@ -128,26 +128,36 @@ FuzzTransactionFrame::attemptApplication(Application& app,
     AlwaysValidSignatureChecker signatureChecker{
         ltx.loadHeader().current().ledgerVersion, getContentsHash(),
         mEnvelope.v1().signatures};
-    CheckValidLedgerViewWrapper ltxStmt(ltx);
-    // if any ill-formed Operations, do not attempt transaction application
-    auto isInvalidOperation = [&](auto const& op, auto& opResult) {
-        auto diagnostics =
-            DiagnosticEventManager::createForValidation(app.getConfig());
-        return !op->checkValid(
-            app.getAppConnector(), signatureChecker,
-            &app.getAppConnector().getLastClosedSorobanNetworkConfig(), ltxStmt,
-            false, opResult, diagnostics);
-    };
 
-    auto const& ops = getOperations();
-    for (size_t i = 0; i < ops.size(); ++i)
+    std::optional<SorobanNetworkConfig const> sorobanNetworkConfig;
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
     {
-        auto const& op = ops[i];
-        auto& opResult = mTxResult->getOpResultAt(i);
-        if (isInvalidOperation(op, opResult))
+        sorobanNetworkConfig.emplace(
+            app.getAppConnector().getLastClosedSorobanNetworkConfig());
+    }
+    auto const* sorobanConfigPtr =
+        sorobanNetworkConfig ? &(*sorobanNetworkConfig) : nullptr;
+    // if any ill-formed Operations, do not attempt transaction application
+    {
+        auto ltxView = ltx.makeView(sorobanConfigPtr);
+        auto isInvalidOperation = [&](auto const& op, auto& opResult) {
+            auto diagnostics =
+                DiagnosticEventManager::createForValidation(app.getConfig());
+            return !op->checkValid(app.getAppConnector(), signatureChecker,
+                                   ltxView, false, opResult, diagnostics);
+        };
+
+        auto const& ops = getOperations();
+        for (size_t i = 0; i < ops.size(); ++i)
         {
-            mTxResult->setError(txFAILED);
-            return;
+            auto const& op = ops[i];
+            auto& opResult = mTxResult->getOpResultAt(i);
+            if (isInvalidOperation(op, opResult))
+            {
+                mTxResult->setError(txFAILED);
+                return;
+            }
         }
     }
 
@@ -159,7 +169,7 @@ FuzzTransactionFrame::attemptApplication(Application& app,
     TransactionMetaBuilder tm(true, *this,
                               ltx.loadHeader().current().ledgerVersion,
                               app.getAppConnector());
-    std::optional<SorobanNetworkConfig const> sorobanNetworkConfig;
+
     Hash sorobanRngSeed;
     // Fuzzed applies run outside of a ledger close, so the apply metrics
     // recorded here are simply dropped.

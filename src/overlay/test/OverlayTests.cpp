@@ -3580,8 +3580,8 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(misses == 1);
 
         // Call to checkValid should experience only cache hits
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        tx->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+        tx->checkValid(app->getAppConnector(),
+                       *app->getLedgerManager().getLCLView(), 0, 0, 0);
         PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
         REQUIRE(hits > 0);
         REQUIRE(misses == 0);
@@ -3604,8 +3604,8 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(misses == 2);
 
         // Call to checkValid should experience only cache hits
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        feeBumpTx->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+        feeBumpTx->checkValid(app->getAppConnector(),
+                              *app->getLedgerManager().getLCLView(), 0, 0, 0);
         PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
         REQUIRE(hits > 0);
         REQUIRE(misses == 0);
@@ -3694,11 +3694,10 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
 
         // checkValid now sees the cache already populated: both tx-level
         // and op-level signed-payload lookups are pure cache hits.
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ls = CheckValidLedgerViewWrapper(ltx);
+        auto ls = app->getLedgerManager().getLCLView();
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        auto result =
-            payTx->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics);
+        auto result = payTx->checkValid(app->getAppConnector(), *ls, 0, 0, 0,
+                                        diagnostics);
         REQUIRE(result->isSuccess());
 
         PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
@@ -3749,16 +3748,15 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         txtest::applyTx(removeSignerTx, *app);
 
         // Now check that the cached transaction is invalid due to bad auth
-        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ledgerView = app->getLedgerManager().getLCLView();
         bool isValid = paymentTx->checkValidForTesting(app->getAppConnector(),
-                                                       ltx, 0, 0, 0);
+                                                       *ledgerView, 0, 0, 0);
 
         REQUIRE(!isValid);
 
         // Verify it fails with bad auth, not other reasons
-        auto ledgerView = CheckValidLedgerViewWrapper(ltx);
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        auto result = paymentTx->checkValid(app->getAppConnector(), ledgerView,
+        auto result = paymentTx->checkValid(app->getAppConnector(), *ledgerView,
                                             0, 0, 0, diagnostics);
         REQUIRE(result->getResultCode() == txBAD_AUTH);
 

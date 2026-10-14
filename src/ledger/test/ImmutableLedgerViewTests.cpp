@@ -213,16 +213,16 @@ struct ThreadGroup
 class SnapshotThread
 {
     mutable ANNOTATED_SHARED_MUTEX(mMutex);
-    ImmutableLedgerView mLedgerView GUARDED_BY(mMutex);
+    std::unique_ptr<ImmutableLedgerView const> mLedgerView GUARDED_BY(mMutex);
     // Updated only by mutation methods; a mismatch with
-    // mLedgerView.getLedgerSeq() indicates a race or corruption.
+    // `mLedgerView` ledger sequence number indicates a race or corruption.
     uint32_t mExpectedSeq;
 
   public:
-    explicit SnapshotThread(ImmutableLedgerView ledgerView)
-        : mLedgerView(std::move(ledgerView))
-        , mExpectedSeq(mLedgerView.getLedgerSeq())
+    explicit SnapshotThread(LedgerManager const& lm) NO_THREAD_SAFETY_ANALYSIS
     {
+        lm.syncWithLCLView(mLedgerView);
+        mExpectedSeq = mLedgerView->getLedgerSeq();
     }
 
     uint32_t
@@ -236,20 +236,19 @@ class SnapshotThread
     ImmutableLedgerView const&
     ledgerView() const NO_THREAD_SAFETY_ANALYSIS
     {
-        return mLedgerView;
+        return *mLedgerView;
     }
 
     bool
     seqMatchesExpected() const NO_THREAD_SAFETY_ANALYSIS
     {
-        return mLedgerView.getLedgerSeq() == mExpectedSeq;
+        return mLedgerView->getLedgerSeq() == mExpectedSeq;
     }
 
     bool
     headerMatchesExpected() const NO_THREAD_SAFETY_ANALYSIS
     {
-        return mLedgerView.getLedgerHeader().current().ledgerSeq ==
-               mExpectedSeq;
+        return mLedgerView->getLedgerSeq() == mExpectedSeq;
     }
 
     // --- Mutation operations (take exclusive lock, update mExpectedSeq) ---
@@ -259,8 +258,8 @@ class SnapshotThread
     maybeUpdate(LedgerManager const& lm)
     {
         SharedLockExclusive lock(mMutex);
-        lm.maybeUpdateImmutableLedgerView(mLedgerView);
-        auto newSeq = mLedgerView.getLedgerSeq();
+        lm.syncWithLCLView(mLedgerView);
+        auto newSeq = mLedgerView->getLedgerSeq();
         bool ok = newSeq >= mExpectedSeq;
         mExpectedSeq = newSeq;
         return ok;
@@ -271,8 +270,9 @@ class SnapshotThread
     freshCopy(LedgerManager const& lm)
     {
         SharedLockExclusive lock(mMutex);
-        mLedgerView = lm.copyImmutableLedgerView();
-        auto newSeq = mLedgerView.getLedgerSeq();
+        mLedgerView.reset();
+        lm.syncWithLCLView(mLedgerView);
+        auto newSeq = mLedgerView->getLedgerSeq();
         bool ok = newSeq >= mExpectedSeq;
         mExpectedSeq = newSeq;
         return ok;
@@ -283,7 +283,7 @@ class SnapshotThread
     copySnapshot() const
     {
         SharedLockShared lock(mMutex);
-        return mLedgerView;
+        return ledgerView();
     }
 
     // Replace with a snapshot copied from a peer.  The peer may be
@@ -292,8 +292,9 @@ class SnapshotThread
     replaceWith(ImmutableLedgerView ledgerView)
     {
         SharedLockExclusive lock(mMutex);
-        mLedgerView = std::move(ledgerView);
-        mExpectedSeq = mLedgerView.getLedgerSeq();
+        mLedgerView =
+            std::make_unique<ImmutableLedgerView>(std::move(ledgerView));
+        mExpectedSeq = mLedgerView->getLedgerSeq();
     }
 };
 
@@ -415,8 +416,8 @@ SnapshotStressTest::SnapshotStressTest(int numThreads, unsigned seed,
     mThreads.reserve(mNumThreads);
     for (int i = 0; i < mNumThreads; i++)
     {
-        mThreads.push_back(std::make_unique<SnapshotThread>(
-            mApp.getLedgerManager().copyImmutableLedgerView()));
+        mThreads.push_back(
+            std::make_unique<SnapshotThread>(mApp.getLedgerManager()));
     }
 }
 
@@ -899,14 +900,14 @@ SnapshotStressTest::closeLedgers()
 // `ledgerView` with matching data.
 // ---------------------------------------------------------------------------
 void
-requireEntries(ImmutableLedgerView& ledgerView,
+requireEntries(AbstractLedgerView const& ledgerView,
                std::vector<LedgerEntry> const& entries)
 {
     for (auto const& entry : entries)
     {
-        auto loaded = ledgerView.loadLiveEntry(LedgerEntryKey(entry));
+        auto loaded = ledgerView.load(LedgerEntryKey(entry));
         REQUIRE(loaded);
-        CHECK(*loaded == entry);
+        CHECK(loaded.current() == entry);
     }
 }
 
@@ -948,37 +949,37 @@ TEST_CASE("basic snapshot copy semantics and isolation", "[snapshot]")
     // Add first batch, take snapshot S1.
     addLiveBatchAndUpdateSnapshot(*app, makeHeader(seq1, protocolVersion),
                                   entries1, {}, {});
-    auto s1 = lm.copyImmutableLedgerView();
-    REQUIRE(s1.getLedgerSeq() == seq1);
+    std::unique_ptr<ImmutableLedgerView const> s1;
+    std::unique_ptr<ImmutableLedgerView const> s2;
+    lm.syncWithLCLView(s1);
+    lm.syncWithLCLView(s2);
+    REQUIRE(s1->getLedgerHeader().current().ledgerSeq == seq1);
+    REQUIRE(s2->getLedgerHeader().current().ledgerSeq == seq1);
 
     // Advance to seq2 with new entries.
     addLiveBatchAndUpdateSnapshot(*app, makeHeader(seq2, protocolVersion),
                                   entries2, {}, {});
 
-    // Copy-construct S2 from S1 (after state advanced — tests isolation).
-    auto s2 = s1;
-    REQUIRE(s2.getLedgerSeq() == seq1);
-
     // S1 and S2 return identical data for entries1.
-    requireEntries(s1, entries1);
-    requireEntries(s2, entries1);
+    requireEntries(*s1, entries1);
+    requireEntries(*s2, entries1);
 
     // S1 and S2 must not see entries from seq2.
     for (auto const& entry : entries2)
     {
-        CHECK(s1.loadLiveEntry(LedgerEntryKey(entry)) == nullptr);
-        CHECK(s2.loadLiveEntry(LedgerEntryKey(entry)) == nullptr);
+        CHECK(!s1->load(LedgerEntryKey(entry)));
+        CHECK(!s2->load(LedgerEntryKey(entry)));
     }
 
-    // maybeUpdate S1: should refresh it to seq2 (jump +1).
-    lm.maybeUpdateImmutableLedgerView(s1);
-    REQUIRE(s1.getLedgerSeq() == seq2);
-    requireEntries(s1, entries1);
-    requireEntries(s1, entries2);
+    // Sync S1 with LCL: should refresh it to seq2 (jump +1).
+    lm.syncWithLCLView(s1);
+    REQUIRE(s1->getLedgerHeader().current().ledgerSeq == seq2);
+    requireEntries(*s1, entries1);
+    requireEntries(*s1, entries2);
 
     // maybeUpdate again with no new ledger close: no-op.
-    lm.maybeUpdateImmutableLedgerView(s1);
-    REQUIRE(s1.getLedgerSeq() == seq2);
+    lm.syncWithLCLView(s1);
+    REQUIRE(s1->getLedgerHeader().current().ledgerSeq == seq2);
 
     // Advance to seq3.
     uint32_t seq3 = startSeq + 3;
@@ -993,18 +994,20 @@ TEST_CASE("basic snapshot copy semantics and isolation", "[snapshot]")
                                   entries3, {}, {});
 
     // maybeUpdate S2: still at seq1, jumps +2 (seq1 -> seq3).
-    REQUIRE(s2.getLedgerSeq() == seq1);
-    lm.maybeUpdateImmutableLedgerView(s2);
-    REQUIRE(s2.getLedgerSeq() == seq3);
-    requireEntries(s2, entries1);
-    requireEntries(s2, entries2);
-    requireEntries(s2, entries3);
+    REQUIRE(s2->getLedgerHeader().current().ledgerSeq == seq1);
+    lm.syncWithLCLView(s2);
+    REQUIRE(s2->getLedgerHeader().current().ledgerSeq == seq3);
+    requireEntries(*s2, entries1);
+    requireEntries(*s2, entries2);
+    requireEntries(*s2, entries3);
 
     // maybeUpdate S1: at seq2, jumps +1 (seq2 -> seq3).
-    REQUIRE(s1.getLedgerSeq() == seq2);
-    lm.maybeUpdateImmutableLedgerView(s1);
-    REQUIRE(s1.getLedgerSeq() == seq3);
-    requireEntries(s1, entries3);
+    REQUIRE(s1->getLedgerHeader().current().ledgerSeq == seq2);
+    lm.syncWithLCLView(s1);
+    REQUIRE(s1->getLedgerHeader().current().ledgerSeq == seq3);
+    requireEntries(*s1, entries1);
+    requireEntries(*s1, entries2);
+    requireEntries(*s1, entries3);
 }
 
 // ---------------------------------------------------------------------------

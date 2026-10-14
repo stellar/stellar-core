@@ -180,7 +180,7 @@ applyCheck(TransactionTestFramePtr const& tx, Application& app,
     REQUIRE(tx->getEnvelope().type() != ENVELOPE_TYPE_TX_FEE_BUMP);
     auto ledgerVersion =
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
-    auto lclView = std::make_unique<CheckValidLedgerViewWrapper>(app);
+    auto lclView = app.getLedgerManager().getLCLView();
 
     auto diagnostics = DiagnosticEventManager::createDisabled();
     auto validationResult =
@@ -241,8 +241,8 @@ applyCheck(TransactionTestFramePtr const& tx, Application& app,
         REQUIRE(validationResult->getFeeCharged() == txResult.feeCharged);
     }
 
-    CheckValidLedgerViewWrapper lclViewAfter(app);
-    auto srcAccountAfter = lclViewAfter.getAccount(tx->getSourceID());
+    auto lclViewAfter = app.getLedgerManager().getLCLView();
+    auto srcAccountAfter = lclViewAfter->getAccount(tx->getSourceID());
     if (srcAccountAfter && checkSeqNum)
     {
         auto seqNumAfter = srcAccountAfter.current().data.account().seqNum;
@@ -294,9 +294,9 @@ validateTxResults(TransactionTestFramePtr const& tx, Application& app,
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
                                                       tx->getEnvelope()));
     {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(checkedTx->checkValidForTesting(app.getAppConnector(), ltx, 0,
-                                                0, 0) == shouldValidateOk);
+        REQUIRE(checkedTx->checkValidForTesting(
+                    app.getAppConnector(), *app.getLedgerManager().getLCLView(),
+                    0, 0, 0) == shouldValidateOk);
     }
     REQUIRE(checkedTx->getResult().result.code() == validationResult.code);
     REQUIRE(checkedTx->getResult().feeCharged == validationResult.fee);
@@ -572,15 +572,15 @@ loadAccount(AbstractLedgerTxn& ltx, PublicKey const& k, bool mustExist)
 bool
 doesAccountExist(Application& app, PublicKey const& k)
 {
-    CheckValidLedgerViewWrapper lss(app);
-    return (bool)lss.getAccount(k);
+    auto lss = app.getLedgerManager().getLCLView();
+    return (bool)lss->getAccount(k);
 }
 
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
-    CheckValidLedgerViewWrapper lss(app);
-    auto account = lss.getAccount(k);
+    auto lss = app.getLedgerManager().getLCLView();
+    auto account = lss->getAccount(k);
     return account.current().data.account().signers;
 }
 
@@ -1918,8 +1918,7 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
     ltx.create(InternalLedgerEntry(ttl));
 
     auto upgradeKey = ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
-    CheckValidLedgerViewWrapper ledgerView(ltx);
-    return ConfigUpgradeSetFrame::makeFromKey(ledgerView, upgradeKey);
+    return ConfigUpgradeSetFrame::makeFromKey(ltx.makeView(), upgradeKey);
 }
 
 LedgerUpgrade

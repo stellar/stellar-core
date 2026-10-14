@@ -364,7 +364,6 @@ class LedgerManagerImpl : public LedgerManager
         TxSetPhaseFrame const& phase, std::vector<ApplyStage>& applyStages,
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
-        SorobanNetworkConfig const& sorobanConfig,
         Hash const& sorobanBasePrngSeed,
         std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
@@ -372,7 +371,6 @@ class LedgerManagerImpl : public LedgerManager
         TxSetPhaseFrame const& phase,
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
-        std::optional<SorobanNetworkConfig const> const& sorobanConfig,
         Hash const& sorobanBasePrngSeed,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet, SorobanApplyMetrics& sorobanMetrics);
@@ -411,9 +409,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void applySorobanStages(
         AppConnector& app, AbstractLedgerTxn& ltx,
-        std::vector<ApplyStage> const& stages,
-        SorobanNetworkConfig const& sorobanConfig,
-        Hash const& sorobanBasePrngSeed,
+        std::vector<ApplyStage> const& stages, Hash const& sorobanBasePrngSeed,
         std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
     // initialLedgerVers must be the ledger version at the start of the ledger.
@@ -500,6 +496,13 @@ class LedgerManagerImpl : public LedgerManager
     // Full state building should not be skipped in any flows where new ledgers
     // have to actually be closed.
     void loadLastKnownLedgerInternal(bool skipBuildingFullState);
+
+#ifndef BUILD_TESTS
+    ImmutableLedgerView copyImmutableLedgerView() const;
+#else
+  public:
+    ImmutableLedgerView copyImmutableLedgerView() const override;
+#endif
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -623,10 +626,15 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetricsRegistry& getSorobanMetrics() override;
-    ImmutableLedgerView copyImmutableLedgerView() const override;
+    void scanLCLForLiveEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(BucketEntry const&)> callback) const override;
+
+  public:
+    std::unique_ptr<AbstractLedgerView const> getLCLView() const override;
     ApplyLedgerView copyApplyLedgerView() const override;
-    void maybeUpdateImmutableLedgerView(
-        ImmutableLedgerView& ledgerView) const override;
+    void syncWithLCLView(
+        std::unique_ptr<ImmutableLedgerView const>& ledgerView) const override;
 #ifdef BUILD_TESTS
     void updateCanonicalStateForTesting(LedgerHeader const& header) override;
 #endif

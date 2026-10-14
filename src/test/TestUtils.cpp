@@ -400,8 +400,10 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
             [&]() {
                 return std::all_of(
                     nodes.begin(), nodes.end(), [&](auto const& node) {
-                        return node->getLedgerManager()
-                                   .getLastClosedSorobanNetworkConfig() == cfg;
+                        return staticConfigSettingsAreEqual(
+                            node->getLedgerManager()
+                                .getLastClosedSorobanNetworkConfig(),
+                            cfg);
                     });
             },
             10 * simulation->getExpectedLedgerCloseTime(), false);
@@ -544,7 +546,19 @@ modifySorobanNetworkConfig(Application& app,
     // Check that the upgrade was actually applied.
     auto postUpgradeCfg =
         app.getLedgerManager().getLastClosedSorobanNetworkConfig();
-    releaseAssertOrThrow(postUpgradeCfg == upgradeCfg);
+    releaseAssertOrThrow(
+        staticConfigSettingsAreEqual(postUpgradeCfg, upgradeCfg));
+}
+
+bool
+staticConfigSettingsAreEqual(SorobanNetworkConfig const& lhs,
+                             SorobanNetworkConfig const& rhs)
+{
+    auto rhsCopy = rhs;
+    rhsCopy.mEvictionIterator = lhs.mEvictionIterator;
+    rhsCopy.mAverageSorobanStateSize = lhs.mAverageSorobanStateSize;
+    rhsCopy.mFeeRent1KB = lhs.mFeeRent1KB;
+    return lhs == rhsCopy;
 }
 
 void
