@@ -11,14 +11,13 @@
 #
 # Usage: check-overlay-min-version.sh [--apply] <network-protocol>
 #
-# Looks at the release tags (v<number>...) from the newest version down,
-# stopping at the first whose ledger protocol version (MAX_SUPPORTED_PROTOCOL_VERSION
-# in src/util/ProtocolVersion.h, or Config::CURRENT_LEDGER_PROTOCOL_VERSION in
-# src/main/Config.cpp in older releases) is below <network-protocol>, and
-# compares OVERLAY_PROTOCOL_MIN_VERSION in the working tree against the lowest
-# OVERLAY_PROTOCOL_VERSION among the releases that support it. Exits with a
-# non-zero status if the minimum is too high. If the minimum can be raised,
-# says so, and with --apply rewrites it in the working tree.
+# Takes the releases supporting <network-protocol> to be the release tags
+# v<major>... with <major> at least <network-protocol>, relying on a release's
+# major version being the ledger protocol version it supports, and compares
+# OVERLAY_PROTOCOL_MIN_VERSION in the working tree against the lowest
+# OVERLAY_PROTOCOL_VERSION among them. Exits with a non-zero status if the
+# minimum is too high. If the minimum can be raised, says so, and with --apply
+# rewrites it in the working tree.
 #
 # Requires the release tags to have been fetched.
 
@@ -26,7 +25,6 @@ set -e
 
 SRCDIR=$(realpath "$(dirname "$0")/..")
 CONFIG_CPP=src/main/Config.cpp
-PROTOCOL_H=src/util/ProtocolVersion.h
 
 APPLY=
 if [ "$1" = "--apply" ]
@@ -84,42 +82,26 @@ extract()
     echo "$VAL"
 }
 
-# ledger_at <rev>: print the ledger protocol version at <rev> (without the
-# vnext +1). It is MAX_SUPPORTED_PROTOCOL_VERSION in ProtocolVersion.h, or
-# was assigned directly to Config::CURRENT_LEDGER_PROTOCOL_VERSION in
-# Config.cpp before that.
-ledger_at()
-{
-    if file_at "$1" "$PROTOCOL_H" 2>/dev/null | grep -q 'MAX_SUPPORTED_PROTOCOL_VERSION[[:space:]]*='
-    then
-        extract "$1" "$PROTOCOL_H" MAX_SUPPORTED_PROTOCOL_VERSION "$MAX_SUPPORTED_EXPR"
-    else
-        extract "$1" "$CONFIG_CPP" CURRENT_LEDGER_PROTOCOL_VERSION "$LEDGER_EXPR"
-    fi
-}
-
-LEDGER_EXPR='s/.*Config::CURRENT_LEDGER_PROTOCOL_VERSION[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p'
-MAX_SUPPORTED_EXPR='s/.*MAX_SUPPORTED_PROTOCOL_VERSION[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p'
 OVERLAY_EXPR='s/^[[:space:]]*OVERLAY_PROTOCOL_VERSION[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p'
 MIN_EXPR='s/^[[:space:]]*OVERLAY_PROTOCOL_MIN_VERSION[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p'
 
 # List the releases supporting ledger protocol $NETWORK_LEDGER, and set
 # TARGET_MIN to the lowest OVERLAY_PROTOCOL_VERSION among them and TARGET_TAG
-# to a release that has it. Assumes the ledger protocol version doesn't
-# decrease from one release version to the next.
+# to a release that has it.
 release_target()
 {
     TARGET_MIN=
     TARGET_TAG=
     for T in $(git tag -l 'v[0-9]*' --sort=-v:refname)
     do
-        LEDGER=$(ledger_at "$T")
-        if [ "$LEDGER" -lt "$NETWORK_LEDGER" ]
+        MAJOR=${T#v}
+        MAJOR=${MAJOR%%[!0-9]*}
+        if [ "$MAJOR" -lt "$NETWORK_LEDGER" ]
         then
             break
         fi
         OVERLAY=$(extract "$T" "$CONFIG_CPP" OVERLAY_PROTOCOL_VERSION "$OVERLAY_EXPR")
-        echo "  $T: ledger protocol $LEDGER, OVERLAY_PROTOCOL_VERSION $OVERLAY"
+        echo "  $T: OVERLAY_PROTOCOL_VERSION $OVERLAY"
         if [ -z "$TARGET_MIN" ] || [ "$OVERLAY" -lt "$TARGET_MIN" ]
         then
             TARGET_MIN=$OVERLAY
@@ -133,14 +115,7 @@ release_target()
     fi
 }
 
-CODE_LEDGER=$(ledger_at "")
 CODE_MIN=$(extract "" "$CONFIG_CPP" OVERLAY_PROTOCOL_MIN_VERSION "$MIN_EXPR")
-
-if [ "$NETWORK_LEDGER" -gt "$CODE_LEDGER" ]
-then
-    echo "error: network is on protocol $NETWORK_LEDGER, but the code's ledger protocol version is $CODE_LEDGER" >&2
-    exit 2
-fi
 
 echo "Releases supporting ledger protocol $NETWORK_LEDGER:"
 release_target
