@@ -387,19 +387,7 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     EntryT scopeAdoptEntry(LedgerEntry const& entry) const;
     OptionalEntryT
     scopeAdoptEntryOpt(std::optional<LedgerEntry> const& entry) const;
-
-    template <StaticLedgerEntryScope OtherScope>
-    EntryT
-    scopeAdoptEntryFrom(ScopedLedgerEntry<OtherScope> const& entry,
-                        LedgerEntryScope<OtherScope> const& scope) const
-    {
-        static_assert(
-            IsValidScopeAdoption<S, OtherScope>::value,
-            "Invalid scope adoption: this transition is not allowed. "
-            "Check FOR_EACH_VALID_SCOPE_ADOPTION in LedgerEntryScope.h "
-            "for the list of valid transitions.");
-        return scopeAdoptEntryFromImpl(entry, scope);
-    }
+    OptionalEntryT scopeAdoptEntryOpt(std::optional<LedgerEntry>&& entry) const;
 
     template <StaticLedgerEntryScope OtherScope>
     OptionalEntryT
@@ -414,15 +402,28 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
         return scopeAdoptEntryOptFromImpl(entry, scope);
     }
 
-  private:
     template <StaticLedgerEntryScope OtherScope>
-    EntryT
-    scopeAdoptEntryFromImpl(ScopedLedgerEntry<OtherScope> const& entry,
-                            LedgerEntryScope<OtherScope> const& scope) const;
+    OptionalEntryT
+    scopeAdoptEntryOptFrom(ScopedLedgerEntryOpt<OtherScope>&& entry,
+                           LedgerEntryScope<OtherScope> const& scope) const
+    {
+        static_assert(
+            IsValidScopeAdoption<S, OtherScope>::value,
+            "Invalid scope adoption: this transition is not allowed. "
+            "Check FOR_EACH_VALID_SCOPE_ADOPTION in LedgerEntryScope.h "
+            "for the list of valid transitions.");
+        return scopeAdoptEntryOptFromImpl(std::move(entry), scope);
+    }
 
+  private:
     template <StaticLedgerEntryScope OtherScope>
     OptionalEntryT
     scopeAdoptEntryOptFromImpl(ScopedLedgerEntryOpt<OtherScope> const& entry,
+                               LedgerEntryScope<OtherScope> const& scope) const;
+
+    template <StaticLedgerEntryScope OtherScope>
+    OptionalEntryT
+    scopeAdoptEntryOptFromImpl(ScopedLedgerEntryOpt<OtherScope>&& entry,
                                LedgerEntryScope<OtherScope> const& scope) const;
 };
 
