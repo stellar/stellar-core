@@ -611,13 +611,10 @@ GlobalParallelApplyLedgerState::commitChangeFromThread(
     }
     auto rescopedParEntry = std::move(parEntry).rescope(thread, *this);
     auto& shard = globalMapShardFor(key);
-    auto it = shard.find(key);
-    if (it == shard.end())
-    {
-        shard.emplace(key, std::move(rescopedParEntry));
-    }
-    else if (!maybeMergeRoTTLBumps(key, rescopedParEntry, it->second,
-                                   readWriteSet))
+    // try_emplace leaves rescopedParEntry intact when the key already exists.
+    auto [it, inserted] = shard.try_emplace(key, std::move(rescopedParEntry));
+    if (!inserted &&
+        !maybeMergeRoTTLBumps(key, rescopedParEntry, it->second, readWriteSet))
     {
         it->second = std::move(rescopedParEntry);
     }

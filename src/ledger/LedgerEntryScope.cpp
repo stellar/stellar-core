@@ -427,32 +427,15 @@ LedgerEntryScope<S>::scopeAdoptEntryOpt(
 
 template <StaticLedgerEntryScope S>
 template <StaticLedgerEntryScope OtherScope>
-ScopedLedgerEntry<S>
-LedgerEntryScope<S>::scopeAdoptEntryFromImpl(
-    ScopedLedgerEntry<OtherScope> const& entry,
+ScopedLedgerEntryOpt<S>
+LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
+    ScopedLedgerEntryOpt<OtherScope> const& entry,
     LedgerEntryScope<OtherScope> const& scope) const
 {
     // NB: Here we do _not_ do a `scopeReadEntry` on the adopting-from scope.
     // Quite the opposite! We check that the adopting-from scope is _inactive_
     // so that it's correct for us to be adopting the entry without introducing
     // risk of read inconsistency.
-    if (scope.mActive)
-    {
-        throw std::runtime_error(fmt::format(
-            "scopeAdoptEntryFrom: adopting entry with scope ID {} from "
-            "still-active scope ID '{}'",
-            entry.mScopeID, scope.mScopeID));
-    }
-    return EntryT{mScopeID, entry.mEntry};
-}
-
-template <StaticLedgerEntryScope S>
-template <StaticLedgerEntryScope OtherScope>
-ScopedLedgerEntryOpt<S>
-LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
-    ScopedLedgerEntryOpt<OtherScope> const& entry,
-    LedgerEntryScope<OtherScope> const& scope) const
-{
     if (scope.mActive)
     {
         throw std::runtime_error(
@@ -466,28 +449,15 @@ LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
 
 template <StaticLedgerEntryScope S>
 template <StaticLedgerEntryScope OtherScope>
-ScopedLedgerEntry<S>
-LedgerEntryScope<S>::scopeAdoptEntryFromImpl(
-    ScopedLedgerEntry<OtherScope>&& entry,
-    LedgerEntryScope<OtherScope> const& scope) const
-{
-    if (scope.mActive)
-    {
-        throw std::runtime_error(fmt::format(
-            "scopeAdoptEntryFrom: adopting entry with scope ID {} from "
-            "still-active scope ID '{}'",
-            entry.mScopeID, scope.mScopeID));
-    }
-    return EntryT{mScopeID, std::move(entry.mEntry)};
-}
-
-template <StaticLedgerEntryScope S>
-template <StaticLedgerEntryScope OtherScope>
 ScopedLedgerEntryOpt<S>
 LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
     ScopedLedgerEntryOpt<OtherScope>&& entry,
     LedgerEntryScope<OtherScope> const& scope) const
 {
+    // NB: Here we do _not_ do a `scopeReadEntry` on the adopting-from scope.
+    // Quite the opposite! We check that the adopting-from scope is _inactive_
+    // so that it's correct for us to be adopting the entry without introducing
+    // risk of read inconsistency.
     if (scope.mActive)
     {
         throw std::runtime_error(
@@ -526,24 +496,10 @@ FOREACH_STATIC_LEDGER_ENTRY_SCOPE(INSTANTIATE_SCOPE_CLASSES)
 #undef INSTANTIATE_SCOPE_CLASSES
 
 #define INSTANTIATE_ADOPT_METHODS(DEST_SCOPE, SOURCE_SCOPE) \
-    template ScopedLedgerEntry<StaticLedgerEntryScope::DEST_SCOPE> \
-    LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
-        scopeAdoptEntryFromImpl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
-            ScopedLedgerEntry<StaticLedgerEntryScope::SOURCE_SCOPE> const&, \
-            LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
-            const; \
-\
     template ScopedLedgerEntryOpt<StaticLedgerEntryScope::DEST_SCOPE> \
     LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
         scopeAdoptEntryOptFromImpl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
             ScopedLedgerEntryOpt<StaticLedgerEntryScope::SOURCE_SCOPE> const&, \
-            LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
-            const; \
-\
-    template ScopedLedgerEntry<StaticLedgerEntryScope::DEST_SCOPE> \
-    LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
-        scopeAdoptEntryFromImpl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
-            ScopedLedgerEntry<StaticLedgerEntryScope::SOURCE_SCOPE>&&, \
             LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
             const; \
 \

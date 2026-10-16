@@ -14,7 +14,6 @@
 #include "transactions/ParallelApplyTypes.h"
 #include "transactions/TransactionFrameBase.h"
 #include "xdr/Stellar-ledger-entries.h"
-#include <array>
 #include <unordered_set>
 
 namespace stellar
