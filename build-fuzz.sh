@@ -44,6 +44,9 @@ ccache -z
 (cd "${SRC_DIR}" && ./autogen.sh)
 RUST_TOOLCHAIN_CHANNEL=$(sed -n 's/channel *= *"\([^"]*\)"/\1/p' "${SRC_DIR}/rust-toolchain.toml")
 rustup toolchain install "${RUST_TOOLCHAIN_CHANNEL}"
+# The sanitizer build overrides the toolchain to SANITIZER_RUST_TOOLCHAIN in
+# src/Makefile.am; install it here too, with rust-src for -Zbuild-std.
+rustup toolchain install nightly-2026-07-20 --component rust-src
 
 # NB: the oss-fuzz driver injects sanitizer flags to CFLAGS and CXXFLAGS. This
 # overlaps with our own support for sanitizers, but not fatally. Note that this

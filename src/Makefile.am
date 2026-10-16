@@ -157,8 +157,15 @@ RUSTFLAGS_CFGS := $(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),--cfg curve255
 
 RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_FILE_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
+# Sanitizer builds need a nightly for -Zsanitizer and -Zbuild-std. Pin a dated
+# nightly: the LLVM 23 update (rust-lang/rust#158734) makes rustc segfault
+# while building compiler-builtins with sancov coverage instrumentation
+# (rust-lang/rust#161855). This nightly predates that update and is newer than
+# the stable workspace toolchain. Keep in sync with the fuzz job's toolchain in
+# .github/workflows/build.yml.
+SANITIZER_RUST_TOOLCHAIN=nightly-2026-07-20
 if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
-RUST_TOOLCHAIN_CHANNEL=$(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),nightly,$(RUST_TOOLCHAIN_FILE_CHANNEL))
+RUST_TOOLCHAIN_CHANNEL=$(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),$(SANITIZER_RUST_TOOLCHAIN),$(RUST_TOOLCHAIN_FILE_CHANNEL))
 else
 RUST_TOOLCHAIN_CHANNEL=$(RUST_TOOLCHAIN_FILE_CHANNEL)
 endif
