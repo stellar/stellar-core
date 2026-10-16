@@ -1,0 +1,151 @@
+#!/bin/sh
+
+# This script checks OVERLAY_PROTOCOL_MIN_VERSION (in src/main/Config.cpp)
+# against the ledger protocol version a network is running.
+#
+# Once a network is on ledger protocol P, nodes need software supporting P to
+# stay in sync, so the minimum overlay version can be raised to the lowest
+# maximum overlay version (OVERLAY_PROTOCOL_VERSION) of any release that
+# supports P. It should never be higher than that, or it would disconnect
+# nodes running a release that can still follow the network.
+#
+# Usage: check-overlay-min-version.sh [--apply] <network-protocol>
+#
+# Takes the releases supporting <network-protocol> to be the release tags
+# v<major>... with <major> at least <network-protocol>, relying on a release's
+# major version being the ledger protocol version it supports, and compares
+# OVERLAY_PROTOCOL_MIN_VERSION in the working tree against the lowest
+# OVERLAY_PROTOCOL_VERSION among them. Exits with a non-zero status if the
+# minimum is too high. If the minimum can be raised, says so, and with --apply
+# rewrites it in the working tree.
+#
+# Requires the release tags to have been fetched.
+
+set -e
+
+SRCDIR=$(realpath "$(dirname "$0")/..")
+CONFIG_CPP=src/main/Config.cpp
+
+APPLY=
+if [ "$1" = "--apply" ]
+then
+    APPLY=1
+    shift
+fi
+
+if [ $# -ne 1 ]
+then
+    echo "usage: $0 [--apply] <network-protocol>" >&2
+    exit 2
+fi
+
+NETWORK_LEDGER=$1
+case "$NETWORK_LEDGER" in
+''|*[!0-9]*)
+    echo "error: network protocol must be a number, got '$NETWORK_LEDGER'" >&2
+    exit 2
+    ;;
+esac
+
+cd "$SRCDIR"
+
+# file_at <rev> <file>: print the contents of <file> at <rev>, or the
+# working tree copy if <rev> is empty.
+file_at()
+{
+    if [ -n "$1" ]
+    then
+        git show "$1:$2"
+    else
+        cat "$2"
+    fi
+}
+
+# extract <rev> <file> <name> <sed-expr>: print the numeric value assigned
+# to <name> in <file> at <rev>, failing unless exactly one assignment is
+# found.
+extract()
+{
+    if ! CONTENTS=$(file_at "$1" "$2")
+    then
+        echo "error: failed to read $2 at ${1:-working tree}" >&2
+        exit 2
+    fi
+    VAL=$(printf '%s\n' "$CONTENTS" | sed -n "$4")
+    case "$VAL" in
+    ''|*[!0-9]*)
+        echo "error: expected exactly one numeric assignment to $3 in $2 at ${1:-working tree}, got '$VAL'" >&2
+        echo "(if the definition of $3 changed shape, update $0 to match)" >&2
+        exit 2
+        ;;
+    esac
+    echo "$VAL"
+}
+
+OVERLAY_EXPR='s/^[[:space:]]*OVERLAY_PROTOCOL_VERSION[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p'
+MIN_EXPR='s/^[[:space:]]*OVERLAY_PROTOCOL_MIN_VERSION[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p'
+
+# List the releases supporting ledger protocol $NETWORK_LEDGER, and set
+# TARGET_MIN to the lowest OVERLAY_PROTOCOL_VERSION among them and TARGET_TAG
+# to a release that has it.
+release_target()
+{
+    TARGET_MIN=
+    TARGET_TAG=
+    for T in $(git tag -l 'v[0-9]*' --sort=-v:refname)
+    do
+        MAJOR=${T#v}
+        MAJOR=${MAJOR%%[!0-9]*}
+        if [ "$MAJOR" -lt "$NETWORK_LEDGER" ]
+        then
+            break
+        fi
+        OVERLAY=$(extract "$T" "$CONFIG_CPP" OVERLAY_PROTOCOL_VERSION "$OVERLAY_EXPR")
+        echo "  $T: OVERLAY_PROTOCOL_VERSION $OVERLAY"
+        if [ -z "$TARGET_MIN" ] || [ "$OVERLAY" -lt "$TARGET_MIN" ]
+        then
+            TARGET_MIN=$OVERLAY
+            TARGET_TAG=$T
+        fi
+    done
+    if [ -z "$TARGET_MIN" ]
+    then
+        echo "error: no release tag supports ledger protocol $NETWORK_LEDGER (tags not fetched?)" >&2
+        exit 2
+    fi
+}
+
+CODE_MIN=$(extract "" "$CONFIG_CPP" OVERLAY_PROTOCOL_MIN_VERSION "$MIN_EXPR")
+
+echo "Releases supporting ledger protocol $NETWORK_LEDGER:"
+release_target
+echo "Lowest OVERLAY_PROTOCOL_VERSION among them: $TARGET_MIN ($TARGET_TAG)"
+echo "OVERLAY_PROTOCOL_MIN_VERSION: $CODE_MIN"
+
+if [ "$CODE_MIN" -gt "$TARGET_MIN" ]
+then
+    echo "error: OVERLAY_PROTOCOL_MIN_VERSION ($CODE_MIN) is higher than the overlay version" >&2
+    echo "of $TARGET_TAG ($TARGET_MIN), which supports protocol $NETWORK_LEDGER, so it would" >&2
+    echo "disconnect nodes that can still follow the network." >&2
+    exit 1
+fi
+
+if [ "$CODE_MIN" -eq "$TARGET_MIN" ]
+then
+    echo "OK"
+    exit 0
+fi
+
+echo "OVERLAY_PROTOCOL_MIN_VERSION can be raised from $CODE_MIN to $TARGET_MIN"
+if [ -n "$APPLY" ]
+then
+    sed "s/^\([[:space:]]*OVERLAY_PROTOCOL_MIN_VERSION[[:space:]]*=[[:space:]]*\)$CODE_MIN;/\1$TARGET_MIN;/" "$CONFIG_CPP" > "$CONFIG_CPP.tmp"
+    mv "$CONFIG_CPP.tmp" "$CONFIG_CPP"
+    NEW_MIN=$(extract "" "$CONFIG_CPP" OVERLAY_PROTOCOL_MIN_VERSION "$MIN_EXPR")
+    if [ "$NEW_MIN" != "$TARGET_MIN" ]
+    then
+        echo "error: failed to update OVERLAY_PROTOCOL_MIN_VERSION in $CONFIG_CPP" >&2
+        exit 2
+    fi
+    echo "Updated $CONFIG_CPP"
+fi
