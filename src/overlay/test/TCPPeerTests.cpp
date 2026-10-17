@@ -578,7 +578,14 @@ TEST_CASE("TCPPeer lifetime", "[overlay][tcppeer]")
 TEST_CASE("TCPPeer can communicate", "[overlay][tcppeer]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    Simulation::ConfigGen cfgGen = [](int i) { return getTestConfig(i); };
+    Simulation::ConfigGen cfgGen = [](int i) {
+        Config cfg = getTestConfig(i);
+        // Don't run SCP: this test counts messages written by p0, and SCP
+        // broadcasts would pollute the count nondeterministically depending
+        // on when the ledger trigger fires relative to the drop.
+        cfg.FORCE_SCP = false;
+        return cfg;
+    };
 
     Simulation::pointer s =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID, cfgGen);
@@ -605,16 +612,28 @@ TEST_CASE("TCPPeer can communicate", "[overlay][tcppeer]")
     auto p1 = peers.second;
     s->stopOverlayTick();
 
-    // Now drop peer, ensure ERROR containing "drop reason" is properly flushed
-    auto& msgWrite = n0->getOverlayManager().getOverlayMetrics().mMessageWrite;
-    auto prevMsgWrite = msgWrite.count();
+    // Now drop peer, ensure ERROR containing "drop reason" is properly
+    // flushed and delivered. Count on the receiver side: TCP delivers the
+    // queued GET_TX_SET and ERROR in order before the EOF that disconnects
+    // p1, and n1's main thread processes the posted reads before the posted
+    // drop, so both counts are deterministic once the peers are
+    // disconnected. Counting p0's writes instead would be racy: the per-peer
+    // recurring timer sends a ping (GET_QUORUM_SET) every 5 seconds, which
+    // may or may not land in the counting window.
+    auto& recvGetTxSet =
+        n1->getOverlayManager().getOverlayMetrics().mRecvGetTxSetTimer;
+    auto& recvError =
+        n1->getOverlayManager().getOverlayMetrics().mRecvErrorTimer;
+    auto prevGetTxSet = recvGetTxSet.count();
+    auto prevError = recvError.count();
 
     p0->sendGetTxSet(Hash());
     p0->sendErrorAndDrop(ERR_MISC, "test drop");
     crankUntilDisconnected(s, p0, p1);
 
-    // p0 actually sent GET_TX_SET and ERROR
-    REQUIRE(msgWrite.count() == prevMsgWrite + 2);
+    // p1 actually received GET_TX_SET and ERROR
+    REQUIRE(recvGetTxSet.count() == prevGetTxSet + 1);
+    REQUIRE(recvError.count() == prevError + 1);
     s->stopAllNodes();
 }
 
