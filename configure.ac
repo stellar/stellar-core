@@ -463,18 +463,6 @@ AC_SUBST(soci_LIBS)
 libasio_CFLAGS='-DASIO_SEPARATE_COMPILATION=1 -DASIO_STANDALONE -isystem $(top_srcdir)/lib/asio/asio/include'
 AC_SUBST(libasio_CFLAGS)
 
-AC_ARG_ENABLE(postgres,
-    AS_HELP_STRING([--disable-postgres],
-        [Disable postgres support even when libpq available]))
-unset have_postgres
-if test x"$enable_postgres" != xno; then
-    PKG_CHECK_MODULES(libpq, libpq, have_postgres=1)
-    if test -n "$enable_postgres" -a -z "$have_postgres"; then
-       AC_MSG_ERROR([Cannot find postgres library])
-    fi
-fi
-AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
-
 # tcmalloc_minimal - enabled by default on Linux for improved memory allocation performance
 # Disabled when using sanitizers (asan, memcheck, tsan) as they replace malloc
 # Uses vendored gperftools from lib/gperftools

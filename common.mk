@@ -13,10 +13,6 @@ AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"             \
 	-isystem "$(top_srcdir)/lib/spdlog/include"         \
 	-isystem "$(top_srcdir)/rust/src"
 
-if USE_POSTGRES
-AM_CPPFLAGS += -DUSE_POSTGRES=1 $(libpq_CFLAGS)
-endif # USE_POSTGRES
-
 AM_CPPFLAGS += -I"$(top_builddir)/src/protocol-curr"
 
 # Unconditionally add CEREAL_THREAD_SAFE, we always want it.

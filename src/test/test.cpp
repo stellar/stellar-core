@@ -703,8 +703,6 @@ test_versions_wrapper(std::function<void(void)> f)
     gTestingVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 }
 
-bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
-
 bool
 isLcmCaptureEnabled()
 {
@@ -750,7 +748,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // faster. You can change this by enabling the appropriate line below
         // mode = Config::TESTDB_IN_MEMORY;
         // mode = Config::TESTDB_BUCKET_DB_PERSISTENT;
-        // mode = Config::TESTDB_POSTGRESQL;
         mode = Config::TESTDB_BUCKET_DB_VOLATILE;
     }
     auto& cfgs = gTestCfg[mode];
@@ -858,12 +855,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             dbname << "sqlite3://" << rootDir << "test.db";
             thisConfig.DISABLE_XDR_FSYNC = false;
             break;
-#ifdef USE_POSTGRES
-        case Config::TESTDB_POSTGRESQL:
-            dbname << "postgresql://dbname=test" << instanceNumber;
-            thisConfig.DISABLE_XDR_FSYNC = false;
-            break;
-#endif
         default:
             abort();
         }

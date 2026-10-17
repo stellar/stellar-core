@@ -425,11 +425,7 @@ TEST_CASE(
 Application::pointer
 newLoadTestApp(VirtualClock& clock, uint32_t accountCount = 0)
 {
-    Config cfg =
-#ifdef USE_POSTGRES
-        !force_sqlite ? getTestConfig(0, Config::TESTDB_POSTGRESQL) :
-#endif
-                      getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
+    Config cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
     cfg.RUN_STANDALONE = false;
     // force maxTxSetSize to avoid throwing txSets on the floor during the first
     // ledger close
