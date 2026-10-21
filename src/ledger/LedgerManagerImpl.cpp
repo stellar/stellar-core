@@ -2721,7 +2721,8 @@ LedgerManagerImpl::applyThread(
 
         if (res)
         {
-            threadState->commitChangesFromSuccessfulTx(*res, txBundle);
+            threadState->commitChangesFromSuccessfulTx(std::move(*res),
+                                                       txBundle);
         }
         else
         {
