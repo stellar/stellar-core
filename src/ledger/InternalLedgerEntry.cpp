@@ -480,6 +480,12 @@ InternalLedgerEntry::InternalLedgerEntry(LedgerEntry const& le)
     ledgerEntry() = le;
 }
 
+InternalLedgerEntry::InternalLedgerEntry(LedgerEntry&& le)
+    : InternalLedgerEntry(InternalLedgerEntryType::LEDGER_ENTRY)
+{
+    ledgerEntry() = std::move(le);
+}
+
 InternalLedgerEntry::InternalLedgerEntry(SponsorshipEntry const& se)
     : InternalLedgerEntry(InternalLedgerEntryType::SPONSORSHIP)
 {

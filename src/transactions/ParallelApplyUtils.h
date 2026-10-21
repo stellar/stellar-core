@@ -119,13 +119,21 @@ class ThreadParallelApplyLedgerState
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
 
+    // Records a dirty entry in the thread entry map. `isNew` indicates that
+    // the entry does not exist in the pre-phase ledger state; it is only
+    // consulted when the key is not tracked in the map yet (the recorded
+    // flag stays authoritative otherwise).
     void upsertEntry(ParallelApplyLedgerKey const& key,
-                     ThreadParApplyLedgerEntry const& entry,
-                     uint32_t ledgerSeq);
-    void eraseEntry(ParallelApplyLedgerKey const& key);
+                     ThreadParApplyLedgerEntry&& entry, uint32_t ledgerSeq,
+                     bool isNew);
+    // Records a dirty deletion in the thread entry map. `isNew` has the same
+    // semantics as in `upsertEntry`.
+    void eraseEntry(ParallelApplyLedgerKey const& key, bool isNew);
+    void putEntry(ParallelApplyLedgerKey const& key,
+                  ThreadParallelApplyEntry&& entry);
     void
     commitChangeFromSuccessfulTx(ParallelApplyLedgerKey const& key,
-                                 ThreadParApplyLedgerEntryOpt const& entryOpt,
+                                 ThreadParApplyLedgerEntryOpt&& entryOpt,
                                  ParallelApplyLedgerKeySet const& roTTLSet);
 
   public:
@@ -177,7 +185,7 @@ class ThreadParallelApplyLedgerState
     void setDeltaForInvariantsFromSuccessfulTx(ParallelTxSuccessVal const& res,
                                                TxEffects& effects) const;
 
-    void commitChangesFromSuccessfulTx(ParallelTxSuccessVal const& res,
+    void commitChangesFromSuccessfulTx(ParallelTxSuccessVal&& res,
                                        TxBundle const& txBundle);
 
     // The applyView ledger sequence number is one less than the
@@ -227,6 +235,11 @@ class GlobalParallelApplyLedgerState
     //
     // The map is sharded by key hash, so that it's possible to update it
     // concurrently using as many threads as there are shards.
+    //
+    // Note: the map sharding is separate from the partitioning of txs
+    // into apply clusters. Sharding exists to enable parallel write-back
+    // of apply clusters at the end of each stage, and the same sharding
+    // is used from stage to stage even as the tx clustering changes.
     std::vector<ParallelApplyEntryMap<staticScope>> mGlobalEntryMap;
 
     size_t globalMapShardOf(ParallelApplyLedgerKey const& key) const;
@@ -259,6 +272,11 @@ class GlobalParallelApplyLedgerState
     // Used as the per-worker body of the parallelized
     // commitChangesFromThreads: every entry belongs to exactly one shard, so
     // concurrent calls for different shards need no synchronization.
+    //
+    // Note: the number of shards is separate from and likely different
+    // from the number of transaction clusters or tx-apply tasks. The
+    // per-shard commits happen from a separate set of per-shard tasks
+    // spawned after the tx-apply tasks are finished.
     void commitShardChangesFromThreads(
         size_t shardIdx,
         std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
@@ -281,7 +299,9 @@ class GlobalParallelApplyLedgerState
         std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
             threads);
 
-    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
+    // Commits the final state of every dirty entry to the ltx. This consumes
+    // the entry payloads, so the global entry map must not be read afterwards.
+    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx);
 
     // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.

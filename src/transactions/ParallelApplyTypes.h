@@ -79,15 +79,25 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
     // it due to hitting read limits.
     ScopedLedgerEntryOpt<S> mLedgerEntry;
     bool mIsDirty;
-    static ParallelApplyEntry
-    clean(ScopedLedgerEntryOpt<S> const& e)
+    // Whether the entry does not exist in the ledger state that the parallel
+    // apply phase started from, i.e. it is being created during the phase.
+    bool mIsNew;
+
+    ParallelApplyEntry(ScopedLedgerEntryOpt<S> ledgerEntry, bool isDirty,
+                       bool isNew)
+        : mLedgerEntry(std::move(ledgerEntry)), mIsDirty(isDirty), mIsNew(isNew)
     {
-        return ParallelApplyEntry{e, false};
+    }
+
+    static ParallelApplyEntry
+    clean(ScopedLedgerEntryOpt<S> e, bool isNew)
+    {
+        return ParallelApplyEntry(std::move(e), false, isNew);
     }
     static ParallelApplyEntry
-    dirty(ScopedLedgerEntryOpt<S> const& e)
+    dirty(ScopedLedgerEntryOpt<S> e, bool isNew)
     {
-        return ParallelApplyEntry{e, true};
+        return ParallelApplyEntry(std::move(e), true, isNew);
     }
 
     // Moves the entry payload into the new scope and thus makes the current
@@ -96,9 +106,9 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
     ParallelApplyEntry<S2>
     rescope(LedgerEntryScope<S> const& s1, LedgerEntryScope<S2> const& s2) &&
     {
-        auto adoptedEntry =
-            s2.scopeAdoptEntryOptFrom(std::move(mLedgerEntry), s1);
-        return ParallelApplyEntry<S2>{std::move(adoptedEntry), mIsDirty};
+        return ParallelApplyEntry<S2>(
+            s2.scopeAdoptEntryOptFrom(std::move(mLedgerEntry), s1), mIsDirty,
+            mIsNew);
     }
 };
 using GlobalParallelApplyEntry =
@@ -133,11 +143,6 @@ class ParallelTxSuccessVal
         : LedgerEntryScope(txScopeID)
         , mModifiedEntryMap(std::move(modifiedEntryMap))
     {
-        // The ModifiedEntryMap should not be used for reading entries, only
-        // to serve as a source for thread state to scopeAdoptEntryFrom. So
-        // we deactivate ourselves as a LedgerEntryScope on construction, to
-        // prevent accidental reads.
-        scopeDeactivate();
     }
     ParallelTxSuccessVal(TxModifiedEntryMap&& modifiedEntryMap,
                          RestoredEntries&& restoredEntries, ScopeIdT txScopeID)
@@ -145,11 +150,17 @@ class ParallelTxSuccessVal
         , mModifiedEntryMap(std::move(modifiedEntryMap))
         , mRestoredEntries(std::move(restoredEntries))
     {
-        scopeDeactivate();
     }
 
     TxModifiedEntryMap const&
     getModifiedEntryMap() const
+    {
+        return mModifiedEntryMap;
+    }
+    // Mutable access to the modified entry map. This should only be used to
+    // consume the map when committing the result to the thread state.
+    TxModifiedEntryMap&
+    getModifiedEntryMapMut()
     {
         return mModifiedEntryMap;
     }

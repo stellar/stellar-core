@@ -76,6 +76,18 @@ LedgerEntryScopeID<S>::operator!=(LedgerEntryScopeID<S> const& other) const
     return !(*this == other);
 }
 
+template <StaticLedgerEntryScope S>
+void
+LedgerEntryScopeID<S>::checkNotMovedFrom(char const* method) const
+{
+    if (mMovedFrom)
+    {
+        throw std::runtime_error(
+            fmt::format("{}: entry with scope ID '{}' was already moved from",
+                        method, *this));
+    }
+}
+
 /////////////////////////////////////
 // ScopedLedgerEntry
 /////////////////////////////////////
@@ -85,24 +97,29 @@ ScopedLedgerEntry<S>::ScopedLedgerEntry(ScopeIdT scopeID,
                                         LedgerEntry const& entry)
     : mEntry(entry), mScopeID(scopeID)
 {
+    scopeID.checkNotMovedFrom("ScopedLedgerEntry");
 }
 
 template <StaticLedgerEntryScope S>
 ScopedLedgerEntry<S>::ScopedLedgerEntry(ScopeIdT scopeID, LedgerEntry&& entry)
     : mEntry(std::move(entry)), mScopeID(scopeID)
 {
+    scopeID.checkNotMovedFrom("ScopedLedgerEntry");
 }
 
 template <StaticLedgerEntryScope S>
 ScopedLedgerEntry<S>::ScopedLedgerEntry(ScopedLedgerEntry<S> const& other)
     : mEntry(other.mEntry), mScopeID(other.mScopeID)
 {
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntry copy ctor");
 }
 
 template <StaticLedgerEntryScope S>
 ScopedLedgerEntry<S>::ScopedLedgerEntry(ScopedLedgerEntry<S>&& other)
     : mEntry(std::move(other.mEntry)), mScopeID(other.mScopeID)
 {
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntry move ctor");
+    other.mScopeID.mMovedFrom = true;
 }
 
 template <StaticLedgerEntryScope S>
@@ -113,6 +130,7 @@ ScopedLedgerEntry<S>::operator=(ScopedLedgerEntry<S> const& other)
     {
         return *this;
     }
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntry::operator=");
     if (other.mScopeID != mScopeID)
     {
         throw std::runtime_error(
@@ -120,6 +138,7 @@ ScopedLedgerEntry<S>::operator=(ScopedLedgerEntry<S> const& other)
                         mScopeID, other.mScopeID));
     }
     mEntry = other.mEntry;
+    mScopeID.mMovedFrom = false;
     return *this;
 }
 
@@ -131,6 +150,7 @@ ScopedLedgerEntry<S>::operator=(ScopedLedgerEntry<S>&& other)
     {
         return *this;
     }
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntry move operator=");
     if (other.mScopeID != mScopeID)
     {
         throw std::runtime_error(
@@ -138,6 +158,8 @@ ScopedLedgerEntry<S>::operator=(ScopedLedgerEntry<S>&& other)
                         mScopeID, other.mScopeID));
     }
     mEntry = std::move(other.mEntry);
+    mScopeID.mMovedFrom = false;
+    other.mScopeID.mMovedFrom = true;
     return *this;
 }
 
@@ -160,6 +182,8 @@ template <StaticLedgerEntryScope S>
 bool
 ScopedLedgerEntry<S>::operator==(ScopedLedgerEntry<S> const& other) const
 {
+    mScopeID.checkNotMovedFrom("ScopedLedgerEntry::operator==");
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntry::operator==");
     if (mScopeID != other.mScopeID)
     {
         throw std::runtime_error(
@@ -173,6 +197,8 @@ template <StaticLedgerEntryScope S>
 bool
 ScopedLedgerEntry<S>::operator<(ScopedLedgerEntry<S> const& other) const
 {
+    mScopeID.checkNotMovedFrom("ScopedLedgerEntry::operator<");
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntry::operator<");
     if (mScopeID != other.mScopeID)
     {
         throw std::runtime_error(
@@ -191,6 +217,7 @@ ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(
     ScopeIdT scopeID, std::optional<LedgerEntry> const& entry)
     : mEntry(entry), mScopeID(scopeID)
 {
+    scopeID.checkNotMovedFrom("ScopedLedgerEntryOpt");
 }
 
 template <StaticLedgerEntryScope S>
@@ -198,6 +225,7 @@ ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(
     ScopeIdT scopeID, std::optional<LedgerEntry>&& entry)
     : mEntry(std::move(entry)), mScopeID(scopeID)
 {
+    scopeID.checkNotMovedFrom("ScopedLedgerEntryOpt");
 }
 
 template <StaticLedgerEntryScope S>
@@ -205,24 +233,32 @@ ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(
     ScopedLedgerEntryOpt<S> const& other)
     : mEntry(other.mEntry), mScopeID(other.mScopeID)
 {
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntryOpt copy ctor");
 }
 
 template <StaticLedgerEntryScope S>
 ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(ScopedLedgerEntryOpt<S>&& other)
     : mEntry(std::move(other.mEntry)), mScopeID(other.mScopeID)
 {
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntryOpt move ctor");
+    other.mScopeID.mMovedFrom = true;
 }
 
 template <StaticLedgerEntryScope S>
 ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(ScopedLedgerEntry<S> const& other)
     : mEntry(other.mEntry), mScopeID(other.mScopeID)
 {
+    other.mScopeID.checkNotMovedFrom(
+        "ScopedLedgerEntryOpt copy ctor from ScopedLedgerEntry");
 }
 
 template <StaticLedgerEntryScope S>
 ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(ScopedLedgerEntry<S>&& other)
     : mEntry(std::move(other.mEntry)), mScopeID(other.mScopeID)
 {
+    other.mScopeID.checkNotMovedFrom(
+        "ScopedLedgerEntryOpt move ctor from ScopedLedgerEntry");
+    other.mScopeID.mMovedFrom = true;
 }
 
 template <StaticLedgerEntryScope S>
@@ -233,6 +269,7 @@ ScopedLedgerEntryOpt<S>::operator=(ScopedLedgerEntryOpt<S> const& other)
     {
         return *this;
     }
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntryOpt::operator=");
     if (other.mScopeID != mScopeID)
     {
         throw std::runtime_error(
@@ -240,6 +277,7 @@ ScopedLedgerEntryOpt<S>::operator=(ScopedLedgerEntryOpt<S> const& other)
                         mScopeID, other.mScopeID));
     }
     mEntry = other.mEntry;
+    mScopeID.mMovedFrom = false;
     return *this;
 }
 
@@ -251,6 +289,7 @@ ScopedLedgerEntryOpt<S>::operator=(ScopedLedgerEntryOpt<S>&& other)
     {
         return *this;
     }
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntryOpt move operator=");
     if (other.mScopeID != mScopeID)
     {
         throw std::runtime_error(
@@ -258,6 +297,8 @@ ScopedLedgerEntryOpt<S>::operator=(ScopedLedgerEntryOpt<S>&& other)
                         mScopeID, other.mScopeID));
     }
     mEntry = std::move(other.mEntry);
+    mScopeID.mMovedFrom = false;
+    other.mScopeID.mMovedFrom = true;
     return *this;
 }
 
@@ -278,9 +319,18 @@ ScopedLedgerEntryOpt<S>::modifyInScope(
 }
 
 template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry>
+ScopedLedgerEntryOpt<S>::releaseFromScope(LedgerEntryScope<S> const& scope) &&
+{
+    return scope.scopeReleaseOptionalEntry(std::move(*this));
+}
+
+template <StaticLedgerEntryScope S>
 bool
 ScopedLedgerEntryOpt<S>::operator==(ScopedLedgerEntryOpt<S> const& other) const
 {
+    mScopeID.checkNotMovedFrom("ScopedLedgerEntryOpt::operator==");
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntryOpt::operator==");
     if (mScopeID != other.mScopeID)
     {
         throw std::runtime_error(
@@ -294,6 +344,8 @@ template <StaticLedgerEntryScope S>
 bool
 ScopedLedgerEntryOpt<S>::operator<(ScopedLedgerEntryOpt<S> const& other) const
 {
+    mScopeID.checkNotMovedFrom("ScopedLedgerEntryOpt::operator<");
+    other.mScopeID.checkNotMovedFrom("ScopedLedgerEntryOpt::operator<");
     if (mScopeID != other.mScopeID)
     {
         throw std::runtime_error(
@@ -343,6 +395,12 @@ template <StaticLedgerEntryScope S>
 LedgerEntry const&
 LedgerEntryScope<S>::scopeReadEntry(ScopedLedgerEntry<S> const& w) const
 {
+    if (!mActive)
+    {
+        throw std::runtime_error(
+            fmt::format("scopeReadEntry: scope '{}' is inactive", mScopeID));
+    }
+    w.mScopeID.checkNotMovedFrom("scopeReadEntry");
     if (w.mScopeID != mScopeID)
     {
         throw std::runtime_error(
@@ -357,6 +415,12 @@ void
 LedgerEntryScope<S>::scopeModifyEntry(
     ScopedLedgerEntry<S>& w, std::function<void(LedgerEntry&)> func) const
 {
+    if (!mActive)
+    {
+        throw std::runtime_error(
+            fmt::format("scopeModifyEntry: scope '{}' is inactive", mScopeID));
+    }
+    w.mScopeID.checkNotMovedFrom("scopeModifyEntry");
     if (w.mScopeID != mScopeID)
     {
         throw std::runtime_error(fmt::format(
@@ -371,6 +435,12 @@ std::optional<LedgerEntry> const&
 LedgerEntryScope<S>::scopeReadOptionalEntry(
     ScopedLedgerEntryOpt<S> const& w) const
 {
+    if (!mActive)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeReadOptionalEntry: scope '{}' is inactive", mScopeID));
+    }
+    w.mScopeID.checkNotMovedFrom("scopeReadOptionalEntry");
     if (w.mScopeID != mScopeID)
     {
         throw std::runtime_error(fmt::format(
@@ -386,6 +456,12 @@ LedgerEntryScope<S>::scopeModifyOptionalEntry(
     ScopedLedgerEntryOpt<S>& w,
     std::function<void(std::optional<LedgerEntry>&)> func) const
 {
+    if (!mActive)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeModifyOptionalEntry: scope '{}' is inactive", mScopeID));
+    }
+    w.mScopeID.checkNotMovedFrom("scopeModifyOptionalEntry");
     if (w.mScopeID != mScopeID)
     {
         throw std::runtime_error(fmt::format(
@@ -407,6 +483,27 @@ ScopedLedgerEntry<S>
 LedgerEntryScope<S>::scopeAdoptEntry(LedgerEntry const& entry) const
 {
     return ScopedLedgerEntry(mScopeID, entry);
+}
+
+template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry>
+LedgerEntryScope<S>::scopeReleaseOptionalEntry(
+    ScopedLedgerEntryOpt<S>&& w) const
+{
+    if (!mActive)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeReleaseOptionalEntry: scope '{}' is inactive", mScopeID));
+    }
+    w.mScopeID.checkNotMovedFrom("scopeReleaseOptionalEntry");
+    if (w.mScopeID != mScopeID)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeReleaseOptionalEntry: scope ID '{}' != entry scope ID '{}'",
+            mScopeID, w.mScopeID));
+    }
+    w.mScopeID.mMovedFrom = true;
+    return std::move(w.mEntry);
 }
 
 template <StaticLedgerEntryScope S>
@@ -432,6 +529,12 @@ LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
     ScopedLedgerEntryOpt<OtherScope> const& entry,
     LedgerEntryScope<OtherScope> const& scope) const
 {
+    if (!mActive)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeAdoptEntryOptFrom: destination scope '{}' is inactive",
+            mScopeID));
+    }
     // NB: Here we do _not_ do a `scopeReadEntry` on the adopting-from scope.
     // Quite the opposite! We check that the adopting-from scope is _inactive_
     // so that it's correct for us to be adopting the entry without introducing
@@ -443,6 +546,14 @@ LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
                         "scope ID {} from "
                         "still-active scope ID '{}'",
                         entry.mScopeID, scope.mScopeID));
+    }
+    entry.mScopeID.checkNotMovedFrom("scopeAdoptEntryOptFrom");
+    if (entry.mScopeID != scope.mScopeID)
+    {
+        throw std::runtime_error(
+            fmt::format("scopeAdoptEntryOptFrom: source scope ID '{}' != entry "
+                        "scope ID '{}'",
+                        scope.mScopeID, entry.mScopeID));
     }
     return ScopedLedgerEntryOpt<S>{mScopeID, entry.mEntry};
 }
@@ -454,6 +565,12 @@ LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
     ScopedLedgerEntryOpt<OtherScope>&& entry,
     LedgerEntryScope<OtherScope> const& scope) const
 {
+    if (!mActive)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeAdoptEntryOptFrom: destination scope '{}' is inactive",
+            mScopeID));
+    }
     // NB: Here we do _not_ do a `scopeReadEntry` on the adopting-from scope.
     // Quite the opposite! We check that the adopting-from scope is _inactive_
     // so that it's correct for us to be adopting the entry without introducing
@@ -466,6 +583,15 @@ LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
                         "still-active scope ID '{}'",
                         entry.mScopeID, scope.mScopeID));
     }
+    entry.mScopeID.checkNotMovedFrom("scopeAdoptEntryOptFrom");
+    if (entry.mScopeID != scope.mScopeID)
+    {
+        throw std::runtime_error(
+            fmt::format("scopeAdoptEntryOptFrom: source scope ID '{}' != entry "
+                        "scope ID '{}'",
+                        scope.mScopeID, entry.mScopeID));
+    }
+    entry.mScopeID.mMovedFrom = true;
     return ScopedLedgerEntryOpt<S>{mScopeID, std::move(entry.mEntry)};
 }
 
