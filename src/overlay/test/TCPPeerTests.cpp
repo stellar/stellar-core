@@ -578,7 +578,12 @@ TEST_CASE("TCPPeer lifetime", "[overlay][tcppeer]")
 TEST_CASE("TCPPeer can communicate", "[overlay][tcppeer]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    Simulation::ConfigGen cfgGen = [](int i) { return getTestConfig(i); };
+    Simulation::ConfigGen cfgGen = [](int i) {
+        Config cfg = getTestConfig(i);
+        // Don't run SCP: its traffic would race with the drop below
+        cfg.FORCE_SCP = false;
+        return cfg;
+    };
 
     Simulation::pointer s =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID, cfgGen);
@@ -599,22 +604,33 @@ TEST_CASE("TCPPeer can communicate", "[overlay][tcppeer]")
     s->addPendingConnection(v10SecretKey.getPublicKey(),
                             v11SecretKey.getPublicKey());
     s->startAllNodes();
+    s->stopOverlayTick();
 
     auto peers = crankUntilAuthenticated(s, *n0, *n1);
     auto p0 = peers.first;
     auto p1 = peers.second;
-    s->stopOverlayTick();
 
-    // Now drop peer, ensure ERROR containing "drop reason" is properly flushed
-    auto& msgWrite = n0->getOverlayManager().getOverlayMetrics().mMessageWrite;
-    auto prevMsgWrite = msgWrite.count();
+    // Now drop peer, ensure ERROR containing "drop reason" is properly flushed.
+    // Count per message type: the periodic ping is a GET_SCP_QUORUMSET, so an
+    // aggregate write count would race with it.
+    auto& n0Metrics = n0->getOverlayManager().getOverlayMetrics();
+    auto& recvError =
+        n1->getOverlayManager().getOverlayMetrics().mRecvErrorTimer;
+    auto prevSendGetTxSet = n0Metrics.mSendGetTxSetMeter.count();
+    auto prevSendError = n0Metrics.mSendErrorMeter.count();
+    auto prevRecvError = recvError.count();
 
     p0->sendGetTxSet(Hash());
     p0->sendErrorAndDrop(ERR_MISC, "test drop");
     crankUntilDisconnected(s, p0, p1);
 
     // p0 actually sent GET_TX_SET and ERROR
-    REQUIRE(msgWrite.count() == prevMsgWrite + 2);
+    REQUIRE(n0Metrics.mSendGetTxSetMeter.count() == prevSendGetTxSet + 1);
+    REQUIRE(n0Metrics.mSendErrorMeter.count() == prevSendError + 1);
+    // ERROR was delivered and dropped p1. GET_TX_SET is not counted on the
+    // receiver: it is queued separately from ERROR and may be discarded by the
+    // drop before it is processed.
+    REQUIRE(recvError.count() == prevRecvError + 1);
     s->stopAllNodes();
 }
 
