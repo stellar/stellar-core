@@ -9,7 +9,7 @@ When submitting changes that may impact the network's performance, we require to
 * Execution (real) time
 * CPU utilization at various interval, and/or percentile
 * Disk I/O at the operating system level (ie: unit is typically in blocks/s), both reads and writes of the stellar-core process
-* SQL: rate of operations (read and writes), Disk I/O of the SQL process if available (*PostgreSQL*)
+* SQL: rate of operations (reads and writes)
 * Memory utilization
 
 # High level scenarios

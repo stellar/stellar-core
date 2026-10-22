@@ -97,7 +97,6 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
 
     // if we ever start removing peers from db, we may need to enable this
     // soci::transaction sqltx(mApp.getDatabase().getMiscSession());
-    // mApp.getDatabase().setCurrentTransactionReadOnly();
 
     std::vector<std::string> conditions;
     if (query.mUseNextAttempt)
