@@ -18,6 +18,7 @@
 #include "util/Math.h"
 #include "util/RandomEvictionCache.h"
 #include <Tracy.hpp>
+#include <array>
 #include <chrono>
 #include <memory>
 #include <mutex>
@@ -41,16 +42,29 @@ namespace stellar
 // to the state of the process; caching its results centrally
 // makes all signature-verification in the program faster and
 // has no effect on correctness.
+//
+// The cache is sharded across NUM_VERIFY_CACHE_SHARDS shards to
+// reduce mutex contention when multiple threads verify signatures
+// in parallel. Each shard has its own mutex and cache partition.
 
 constexpr size_t VERIFY_SIG_CACHE_SIZE = 250'000;
-static std::mutex gVerifySigCacheMutex;
-static RandomEvictionCache<Hash, bool> gVerifySigCache(VERIFY_SIG_CACHE_SIZE);
-static uint64_t gVerifyCacheHit = 0;
-static uint64_t gVerifyCacheMiss = 0;
+constexpr size_t NUM_VERIFY_CACHE_SHARDS = 64;
+constexpr size_t VERIFY_SIG_CACHE_SHARD_SIZE =
+    VERIFY_SIG_CACHE_SIZE / NUM_VERIFY_CACHE_SHARDS;
 
-// Global flag to use Rust ed25519-dalek for signature verification
-// Protected by gVerifySigCacheMutex
-static bool gUseRustDalekVerify = false;
+struct alignas(64) VerifySigCacheShard
+{
+    ANNOTATED_MUTEX(mMutex);
+    RandomEvictionCache<Hash, bool> mCache GUARDED_BY(mMutex);
+    uint64_t mHits GUARDED_BY(mMutex) = 0;
+    uint64_t mMisses GUARDED_BY(mMutex) = 0;
+    VerifySigCacheShard() : mCache(VERIFY_SIG_CACHE_SHARD_SIZE)
+    {
+    }
+};
+
+static std::array<VerifySigCacheShard, NUM_VERIFY_CACHE_SHARDS>
+    gVerifySigCacheShards;
 
 static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
@@ -322,32 +336,37 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
 void
 PubKeyUtils::clearVerifySigCache()
 {
-    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
-    gVerifySigCache.clear();
-}
-
-void
-PubKeyUtils::enableRustDalekVerify()
-{
-    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
-    gUseRustDalekVerify = true;
+    for (auto& shard : gVerifySigCacheShards)
+    {
+        LOCK_GUARD(shard.mMutex, guard);
+        shard.mCache.clear();
+    }
 }
 
 void
 PubKeyUtils::seedVerifySigCache(unsigned int seed)
 {
-    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
-    gVerifySigCache.seed(seed);
+    for (size_t i = 0; i < NUM_VERIFY_CACHE_SHARDS; ++i)
+    {
+        LOCK_GUARD(gVerifySigCacheShards[i].mMutex, guard);
+        gVerifySigCacheShards[i].mCache.seed(seed +
+                                             static_cast<unsigned int>(i));
+    }
 }
 
 void
 PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
 {
-    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
-    hits = gVerifyCacheHit;
-    misses = gVerifyCacheMiss;
-    gVerifyCacheHit = 0;
-    gVerifyCacheMiss = 0;
+    hits = 0;
+    misses = 0;
+    for (auto& shard : gVerifySigCacheShards)
+    {
+        LOCK_GUARD(shard.mMutex, guard);
+        hits += shard.mHits;
+        misses += shard.mMisses;
+        shard.mHits = 0;
+        shard.mMisses = 0;
+    }
 }
 
 std::string
@@ -456,41 +475,31 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     }
 
     auto cacheKey = verifySigCacheKey(key, signature, bin);
-    bool shouldUseRustDalekVerify;
+
+    // Cache key preimage is externally controlled, so pick the shard via the
+    // per-process keyed hash to prevent targeting a single shard.
+    auto shardIdx = std::hash<Hash>{}(cacheKey) % NUM_VERIFY_CACHE_SHARDS;
+    auto& shard = gVerifySigCacheShards[shardIdx];
 
     {
-        std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
-        if (gVerifySigCache.exists(cacheKey))
+        LOCK_GUARD(shard.mMutex, guard);
+        if (auto* cached = shard.mCache.maybeGet(cacheKey))
         {
-            ++gVerifyCacheHit;
-            std::string hitStr("hit");
-            ZoneText(hitStr.c_str(), hitStr.size());
-            return {gVerifySigCache.get(cacheKey),
-                    VerifySigCacheLookupResult::HIT};
+            ++shard.mHits;
+            ZoneText("hit", 3);
+            return {*cached, VerifySigCacheLookupResult::HIT};
         }
-
-        shouldUseRustDalekVerify = gUseRustDalekVerify;
     }
 
-    std::string missStr("miss");
-    ZoneText(missStr.c_str(), missStr.size());
+    ZoneText("miss", 4);
 
-    bool ok;
-    if (shouldUseRustDalekVerify)
+    bool ok = stellar::rust_bridge::verify_ed25519_signature_dalek(
+        key.ed25519().data(), signature.data(), bin.data(), bin.size());
     {
-        ok = stellar::rust_bridge::verify_ed25519_signature_dalek(
-            key.ed25519().data(), signature.data(), bin.data(), bin.size());
+        LOCK_GUARD(shard.mMutex, guard);
+        ++shard.mMisses;
+        shard.mCache.put(cacheKey, ok);
     }
-    else
-    {
-        ok = (crypto_sign_verify_detached(signature.data(), bin.data(),
-                                          bin.size(),
-                                          key.ed25519().data()) == 0);
-    }
-
-    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
-    ++gVerifyCacheMiss;
-    gVerifySigCache.put(cacheKey, ok);
     return {ok, VerifySigCacheLookupResult::MISS};
 }
 
