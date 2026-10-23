@@ -495,6 +495,12 @@
     <ClCompile Include="..\..\src\util\Thread.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\StackThread.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\StackThreadTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\BitSet.h">
       <Filter>util</Filter>
     </ClCompile>
@@ -2604,6 +2610,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\NtpProbe.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\StackThread.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
