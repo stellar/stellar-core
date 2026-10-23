@@ -1,0 +1,27 @@
+# This file excludes non-security rules from Socket Basics Dockerfile scanning (through Trivy).
+#
+# Trivy reads this file from the working directory. socket-basics has no config
+# key that can disable a Trivy rule, so this is the only lever.
+#
+# Rules that ARE kept: DS-0002 (no USER - runs as root), DS-0001 (:latest tag),
+# DS-0017 (package-manager update alone, which can install from a stale index).
+
+# Excluded rules:
+
+# 'apt-get' missing '--no-install-recommends'
+DS-0029
+
+# 'RUN cd ...' instead of WORKDIR
+DS-0013
+
+# Deprecated MAINTAINER instruction
+DS-0022
+
+# 'apk add' missing '--no-cache'
+DS-0025
+
+# WORKDIR path not absolute
+DS-0009
+
+# 'apt-get' missing '-y'
+DS-0021
