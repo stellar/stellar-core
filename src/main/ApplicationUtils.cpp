@@ -1031,7 +1031,8 @@ genSeed()
 }
 
 int
-initializeHistories(Config cfg, std::vector<std::string> const& newHistories)
+initializeHistories(Config cfg, std::vector<std::string> const& newHistories,
+                    bool idempotent)
 {
     VirtualClock clock;
     cfg.setNoListen();
@@ -1039,7 +1040,8 @@ initializeHistories(Config cfg, std::vector<std::string> const& newHistories)
 
     for (auto const& arch : newHistories)
     {
-        if (!app->getHistoryArchiveManager().initializeHistoryArchive(arch))
+        if (!app->getHistoryArchiveManager().initializeHistoryArchive(
+                arch, idempotent))
             return 1;
     }
     return 0;
