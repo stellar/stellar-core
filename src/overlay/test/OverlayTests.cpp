@@ -2029,23 +2029,28 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
 
         conn.getInitiator()->setStraggling(true);
         auto straggler = conn.getInitiator();
+        uint64_t queryCount = 0;
         VirtualTimer sendTimer(*app1);
 
         while (clock.now() < (start + waitTime) &&
                (conn.getInitiator()->isConnectedForTesting() ||
                 conn.getAcceptor()->isConnectedForTesting()))
         {
-            // Straggler keeps asking for peers once per second -- this is
-            // easy traffic to fake-generate -- but not accepting response
-            // messages in a timely fashion.
+            // Straggler keeps asking for tx sets once per second - this is
+            // easy traffic to fake-generate - but not accepting response
+            // messages in a timely fashion. Each query uses a unique hash, as
+            // repeated queries for the same hash are rate-limited and would
+            // only produce sparse responses.
             std::chrono::seconds const dur{1};
             sendTimer.expires_from_now(dur);
-            sendTimer.async_wait([straggler](asio::error_code const& error) {
-                if (!error)
-                {
-                    straggler->sendGetTxSet(Hash());
-                }
-            });
+            sendTimer.async_wait(
+                [straggler, &queryCount](asio::error_code const& error) {
+                    if (!error)
+                    {
+                        straggler->sendGetTxSet(
+                            sha256(std::to_string(queryCount++)));
+                    }
+                });
             testutil::crankFor(clock, dur);
         }
         LOG_INFO(DEFAULT_LOG, "loop complete, clock.now() = {}",
