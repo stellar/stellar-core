@@ -21,6 +21,26 @@ format: always
 	cd src && $(MAKE) $(AM_MAKEFLAGS) $@
 endif # USE_CLANG_FORMAT
 
+.PHONY: update-test-timings
+# Refresh scheduler durations even after test failures; retain the raw build-root log.
+update-test-timings: all
+	@set -e; \
+	output=$$(mktemp "$(abs_builddir)/test-timings.log.XXXXXX"); \
+	echo "Saving test execution log to $$output"; \
+	timings="$(srcdir)/src/test/test-timings.txt"; \
+	tmp_timings=$$(mktemp "$$timings.XXXXXX"); \
+	trap 'rm -f "$$tmp_timings"' EXIT; \
+	status=0; \
+	bash -o pipefail -c 'cd src && \
+		./stellar-core test --ll fatal -r simple --disable-dots \
+		--all-versions --rng-seed 12345 --durations yes "~[acceptance]~[.]" \
+		2>&1 | tee "$$1"' bash "$$output" || status=$$?; \
+	perl "$(srcdir)/src/test/record-test-timings.pl" < "$$output" > "$$tmp_timings"; \
+	test -s "$$tmp_timings"; \
+	mv "$$tmp_timings" "$$timings"; \
+	echo "Updated $$timings; execution log: $$output"; \
+	exit "$$status"
+
 
 
 if USE_TRACY_GUI

@@ -92,6 +92,16 @@ for i in $RUN_PARTITIONS; do
   cat $TEST_PARTITIONS_DIR/test-partition-$i.txt >> $TESTS
 done
 
+# Sort the selected-shard queue by historical duration before parallel dispatch.
+TIMING_FILE="${top_srcdir}/src/test/test-timings.txt"
+SORTED_TESTS="$TEST_PARTITIONS_DIR/test-list-sorted.txt"
+if perl "${top_srcdir}/src/test/sort-test-list-by-timing.pl" \
+    "$TIMING_FILE" "$TESTS" > "$SORTED_TESTS"; then
+  mv "$SORTED_TESTS" "$TESTS"
+else
+  echo "Warning: could not use test timing file $TIMING_FILE; keeping shuffled test order" >&2
+fi
+
 FLAGS="--group"
 if [[ $INTERACTIVE -ne 0 ]]; then
     FLAGS="--progress --line-buffer"
