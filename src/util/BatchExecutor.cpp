@@ -160,8 +160,9 @@ BatchExecutor::ensureWorkers(size_t count)
     {
         size_t index = mWorkers.size();
         uint64_t batchId = mBatchId;
-        mWorkers.emplace_back(
-            [this, index, batchId]() { workerLoop(index, batchId); });
+        mWorkers.emplace_back(WORKER_STACK_BYTES, [this, index, batchId]() {
+            workerLoop(index, batchId);
+        });
         pinWorker(index);
     }
 }
