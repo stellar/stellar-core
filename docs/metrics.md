@@ -174,6 +174,7 @@ process.action.queue                      | counter   | number of items waiting 
 process.action.overloaded                 | counter   | 0-or-1 value indicating action-queue overloading
 process.file.handles                      | counter   | number of open file handles
 process.memory.handles                    | counter   | number of running processes in process manager
+process.memory.malloc-heap                | counter   | number of bytes used in the malloc heap
 scp.envelope.emit                         | meter     | SCP message sent
 scp.envelope.invalidsig                   | meter     | envelope failed signature verification
 scp.envelope.receive                      | meter     | SCP message received
