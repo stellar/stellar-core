@@ -62,6 +62,7 @@
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
+#include "util/TcmallocConfig.h"
 #include "util/Thread.h"
 #include "util/TmpDir.h"
 #include "work/BasicWork.h"
@@ -1379,6 +1380,8 @@ ApplicationImpl::syncOwnMetrics()
     }
     mMetrics->NewCounter({"process", "file", "handles"})
         .set_count(fs::getOpenHandleCount());
+    mMetrics->NewCounter({"process", "memory", "malloc-heap"})
+        .set_count(getMallocBytesInUse());
 }
 
 void
