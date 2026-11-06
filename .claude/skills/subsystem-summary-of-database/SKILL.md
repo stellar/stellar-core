@@ -7,13 +7,12 @@ description: "read this skill for a token-efficient summary of the database subs
 
 ## Overview
 
-The database subsystem provides the persistence layer for stellar-core, wrapping the SOCI C++ database-access library to manage connections to SQLite or PostgreSQL backends. It handles schema versioning/migration, connection pooling for worker threads, metrics collection, and a dual-database architecture (main + misc) for SQLite to avoid write-lock contention.
+The database subsystem provides the persistence layer for stellar-core, wrapping the SOCI C++ database-access library to manage SQLite connections. It handles schema versioning/migration, connection pooling for worker threads, metrics collection, and a dual-database architecture (main + misc) to avoid write-lock contention.
 
 ## Key Files
 
 - **Database.h / Database.cpp** — Core `Database` class; connection management, schema migration, pooling, metrics.
-- **DatabaseTypeSpecificOperation.h** — Visitor pattern for backend-specific (SQLite vs PostgreSQL) code paths.
-- **DatabaseConnectionString.h / .cpp** — Utility to redact passwords from connection strings for logging.
+- **DatabaseTypeSpecificOperation.h** — Visitor pattern for SQLite session backend operations.
 - **DatabaseUtils.h / .cpp** — Helper for batch-deleting old ledger entries from tables.
 
 ---
@@ -28,9 +27,9 @@ The central class that owns all database connections for an `Application` instan
 - `mApp` (`Application&`) — Back-reference to the owning application.
 - `mQueryMeter` (`medida::Meter&`) — Metrics meter counting all SQL query executions.
 - `mSession` (`SessionWrapper`, name="main") — Primary SOCI session for ledger state; used for all writes on the main DB.
-- `mMiscSession` (`SessionWrapper`, name="misc") — Secondary SOCI session for miscellaneous/consensus data (SQLite only).
+- `mMiscSession` (`SessionWrapper`, name="misc") — Secondary SOCI session for miscellaneous/consensus data.
 - `mPool` / `mMiscPool` (`unique_ptr<soci::connection_pool>`) — Lazily-created connection pools for worker-thread read access.
-- `gDriversRegistered` (static `bool`) — Ensures SOCI backend drivers (sqlite3, postgresql) are registered exactly once.
+- `gDriversRegistered` (static `bool`) — Ensures the SOCI SQLite backend driver is registered exactly once.
 
 ### `SessionWrapper` (inherits `NonCopyable`)
 
@@ -42,17 +41,14 @@ RAII handle for borrowing a SOCI prepared statement. On construction it calls `c
 
 ### `DatabaseTypeSpecificOperation<T>` (template, abstract)
 
-A visitor/strategy pattern that allows callers to write code specific to the database backend without switching on backend type everywhere. Has two pure virtual methods:
+A visitor/strategy pattern that allows callers to access the SQLite session backend. Has one pure virtual method:
 - `doSqliteSpecificOperation(soci::sqlite3_session_backend* sq)` — SQLite path.
-- `doPostgresSpecificOperation(soci::postgresql_session_backend* pg)` — PostgreSQL path (conditionally compiled under `USE_POSTGRES`).
 
 Used via `Database::doDatabaseTypeSpecificOperation()` or the free-function overload that takes a raw `soci::session&`.
 
 ### `DatabaseConfigureSessionOp` (local to Database.cpp)
 
-A concrete `DatabaseTypeSpecificOperation<void>` used internally during connection setup. Performs:
-- **SQLite:** Checks minimum version (3.45+), sets WAL journal mode, autocheckpoint=10000, busy_timeout=10000ms, cache_size=20000 pages, mmap_size=100MB, and registers the `carray()` extension.
-- **PostgreSQL:** Checks minimum version (9.5+), sets session transaction isolation to SERIALIZABLE.
+A concrete `DatabaseTypeSpecificOperation<void>` used internally during connection setup. Checks the minimum SQLite version (3.45+), sets WAL journal mode, autocheckpoint=10000, busy_timeout=10000ms, cache_size=20000 pages, mmap_size=100MB, and registers the `carray()` extension.
 
 ---
 
@@ -87,7 +83,7 @@ SQLite locks the entire database file during writes, blocking parallelism betwee
 - **Main DB:** Ledger state (ledger headers, transaction history, ledger entries). Touched at startup and during apply.
 - **Misc DB:** Consensus data (SCP quorums, SCP history, slot state), overlay data (peers, bans), upgrades. Tables migrated: `peers`, `ban`, `quoruminfo`, `scpquorums`, `scphistory`, `slotstate` (defined in `kMiscTables`).
 
-**Applicability:** Only for on-disk SQLite (`canUseMiscDB()` returns `true` when `canUsePool() && isSqlite()`). PostgreSQL handles concurrent writes natively, so it uses a single database with `mMiscSession` falling back to `mSession`.
+**Applicability:** Only for on-disk SQLite (`canUseMiscDB()` returns the value of `canUsePool()`). In-memory SQLite uses a single database with `mMiscSession` falling back to `mSession`.
 
 **Misc DB naming:** `getMiscDBName()` inserts "-misc" before the file extension of the main DB path (e.g., `stellar.db` → `stellar-misc.db`).
 
@@ -122,17 +118,14 @@ Pools are lazily created on first call to `getPool()` or `getMiscPool()`.
 
 | Function | Purpose |
 |----------|---------|
-| `Database(Application&)` | Constructor: registers drivers, logs connection string (password-redacted), calls `open()`. |
+| `Database(Application&)` | Constructor: registers the SQLite driver, logs the connection string, calls `open()`. |
 | `open()` | Opens main session, configures it; opens misc session if `canUseMiscDB()`. |
 | `initialize()` | Drops and recreates all tables (used by `new-db` command). For SQLite, deletes DB files first. Creates overlay, persistent state, ledger header, herder persistence, ban tables. |
 | `upgradeToCurrentSchema()` | Runs schema migrations for both misc and main DBs. |
 | `getPreparedStatement(query, session)` | Allocates and prepares a SOCI statement, returns it wrapped in `StatementContext`. |
 | `getInsertTimer/getSelectTimer/getDeleteTimer/getUpdateTimer/getUpsertTimer(entityName)` | Returns a `medida::TimerContext` for timing and counting SQL operations, grouped by entity name. |
-| `setCurrentTransactionReadOnly()` | On PostgreSQL, issues `SET TRANSACTION READ ONLY`. No-op on SQLite. |
-| `isSqlite()` | Returns true if connection string contains `"sqlite3://"`. |
 | `canUseMiscDB()` | True for on-disk SQLite only. |
 | `canUsePool()` | True unless using in-memory SQLite (`sqlite3://:memory:`). |
-| `getSimpleCollationClause()` | Returns `COLLATE "C"` for PostgreSQL (byte-value comparison), empty for SQLite. |
 | `getSession() / getMiscSession()` | Returns main/misc `SessionWrapper`; asserts main thread. `getMiscSession()` falls back to main session if misc DB unavailable. |
 | `getRawSession() / getRawMiscSession()` | Convenience accessors returning `soci::session&`. |
 | `getPool() / getMiscPool()` | Returns (lazily-created) connection pools for worker threads. |
@@ -181,7 +174,7 @@ Application
 
 ### Startup / Initialization
 1. `Application` constructs `Database`, which registers SOCI drivers and opens connections.
-2. `open()` configures each session (SQLite pragmas or PostgreSQL isolation level).
+2. `open()` configures each session with SQLite pragmas.
 3. If `new-db`: `initialize()` drops/recreates all tables, sets schema version to `MIN_SCHEMA_VERSION`.
 4. Otherwise: `upgradeToCurrentSchema()` reads current versions and applies incremental migrations.
 
@@ -219,11 +212,9 @@ Application
 | `MIN_MISC_SCHEMA_VERSION` | 0 | Oldest misc DB schema (0 = no misc table yet) |
 | `MISC_SCHEMA_VERSION` | 1 | Current target misc DB schema |
 | `MIN_SQLITE_VERSION` | 3.45 | Minimum SQLite version (compiled check) |
-| `MIN_POSTGRESQL_VERSION` | 9.5 | Minimum PostgreSQL version |
 
 ## Threading Model
 
 - **Main thread:** Owns `mSession` and `mMiscSession`. All write operations go through these. Access is guarded by `releaseAssert(threadIsMain())`.
 - **Worker threads:** Read-only access via connection pools (`mPool`, `mMiscPool`). Each pool entry is an independently configured SOCI session.
 - **SQLite concurrency:** WAL mode allows concurrent readers with a single writer. The dual-DB split (main/misc) further reduces write contention by separating consensus writes from ledger-apply writes into different files with independent locks.
-- **PostgreSQL concurrency:** Single DB with SERIALIZABLE isolation; concurrent writes are handled by the database engine natively.

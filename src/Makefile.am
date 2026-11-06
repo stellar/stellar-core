@@ -101,7 +101,7 @@ main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 # tcmalloc must be linked early to properly override malloc/free
 stellar_core_LDADD = $(libtcmalloc_LIBS) $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
-	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS)
+	$(xdrpp_LIBS) $(libsodium_LIBS)
 
 TESTDATA_DIR = testdata
 TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-core_standalone.cfg \
@@ -540,11 +540,7 @@ main/StellarCoreVersion.cpp: always
 	@if cmp -s $@~ $@; then rm -f $@~; else \
 	    mv -f $@~ $@ && printf "echo '%s' > $@\n" "$$(cat $@)"; fi
 
-if USE_POSTGRES
-TESTS=test/selftest-pg
-else # !USE_POSTGRES
-TESTS=test/selftest-nopg
-endif # !USE_POSTGRES
+TESTS=test/selftest
 TESTS += test/check-nondet
 TESTS += test/check-nocstyle
 
@@ -603,7 +599,7 @@ libfuzz_common_a_CXXFLAGS = $(FUZZ_CXXFLAGS)
 FUZZ_LIBS = libfuzz_common.a \
 	$(libtcmalloc_LIBS) $(soci_LIBS) $(libmedida_LIBS) \
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS) \
-	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS) $(libunwind_LIBS) \
+	$(xdrpp_LIBS) $(libsodium_LIBS) $(libunwind_LIBS) \
 	$(LIBRUST_STELLAR_CORE) -ldl
 
 # Link flags for fuzz targets.
@@ -711,4 +707,4 @@ clean-local:
 CLEANFILES = $(BUILT_SOURCES) *~ */*~ stellar*.log
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in $(srcdir)/*~ $(srcdir)/*/*~
 
-EXTRA_DIST = $(SRC_X_FILES) test/selftest-nopg test/selftest-pg
+EXTRA_DIST = $(SRC_X_FILES) test/selftest

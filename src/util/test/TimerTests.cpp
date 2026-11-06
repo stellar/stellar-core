@@ -97,13 +97,12 @@ TEST_CASE("VirtualClock from_time_t", "[timer]")
     CHECK(now == VirtualClock::from_time_t(133818));
 }
 
-#ifdef USE_POSTGRES
 TEST_CASE("virtual time with background work", "[timer]")
 {
     // Verify that parallel apply background work is properly accounted for in
     // virtual time mode, i.e. we don't forward the time while background work
     // is outstanding.
-    Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
     cfg.RUN_STANDALONE = false;
     // Disable extra checks to prevent timers from spinning indefinitely
     cfg.INVARIANT_EXTRA_CHECKS = false;
@@ -136,7 +135,6 @@ TEST_CASE("virtual time with background work", "[timer]")
     while (clock.crank(false) > 0)
         ;
 }
-#endif
 
 TEST_CASE("virtual event dispatch order and times", "[timer]")
 {

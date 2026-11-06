@@ -180,10 +180,7 @@ For memcheck to work, you will need to compile your own version of `libc++` (see
 the path to your libraries to the configure script using the `LIBCXX_PATH` variable, something
 like:
 
-    ./configure --disable-postgres --enable-memcheck LIBCXX_PATH=/home/user/src/llvm/libcxx_msan/lib
-
-If you do not have an instrumented version of `libpq` (postgres client library), you may get false
-positives as well (disabling postgres is a good workaround).
+    ./configure --enable-memcheck LIBCXX_PATH=/home/user/src/llvm/libcxx_msan/lib
 
 What the configure script does under the cover is use the custom version of your library at link
 time, but still uses the system headers - so make sure that the two don't conflict!
@@ -248,24 +245,6 @@ xml test output (includes nested section information):
 
 Tests may also be run with `make check`, see [Running tests in parallel](#running tests-in-parallel-with-make-check).
 
-## Running tests against postgreSQL
-
-There are two options.  The easiest is to have the test suite just
-create a temporary postgreSQL database cluster in /tmp and delete it
-after the test.  That will happen by default if you run `make check`.
-
-You can also use an existing database cluster so long as it has
-databases named `test0`, `test1`, ..., `test9`, and `test`.  To set
-this up, make sure your `PGHOST` and `PGUSER` environment variables
-are appropriately set, then run the following from bash:
-
-    for i in $(seq 0 9) ''; do
-        psql -c "create database test$i;"
-    done
-
-You will need to set the `TEMP_POSTGRES` environment variable to 0
-in order to use an existing database cluster.
-
 ## Running tests in parallel with `make check`
 
 The `make check` command runs tests and supports parallelization. This functionality is enabled with the following environment variables:
@@ -276,8 +255,6 @@ The `make check` command runs tests and supports parallelization. This functiona
 * `BATCHSIZE`: The number of tests to be batched together to reduce setup overhead. (default: 5)
 * `RUN_PARTITIONS`: Run only a subset of the partitions, indexed from 0
 (default: "$(seq 0 $((NUM_PARTITIONS-1)))")
-* `TEMP_POSTGRES`: Automatically generates temporary database clusters instead
-of using an existing cluster (default: 1)
 * `RND_SEED`: Can be set to a specific value to affect the random test ordering. (default: 1)
 * `INTERACTIVE`: If 1, display output as it happens. If 0, do not (beneficially, this avoids intermingling partition output). (default: 1)
 
