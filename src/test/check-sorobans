@@ -36,20 +36,22 @@ fi
 # our declared sizes, which are what's actually used in production for deterministic 
 # memory metering.
 SKIP_TESTS="host::declared_size::test::test_expected_size"
+export SKIP_TESTS
 
 set -e
 set -x
 
 cd "${top_srcdir}/src/rust/soroban"
-for i in ${SOROBAN_PROTOCOLS_TO_TEST}; do
-    cd "$i"
-    CARGO_TARGET_DIR="${top_builddir}/src/rust/soroban/${i}/target" \
-    RUSTFLAGS="-Cmetadata=${i}" cargo +${RUST_TOOLCHAIN_CHANNEL} \
+printf '%s\n' ${SOROBAN_PROTOCOLS_TO_TEST} | \
+parallel --halt now,fail=1 --line-buffer -j "${SOROBAN_JOBS:-1}" '
+    protocol={}
+    cd "${protocol}"
+    CARGO_TARGET_DIR="'"${top_builddir}"'/src/rust/soroban/${protocol}/target" \
+    RUSTFLAGS="-Cmetadata=${protocol}" cargo +'"${RUST_TOOLCHAIN_CHANNEL}"' \
         test \
         --locked \
         --package soroban-env-host \
         --features testutils \
         --profile test-opt \
         -- --skip "${SKIP_TESTS}"
-    cd ..
-done
+'

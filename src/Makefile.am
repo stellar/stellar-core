@@ -157,8 +157,15 @@ RUSTFLAGS_CFGS := $(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),--cfg curve255
 
 RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_FILE_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
+# Sanitizer builds need a nightly for -Zsanitizer and -Zbuild-std. Pin a dated
+# nightly: the LLVM 23 update (rust-lang/rust#158734) makes rustc segfault
+# while building compiler-builtins with sancov coverage instrumentation
+# (rust-lang/rust#161855). This nightly predates that update and is newer than
+# the stable workspace toolchain. Keep in sync with the fuzz job's toolchain in
+# .github/workflows/build.yml.
+SANITIZER_RUST_TOOLCHAIN=nightly-2026-07-20
 if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
-RUST_TOOLCHAIN_CHANNEL=$(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),nightly,$(RUST_TOOLCHAIN_FILE_CHANNEL))
+RUST_TOOLCHAIN_CHANNEL=$(if $(findstring Zsanitizer,$(RUSTFLAGS_SANI)),$(SANITIZER_RUST_TOOLCHAIN),$(RUST_TOOLCHAIN_FILE_CHANNEL))
 else
 RUST_TOOLCHAIN_CHANNEL=$(RUST_TOOLCHAIN_FILE_CHANNEL)
 endif
@@ -183,20 +190,30 @@ else
 RUST_PROFILE=release
 endif
 
+# RUST_PROFILE_OVERRIDE is imported from the environment or make command line.
+RUST_PROFILE_EFFECTIVE := $(if $(RUST_PROFILE_OVERRIDE),$(RUST_PROFILE_OVERRIDE),$(RUST_PROFILE))
+
 check-rust-profile: Makefile
-	@case "$(RUST_PROFILE)" in \
-		release|dev|fastdev) ;; \
-		*) echo "Error: RUST_PROFILE must be 'release', 'dev', or 'fastdev', got '$(RUST_PROFILE)'" >&2; exit 1;; \
+	@case "$(RUST_PROFILE_EFFECTIVE)" in \
+		release|dev|fastdev|ci) ;; \
+		*) echo "Error: RUST_PROFILE_OVERRIDE must be 'release', 'dev', 'fastdev', or 'ci', got '$(RUST_PROFILE_EFFECTIVE)'" >&2; exit 1;; \
 	esac
 
-# Of course, RUST_PROFILE can't be used as an argument directly because cargo
-# doesn't let you pass --debug, that's the default! you can only pass --release.
-# So we have to derive a new variable here.
-RUST_PROFILE_ARG := $(if $(findstring fastdev,$(RUST_PROFILE)),--profile fastdev,$(if $(findstring release,$(RUST_PROFILE)),--release,))
+# Cargo calls its default debug profile `dev`, but it is selected by omitting
+# --profile. All other supported profiles can be passed through directly.
+RUST_PROFILE_ARG := $(if $(filter dev,$(RUST_PROFILE_EFFECTIVE)),,--profile $(RUST_PROFILE_EFFECTIVE))
 
 # Also for even more nonsense reasons the debug profile name is actually `dev`
 # but only in the command line, the target subdirectory gets called `debug`.
-RUST_PROFILE_DIR := $(if $(findstring fastdev,$(RUST_PROFILE)),fastdev,$(if $(findstring release,$(RUST_PROFILE)),release,debug))
+RUST_PROFILE_DIR := $(if $(filter dev,$(RUST_PROFILE_EFFECTIVE)),debug,$(RUST_PROFILE_EFFECTIVE))
+
+# The root CI profile controls LTO when the separately-built Soroban rlibs are
+# combined into librust_stellar_core. Build those rlibs with their existing
+# release profiles, which preserve LLVM bitcode and already default to 16 CGUs.
+SOROBAN_RUST_PROFILE := $(if $(filter ci,$(RUST_PROFILE_EFFECTIVE)),release,$(RUST_PROFILE_EFFECTIVE))
+SOROBAN_RUST_PROFILE_ARG := $(if $(filter dev,$(SOROBAN_RUST_PROFILE)),,--profile $(SOROBAN_RUST_PROFILE))
+SOROBAN_RUST_PROFILE_DIR := $(if $(filter dev,$(SOROBAN_RUST_PROFILE)),debug,$(SOROBAN_RUST_PROFILE))
+SOROBAN_JOBS ?= 1
 
 RUST_DEP_TREE_STAMP=$(RUST_BUILD_DIR)/src/dep-trees/equal-trees.stamp
 SOROBAN_LIBS_STAMP=$(RUST_BUILD_DIR)/soroban/soroban-libs.stamp
@@ -256,7 +273,7 @@ SOROBAN_MAX_PROTOCOL=$(lastword $(sort $(ALL_SOROBAN_PROTOCOLS)))
 export SOROBAN_PROTOCOLS_TO_TEST=$(ALL_SOROBAN_PROTOCOLS)
 
 define soroban_lib_dir
-$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE_DIR)' $(1))
+$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(SOROBAN_RUST_PROFILE_DIR)' $(1))
 endef
 
 define soroban_git_state_stamp
@@ -431,9 +448,9 @@ else # !ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 # features to (only those post-p22 versions that support the tracy delayed-init
 # feature).
 #
-# We also have to sequentialize the builds of the sorobans after the
-# dep-tree-stamp files and before the stellar-core build, because rustup gets
-# invoked and it is not concurrency-safe.
+# The toolchain must be installed before this rule runs because rustup itself is
+# not concurrency-safe. Once installed, the independent protocol builds can run
+# concurrently.
 #
 # We also have to set pass all the CC, CXX, CFLAGS and CXXFLAGS we were called
 # with explicitly, because make does not implicitly export them to its rules,
@@ -444,8 +461,8 @@ else # !ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 # -stdlib=libc++ or -stdlib=libstdc++
 $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_STATE_STAMPS) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES) $(RUST_TOOLCHAIN_FILE)
 	rm -f $@
-	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
-	do \
+	printf '%s\n' $(ALL_SOROBAN_PROTOCOLS) | parallel --halt now,fail=1 --line-buffer -j $(SOROBAN_JOBS) ' \
+		proto={} ; \
 		FEATURE_FLAGS="" ; \
 		case "$$proto" in \
 			p21) \
@@ -467,11 +484,10 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
 			--package soroban-env-host \
-			$(RUST_PROFILE_ARG) \
+			$(SOROBAN_RUST_PROFILE_ARG) \
 			--locked \
 			$$FEATURE_FLAGS \
-		|| exit 1; \
-	done
+	'
 	@sha256sum $(ALL_SOROBAN_LIBS) | cut -d' ' -f1 | sha256sum | cut -d' ' -f1 > $@.tmp
 	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
@@ -711,4 +727,6 @@ clean-local:
 CLEANFILES = $(BUILT_SOURCES) *~ */*~ stellar*.log
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in $(srcdir)/*~ $(srcdir)/*/*~
 
-EXTRA_DIST = $(SRC_X_FILES) test/selftest-nopg test/selftest-pg
+EXTRA_DIST = $(SRC_X_FILES) test/selftest-nopg test/selftest-pg \
+	test/selftest-parallel test/record-test-timings.pl \
+	test/sort-test-list-by-timing.pl
