@@ -50,13 +50,27 @@
 #include "test/TestUtils.h"
 #include "test/fuzz/FuzzTargetRegistry.h"
 #include "test/test.h"
+#include "xdr/Stellar-SCP.h"
+#include "xdr/Stellar-contract-config-setting.h"
+#include "xdr/Stellar-contract-env-meta.h"
+#include "xdr/Stellar-contract-meta.h"
+#include "xdr/Stellar-contract.h"
+#include "xdr/Stellar-exporter.h"
+#include "xdr/Stellar-internal.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
+#include "xdr/Stellar-overlay.h"
+#include "xdr/Stellar-transaction.h"
+#include "xdr/Stellar-types.h"
 #endif
 
+#include <array>
 #include <filesystem>
 #include <fmt/format.h>
 #include <fstream>
 #include <iostream>
 #include <lib/clara.hpp>
+#include <map>
 #include <optional>
 
 namespace stellar
@@ -1715,6 +1729,106 @@ writeVersionInfo(std::ostream& os)
 #ifdef BUILD_TESTS
 namespace
 {
+struct UnionLayoutTotals
+{
+    size_t mUnions{};
+    size_t mInlineArms{};
+    size_t mIndirectArms{};
+    size_t mVoidArms{};
+    std::map<size_t, std::array<size_t, 2>> mSizeClasses;
+};
+
+template <typename Union, size_t... Indices>
+void
+dumpUnionLayout(UnionLayoutTotals& totals, std::index_sequence<Indices...>)
+{
+    using Meta = typename Union::_xdr_union_meta;
+    std::cout << "union " << Meta::qualified_name << ": size=" << sizeof(Union)
+              << " alignment=" << alignof(Union)
+              << " threshold=" << Meta::inline_threshold
+              << " inline=" << Meta::num_inline_arms
+              << " indirect=" << Meta::num_indirect_arms
+              << " void=" << Meta::num_void_arms << '\n';
+
+    auto dumpArm = [&]<size_t Index>() {
+        if constexpr (Index == 0 && Meta::num_void_arms == 0)
+        {
+            return;
+        }
+        constexpr auto layout = Meta::template arm_layout<Index>();
+        auto const* storage =
+            layout.size == 0 ? "void"
+                             : (layout.is_indirect ? "indirect" : "inline");
+        std::cout << "  arm " << Index
+                  << " name=" << (layout.name[0] ? layout.name : "<void>")
+                  << " size=" << layout.size
+                  << " alignment=" << layout.alignment << " storage=" << storage
+                  << '\n';
+        if (layout.size == 0)
+        {
+            ++totals.mVoidArms;
+        }
+        else
+        {
+            auto& sizeClass = totals.mSizeClasses[layout.size];
+            ++sizeClass[layout.is_indirect ? 1 : 0];
+            if (layout.is_indirect)
+            {
+                ++totals.mIndirectArms;
+            }
+            else
+            {
+                ++totals.mInlineArms;
+            }
+        }
+    };
+    (dumpArm.template operator()<Indices>(), ...);
+    ++totals.mUnions;
+}
+
+template <typename... Unions>
+void
+dumpUnionLayouts(xdr::type_list<Unions...>, UnionLayoutTotals& totals)
+{
+    (dumpUnionLayout<Unions>(
+         totals, std::make_index_sequence<Unions::_xdr_union_meta::num_arms>{}),
+     ...);
+}
+
+int
+runDumpXdrUnions(CommandLineArgs const& args)
+{
+    return runWithHelp(args, {}, [&] {
+        UnionLayoutTotals totals;
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_contract_config_setting{},
+                         totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_contract_env_meta{},
+                         totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_contract_meta{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_contract{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_exporter{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_internal{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_ledger_entries{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_ledger{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_overlay{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_SCP{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_transaction{}, totals);
+        dumpUnionLayouts(xdr::xdr_union_types_Stellar_types{}, totals);
+
+        std::cout << "summary: unions=" << totals.mUnions
+                  << " inline=" << totals.mInlineArms
+                  << " indirect=" << totals.mIndirectArms
+                  << " void=" << totals.mVoidArms << '\n';
+        std::cout << "size classes (bytes: inline indirect):\n";
+        for (auto const& [size, counts] : totals.mSizeClasses)
+        {
+            std::cout << "  " << size << ": " << counts[0] << ' ' << counts[1]
+                      << '\n';
+        }
+        return 0;
+    });
+}
+
 int
 runLoadXDR(CommandLineArgs const& args)
 {
@@ -2098,6 +2212,8 @@ handleCommandLine(int argc, char* const* argv)
          {"print-publish-queue", "print all checkpoints scheduled for publish",
           runPrintPublishQueue},
 #ifdef BUILD_TESTS
+         {"dump-xdr-unions", "dump calculated XDR union storage layouts",
+          runDumpXdrUnions},
          {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"rebuild-ledger-from-buckets",
           "rebuild the current database ledger from the bucket list",
