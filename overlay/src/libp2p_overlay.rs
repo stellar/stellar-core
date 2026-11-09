@@ -1878,67 +1878,97 @@ async fn handle_getdata(
 
     let state = Arc::clone(state);
     let peer = *peer_id;
-    tokio::spawn(async move {
-        // One job per demand, retaining only one bounded batch while a peer
-        // is backpressured. Every TX still has its own wire frame. Batching
-        // avoids one task, stream lock and short QUIC write per transaction.
-        const BATCH_BYTES: usize = 64 * 1024;
-        let mut batch = Vec::new();
-        let mut messages = 0;
-        for hash in getdata.hashes {
-            let tx = state.tx_buffer.write().await.get(&hash);
-            let Some(tx) = tx else {
-                state
-                    .metrics
-                    .flood_unfulfilled_unknown
-                    .fetch_add(1, Ordering::Relaxed);
-                trace!(
-                    "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
-                    &hash[..4],
-                    peer
-                );
-                continue;
-            };
+    tokio::spawn(async move { serve_getdata(&state, peer, getdata.hashes).await });
+}
+
+/// Serve one demand in order, as one job that retains only one bounded batch
+/// while a peer is backpressured. Every TX still has its own wire frame.
+/// Batching avoids one task, stream lock and short QUIC write per transaction.
+///
+/// The job stops at the first write that fails after `send_peer_frames`'
+/// retries: the peer has usually disconnected, and the requester re-demands
+/// unanswered hashes from another source after its response timeout.
+async fn serve_getdata(state: &SharedState, peer: PeerId, hashes: Vec<[u8; 32]>) {
+    const BATCH_BYTES: usize = 64 * 1024;
+    let total = hashes.len();
+    let mut batch = Vec::new();
+    let mut messages = 0;
+    for (index, hash) in hashes.into_iter().enumerate() {
+        let tx = state.tx_buffer.write().await.get(&hash);
+        let Some(tx) = tx else {
             state
                 .metrics
-                .flood_fulfilled
+                .flood_unfulfilled_unknown
                 .fetch_add(1, Ordering::Relaxed);
-            let encoded = tx.to_flood_frame();
-            if batch.len() + 4 + encoded.len() > BATCH_BYTES && !batch.is_empty() {
-                send_tx_response_batch(&state, peer, &batch, messages).await;
-                batch.clear();
-                messages = 0;
+            trace!(
+                "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
+                &hash[..4],
+                peer
+            );
+            continue;
+        };
+        state
+            .metrics
+            .flood_fulfilled
+            .fetch_add(1, Ordering::Relaxed);
+        let encoded = tx.to_flood_frame();
+        if batch.len() + 4 + encoded.len() > BATCH_BYTES && !batch.is_empty() {
+            if !send_tx_response_batch(state, peer, &batch, messages).await {
+                abandon_getdata(peer, total - index);
+                return;
             }
-            // A transaction larger than the batch budget retains the existing
-            // segmented write, without allocating a second copy of its bytes.
-            if 4 + encoded.len() > BATCH_BYTES {
-                let result = send_to_peer_stream(&state, peer, StreamType::Tx, &encoded).await;
-                record_tx_response_write(&state, peer, result, 1, encoded.len());
-                continue;
+            batch.clear();
+            messages = 0;
+        }
+        // A transaction larger than the batch budget retains the existing
+        // segmented write, without allocating a second copy of its bytes.
+        if 4 + encoded.len() > BATCH_BYTES {
+            let result = send_to_peer_stream(state, peer, StreamType::Tx, &encoded).await;
+            if !record_tx_response_write(state, peer, result, 1, encoded.len()) {
+                abandon_getdata(peer, total - index - 1);
+                return;
             }
-            batch.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
-            batch.extend_from_slice(&encoded);
-            messages += 1;
+            continue;
         }
-        if !batch.is_empty() {
-            send_tx_response_batch(&state, peer, &batch, messages).await;
-        }
-    });
+        batch.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
+        batch.extend_from_slice(&encoded);
+        messages += 1;
+    }
+    if !batch.is_empty() {
+        send_tx_response_batch(state, peer, &batch, messages).await;
+    }
 }
 
-async fn send_tx_response_batch(state: &SharedState, peer: PeerId, batch: &[u8], messages: usize) {
+/// `remaining` counts requested hashes not yet looked up or written.
+fn abandon_getdata(peer: PeerId, remaining: usize) {
+    if remaining > 0 {
+        debug!(
+            "TX_GETDATA_ABANDON: Not serving {} more requested hashes to {} after a failed write",
+            remaining, peer
+        );
+    }
+}
+
+/// Returns whether the batch was written.
+async fn send_tx_response_batch(
+    state: &SharedState,
+    peer: PeerId,
+    batch: &[u8],
+    messages: usize,
+) -> bool {
     let result =
         send_peer_frames(state, peer, StreamType::Tx, framed_io::Frames::Batch(batch)).await;
-    record_tx_response_write(state, peer, result, messages, batch.len() - 4 * messages);
+    record_tx_response_write(state, peer, result, messages, batch.len() - 4 * messages)
 }
 
+/// Returns whether the write succeeded.
 fn record_tx_response_write(
     state: &SharedState,
     peer: PeerId,
     result: io::Result<()>,
     messages: usize,
     bytes: usize,
-) {
+) -> bool {
     match result {
         Ok(()) => {
             state
@@ -1950,6 +1980,7 @@ fn record_tx_response_write(
                 .byte_write
                 .fetch_add(bytes as u64, Ordering::Relaxed);
             debug!("TX_SEND: Sent {} TXs to {}", messages, peer);
+            true
         }
         Err(e) => {
             state
@@ -1957,6 +1988,7 @@ fn record_tx_response_write(
                 .error_write
                 .fetch_add(messages as u64, Ordering::Relaxed);
             warn!("Failed to send {} TXs to {}: {}", messages, peer, e);
+            false
         }
     }
 }

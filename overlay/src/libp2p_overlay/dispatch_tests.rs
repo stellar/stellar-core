@@ -299,6 +299,34 @@ async fn getdata_batches_preserve_frames_and_leave_control_responsive() {
 }
 
 #[tokio::test]
+async fn getdata_job_stops_after_a_failed_write() {
+    let (_handle, _events, _admissions, overlay) =
+        create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+    let state = Arc::clone(&overlay.state);
+    let mut hashes = Vec::new();
+    for sequence in 0..200 {
+        let bytes = crate::xdr::tests::valid_transaction_xdr(1000, sequence, 16);
+        let tx = ValidatedTx::from_core_trusted(bytes, 1000, 16).unwrap();
+        hashes.push(*tx.hash());
+        state.tx_buffer.write().await.insert(tx);
+    }
+    // A peer without outbound streams, as after a disconnect: every write
+    // fails at once. The demand spans several batches.
+    serve_getdata(&state, PeerId::random(), hashes.clone()).await;
+
+    let failed = state.metrics.error_write.load(Ordering::Relaxed);
+    let looked_up = state.metrics.flood_fulfilled.load(Ordering::Relaxed);
+    assert!(failed > 0, "the first batch must have been attempted");
+    // Only the first batch was written, plus the lookup that closed it.
+    assert_eq!(looked_up, failed + 1);
+    assert!(
+        looked_up < hashes.len() as u64,
+        "the job kept serving a peer it could not write to"
+    );
+    assert_eq!(state.metrics.message_write.load(Ordering::Relaxed), 0);
+}
+
+#[tokio::test]
 async fn scp_state_sends_preserve_slot_order_without_blocking_other_peers() {
     let mut sender = TestNode::start().await;
     let mut receiver = TestNode::start().await;
