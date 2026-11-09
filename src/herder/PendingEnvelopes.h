@@ -113,7 +113,8 @@ class PendingEnvelopes
 
     // Hands a newly known tx set to the envelopes waiting to fetch it.
     void completeTxSetFetch(Hash const& hash,
-                            TxSetXDRFrameConstPtr const& txset);
+                            TxSetXDRFrameConstPtr const& txset,
+                            bool deliveredByOverlay);
     void scheduleTxSetFetchRetry();
     void retryStalledTxSetFetches();
 
@@ -150,7 +151,8 @@ class PendingEnvelopes
                              std::optional<uint64> maxSlot, uint64 slotToKeep);
 
   public:
-    // How long a tx set request may stay unanswered before it is repeated
+    // How long a tx set request may stay unanswered before it is first
+    // repeated; later repeats back off up to 8 times this.
     static constexpr std::chrono::milliseconds TX_SET_FETCH_RETRY_INTERVAL{
         1000};
 

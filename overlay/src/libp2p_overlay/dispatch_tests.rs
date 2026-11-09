@@ -1332,10 +1332,21 @@ async fn retried_fetch_moves_to_another_peer_and_stale_requests_are_pruned() {
     overlay.fetch_txset(hash, 21, true).await;
     assert_eq!(overlay.sends.len(), 2);
     assert_eq!(requested_peer(&overlay).await, Some((peers[1], 21)));
-    // With no other peer left, a retry asks the remaining one again.
+    // The next retry again goes to a peer other than the previous target.
+    let third = PeerId::random();
+    overlay
+        .state
+        .peer_streams
+        .write()
+        .await
+        .insert(third, Arc::new(PeerOutboundStreams::new()));
     overlay.state.peer_streams.write().await.remove(&peers[0]);
     overlay.fetch_txset(hash, 21, true).await;
-    assert_eq!(overlay.sends.len(), 3);
+    assert_eq!(requested_peer(&overlay).await, Some((third, 21)));
+    overlay.state.peer_streams.write().await.remove(&third);
+    // With no other peer left, a retry asks the remaining one again.
+    overlay.fetch_txset(hash, 21, true).await;
+    assert_eq!(overlay.sends.len(), 4);
     assert_eq!(requested_peer(&overlay).await, Some((peers[1], 21)));
 
     // Requests that are never answered expire by slot.

@@ -233,7 +233,8 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
             auto m = herder.getSCP().getLatestMessage(pk);
             REQUIRE(m);
             REQUIRE(*m == saneEnvelope);
-            REQUIRE(fetchTimer.count() == fetches + 1);
+            // Not an overlay fetch: overlay.fetch.txset is not updated.
+            REQUIRE(fetchTimer.count() == fetches);
 
             // A later delivery from the overlay is redundant.
             REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
@@ -874,15 +875,40 @@ TEST_CASE("PendingEnvelopes re-requests tx sets the overlay does not deliver",
 
     SECTION("an undelivered set is requested again until it arrives")
     {
-        crankBy(2 * interval);
-        auto const retried = retries.count() - initialRetries;
-        REQUIRE(retried >= 1);
-        REQUIRE(retried <= 2);
+        auto& fetchTimer =
+            app->getMetrics().NewTimer({"overlay", "fetch", "txset"});
+        auto const fetches = fetchTimer.count();
+        // Requests repeat after 1 s, then back off: 2 s, 4 s, ...
+        crankBy(interval); // t = 1.5 s
+        REQUIRE(retries.count() == initialRetries + 1);
+        crankBy(interval); // t = 2.5 s
+        REQUIRE(retries.count() == initialRetries + 1);
+        crankBy(interval); // t = 3.5 s
+        REQUIRE(retries.count() == initialRetries + 2);
+        crankBy(3 * interval); // t = 6.5 s
+        REQUIRE(retries.count() == initialRetries + 2);
+        crankBy(interval); // t = 7.5 s
+        REQUIRE(retries.count() == initialRetries + 3);
 
         REQUIRE(pendingEnvelopes.recvTxSet(hash, p.second));
         REQUIRE(!pendingEnvelopes.getTxSetWaitingTime(hash));
-        crankBy(3 * interval);
-        REQUIRE(retries.count() == initialRetries + retried);
+        REQUIRE(fetchTimer.count() == fetches + 1);
+        crankBy(10 * interval);
+        REQUIRE(retries.count() == initialRetries + 3);
+    }
+
+    SECTION("a set for a closed slot is not requested again")
+    {
+        auto oldEnvelope =
+            makeEnvelope(herder, s, p, qSetHash, lcl.header.ledgerSeq);
+        // Purge the undecided slot's fetch; only the old slot's remains.
+        pendingEnvelopes.eraseOutsideRange(std::nullopt, slot - 1, 0);
+        REQUIRE(!pendingEnvelopes.getTxSetWaitingTime(hash));
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(oldEnvelope) ==
+                Herder::ENVELOPE_STATUS_FETCHING);
+        REQUIRE(pendingEnvelopes.getTxSetWaitingTime(hash));
+        crankBy(10 * interval);
+        REQUIRE(retries.count() == initialRetries);
     }
 
     SECTION("purging the waiting slot stops the fetch")

@@ -273,7 +273,7 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
     // build the set it was waiting for, and nobody can serve a legacy set over
     // the Rust overlay. Release its waiting envelopes now. This can reenter
     // SCP and externalize.
-    completeTxSetFetch(hash, txset);
+    completeTxSetFetch(hash, txset, /*deliveredByOverlay=*/false);
 }
 
 bool
@@ -311,13 +311,14 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
     }
 
     putTxSet(hash, 0, txset);
-    completeTxSetFetch(hash, txset);
+    completeTxSetFetch(hash, txset, /*deliveredByOverlay=*/true);
     return true;
 }
 
 void
 PendingEnvelopes::completeTxSetFetch(Hash const& hash,
-                                     TxSetXDRFrameConstPtr const& txset)
+                                     TxSetXDRFrameConstPtr const& txset,
+                                     bool deliveredByOverlay)
 {
     auto it = mPendingTxSetFetches.find(hash);
     if (it == mPendingTxSetFetches.end())
@@ -331,8 +332,13 @@ PendingEnvelopes::completeTxSetFetch(Hash const& hash,
     auto fetchIt = mTxSetFetches.find(hash);
     if (fetchIt != mTxSetFetches.end())
     {
-        mFetchTxSetTimer.Update(mApp.getClock().now() -
-                                fetchIt->second.mStarted);
+        // overlay.fetch.txset times overlay fetches only, not sets this node
+        // ended up building itself.
+        if (deliveredByOverlay)
+        {
+            mFetchTxSetTimer.Update(mApp.getClock().now() -
+                                    fetchIt->second.mStarted);
+        }
         mTxSetFetches.erase(fetchIt);
     }
 
@@ -983,7 +989,13 @@ PendingEnvelopes::stopAllOutsideRange(std::optional<uint64> minSlot,
 void
 PendingEnvelopes::scheduleTxSetFetchRetry()
 {
-    if (mTxSetFetchRetryScheduled || mTxSetFetches.empty())
+    // Only sets for undecided slots are re-requested (see
+    // retryStalledTxSetFetches).
+    auto const lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+    if (mTxSetFetchRetryScheduled ||
+        std::none_of(
+            mTxSetFetches.begin(), mTxSetFetches.end(),
+            [&](auto const& fetch) { return fetch.second.mSlot > lcl; }))
     {
         return;
     }
@@ -1005,6 +1017,7 @@ PendingEnvelopes::retryStalledTxSetFetches()
     // serve a legacy (pre-protocol 20) set. Repeat requests that have not been
     // answered; the overlay sends a repeated request to another peer.
     auto const now = mApp.getClock().now();
+    auto const lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
     bool const legacyLcl =
         protocolVersionIsBefore(mApp.getLedgerManager()
                                     .getLastClosedLedgerHeader()
@@ -1012,7 +1025,17 @@ PendingEnvelopes::retryStalledTxSetFetches()
                                 SOROBAN_PROTOCOL_VERSION);
     for (auto& [hash, fetch] : mTxSetFetches)
     {
-        if (now - fetch.mLastRequested < TX_SET_FETCH_RETRY_INTERVAL)
+        // A set for a slot this node already closed (e.g. kept for the
+        // checkpoint) is not needed for consensus; it was requested once.
+        if (fetch.mSlot <= lcl)
+        {
+            continue;
+        }
+        // Back off (1, 2, 4, then every 8 s): a slow but live transfer of a
+        // large set should not be duplicated to another peer every second.
+        auto const backoff = TX_SET_FETCH_RETRY_INTERVAL *
+                             (1u << std::min<uint32_t>(fetch.mRequests - 1, 3));
+        if (now - fetch.mLastRequested < backoff)
         {
             continue;
         }

@@ -984,8 +984,8 @@ impl StellarOverlay {
 
     /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it.
     /// A `retry` replaces an outstanding request (which never delivered) and
-    /// prefers a different connected peer: the previous one may have been
-    /// silent or not had the set, and there is no negative response.
+    /// goes to a random connected peer other than the previous one: that may
+    /// have been silent or not had the set, and there is no negative response.
     async fn fetch_txset(&mut self, hash: [u8; 32], slot: u32, retry: bool) {
         // Read each shared map on its own; never nest these locks.
         let previous_peer = {
@@ -1012,8 +1012,10 @@ impl StellarOverlay {
         let avoid = previous_peer.filter(|p| retry && streams.keys().any(|other| other != p));
         let eligible = |p: &PeerId| streams.contains_key(p) && Some(*p) != avoid;
 
-        // Prefer the peer that referenced the set in an SCP message
-        let peer = if let Some(source_peer) = known_source.filter(|p| eligible(p)) {
+        // Prefer the peer that referenced the set in an SCP message. A retry
+        // picks a random other peer instead: preferring the source again would
+        // send every other retry back to a source that may not answer.
+        let peer = if let Some(source_peer) = known_source.filter(|p| !retry && eligible(p)) {
             info!(
                 "TXSET_FETCH: Fetching TX set {:02x?}... from known source {}{}",
                 &hash[..4],
