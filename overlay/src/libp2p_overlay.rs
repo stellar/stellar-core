@@ -1809,29 +1809,29 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         peer_id
     );
 
-    let mut to_request: Vec<[u8; 32]> = Vec::new();
-
-    for entry in batch.entries {
-        // Check if we already have this TX
-        {
-            let seen = state.tx_seen.read().await;
-            if seen.contains(&entry.hash) {
-                // Already have it, just record this peer as a source (for relay tracking)
-                continue;
-            }
-        }
-
-        // Record this peer as a source for round-robin GETDATA
-        let is_first = {
-            let mut tracker = state.inv_tracker.write().await;
-            tracker.record_source(entry.hash, *peer_id)
-        };
-
-        // If this is the first INV for this TX, we should request it
-        if is_first {
-            to_request.push(entry.hash);
-        }
-    }
+    // Each structure is locked once per batch rather than once per entry, and
+    // the two locks are never held together. Entries keep their batch order.
+    // Skip TXs we already have; they are not recorded as sources.
+    let unseen: Vec<[u8; 32]> = {
+        let seen = state.tx_seen.read().await;
+        batch
+            .entries
+            .iter()
+            .map(|entry| entry.hash)
+            .filter(|hash| !seen.contains(hash))
+            .collect()
+    };
+    // Record this peer as a source for round-robin GETDATA retries, and
+    // request only TXs it is the first to advertise.
+    let to_request: Vec<[u8; 32]> = if unseen.is_empty() {
+        Vec::new()
+    } else {
+        let mut tracker = state.inv_tracker.write().await;
+        unseen
+            .into_iter()
+            .filter(|hash| tracker.record_source(*hash, *peer_id))
+            .collect()
+    };
 
     // Send GETDATA for TXs we don't have
     if !to_request.is_empty() {

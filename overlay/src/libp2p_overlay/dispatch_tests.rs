@@ -588,6 +588,84 @@ async fn inv_batches_completed_by_relay_or_local_broadcast_reach_the_peer() {
 }
 
 #[tokio::test]
+async fn inv_batch_demands_only_first_unseen_advertisements_in_order() {
+    use crate::flood::{InvBatch, InvEntry};
+
+    let advertiser = TestNode::start().await;
+    let mut receiver = TestNode::start().await;
+    advertiser.connect(&receiver).await;
+    let txs: Vec<_> = (1..=6).map(test_tx).collect();
+    for tx in &txs {
+        advertiser
+            .state
+            .tx_buffer
+            .write()
+            .await
+            .insert(Arc::clone(tx));
+    }
+    let hash = |index: usize| *txs[index].hash();
+    // txs[1] was already received; txs[2] was first advertised by another
+    // peer, which owns its demand; txs[5] is never advertised.
+    receiver.state.tx_seen.write().await.put(hash(1), ());
+    let other = PeerId::random();
+    assert!(receiver
+        .state
+        .inv_tracker
+        .write()
+        .await
+        .record_source(hash(2), other));
+
+    // Unsorted, with a repeat: demands must follow first-advertisement order.
+    let order = [4, 1, 0, 2, 4, 3];
+    let batch = InvBatch {
+        entries: order
+            .iter()
+            .map(|&index| InvEntry {
+                hash: hash(index),
+                fee_per_op: 0,
+            })
+            .collect(),
+    };
+    handle_inv_batch(&receiver.state, &advertiser.peer, batch).await;
+
+    // Counted when the demand is built, before any response can arrive. A
+    // demand for the seen TX would be counted here even though the receiver
+    // would then drop the response as a duplicate.
+    let demanded = [4, 0, 3];
+    assert_eq!(
+        receiver
+            .state
+            .metrics
+            .flood_demanded
+            .load(Ordering::Relaxed),
+        demanded.len() as u64
+    );
+    {
+        let tracker = receiver.state.inv_tracker.read().await;
+        let sources = |index: usize| tracker.peek_sources(&hash(index)).cloned();
+        // A seen TX is not tracked; a repeat does not add the peer twice;
+        // a later advertiser is recorded behind the first.
+        assert_eq!(sources(1), None);
+        assert_eq!(sources(4), Some(vec![advertiser.peer]));
+        assert_eq!(sources(2), Some(vec![other, advertiser.peer]));
+        assert_eq!(sources(5), None);
+    }
+    // The advertiser serves the one GETDATA in its hash order.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        for index in demanded {
+            let Some(CoreCommand::SubmitTx { tx, .. }) = receiver._admissions.recv().await else {
+                panic!("expected transaction admission");
+            };
+            assert_eq!(tx.hash(), &hash(index), "demand order");
+        }
+    })
+    .await
+    .expect("demanded transactions must arrive");
+    assert!(receiver._admissions.try_recv().is_err());
+    receiver.stop().await;
+}
+
+#[tokio::test]
 async fn scp_state_sends_preserve_slot_order_without_blocking_other_peers() {
     let mut sender = TestNode::start().await;
     let mut receiver = TestNode::start().await;
