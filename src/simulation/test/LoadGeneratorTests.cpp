@@ -378,6 +378,117 @@ TEST_CASE("synthetic SAC load recycles source accounts in overlay-only mode",
     REQUIRE(bytes.count() - bytesBefore == nTxs * refMsgBytes);
 }
 
+TEST_CASE("externalized tx set hashes and sources match transaction frames",
+          "[loadgen][herder][txset]")
+{
+    // Herder hands the overlay getTransactionFullHashes() and loadgen the
+    // envelopes from forEachTransactionEnvelope() instead of building a frame
+    // per transaction. Pin both to what frames built from the same set give:
+    // same order, same full hashes, same source accounts.
+    Hash const networkID = sha256("externalized tx set test network");
+    auto key = [](std::string const& name) {
+        return txtest::getAccount(name).getPublicKey();
+    };
+    uint32_t nextSeq = 1;
+    auto v1Tx = [&](PublicKey const& source,
+                    std::optional<uint64_t> muxId = std::nullopt) {
+        TransactionEnvelope env(ENVELOPE_TYPE_TX);
+        env.v1().tx.sourceAccount = toMuxedAccount(source, muxId);
+        env.v1().tx.fee = 100;
+        env.v1().tx.seqNum = nextSeq++;
+        env.v1().tx.operations.emplace_back(txtest::payment(key("dest"), 1));
+        return env;
+    };
+    auto v0Tx = [&](PublicKey const& source) {
+        TransactionEnvelope env(ENVELOPE_TYPE_TX_V0);
+        env.v0().tx.sourceAccountEd25519 = source.ed25519();
+        env.v0().tx.fee = 100;
+        env.v0().tx.seqNum = nextSeq++;
+        env.v0().tx.operations.emplace_back(txtest::payment(key("dest"), 1));
+        return env;
+    };
+    auto feeBumpTx = [&](PublicKey const& feeSource, PublicKey const& source) {
+        TransactionEnvelope env(ENVELOPE_TYPE_TX_FEE_BUMP);
+        env.feeBump().tx.feeSource = toMuxedAccount(feeSource, 7);
+        env.feeBump().tx.fee = 400;
+        env.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
+        env.feeBump().tx.innerTx.v1() = v1Tx(source).v1();
+        return env;
+    };
+
+    auto checkMatchesFrames = [&](TxSetXDRFrameConstPtr const& txSet,
+                                  size_t expectedTxs) {
+        std::vector<TransactionFrameBasePtr> frames;
+        for (auto const& phase : txSet->createTransactionFrames(networkID))
+        {
+            frames.insert(frames.end(), phase.begin(), phase.end());
+        }
+        std::vector<TransactionEnvelope> envelopes;
+        txSet->forEachTransactionEnvelope(
+            [&](TransactionEnvelope const& env) { envelopes.push_back(env); });
+        auto hashes = txSet->getTransactionFullHashes();
+
+        REQUIRE(frames.size() == expectedTxs);
+        REQUIRE(envelopes.size() == expectedTxs);
+        REQUIRE(hashes.size() == expectedTxs);
+        for (size_t i = 0; i < expectedTxs; ++i)
+        {
+            REQUIRE(envelopes[i] == frames[i]->getEnvelope());
+            REQUIRE(hashes[i] == frames[i]->getFullHash());
+            REQUIRE(LoadGenerator::getEnvelopeSourceID(envelopes[i]) ==
+                    frames[i]->getSourceID());
+        }
+    };
+
+    SECTION("source account of each envelope type")
+    {
+        REQUIRE(LoadGenerator::getEnvelopeSourceID(v0Tx(key("a"))) == key("a"));
+        REQUIRE(LoadGenerator::getEnvelopeSourceID(v1Tx(key("b"))) == key("b"));
+        // Muxed sources resolve to the underlying account.
+        REQUIRE(LoadGenerator::getEnvelopeSourceID(v1Tx(key("c"), 42)) ==
+                key("c"));
+        // A fee bump's source is its inner transaction's, not the fee source.
+        REQUIRE(LoadGenerator::getEnvelopeSourceID(
+                    feeBumpTx(key("fee"), key("inner"))) == key("inner"));
+    }
+    SECTION("legacy tx set")
+    {
+        TransactionSet xdrSet;
+        xdrSet.previousLedgerHash = sha256("previous ledger");
+        xdrSet.txs = {v0Tx(key("a")), v1Tx(key("b")), v1Tx(key("c"), 42),
+                      feeBumpTx(key("fee"), key("inner"))};
+        checkMatchesFrames(TxSetXDRFrame::makeFromWire(xdrSet), 4);
+    }
+    SECTION("generalized tx set with sequential and parallel phases")
+    {
+        GeneralizedTransactionSet xdrSet(1);
+        auto& v1Set = xdrSet.v1TxSet();
+        v1Set.previousLedgerHash = sha256("previous ledger");
+
+        auto& classic = v1Set.phases.emplace_back(0);
+        for (auto const& txs :
+             {std::vector<TransactionEnvelope>{v1Tx(key("a")), v0Tx(key("b"))},
+              std::vector<TransactionEnvelope>{
+                  v1Tx(key("c"), 42), feeBumpTx(key("fee"), key("d"))}})
+        {
+            auto& component = classic.v0Components().emplace_back(
+                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+            component.txsMaybeDiscountedFee().txs.assign(txs.begin(),
+                                                         txs.end());
+        }
+
+        auto& parallel = v1Set.phases.emplace_back(1);
+        auto& stages = parallel.parallelTxsComponent().executionStages;
+        auto& stage0 = stages.emplace_back();
+        stage0.push_back({v1Tx(key("e")), v1Tx(key("f"))});
+        stage0.push_back({feeBumpTx(key("fee"), key("g"))});
+        auto& stage1 = stages.emplace_back();
+        stage1.push_back({v1Tx(key("h"), 9)});
+
+        checkMatchesFrames(TxSetXDRFrame::makeFromWire(xdrSet), 8);
+    }
+}
+
 TEST_CASE("generate load with unique accounts", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);

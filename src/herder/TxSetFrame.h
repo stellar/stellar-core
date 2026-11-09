@@ -261,6 +261,16 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     PerPhaseTransactionList
     createTransactionFrames(Hash const& networkID) const;
 
+    // Calls `f` with the envelope of every transaction in the set, in the
+    // order createTransactionFrames returns their frames, without building
+    // any frames (which copies every envelope).
+    void forEachTransactionEnvelope(
+        std::function<void(TransactionEnvelope const&)> const& f) const;
+
+    // Full hashes (`TransactionFrameBase::getFullHash`) of every transaction
+    // in the set, in the same order, hashed directly from the XDR.
+    std::vector<Hash> getTransactionFullHashes() const;
+
 #ifdef BUILD_TESTS
     mutable ApplicableTxSetFrameConstPtr mApplicableTxSetOverride;
 

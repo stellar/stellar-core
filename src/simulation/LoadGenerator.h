@@ -227,8 +227,12 @@ class LoadGenerator
 
     void stop();
 
-    void cleanupAccounts(uint32_t ledgerSeq,
-                         PerPhaseTransactionList const& perPhaseTxs);
+    void cleanupAccounts(uint32_t ledgerSeq, TxSetXDRFrame const& txSet);
+
+    // The source account of the transaction in `env`, as
+    // TransactionFrameBase::getSourceID reports it for a frame built from
+    // `env`: the unmuxed source, or the inner transaction's for a fee bump.
+    static AccountID getEnvelopeSourceID(TransactionEnvelope const& env);
 
   private:
     struct TxMetrics

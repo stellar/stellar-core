@@ -1367,6 +1367,68 @@ TxSetXDRFrame::createTransactionFrames(Hash const& networkID) const
     return phaseTxs;
 }
 
+void
+TxSetXDRFrame::forEachTransactionEnvelope(
+    std::function<void(TransactionEnvelope const&)> const& f) const
+{
+    if (isGeneralizedTxSet())
+    {
+        auto const& txSet =
+            std::get<GeneralizedTransactionSet>(mXDRTxSet).v1TxSet();
+        for (auto const& phase : txSet.phases)
+        {
+            switch (phase.v())
+            {
+            case 0:
+                for (auto const& component : phase.v0Components())
+                {
+                    for (auto const& tx : component.txsMaybeDiscountedFee().txs)
+                    {
+                        f(tx);
+                    }
+                }
+                break;
+            case 1:
+                for (auto const& stage :
+                     phase.parallelTxsComponent().executionStages)
+                {
+                    for (auto const& cluster : stage)
+                    {
+                        for (auto const& tx : cluster)
+                        {
+                            f(tx);
+                        }
+                    }
+                }
+                break;
+            default:
+                break;
+            }
+        }
+    }
+    else
+    {
+        for (auto const& tx : std::get<TransactionSet>(mXDRTxSet).txs)
+        {
+            f(tx);
+        }
+    }
+}
+
+std::vector<Hash>
+TxSetXDRFrame::getTransactionFullHashes() const
+{
+    ZoneScoped;
+    std::vector<Hash> hashes;
+    hashes.reserve(sizeTxTotal());
+    // Same digest as TransactionFrame::getFullHash and
+    // FeeBumpTransactionFrame::getFullHash: SHA-256 of the envelope's XDR.
+    forEachTransactionEnvelope([&hashes](TransactionEnvelope const& tx) {
+        hashes.emplace_back(xdrSha256(tx));
+    });
+    return hashes;
+}
+
 size_t
 TxSetXDRFrame::encodedSize() const
 {

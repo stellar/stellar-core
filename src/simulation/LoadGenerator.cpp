@@ -231,9 +231,31 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
     return txs - static_cast<int64_t>(submittedSoFar);
 }
 
+AccountID
+LoadGenerator::getEnvelopeSourceID(TransactionEnvelope const& env)
+{
+    // Mirrors TransactionFrame::getSourceID and
+    // FeeBumpTransactionFrame::getSourceID (the inner transaction's source).
+    switch (env.type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+    {
+        AccountID res;
+        res.ed25519() = env.v0().tx.sourceAccountEd25519;
+        return res;
+    }
+    case ENVELOPE_TYPE_TX:
+        return toAccountID(env.v1().tx.sourceAccount);
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+        return toAccountID(env.feeBump().tx.innerTx.v1().tx.sourceAccount);
+    default:
+        // TransactionFrameBase::makeTransactionFromWire aborts here too.
+        abort();
+    }
+}
+
 void
-LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
-                               PerPhaseTransactionList const& perPhaseTxs)
+LoadGenerator::cleanupAccounts(uint32_t ledgerSeq, TxSetXDRFrame const& txSet)
 {
     ZoneScoped;
 
@@ -285,20 +307,16 @@ LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
     // holds every node's transactions; looking each source up in the in-use
     // index keeps this proportional to the set, however large the mempool
     // backlog grows, and the lookups allocate nothing.
-    for (auto const& txs : perPhaseTxs)
-    {
-        for (auto const& tx : txs)
+    txSet.forEachTransactionEnvelope([&](TransactionEnvelope const& env) {
+        auto it = mAccountsInUseByKey.find(getEnvelopeSourceID(env));
+        if (it == mAccountsInUseByKey.end())
         {
-            auto it = mAccountsInUseByKey.find(tx->getSourceID());
-            if (it == mAccountsInUseByKey.end())
-            {
-                continue;
-            }
-            mAccountsExternalized.emplace(it->second, ledgerSeq);
-            mAccountsInUse.erase(it->second);
-            mAccountsInUseByKey.erase(it);
+            return;
         }
-    }
+        mAccountsExternalized.emplace(it->second, ledgerSeq);
+        mAccountsInUse.erase(it->second);
+        mAccountsInUseByKey.erase(it);
+    });
 }
 
 // Reset everything except Soroban persistent state
