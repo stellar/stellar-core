@@ -1878,8 +1878,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
-    mHerderSCPDriver.recordNominationTrigger(ledgerSeqToTrigger);
-
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
@@ -1925,6 +1923,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                      nextCloseTime.toString());
         return;
     }
+
+    // Start the trigger-to-ballot interval only once this node is going to
+    // build a proposal and nominate. A skipped trigger must not credit the
+    // time spent waiting for peers to the drift allowance.
+    mHerderSCPDriver.recordNominationTrigger(ledgerSeqToTrigger);
 
     // Consume the private snapshot only for the ledger it was built against.
     // Keep its close time: changing it would invalidate time-bound transactions

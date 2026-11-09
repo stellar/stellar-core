@@ -6875,6 +6875,62 @@ TEST_CASE("trigger work is recorded by the proposal path",
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
+TEST_CASE("skipped nomination does not start the trigger interval",
+          "[herder][trigger-construction]")
+{
+    using namespace std::chrono;
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+    // A second validator keeps our own nomination from externalizing.
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& driver = herder.getHerderSCPDriver();
+    auto& lm = app->getLedgerManager();
+
+    // Close a ledger at a known time, then move our system clock so far
+    // behind it that no close time we could propose is valid.
+    auto const T = VirtualClock::to_time_t(clock.system_now()) + 1000;
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(T));
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
+    auto const slot = lm.getLastClosedLedgerNum() + 1;
+    clock.setSystemTimeOffset(-(Herder::MAX_TIME_SLIP_SECONDS + seconds(10)));
+
+    // Counts proposal constructions, which happen only for triggers that go
+    // on to nominate.
+    int builds = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        ++builds;
+        return std::vector<TransactionEnvelope>{};
+    };
+
+    herder.triggerNextLedger(slot, true);
+    REQUIRE(builds == 0);
+
+    // Peers move the slot into ballot while we wait. None of that waiting is
+    // trigger-to-ballot work.
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(700));
+    driver.recordSCPEvent(slot, false);
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds::zero());
+
+    // With the clock back in sync, the same path builds a proposal and its
+    // trigger is recorded.
+    clock.setSystemTimeOffset(microseconds::zero());
+    closeLedgerOn(*app, slot, T + 1);
+    auto const nextSlot = slot + 1;
+    herder.triggerNextLedger(nextSlot, true);
+    REQUIRE(builds == 1);
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(300));
+    driver.recordSCPEvent(nextSlot, false);
+    REQUIRE(driver.getTriggerToBallotDuration(nextSlot) == milliseconds(300));
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
 TEST_CASE("trigger work excludes time after entering ballot",
           "[herder][trigger-construction]")
 {
