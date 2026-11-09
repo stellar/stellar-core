@@ -22,6 +22,13 @@ class ApplyLoad
     // of values is [0,1.0].
     double successRate();
 
+#ifdef BUILD_TESTS
+    // Signed SAC payments from distinct sources, as envelopes the way a
+    // leader's mempool hands them to the herder (tx-set build benchmarks).
+    std::vector<TransactionEnvelope>
+    generateSacPaymentEnvelopesForTesting(uint32_t count);
+#endif
+
     // Closes a setup ledger through direct externalization. Setup and upgrades
     // are excluded from benchmark phase timings.
     void closeLedger(std::vector<TransactionFrameBasePtr> const& txs,

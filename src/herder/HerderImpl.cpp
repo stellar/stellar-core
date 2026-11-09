@@ -1819,7 +1819,13 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     auto& overlayMgr = mApp.getOverlayManager();
     // This build validates every candidate itself.
     stopSignaturePrewarm();
-    auto txEnvelopes = pullTopTransactions(maxTxSetCandidates() * 2);
+    auto& metrics = mApp.getMetrics();
+    auto txEnvelopes = [&]() {
+        auto t = metrics.NewTimer({"herder", "txset", "build-pull"}).TimeScope();
+        return pullTopTransactions(maxTxSetCandidates() * 2);
+    }();
+    auto framesTimer =
+        metrics.NewTimer({"herder", "txset", "build-frames"}).TimeScope();
 
     CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
               txEnvelopes.size());
@@ -1887,6 +1893,7 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
 
     PerPhaseTransactionList invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
+    framesTimer.Stop();
 
     std::tie(proposedSet, applicableProposedSet) = makeTxSetFromTransactions(
         txPhases, mApp, closeTimeOffset, invalidTxPhases
@@ -1896,6 +1903,8 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
 #endif
         ,
         [&](TxSetXDRFrameConstPtr const& txSet) {
+            auto t = metrics.NewTimer({"herder", "txset", "build-handoff"})
+                         .TimeScope();
             // Hand the final XDR to the overlay before the builder's remaining
             // validation. Its eager compression runs concurrently in Rust.
             if (txSet->isGeneralizedTxSet())

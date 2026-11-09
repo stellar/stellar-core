@@ -914,6 +914,10 @@ makeTxSetFromTransactions(
         else
         {
 #endif
+            auto trimTimer =
+                app.getMetrics()
+                    .NewTimer({"herder", "txset", "build-trim"})
+                    .TimeScope();
             validatedTxs = TxSetUtils::trimInvalid(
                 phaseTxs, app, accountFeeMap, closeTimeOffset.seconds(),
                 closeTimeOffset.seconds(), invalid);
@@ -936,6 +940,9 @@ makeTxSetFromTransactions(
         }
 #endif
         auto phaseType = static_cast<TxSetPhase>(i);
+        auto selectTimer = app.getMetrics()
+                               .NewTimer({"herder", "txset", "build-select"})
+                               .TimeScope();
         auto [includedTxs, inclusionFeeMapBinding] =
             applySurgePricing(phaseType, validatedTxs, app
 #ifdef BUILD_TESTS
@@ -970,6 +977,8 @@ makeTxSetFromTransactions(
     }
 
     auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
+    auto xdrTimer =
+        app.getMetrics().NewTimer({"herder", "txset", "build-xdr"}).TimeScope();
     // Preliminary applicable frame - we don't know the contents hash yet, but
     // we also don't return this.
     std::unique_ptr<ApplicableTxSetFrame> preliminaryApplicableTxSet(
@@ -991,6 +1000,7 @@ makeTxSetFromTransactions(
     }
 #endif
 
+    xdrTimer.Stop();
     // The final XDR is available now. Start proposal encoding while the
     // roundtrip and final validity checks below run; only the local builder
     // supplies this callback. The callback must not nominate the set.
@@ -999,8 +1009,12 @@ makeTxSetFromTransactions(
         onTxSetReady(outputTxSet);
     }
 
+    auto roundtripTimer = app.getMetrics()
+                              .NewTimer({"herder", "txset", "build-roundtrip"})
+                              .TimeScope();
     ApplicableTxSetFrameConstPtr outputApplicableTxSet =
         outputTxSet->prepareForApply(app, lclHeader.header);
+    roundtripTimer.Stop();
 
     if (!outputApplicableTxSet)
     {
@@ -1029,8 +1043,12 @@ makeTxSetFromTransactions(
     }
     // We already trimmed invalid transactions in an earlier call to
     // `trimInvalid`, so skip transaction validation here
+    auto finalTimer = app.getMetrics()
+                          .NewTimer({"herder", "txset", "build-final-check"})
+                          .TimeScope();
     auto validationResult = outputApplicableTxSet->checkValidInternalWithResult(
         app, closeTimeOffset.seconds(), closeTimeOffset.seconds(), true);
+    finalTimer.Stop();
     if (validationResult != TxSetValidationResult::VALID)
     {
         throw std::runtime_error(fmt::format(

@@ -11,11 +11,13 @@
 #include "scp/LocalNode.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
+#include "simulation/ApplyLoad.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/BatchExecutor.h"
 #include "util/JitterInjection.h"
 
 #include "history/HistoryArchiveManager.h"
@@ -6769,6 +6771,13 @@ class EarlyNominationTestAccess
         herder.setupTriggerNextLedger();
     }
 
+    // The leader's full build (mempool pull through final checks).
+    static TxSetXDRFrameConstPtr
+    build(HerderImpl& herder, uint32_t ledgerSeq, ConsensusTime closeTime)
+    {
+        return herder.buildTxSet(ledgerSeq, closeTime).txSet;
+    }
+
     // These fixtures inspect a local proposal while requiring an absent peer
     // to prevent externalization. Pick that peer so the local node is the
     // first leader, independently of the test RNG seed and previous ledger.
@@ -8300,4 +8309,192 @@ TEST_CASE("upgrade scheduling under sub-second ledgers", "[upgrades]")
     auto notDue = Upgrades{makeUpgradeCfg(VirtualClock::from_time_t(T + 1))}
                       .createUpgradesFor(header, *ledgerView, app->getConfig());
     REQUIRE(notDue.empty());
+}
+
+#if __has_include(<valgrind/callgrind.h>)
+#include <valgrind/callgrind.h>
+#else
+#define CALLGRIND_START_INSTRUMENTATION
+#define CALLGRIND_STOP_INSTRUMENTATION
+#endif
+
+// A leader's tx-set build at perfnet's 3k SAC TPS scale: the mempool hands
+// over twice the cap of SAC payments (15,000 here vs perfnet's 15,200), all
+// valid, never validated by Core before (the Rust overlay admitted them), and
+// the builder keeps 7,500 in a parallel Soroban phase. Times each phase of
+// HerderImpl::buildTxSet with a cold and with a warm signature cache.
+// Env: BENCH_REPS (default 5), BENCH_TASKS (validation tasks, default 4 =
+// c5d.2xlarge physical cores), BENCH_WARM=0 to skip the warm runs. Under
+// valgrind --tool=callgrind --instr-atstart=no only the cold builds are
+// instrumented.
+TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
+{
+    auto envInt = [](char const* name, uint32_t dflt) {
+        auto v = std::getenv(name);
+        return v ? static_cast<uint32_t>(std::stoul(v)) : dflt;
+    };
+    uint32_t const sorobanCap = 7500;
+    uint32_t const candidates = 2 * sorobanCap;
+    uint32_t const reps = envInt("BENCH_REPS", 5);
+    uint32_t const tasks = envInt("BENCH_TASKS", 4);
+    bool const warmRuns = envInt("BENCH_WARM", 1) != 0;
+
+    auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
+    cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = sorobanCap;
+    cfg.APPLY_LOAD_BATCH_SAC_COUNT = 1;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 0;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = candidates + 10;
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    std::vector<TransactionEnvelope> envelopes;
+    {
+        ApplyLoad al(*app);
+        envelopes = al.generateSacPaymentEnvelopesForTesting(candidates);
+    }
+    REQUIRE(envelopes.size() == candidates);
+    app->getBatchExecutor().setPreferredTaskCountForTesting(tasks);
+
+    // The Rust overlay's GetTopTxs response, decoded exactly as
+    // OverlayIPC::getTopTransactions does: [count:4]([len:4][xdr])*
+    std::vector<uint8_t> payload(4);
+    uint32_t const count = static_cast<uint32_t>(envelopes.size());
+    std::memcpy(payload.data(), &count, 4);
+    for (auto const& env : envelopes)
+    {
+        auto bytes = xdr::xdr_to_opaque(env);
+        uint32_t const len = static_cast<uint32_t>(bytes.size());
+        auto const at = payload.size();
+        payload.resize(at + 4 + len);
+        std::memcpy(payload.data() + at, &len, 4);
+        std::memcpy(payload.data() + at + 4, bytes.data(), len);
+    }
+    // BENCH_PULL: hand over only the first N candidates (a smaller pull).
+    uint32_t const pull = std::min(envInt("BENCH_PULL", count), count);
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        std::vector<TransactionEnvelope> result;
+        size_t offset = 4;
+        for (uint32_t i = 0; i < pull; ++i)
+        {
+            uint32_t len;
+            std::memcpy(&len, payload.data() + offset, 4);
+            offset += 4;
+            TransactionEnvelope tx;
+            std::vector<uint8_t> txData(payload.begin() + offset,
+                                        payload.begin() + offset + len);
+            xdr::xdr_from_opaque(txData, tx);
+            result.push_back(std::move(tx));
+            offset += len;
+        }
+        return result;
+    };
+
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const seq = lcl.header.ledgerSeq + 1;
+    auto const closeTime =
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion);
+    std::vector<std::string> const phases = {
+        "build-pull",      "build-frames",      "build-trim",
+        "build-select",    "build-xdr",         "build-handoff",
+        "build-roundtrip", "build-final-check", "build"};
+    auto& metrics = app->getMetrics();
+
+    std::cout << "=== leader tx set build: " << pull << " of " << candidates
+              << " SAC candidates, cap " << sorobanCap << ", " << tasks
+              << " validation tasks, IPC payload " << payload.size()
+              << " bytes ===" << std::endl;
+    for (bool cold : {true, false})
+    {
+        if (!cold && !warmRuns)
+        {
+            continue;
+        }
+        std::map<std::string, std::vector<double>> samples;
+        size_t included = 0;
+        uint64_t misses = 0;
+        for (uint32_t rep = 0; rep < reps; ++rep)
+        {
+            if (cold)
+            {
+                PubKeyUtils::clearVerifySigCache();
+            }
+            uint64_t h = 0, m = 0;
+            PubKeyUtils::flushVerifySigCacheCounts(h, m);
+            for (auto const& phase : phases)
+            {
+                metrics.NewTimer({"herder", "txset", phase}).Clear();
+            }
+            if (cold)
+            {
+                CALLGRIND_START_INSTRUMENTATION;
+            }
+            auto txSet =
+                EarlyNominationTestAccess::build(herder, seq, closeTime);
+            if (cold)
+            {
+                CALLGRIND_STOP_INSTRUMENTATION;
+            }
+            PubKeyUtils::flushVerifySigCacheCounts(h, m);
+            misses = m;
+            included = txSet->sizeTxTotal();
+            for (auto const& phase : phases)
+            {
+                samples[phase].push_back(
+                    metrics.NewTimer({"herder", "txset", phase}).sum());
+            }
+            // The overlay handoff's serialization into the IPC message (the
+            // test app has no overlay process, so time it here).
+            auto const start = std::chrono::steady_clock::now();
+            auto const& xdrSet = txSet->getGeneralizedXDR();
+            std::vector<uint8_t> msg(36 + xdr::xdr_argpack_size(xdrSet));
+            xdr::xdr_put put(msg.data() + 36, msg.data() + msg.size());
+            xdr::xdr_argpack_archive(put, xdrSet);
+            samples["handoff-serialize"].push_back(
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - start)
+                    .count());
+        }
+        REQUIRE(included == std::min(sorobanCap, pull));
+        if (cold)
+        {
+            // Calibration against perfnet's herder.txset.validate: a
+            // follower validating the received set with a cold cache.
+            auto const& lastSet =
+                EarlyNominationTestAccess::build(herder, seq, closeTime);
+            for (uint32_t rep = 0; rep < reps; ++rep)
+            {
+                auto received = TxSetXDRFrame::makeFromWire(
+                    GeneralizedTransactionSet(lastSet->getGeneralizedXDR()));
+                PubKeyUtils::clearVerifySigCache();
+                auto const start = std::chrono::steady_clock::now();
+                auto applicable = received->prepareForApply(*app, lcl.header);
+                REQUIRE(applicable);
+                REQUIRE(applicable->checkValid(*app, 0, 0));
+                samples["received-set-validate"].push_back(
+                    std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() - start)
+                        .count());
+            }
+        }
+        std::cout << (cold ? "cold" : "warm")
+                  << " signature cache (last build: " << misses
+                  << " verifications, " << included << " txs)" << std::endl;
+        for (auto& [phase, v] : samples)
+        {
+            std::sort(v.begin(), v.end());
+            std::cout << "  " << phase << ": median " << v[v.size() / 2]
+                      << " ms (min " << v.front() << ", max " << v.back()
+                      << ", n=" << v.size() << ")" << std::endl;
+        }
+    }
+    herder.mGetTopTransactionsForTesting = nullptr;
 }

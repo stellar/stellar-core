@@ -959,6 +959,23 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
     stellar::txtest::closeLedger(mApp, txs, /* strictOrder */ false, upgrades);
 }
 
+#ifdef BUILD_TESTS
+std::vector<TransactionEnvelope>
+ApplyLoad::generateSacPaymentEnvelopesForTesting(uint32_t count)
+{
+    std::vector<TransactionFrameBasePtr> txs;
+    txs.reserve(count);
+    generateSacPayments(txs, count);
+    std::vector<TransactionEnvelope> envelopes;
+    envelopes.reserve(txs.size());
+    for (auto const& tx : txs)
+    {
+        envelopes.emplace_back(tx->getEnvelope());
+    }
+    return envelopes;
+}
+#endif
+
 void
 ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
                                 bool recordUtilization)
