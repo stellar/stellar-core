@@ -109,7 +109,9 @@ impl ValidatedTx {
         self.fee / i64::from(self.num_ops.max(1))
     }
 
-    /// The `StellarMessage::Transaction(..)` wire framing for flooding this tx.
+    /// The `StellarMessage::Transaction(..)` wire framing for flooding this tx,
+    /// as one owned buffer. The reference encoding; the flooding path itself
+    /// writes [`Self::flood_frame_parts`] without this copy.
     pub fn to_flood_frame(&self) -> Vec<u8> {
         xdr::frame_transaction(&self.bytes)
     }

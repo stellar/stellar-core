@@ -303,6 +303,95 @@ async fn getdata_batches_preserve_frames_and_leave_control_responsive() {
     receiver.stop().await;
 }
 
+/// A wire-valid transaction carrying a `wasm_len`-byte contract upload, for
+/// controlling frame sizes. Ledger validity is irrelevant to the transport.
+fn upload_tx(sequence: i64, wasm_len: usize) -> Arc<ValidatedTx> {
+    use stellar_xdr::{
+        HostFunction, InvokeHostFunctionOp, Limits, Operation, OperationBody, ReadXdr,
+        TransactionEnvelope, WriteXdr,
+    };
+    let mut envelope = TransactionEnvelope::from_xdr(
+        crate::xdr::tests::valid_transaction_xdr(1000, sequence, 1),
+        Limits::none(),
+    )
+    .unwrap();
+    let TransactionEnvelope::Tx(v1) = &mut envelope else {
+        unreachable!()
+    };
+    v1.tx.operations = vec![Operation {
+        source_account: None,
+        body: OperationBody::InvokeHostFunction(InvokeHostFunctionOp {
+            host_function: HostFunction::UploadContractWasm(vec![0; wasm_len].try_into().unwrap()),
+            auth: Default::default(),
+        }),
+    }]
+    .try_into()
+    .unwrap();
+    ValidatedTx::from_core_trusted(envelope.to_xdr(Limits::none()).unwrap(), 1000, 1).unwrap()
+}
+
+#[tokio::test]
+async fn getdata_batch_edges_preserve_order_and_bytes() {
+    let mut sender = TestNode::start().await;
+    let mut receiver = TestNode::start().await;
+    sender.connect(&receiver).await;
+
+    let small = |sequence| {
+        let bytes = crate::xdr::tests::valid_transaction_xdr(1000, sequence, 16);
+        ValidatedTx::from_core_trusted(bytes, 1000, 16).unwrap()
+    };
+    // XDR sizes are multiples of 4, so this lands exactly on the budget.
+    let exact = |sequence| {
+        let probe = tx_frame_len(&upload_tx(sequence, 60_000));
+        let tx = upload_tx(sequence, 60_000 + TX_RESPONSE_BATCH_BYTES - probe);
+        assert_eq!(tx_frame_len(&tx), TX_RESPONSE_BATCH_BYTES);
+        tx
+    };
+    // An oversized TX as the first hit, then another straight after it; a
+    // batch closed by an exactly budget-sized frame, which then goes out as a
+    // batch of its own; batches spanning several writes; an oversized TX
+    // carried over from a full batch at the end. Misses are interleaved.
+    let mut transactions = vec![upload_tx(1, 70_000), upload_tx(2, 70_000)];
+    transactions.extend((10..13).map(small));
+    transactions.push(exact(20));
+    transactions.push(exact(21));
+    transactions.extend((30..130).map(small));
+    transactions.push(upload_tx(3, 100_000));
+    let mut demand = vec![[0xaa; 32]];
+    for (index, tx) in transactions.iter().enumerate() {
+        sender.state.tx_buffer.write().await.insert(Arc::clone(tx));
+        demand.push(*tx.hash());
+        if index % 40 == 3 {
+            demand.push([index as u8; 32]);
+        }
+    }
+    let misses = demand.len() - transactions.len();
+
+    serve_getdata(&sender.state, receiver.peer, demand).await;
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        for expected in &transactions {
+            let Some(CoreCommand::SubmitTx { tx, .. }) = receiver._admissions.recv().await else {
+                panic!("expected transaction admission");
+            };
+            assert_eq!(tx.bytes(), expected.bytes());
+        }
+    })
+    .await
+    .expect("every served transaction must arrive, in demand order");
+    let metrics = &sender.state.metrics;
+    let served = transactions.len() as u64;
+    assert_eq!(metrics.flood_fulfilled.load(Ordering::Relaxed), served);
+    assert_eq!(metrics.message_write.load(Ordering::Relaxed), served);
+    assert_eq!(metrics.error_write.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        metrics.flood_unfulfilled_unknown.load(Ordering::Relaxed),
+        misses as u64
+    );
+    sender.stop().await;
+    receiver.stop().await;
+}
+
 #[tokio::test]
 async fn getdata_job_stops_after_a_failed_write() {
     let (_handle, _events, _admissions, overlay) =
@@ -320,12 +409,11 @@ async fn getdata_job_stops_after_a_failed_write() {
     serve_getdata(&state, PeerId::random(), hashes.clone()).await;
 
     let failed = state.metrics.error_write.load(Ordering::Relaxed);
-    let looked_up = state.metrics.flood_fulfilled.load(Ordering::Relaxed);
+    let attempted = state.metrics.flood_fulfilled.load(Ordering::Relaxed);
     assert!(failed > 0, "the first batch must have been attempted");
-    // Only the first batch was written, plus the lookup that closed it.
-    assert_eq!(looked_up, failed + 1);
+    assert_eq!(attempted, failed, "only the first batch was attempted");
     assert!(
-        looked_up < hashes.len() as u64,
+        attempted < hashes.len() as u64,
         "the job kept serving a peer it could not write to"
     );
     assert_eq!(state.metrics.message_write.load(Ordering::Relaxed), 0);

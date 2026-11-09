@@ -1367,8 +1367,7 @@ async fn send_to_peer_stream(
     send_to_peer_stream_parts(state, peer_id, stream_type, &[data]).await
 }
 
-/// All parts form one frame, including across partial writes and retries.
-/// The per-route lock stays held until that entire frame has been written.
+/// Send one frame made of `parts`, without assembling them into one buffer.
 async fn send_to_peer_stream_parts(
     state: &SharedState,
     peer_id: PeerId,
@@ -1378,6 +1377,15 @@ async fn send_to_peer_stream_parts(
     send_peer_frames(state, peer_id, stream_type, framed_io::Frames::One(parts)).await
 }
 
+/// Write `frames` to the peer's stream for `stream_type`, opening it if
+/// needed. The per-route lock stays held until every frame has been written,
+/// including across partial writes, so frames never interleave mid-frame.
+///
+/// A failed write drops the stream and retries the whole of `frames` on a
+/// reopened one (3 attempts). For a `Frames::Batch` this can deliver complete
+/// frames that reached the peer before the failure a second time; TX
+/// receivers drop such duplicates via `tx_seen`. The peer's reader on the old
+/// stream sees it end, possibly mid-frame, and exits.
 async fn send_peer_frames(
     state: &SharedState,
     peer_id: PeerId,
@@ -1723,10 +1731,13 @@ async fn handle_inbound_scp_streams(
 }
 
 /// Inbound TX streams carry many small frames, and GETDATA responses arrive
-/// as batches of them. Reading through this buffer copies whatever QUIC has
+/// as batches of them. Reading through a buffer copies whatever QUIC has
 /// received in one call, instead of two reads (each taking the connection
-/// lock) per frame. Larger frames bypass the buffer once it is empty.
-const TX_STREAM_READ_BUFFER_BYTES: usize = 64 * 1024;
+/// lock) per frame. It never waits for more than is available, and larger
+/// frames bypass it once it is empty.
+fn buffered_tx_stream<R: futures::AsyncRead>(stream: R) -> futures::io::BufReader<R> {
+    futures::io::BufReader::with_capacity(TX_RESPONSE_BATCH_BYTES, stream)
+}
 
 /// Handle inbound TX streams from peers
 async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
@@ -1736,8 +1747,7 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
         let state = state.clone();
 
         tokio::spawn(async move {
-            let mut stream =
-                futures::io::BufReader::with_capacity(TX_STREAM_READ_BUFFER_BYTES, stream);
+            let mut stream = buffered_tx_stream(stream);
             loop {
                 match read_framed(&mut stream).await {
                     Ok(data) => {
@@ -1879,98 +1889,114 @@ fn handle_getdata(state: &Arc<SharedState>, peer_id: &PeerId, getdata: GetData) 
     tokio::spawn(async move { serve_getdata(&state, peer, getdata.hashes).await });
 }
 
+/// GETDATA responses are written as batches of complete TX frames of at most
+/// this many bytes. Inbound TX streams are read through a buffer of the same
+/// size, so one read can take in a whole batch.
+const TX_RESPONSE_BATCH_BYTES: usize = 64 * 1024;
+
+/// A transaction's length-prefixed `StellarMessage::Transaction` frame size.
+fn tx_frame_len(tx: &ValidatedTx) -> usize {
+    4 + tx
+        .flood_frame_parts()
+        .iter()
+        .map(|part| part.len())
+        .sum::<usize>()
+}
+
 /// Serve one demand in order, as one job that retains only one bounded batch
 /// while a peer is backpressured. Every TX still has its own wire frame.
 /// Batching avoids one task, stream lock and short QUIC write per transaction.
-/// Each batch is looked up under one buffer lock, released before its write,
-/// and frames are copied straight from the shared TX bytes into the batch.
+///
+/// Each batch is looked up under one TX buffer lock, which is released before
+/// its frames are copied (straight from the shared TX bytes) and written.
+/// Lookups are lazy: batch k+1 is looked up after batch k is written, so a
+/// peer backpressured for longer than the buffer's retention gets misses for
+/// the rest rather than late responses; it re-demands after its timeout.
 ///
 /// The job stops at the first write that fails after `send_peer_frames`'
-/// retries: the peer has usually disconnected, and the requester re-demands
-/// unanswered hashes from another source after its response timeout.
+/// retries, usually because the peer disconnected. If the connection is in
+/// fact still up (a reset stream that also failed to reopen), the requester
+/// re-demands the rest after its response timeout.
 async fn serve_getdata(state: &SharedState, peer: PeerId, hashes: Vec<[u8; 32]>) {
-    const BATCH_BYTES: usize = 64 * 1024;
-    let total = hashes.len();
+    let mut hashes = hashes.into_iter();
+    // A hit that did not fit the previous batch; it starts the next one.
+    let mut carried: Option<Arc<ValidatedTx>> = None;
+    let mut txs: Vec<Arc<ValidatedTx>> = Vec::new();
     let mut batch = Vec::new();
-    let mut messages = 0;
-    let mut buffer = None;
-    for (index, hash) in hashes.into_iter().enumerate() {
-        let tx = match &mut buffer {
-            Some(guard) => guard,
-            None => buffer.insert(state.tx_buffer.write().await),
+    loop {
+        txs.clear();
+        let mut bytes = 0;
+        if let Some(tx) = carried.take() {
+            bytes += tx_frame_len(&tx);
+            txs.push(tx);
         }
-        .get(&hash);
-        let Some(tx) = tx else {
-            state
-                .metrics
-                .flood_unfulfilled_unknown
-                .fetch_add(1, Ordering::Relaxed);
-            trace!(
-                "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
-                &hash[..4],
-                peer
-            );
-            continue;
+        if bytes < TX_RESPONSE_BATCH_BYTES {
+            let mut buffer = state.tx_buffer.write().await;
+            for hash in hashes.by_ref() {
+                let Some(tx) = buffer.get(&hash) else {
+                    state
+                        .metrics
+                        .flood_unfulfilled_unknown
+                        .fetch_add(1, Ordering::Relaxed);
+                    trace!(
+                        "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
+                        &hash[..4],
+                        peer
+                    );
+                    continue;
+                };
+                let len = tx_frame_len(&tx);
+                if !txs.is_empty() && bytes + len > TX_RESPONSE_BATCH_BYTES {
+                    carried = Some(tx);
+                    break;
+                }
+                bytes += len;
+                txs.push(tx);
+                if bytes >= TX_RESPONSE_BATCH_BYTES {
+                    break;
+                }
+            }
+        }
+        let Some(first) = txs.first() else {
+            return;
         };
         state
             .metrics
             .flood_fulfilled
-            .fetch_add(1, Ordering::Relaxed);
-        let parts = tx.flood_frame_parts();
-        let payload = parts.iter().map(|part| part.len()).sum::<usize>();
-        if batch.len() + 4 + payload > BATCH_BYTES && !batch.is_empty() {
-            buffer = None;
-            if !send_tx_response_batch(state, peer, &batch, messages).await {
-                abandon_getdata(peer, total - index);
-                return;
-            }
-            batch.clear();
-            messages = 0;
-        }
-        // A transaction larger than the batch budget retains the existing
-        // segmented write, straight from the shared TX bytes.
-        if 4 + payload > BATCH_BYTES {
-            buffer = None;
+            .fetch_add(txs.len() as u64, Ordering::Relaxed);
+        let written = if bytes > TX_RESPONSE_BATCH_BYTES {
+            // Only a lone transaction can exceed the budget. Write it as the
+            // existing segmented frame, straight from the shared TX bytes.
+            let parts = first.flood_frame_parts();
             let result = send_to_peer_stream_parts(state, peer, StreamType::Tx, &parts).await;
-            if !record_tx_response_write(state, peer, result, 1, payload) {
-                abandon_getdata(peer, total - index - 1);
-                return;
+            record_tx_response_write(state, peer, result, 1, bytes - 4)
+        } else {
+            batch.clear();
+            batch.reserve_exact(bytes);
+            for tx in &txs {
+                let parts = tx.flood_frame_parts();
+                // Within the batch budget, so the length fits the u32 prefix.
+                let payload = parts.iter().map(|part| part.len()).sum::<usize>();
+                batch.extend_from_slice(&(payload as u32).to_be_bytes());
+                for part in parts {
+                    batch.extend_from_slice(part);
+                }
             }
-            continue;
+            let frames = framed_io::Frames::Batch(&batch);
+            let result = send_peer_frames(state, peer, StreamType::Tx, frames).await;
+            record_tx_response_write(state, peer, result, txs.len(), bytes - 4 * txs.len())
+        };
+        if !written {
+            let remaining = hashes.len() + usize::from(carried.is_some());
+            if remaining > 0 {
+                debug!(
+                    "TX_GETDATA_ABANDON: Not serving {} more requested hashes to {} after a failed write",
+                    remaining, peer
+                );
+            }
+            return;
         }
-        // Fits the batch budget, so the length fits the u32 prefix.
-        batch.extend_from_slice(&(payload as u32).to_be_bytes());
-        for part in parts {
-            batch.extend_from_slice(part);
-        }
-        messages += 1;
     }
-    drop(buffer);
-    if !batch.is_empty() {
-        send_tx_response_batch(state, peer, &batch, messages).await;
-    }
-}
-
-/// `remaining` counts requested hashes not yet looked up or written.
-fn abandon_getdata(peer: PeerId, remaining: usize) {
-    if remaining > 0 {
-        debug!(
-            "TX_GETDATA_ABANDON: Not serving {} more requested hashes to {} after a failed write",
-            remaining, peer
-        );
-    }
-}
-
-/// Returns whether the batch was written.
-async fn send_tx_response_batch(
-    state: &SharedState,
-    peer: PeerId,
-    batch: &[u8],
-    messages: usize,
-) -> bool {
-    let result =
-        send_peer_frames(state, peer, StreamType::Tx, framed_io::Frames::Batch(batch)).await;
-    record_tx_response_write(state, peer, result, messages, batch.len() - 4 * messages)
 }
 
 /// Returns whether the write succeeded.
