@@ -3745,7 +3745,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
     for (auto* cfg : {&cfg1, &cfg2, &cfg3})
     {
         cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        cfg->ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 2;
+        cfg->ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 2000;
         cfg->MAX_SLOTS_TO_REMEMBER = 4;
     }
 
@@ -4696,7 +4696,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
     auto confGen = [](int i) {
         auto cfg = getTestConfig(i);
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5000;
         return cfg;
     };
     auto simulation = std::make_shared<Simulation>(networkID, confGen);
@@ -6753,9 +6753,12 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
         });
     }
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-    // The Soroban upgrade helper closes ledgers at its fixed test date.
+    // The Soroban upgrade helper closes ledgers at its fixed test date. The
+    // sub-second offset makes the prepared close time carry milliseconds once
+    // the protocol has ms close times.
     clock.setCurrentVirtualTime(
-        VirtualClock::from_time_t(lcl.header.scpValue.closeTime + 1000));
+        VirtualClock::from_time_t(lcl.header.scpValue.closeTime + 1000) +
+        std::chrono::milliseconds(375));
     auto const seq = lcl.header.ledgerSeq + 1;
     herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
 
@@ -7188,4 +7191,283 @@ TEST_CASE("info reports the ms close time", "[herder]")
     REQUIRE(ledgerInfo["closeTime"].asUInt64() == T);
     // closeTimeMs is the full close time in ms, not just the ms remainder
     REQUIRE(ledgerInfo["closeTimeMs"].asUInt64() == T * 1000 + 250);
+}
+
+TEST_CASE("millisecond close time upgrade boundary",
+          "[upgrades][herder][acceptance]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    // A 4-node network (quorum threshold 3) upgrades to the ms close-time
+    // protocol while one node is stopped (overlay v2's simulation can't
+    // partition a single connection, so the node is removed and later
+    // restarted from its database). The remaining three must keep closing
+    // ledgers across the boundary, switching value types exactly at
+    // activation, and the lagging node must resync across the boundary from
+    // relayed SCP state once it is back.
+    uint32_t const msVersion =
+        static_cast<uint32_t>(MS_CLOSE_TIME_PROTOCOL_VERSION);
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(networkID);
+    auto const upgradeTime =
+        std::chrono::system_clock::now() + std::chrono::seconds(15);
+
+    std::vector<SecretKey> keys;
+    std::vector<Config> configs;
+    for (int i = 0; i < 4; i++)
+    {
+        keys.push_back(
+            SecretKey::fromSeed(sha256("NODE_SEED_" + std::to_string(i))));
+        configs.push_back(simulation->newConfig());
+        auto& cfg = configs.back();
+        // genesis at the last pre-ms protocol; the upgrade is armed below
+        cfg.USE_CONFIG_FOR_GENESIS = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = msVersion - 1;
+        cfg.TESTING_UPGRADE_DATETIME = VirtualClock::system_time_point();
+
+        // Keep a large enough SCP history window so out of sync node doesn't
+        // enter history replay.
+        cfg.MAX_SLOTS_TO_REMEMBER = 50;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 1000;
+    }
+
+    auto qSet = SCPQuorumSet{};
+    qSet.threshold = 3;
+    for (auto const& k : keys)
+    {
+        qSet.validators.push_back(k.getPublicKey());
+    }
+
+    for (int i = 0; i < 4; ++i)
+    {
+        auto app = simulation->addNode(keys[i], qSet, &configs[i]);
+        Upgrades::UpgradeParameters upgrades;
+        upgrades.mProtocolVersion = std::make_optional<uint32>(msVersion);
+        upgrades.mUpgradeTime = upgradeTime;
+        app->getHerder().setUpgrades(upgrades);
+    }
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = i + 1; j < 4; ++j)
+        {
+            simulation->addPendingConnection(keys[i].getPublicKey(),
+                                             keys[j].getPublicKey());
+        }
+    }
+    simulation->startAllNodes();
+
+    auto node = [&](int i) {
+        return simulation->getNode(keys[i].getPublicKey());
+    };
+    auto lclHeader = [&](int i) {
+        return node(i)->getLedgerManager().getLastClosedLedgerHeader();
+    };
+    auto lclSeq = [&](int i) {
+        return node(i)->getLedgerManager().getLastClosedLedgerNum();
+    };
+
+    // Close a few pre-upgrade ledgers with everyone connected
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        std::chrono::seconds(60), false);
+    REQUIRE(lclHeader(0).header.ledgerVersion == msVersion - 1);
+    REQUIRE(lclHeader(0).header.scpValue.ext.v() == STELLAR_VALUE_SIGNED);
+
+    // Stop the fourth node with its database intact before the upgrade, then
+    // restart it below to exercise replay across the boundary over overlay v2.
+    auto const laggingSeq = lclSeq(3);
+    simulation->removeNode(keys[3].getPublicKey());
+
+    // The remaining three still meet the threshold: they must upgrade at the
+    // scheduled time and keep closing (ms) ledgers afterwards
+    simulation->crankUntil(
+        [&]() {
+            for (int i = 0; i < 3; i++)
+            {
+                // Strictly past the boundary: the upgrade ledger itself still
+                // carries a legacy value, so wait for an ms-valued LCL
+                if (lclHeader(i).header.ledgerVersion != msVersion ||
+                    !isMsCloseTimeStellarValue(lclHeader(i).header.scpValue))
+                {
+                    return false;
+                }
+            }
+            return lclSeq(0) >= laggingSeq + 5;
+        },
+        std::chrono::seconds(300), false);
+
+    // Live nodes externalize ms values now
+    for (int i = 0; i < 3; i++)
+    {
+        REQUIRE(lclHeader(i).header.scpValue.ext.v() ==
+                STELLAR_VALUE_SIGNED_MS);
+    }
+
+    // Scan node0's externalized SCP state across the boundary: value types
+    // must flip from legacy to ms exactly once, the upgrade ledger itself
+    // carries a legacy value with the version-upgrade step, and combined
+    // close times strictly increase throughout
+    {
+        auto& herder0 = static_cast<HerderImpl&>(node(0)->getHerder());
+        auto& scp = herder0.getSCP();
+        // Slots below the remembering window (and any slot still mid-flight)
+        // may not have an externalizing state to inspect
+        uint32_t const scanStart = std::max<uint32_t>(
+            laggingSeq + 1, herder0.getMinLedgerSeqToRemember());
+        std::vector<std::pair<uint32_t, StellarValue>> values;
+        for (uint32_t slot = scanStart; slot <= lclSeq(0); slot++)
+        {
+            auto const envs = scp.getExternalizingState(slot);
+            auto const ext = std::find_if(
+                envs.begin(), envs.end(), [](SCPEnvelope const& e) {
+                    return e.statement.pledges.type() == SCP_ST_EXTERNALIZE;
+                });
+            if (ext == envs.end())
+            {
+                continue;
+            }
+            StellarValue sv;
+            xdr::xdr_from_opaque(
+                ext->statement.pledges.externalize().commit.value, sv);
+            values.emplace_back(slot, sv);
+        }
+        // The captured window must span the boundary
+        REQUIRE(values.size() >= 2);
+        REQUIRE(!isMsCloseTimeStellarValue(values.front().second));
+        REQUIRE(isMsCloseTimeStellarValue(values.back().second));
+
+        // Close times strictly increase throughout
+        for (size_t i = 1; i < values.size(); i++)
+        {
+            REQUIRE(getConsensusTime(values[i].second) >
+                    getConsensusTime(values[i - 1].second));
+        }
+
+        // Value types must flip from legacy to ms exactly once: every value
+        // before the first ms value is legacy (by construction of find_if),
+        // and every value from it onwards must be ms. The window checks
+        // above guarantee the flip exists and firstMs is neither the first
+        // nor past the last value
+        auto const isMsValue = [](auto const& slotAndValue) {
+            return isMsCloseTimeStellarValue(slotAndValue.second);
+        };
+        auto const firstMs =
+            std::find_if(values.begin(), values.end(), isMsValue);
+        REQUIRE(std::all_of(firstMs, values.end(), isMsValue));
+
+        // When the scan captured the two sides of the flip as adjacent
+        // slots, the last legacy value is the upgrade ledger itself and must
+        // carry the version upgrade step
+        auto const& [lastLegacySlot, lastLegacyValue] = *std::prev(firstMs);
+        if (lastLegacySlot + 1 == firstMs->first)
+        {
+            REQUIRE(std::any_of(
+                lastLegacyValue.upgrades.begin(),
+                lastLegacyValue.upgrades.end(), [&](UpgradeType const& step) {
+                    LedgerUpgrade up;
+                    xdr::xdr_from_opaque(
+                        xdr::opaque_vec<>(step.begin(), step.end()), up);
+                    return up.type() == LEDGER_UPGRADE_VERSION &&
+                           up.newLedgerVersion() == msVersion;
+                }));
+        }
+    }
+
+    // Restart the lagging node from its pre-upgrade database.
+    simulation->addNode(keys[3], qSet, &configs[3], false)->start();
+    REQUIRE(lclSeq(3) == laggingSeq);
+    REQUIRE(lclHeader(3).header.ledgerVersion == msVersion - 1);
+    for (int i = 0; i < 3; i++)
+    {
+        simulation->addConnection(keys[3].getPublicKey(),
+                                  keys[i].getPublicKey());
+    }
+    auto const target = lclSeq(0) + 2;
+    simulation->crankUntil(
+        [&]() {
+            for (int i = 0; i < 4; i++)
+            {
+                if (lclSeq(i) < target)
+                {
+                    return false;
+                }
+            }
+            return true;
+        },
+        std::chrono::seconds(300), false);
+
+    REQUIRE(lclHeader(3).header.ledgerVersion == msVersion);
+    REQUIRE(lclHeader(3).header.scpValue.ext.v() == STELLAR_VALUE_SIGNED_MS);
+
+    // Verify that the lagging node resynced purely from relayed SCP state,
+    // history catchup never ran
+    auto const& catchupMetrics =
+        node(3)->getLedgerApplyManager().getCatchupMetrics();
+    REQUIRE(catchupMetrics.mCheckpointsDownloaded == 0);
+    REQUIRE(catchupMetrics.mLedgersVerified == 0);
+    REQUIRE(!node(3)->getLedgerApplyManager().isCatchupInitialized());
+
+    // All nodes converged on the same chain
+    auto const seq3 = lclSeq(3);
+    for (int i = 0; i < 3; i++)
+    {
+        if (lclSeq(i) == seq3)
+        {
+            REQUIRE(lclHeader(i).hash == lclHeader(3).hash);
+        }
+    }
+}
+
+TEST_CASE("upgrade scheduling under sub-second ledgers", "[upgrades]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    auto app = createTestApplication(clock, cfg);
+    auto& lm = app->getLedgerManager();
+
+    // These test networks run the ms protocol from genesis
+    REQUIRE(protocolVersionStartsFrom(
+        lm.getLastClosedLedgerHeader().header.ledgerVersion,
+        MS_CLOSE_TIME_PROTOCOL_VERSION));
+
+    // Close a ledger partway into a known whole second; upgrade scheduling
+    // must read the whole second only
+    TimePoint const T = VirtualClock::to_time_t(genesis(0, 2));
+    closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1,
+                  ConsensusTime::fromMilliseconds(T * 1000 + 500));
+    auto header = lm.getLastClosedLedgerHeader().header;
+    REQUIRE(header.scpValue.closeTime == T);
+    REQUIRE(getConsensusTime(header.scpValue).milliseconds() == T * 1000 + 500);
+
+    auto makeUpgradeCfg = [&](VirtualClock::system_time_point when) {
+        Config ucfg = getTestConfig(1);
+        ucfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = header.ledgerVersion;
+        ucfg.TESTING_UPGRADE_DESIRED_FEE = header.baseFee * 2;
+        ucfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = header.maxTxSetSize;
+        ucfg.TESTING_UPGRADE_RESERVE = header.baseReserve;
+        ucfg.TESTING_UPGRADE_DATETIME = when;
+        return ucfg;
+    };
+    auto ledgerView = app->getLedgerManager().getLCLView();
+
+    // Scheduled at exactly the header's whole second: proposed
+    auto due = Upgrades{makeUpgradeCfg(VirtualClock::from_time_t(T))}
+                   .createUpgradesFor(header, *ledgerView, app->getConfig());
+    LedgerUpgrade expected(LEDGER_UPGRADE_BASE_FEE);
+    expected.newBaseFee() = header.baseFee * 2;
+    REQUIRE(due == std::vector<LedgerUpgrade>{expected});
+
+    // Scheduled at the next second: the 500ms remainder does not reach it
+    auto notDue = Upgrades{makeUpgradeCfg(VirtualClock::from_time_t(T + 1))}
+                      .createUpgradesFor(header, *ledgerView, app->getConfig());
+    REQUIRE(notDue.empty());
 }
