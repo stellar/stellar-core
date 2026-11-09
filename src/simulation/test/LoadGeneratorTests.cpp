@@ -327,6 +327,33 @@ TEST_CASE("synthetic SAC load recycles source accounts in overlay-only mode",
     auto const completedBefore = completed.count();
     auto const failedBefore = failed.count();
 
+    // Per-transaction submission metrics.
+    auto& attempted =
+        app.getMetrics().NewMeter({"loadgen", "txn", "attempted"}, "txn");
+    auto& invokes =
+        app.getMetrics().NewMeter({"loadgen", "soroban", "invoke"}, "txn");
+    auto& payments =
+        app.getMetrics().NewMeter({"loadgen", "payment", "submitted"}, "op");
+    auto& bytes = app.getMetrics().NewMeter({"loadgen", "txn", "bytes"}, "txn");
+    auto const attemptedBefore = attempted.count();
+    auto const invokesBefore = invokes.count();
+    auto const paymentsBefore = payments.count();
+    auto const bytesBefore = bytes.count();
+
+    // Every synthetic SAC payment has the same XDR shape, so one reference
+    // transaction gives the wire size of each message loadgen submits.
+    TxGenerator refGen(app);
+    SCAddress refDest(SC_ADDRESS_TYPE_CONTRACT);
+    refDest.contractId() = sha256("reference destination");
+    auto refTx = refGen
+                     .invokeSACPayment(
+                         app.getLedgerManager().getLastClosedLedgerNum() + 1,
+                         /* fromAccountId */ 0, refDest,
+                         makeSyntheticContractInstance("loadgen_sac"),
+                         /* amount */ 100, std::nullopt)
+                     .second;
+    auto const refMsgBytes = xdr::xdr_argpack_size(*refTx->toStellarMessage());
+
     GeneratedLoadConfig cfg = GeneratedLoadConfig::txLoad(
         LoadGenMode::MIXED_PREGEN_SAC_PAYMENT, nAccounts, nTxs, sorobanTxRate,
         /* offset */ 0);
@@ -344,6 +371,11 @@ TEST_CASE("synthetic SAC load recycles source accounts in overlay-only mode",
         60 * simulation->getExpectedLedgerCloseTime(), false);
     REQUIRE(failed.count() == failedBefore);
     REQUIRE(completed.count() == completedBefore + 1);
+
+    REQUIRE(attempted.count() - attemptedBefore == nTxs);
+    REQUIRE(invokes.count() - invokesBefore == nTxs);
+    REQUIRE(payments.count() == paymentsBefore);
+    REQUIRE(bytes.count() - bytesBefore == nTxs * refMsgBytes);
 }
 
 TEST_CASE("generate load with unique accounts", "[loadgen]")

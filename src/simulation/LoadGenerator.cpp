@@ -1551,7 +1551,15 @@ TxSubmitStatus
 LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
                        TransactionResultCode& code)
 {
-    TxMetrics txm(mApp.getMetrics());
+    // The meters live in the registry for the application's lifetime, so use
+    // the references resolved at construction instead of looking all ten up
+    // again (a locked map search each) for every transaction.
+    auto& txm = mTxMetrics;
+    // Wire size of the TRANSACTION StellarMessage that floods `txf`: the
+    // 4-byte message type discriminant followed by the envelope, sized without
+    // copying the envelope into a new message.
+    uint64_t const msgBytes =
+        sizeof(uint32_t) + xdr::xdr_size(txf->getEnvelope());
 
     // Record tx metrics.
     switch (mode)
@@ -1559,8 +1567,7 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     case LoadGenMode::PAY:
     case LoadGenMode::PAY_PREGENERATED:
         txm.mNativePayment.Mark(txf->getNumOperations());
-        txm.mNativePaymentBytes.Mark(
-            xdr::xdr_argpack_size(*txf->toStellarMessage()));
+        txm.mNativePaymentBytes.Mark(msgBytes);
         break;
     case LoadGenMode::SOROBAN_UPLOAD:
         txm.mSorobanUploadTxs.Mark();
@@ -1582,8 +1589,7 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         {
         case LoadGenMode::PAY:
             txm.mNativePayment.Mark(txf->getNumOperations());
-            txm.mNativePaymentBytes.Mark(
-                xdr::xdr_argpack_size(*txf->toStellarMessage()));
+            txm.mNativePaymentBytes.Mark(msgBytes);
             break;
         case LoadGenMode::SOROBAN_UPLOAD:
             txm.mSorobanUploadTxs.Mark();
@@ -1607,16 +1613,14 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         else
         {
             txm.mNativePayment.Mark(txf->getNumOperations());
-            txm.mNativePaymentBytes.Mark(
-                xdr::xdr_argpack_size(*txf->toStellarMessage()));
+            txm.mNativePaymentBytes.Mark(msgBytes);
         }
         break;
     }
 
     txm.mTxnAttempted.Mark();
 
-    auto msg = txf->toStellarMessage();
-    txm.mTxnBytes.Mark(xdr::xdr_argpack_size(*msg));
+    txm.mTxnBytes.Mark(msgBytes);
 
     // Skip certain checks for pregenerated classic transactions. The synthetic
     // Soroban half of MIXED_PREGEN_* is generated locally, but must still go
