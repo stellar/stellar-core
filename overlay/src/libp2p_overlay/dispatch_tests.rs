@@ -393,6 +393,62 @@ async fn getdata_batch_edges_preserve_order_and_bytes() {
 }
 
 #[tokio::test]
+async fn failed_getdata_batch_is_rewritten_whole_on_a_reopened_stream() {
+    use futures::AsyncWriteExt;
+
+    let mut sender = TestNode::start().await;
+    let mut receiver = TestNode::start().await;
+    sender.connect(&receiver).await;
+    let transactions: Vec<_> = (0..200)
+        .map(|sequence| {
+            let bytes = crate::xdr::tests::valid_transaction_xdr(1000, sequence, 16);
+            ValidatedTx::from_core_trusted(bytes, 1000, 16).unwrap()
+        })
+        .collect();
+    for tx in &transactions {
+        sender.state.tx_buffer.write().await.insert(Arc::clone(tx));
+    }
+    // Finish the cached TX stream: the first batch write then fails, and
+    // send_peer_frames must reopen the stream and write that batch again.
+    {
+        let streams = sender.streams_to(receiver.peer).await;
+        let mut cached = streams.tx.lock().await;
+        cached.as_mut().unwrap().stream.close().await.unwrap();
+    }
+
+    let demand = transactions.iter().map(|tx| *tx.hash()).collect();
+    serve_getdata(&sender.state, receiver.peer, demand).await;
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        for expected in &transactions {
+            let Some(CoreCommand::SubmitTx { tx, .. }) = receiver._admissions.recv().await else {
+                panic!("expected transaction admission");
+            };
+            assert_eq!(tx.bytes(), expected.bytes());
+        }
+    })
+    .await
+    .expect("the batch that hit the closed stream must be delivered on a new one");
+    let metrics = &sender.state.metrics;
+    assert_eq!(metrics.error_write.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        metrics.message_write.load(Ordering::Relaxed),
+        transactions.len() as u64
+    );
+    assert_eq!(
+        receiver
+            .state
+            .metrics
+            .flood_duplicate_recv
+            .load(Ordering::Relaxed),
+        0,
+        "a frame was delivered twice"
+    );
+    sender.stop().await;
+    receiver.stop().await;
+}
+
+#[tokio::test]
 async fn getdata_job_stops_after_a_failed_write() {
     let (_handle, _events, _admissions, overlay) =
         create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();

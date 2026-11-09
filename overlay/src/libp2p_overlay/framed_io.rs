@@ -163,4 +163,52 @@ mod tests {
         let end = super::super::read_framed(&mut reader).await.unwrap_err();
         assert_eq!(end.kind(), io::ErrorKind::UnexpectedEof);
     }
+
+    /// Delivers its bytes, then never has more and never wakes the reader.
+    struct StallingReader {
+        bytes: Vec<u8>,
+        pos: usize,
+    }
+
+    impl AsyncRead for StallingReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            let pos = self.pos;
+            if pos == self.bytes.len() {
+                return Poll::Pending;
+            }
+            let n = buf.len().min(self.bytes.len() - pos);
+            buf[..n].copy_from_slice(&self.bytes[pos..pos + n]);
+            self.pos += n;
+            Poll::Ready(Ok(n))
+        }
+    }
+
+    #[tokio::test]
+    async fn buffered_tx_stream_takes_in_available_frames_without_waiting_for_more() {
+        let frames = [&b"first"[..], &b"second frame"[..]];
+        let mut bytes = Vec::new();
+        for frame in frames {
+            bytes.extend_from_slice(&(frame.len() as u32).to_be_bytes());
+            bytes.extend_from_slice(frame);
+        }
+        let available = bytes.len();
+        let mut reader = super::super::buffered_tx_stream(StallingReader { bytes, pos: 0 });
+
+        for (index, frame) in frames.into_iter().enumerate() {
+            let read = futures::poll!(Box::pin(super::super::read_framed(&mut reader)));
+            assert!(
+                matches!(&read, Poll::Ready(Ok(data)) if data == frame),
+                "frame {index} was available but not returned: {read:?}"
+            );
+            // One inner read took in both frames.
+            assert_eq!(reader.get_ref().pos, available);
+        }
+        // Only a read past the available data waits.
+        let next = futures::poll!(Box::pin(super::super::read_framed(&mut reader)));
+        assert!(next.is_pending());
+    }
 }
