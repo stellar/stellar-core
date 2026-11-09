@@ -98,6 +98,10 @@ class PendingEnvelopes
     // as it is not sane QSet
     void discardSCPEnvelopesWithQSet(Hash const& hash);
 
+    // Hands a newly known tx set to the envelopes waiting to fetch it.
+    void completeTxSetFetch(Hash const& hash,
+                            TxSetXDRFrameConstPtr const& txset);
+
     void updateMetrics();
 
     void envelopeReady(SCPEnvelope const& envelope);
@@ -163,10 +167,10 @@ class PendingEnvelopes
     bool recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset);
 
     /**
-     * Add @p txset identified by @p hash to local cache. Notifies
-     * @see ItemFetcher about that event - it may cause calls to Herder's
-     * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
-     * in PendingEnvelopes.
+     * Add @p txset identified by @p hash to local cache. If it was being
+     * fetched, completes the fetch: the envelopes waiting for it are passed
+     * to Herder's recvSCPEnvelope, which in turn may call @see
+     * recvSCPEnvelope in PendingEnvelopes, reenter SCP and externalize.
      */
     void addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                   TxSetXDRFrameConstPtr txset);
@@ -181,8 +185,8 @@ class PendingEnvelopes
 
     /**
      * Check if @p txset identified by @p hash was requested before from peers.
-     * If not, ignores that @p txset. If it was requested, calls
-     * @see addTxSet.
+     * If not, ignores that @p txset. If it was requested, caches it and
+     * completes the fetch like @see addTxSet.
      *
      * Return true if TxSet useful (was asked for).
      */

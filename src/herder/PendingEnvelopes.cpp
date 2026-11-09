@@ -265,6 +265,11 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
     CLOG_TRACE(Herder, "Add TxSet {}", hexAbbrev(hash));
 
     putTxSet(hash, lastSeenSlotIndex, txset);
+    // A locally built set can be one we are fetching: a promoted leader can
+    // build the set it was waiting for, and nobody can serve a legacy set over
+    // the Rust overlay. Release its waiting envelopes now. This can reenter
+    // SCP and externalize.
+    completeTxSetFetch(hash, txset);
 }
 
 bool
@@ -274,29 +279,57 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
     CLOG_INFO(Herder, "Got TxSet {}", hexAbbrev(hash));
 
     // Only accept if we were actually fetching this
-    auto it = mPendingTxSetFetches.find(hash);
-    if (it == mPendingTxSetFetches.end())
+    if (mPendingTxSetFetches.find(hash) == mPendingTxSetFetches.end())
     {
-        CLOG_WARNING(Herder, "TxSet {} not in pending fetches - rejecting",
-                     hexAbbrev(hash));
+        if (hasTxSet(hash))
+        {
+            // E.g. built locally after requesting it from the overlay
+            CLOG_DEBUG(Herder, "TxSet {} already known - ignoring",
+                       hexAbbrev(hash));
+        }
+        else
+        {
+            CLOG_WARNING(Herder, "TxSet {} not in pending fetches - rejecting",
+                         hexAbbrev(hash));
+        }
         return false;
     }
 
-    addTxSet(hash, 0, txset);
+    putTxSet(hash, 0, txset);
+    completeTxSetFetch(hash, txset);
+    return true;
+}
+
+void
+PendingEnvelopes::completeTxSetFetch(Hash const& hash,
+                                     TxSetXDRFrameConstPtr const& txset)
+{
+    auto it = mPendingTxSetFetches.find(hash);
+    if (it == mPendingTxSetFetches.end())
+    {
+        return;
+    }
+    // Detach the waiting envelopes first: reprocessing them reenters SCP and
+    // can start or stop other fetches.
+    auto envelopes = std::move(it->second);
+    mPendingTxSetFetches.erase(it);
+    auto startIt = mTxSetFetchStartTimes.find(hash);
+    if (startIt != mTxSetFetchStartTimes.end())
+    {
+        mFetchTxSetTimer.Update(mApp.getClock().now() - startIt->second);
+        mTxSetFetchStartTimes.erase(startIt);
+    }
 
     // Update any ValueWrappers that were created before this tx set was
     // available
     mHerder.getHerderSCPDriver().onTxSetReceived(hash, txset);
 
-    for (auto& env : it->second)
+    for (auto const& env : envelopes)
     {
-        CLOG_INFO(Herder, "Re-processing envelope after TxSet {} fetch",
-                  hexAbbrev(hash));
+        CLOG_DEBUG(Herder, "Re-processing envelope after TxSet {} fetch",
+                   hexAbbrev(hash));
         mApp.getHerder().recvSCPEnvelope(env);
     }
-    mPendingTxSetFetches.erase(hash);
-    mTxSetFetchStartTimes.erase(hash);
-    return true;
 }
 
 bool

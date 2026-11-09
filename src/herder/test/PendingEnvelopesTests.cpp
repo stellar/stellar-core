@@ -201,6 +201,31 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
                     Herder::ENVELOPE_STATUS_PROCESSED);
         }
 
+        SECTION("process when the tx set being fetched is built locally")
+        {
+            REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
+            REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
+            auto& fetchTimer =
+                app->getMetrics().NewTimer({"overlay", "fetch", "txset"});
+            auto const fetches = fetchTimer.count();
+
+            // A promoted leader or a legacy-tx-set validator can build the
+            // set it is fetching. No overlay delivery may ever follow, so
+            // adding it completes the fetch and processes the envelope.
+            pendingEnvelopes.addTxSet(p.second->getContentsHash(),
+                                      lcl.header.ledgerSeq + 1, p.second);
+            auto m = herder.getSCP().getLatestMessage(pk);
+            REQUIRE(m);
+            REQUIRE(*m == saneEnvelope);
+            REQUIRE(fetchTimer.count() == fetches + 1);
+
+            // A later delivery from the overlay is redundant.
+            REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
+                                                p.second));
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
+                    Herder::ENVELOPE_STATUS_PROCESSED);
+        }
+
         SECTION("process when all data came (tx set first)")
         {
             REQUIRE(pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
