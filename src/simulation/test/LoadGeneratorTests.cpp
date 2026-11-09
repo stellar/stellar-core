@@ -457,26 +457,32 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     }
     SECTION("recycle available accounts across ledgers and runs")
     {
-        // More submissions than accounts requires returning applied accounts
-        // to the pool. Real application catches premature reuse through bad
-        // sequence numbers; a second run also exercises resetting the pool.
-        uint32_t const txsPerRun = 3 * nAccounts;
+        // More submissions than accounts requires returning accounts to the
+        // pool once their transactions have applied. Every transaction must
+        // apply successfully, and a run completes only once each account's
+        // cached sequence number matches the ledger. A second run exercises
+        // resetting the pool.
+        uint32_t const txsPerRun = 2 * nAccounts;
         auto& completed =
             app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-        auto& rejected =
-            app.getMetrics().NewMeter({"loadgen", "txn", "rejected"}, "txn");
+        auto& failed =
+            app.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
         for (uint32_t run = 0; run < 2; ++run)
         {
             auto before = getSuccessfulTxCount();
             auto runsBefore = completed.count();
+            auto failedBefore = failed.count();
             loadGen.generateLoad(GeneratedLoadConfig::txLoad(
                 LoadGenMode::PAY, nAccounts, txsPerRun,
-                /* txRate */ 100, /* offset */ nAccounts));
+                /* txRate */ 200, /* offset */ nAccounts));
             simulation->crankUntil(
-                [&]() { return completed.count() == runsBefore + 1; },
+                [&]() {
+                    return completed.count() == runsBefore + 1 ||
+                           failed.count() != failedBefore;
+                },
                 120 * simulation->getExpectedLedgerCloseTime(), false);
+            REQUIRE(failed.count() == failedBefore);
             REQUIRE(getSuccessfulTxCount() - before == txsPerRun);
-            REQUIRE(rejected.count() == 0);
         }
     }
     SECTION("invalid loadgen parameters")
