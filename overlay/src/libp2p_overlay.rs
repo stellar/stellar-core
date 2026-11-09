@@ -999,18 +999,7 @@ impl StellarOverlay {
             .flood_advertised
             .fetch_add(peers.len() as u64, Ordering::Relaxed);
 
-        let inv_entry = InvEntry { hash, fee_per_op };
-
-        // Add to batcher for each peer, send batch immediately when full
-        for peer in &peers {
-            let batch_to_send = {
-                let mut batcher = self.state.inv_batcher.write().await;
-                batcher.add(*peer, inv_entry.clone())
-            };
-            if let Some(batch) = batch_to_send {
-                send_inv_batch(&self.state, *peer, batch).await;
-            }
-        }
+        queue_inv(&self.state, &peers, InvEntry { hash, fee_per_op }).await;
     }
 
     /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it
@@ -1519,6 +1508,26 @@ async fn flush_inv_batch_to_peer(state: &Arc<SharedState>, peer: PeerId) {
     };
 
     if let Some(batch) = batch {
+        send_inv_batch(state, peer, batch).await;
+    }
+}
+
+/// Queue `entry` for every peer in `peers` under one INV batcher lock, rather
+/// than one lock round trip per peer, then send the batches it completed.
+/// `send_inv_batch` only spawns the write, so they still go out at once.
+async fn queue_inv(state: &Arc<SharedState>, peers: &[PeerId], entry: InvEntry) {
+    let full_batches: Vec<(PeerId, InvBatch)> = {
+        let mut batcher = state.inv_batcher.write().await;
+        peers
+            .iter()
+            .filter_map(|peer| {
+                batcher
+                    .add(*peer, entry.clone())
+                    .map(|batch| (*peer, batch))
+            })
+            .collect()
+    };
+    for (peer, batch) in full_batches {
         send_inv_batch(state, peer, batch).await;
     }
 }
@@ -2129,24 +2138,7 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
             peers_to_announce.len()
         );
 
-        let inv_entry = InvEntry { hash, fee_per_op };
-
-        // Queue the INV for every peer under one batcher lock, rather than
-        // one lock per peer, then send any batches that filled up.
-        let full_batches: Vec<(PeerId, InvBatch)> = {
-            let mut batcher = state.inv_batcher.write().await;
-            peers_to_announce
-                .iter()
-                .filter_map(|peer| {
-                    batcher
-                        .add(*peer, inv_entry.clone())
-                        .map(|batch| (*peer, batch))
-                })
-                .collect()
-        };
-        for (peer, batch) in full_batches {
-            send_inv_batch(state, peer, batch).await;
-        }
+        queue_inv(state, &peers_to_announce, InvEntry { hash, fee_per_op }).await;
     }
 
     // Record recv-transaction timing

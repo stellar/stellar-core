@@ -536,6 +536,58 @@ async fn received_tx_is_announced_to_every_peer_except_known_sources() {
 }
 
 #[tokio::test]
+async fn inv_batches_completed_by_relay_or_local_broadcast_reach_the_peer() {
+    use crate::flood::{InvEntry, INV_BATCH_MAX_SIZE};
+
+    let mut sender = TestNode::start().await;
+    let mut receiver = TestNode::start().await;
+    sender.connect(&receiver).await;
+    for round in 0..2u8 {
+        // Fill the receiver's pending batch to one short of full. The
+        // housekeeping flush needs 100 ms, so only the completing TX can
+        // send it; if that send were lost, these hashes would never arrive.
+        {
+            let mut batcher = sender.state.inv_batcher.write().await;
+            for index in 0..INV_BATCH_MAX_SIZE - 1 {
+                let mut hash = [round; 32];
+                hash[..8].copy_from_slice(&(index as u64).to_be_bytes());
+                assert!(batcher
+                    .add(
+                        receiver.peer,
+                        InvEntry {
+                            hash,
+                            fee_per_op: 1
+                        }
+                    )
+                    .is_none());
+            }
+        }
+        let tx = test_tx(i64::from(round) + 1);
+        if round == 0 {
+            handle_tx_response(&sender.state, &PeerId::random(), tx).await;
+        } else {
+            sender.handle.broadcast_tx(tx).await;
+        }
+        let expected = (u64::from(round) + 1) * INV_BATCH_MAX_SIZE as u64;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while receiver
+                .state
+                .metrics
+                .flood_demanded
+                .load(Ordering::Relaxed)
+                < expected
+            {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("round {round}: the completed INV batch never arrived"));
+    }
+    sender.stop().await;
+    receiver.stop().await;
+}
+
+#[tokio::test]
 async fn scp_state_sends_preserve_slot_order_without_blocking_other_peers() {
     let mut sender = TestNode::start().await;
     let mut receiver = TestNode::start().await;
