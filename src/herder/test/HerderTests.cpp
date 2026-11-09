@@ -7581,6 +7581,99 @@ TEST_CASE("a follower promoted after losing sync still proposes",
     REQUIRE(checkedFollower);
 }
 
+TEST_CASE("a leader build that completes a fetch can externalize",
+          "[herder][early-nomination]")
+{
+    // The local leader builds the very set a peer's ballot is waiting for (an
+    // empty set is the same on every node). Publishing it completes the fetch
+    // inside SCP's nomination value supplier: the peer's CONFIRM is
+    // reprocessed there and, the peer being v-blocking, externalizes the slot
+    // before the supplier returns. Nomination must then stop cleanly without
+    // voting or emitting.
+    VirtualClock clock;
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    // Herder discards network envelopes under MANUAL_CLOSE.
+    cfg.MANUAL_CLOSE = false;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& scp = herder.getSCP();
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
+    auto const qset = scp.getLocalQuorumSet();
+    auto const qsetHash = scp.getLocalNode()->getQuorumSetHash();
+    std::optional<SecretKey> peer;
+    for (int i = 0; i < 100 && !peer; ++i)
+    {
+        auto key =
+            SecretKey::fromSeed(sha256(fmt::format("absent-peer-{}", i)));
+        if (std::find(qset.validators.begin(), qset.validators.end(),
+                      key.getPublicKey()) != qset.validators.end())
+        {
+            peer = key;
+        }
+    }
+    REQUIRE(peer);
+
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const seq = lcl.header.ledgerSeq + 1;
+    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+    herder.mGetTopTransactionsForTesting = [](size_t) {
+        return std::vector<TransactionEnvelope>{};
+    };
+    // The set the local leader is about to build.
+    PerPhaseTransactionList phases(2);
+    auto const expected =
+        makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{}).first;
+    REQUIRE(
+        !herder.getPendingEnvelopes().hasTxSet(expected->getContentsHash()));
+
+    auto const peerValue = herder.makeStellarValue(
+        expected->getContentsHash(),
+        makeConsensusTime(lcl.header.scpValue.closeTime + 1), emptyUpgradeSteps,
+        *peer);
+    SCPEnvelope confirm;
+    confirm.statement.nodeID = peer->getPublicKey();
+    confirm.statement.slotIndex = seq;
+    confirm.statement.pledges.type(SCP_ST_CONFIRM);
+    auto& conf = confirm.statement.pledges.confirm();
+    conf.ballot.counter = 1;
+    conf.ballot.value = xdr::xdr_to_opaque(peerValue);
+    conf.nPrepared = 1;
+    conf.nCommit = 1;
+    conf.nH = 1;
+    conf.quorumSetHash = qsetHash;
+    herder.signEnvelope(*peer, confirm);
+    REQUIRE(herder.recvSCPEnvelope(confirm) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(scp.getLatestMessage(peer->getPublicKey()) == nullptr);
+
+    herder.triggerNextLedger(seq, true);
+
+    // Processed and externalized during the leader's own build.
+    REQUIRE(scp.getLatestMessage(peer->getPublicKey()));
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return app->getLedgerManager().getLastClosedLedgerNum() == seq;
+        },
+        std::chrono::seconds(10));
+    auto const closed = app->getLedgerManager().getLastClosedLedgerHeader();
+    REQUIRE(closed.header.ledgerSeq == seq);
+    REQUIRE(closed.header.scpValue == peerValue);
+    for (auto const& env : scp.getLatestMessagesSend(seq))
+    {
+        REQUIRE(env.statement.pledges.type() != SCP_ST_NOMINATE);
+    }
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
 TEST_CASE("followers pre-verify mempool signatures at the trigger",
           "[herder][early-nomination]")
 {
