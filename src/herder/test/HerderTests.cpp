@@ -7010,6 +7010,67 @@ TEST_CASE("trigger allowance is independent of timeout callback ordering",
             clock.now());
 }
 
+TEST_CASE("trigger anchor keeps millisecond close times",
+          "[herder][trigger-construction]")
+{
+    using namespace std::chrono;
+    // Where in its second the externalized close time falls. A whole-second
+    // anchor would schedule the next trigger this much too early.
+    auto const fraction = GENERATE(0, 250, 999);
+    CAPTURE(fraction);
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& driver = herder.getHerderSCPDriver();
+    auto const slot = app->getLedgerManager().getLastClosedLedgerNum();
+
+    auto const ct = VirtualClock::to_time_t(clock.system_now()) + 1000;
+    StellarValue value;
+    value.closeTime = ct;
+    value.ext.v(STELLAR_VALUE_SIGNED_MS);
+    value.ext.signedMsValue().closeTimeMs = ct * 1000 + fraction;
+    REQUIRE(hasValidCloseTime(value));
+    herder.setTrackingSCPState(slot, value, true);
+
+    // Our trigger fired at the externalized close time and we entered ballot
+    // 600 ms later, so the allowance is exactly 600 ms.
+    auto const origin = getConsensusTime(value).toSystemTime();
+    clock.setCurrentVirtualTime(origin);
+    driver.recordNominationTrigger(slot);
+    driver.recordSCPEvent(slot, true);
+    clock.setCurrentVirtualTime(origin + milliseconds(600));
+    driver.recordSCPEvent(slot, false);
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(600));
+
+    auto metrics = app->getMetrics().GetAllMetrics();
+    auto const& fallback = dynamic_cast<medida::Meter const&>(
+        *metrics.at({"scp", "trigger", "prepare-start-fallback"}));
+    auto const before = fallback.count();
+    auto waitAt = [&](milliseconds sinceClose) {
+        clock.setCurrentVirtualTime(origin + sinceClose);
+        auto deadline =
+            std::max(clock.now(),
+                     EarlyNominationTestAccess::triggerAnchor(herder, slot) +
+                         seconds(2));
+        return duration_cast<milliseconds>(deadline - clock.now());
+    };
+
+    // The next trigger is due exactly 2 s after the ms close time.
+    REQUIRE(waitAt(milliseconds(900)) == milliseconds(1100));
+    REQUIRE(waitAt(milliseconds(1999)) == milliseconds(1));
+    REQUIRE(fallback.count() == before);
+
+    // Elapsed time up to the target plus the allowance is still explained by
+    // nomination; one millisecond more is attributed to clock drift.
+    REQUIRE(waitAt(milliseconds(2600)) == milliseconds::zero());
+    REQUIRE(fallback.count() == before);
+    REQUIRE(waitAt(milliseconds(2601)) == milliseconds::zero());
+    REQUIRE(fallback.count() == before + 1);
+}
+
 TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
 {
     auto const soroban = GENERATE(false, true);
