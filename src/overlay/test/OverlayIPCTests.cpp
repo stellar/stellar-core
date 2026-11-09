@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/TxSetFrame.h"
+#include "herder/Upgrades.h"
+#include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "overlay/OverlayIPC.h"
 #include "rust/RustBridge.h"
@@ -14,6 +17,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <map>
+#include <optional>
 #include <thread>
 
 using namespace stellar;
@@ -1599,4 +1604,158 @@ TEST_CASE("Rust overlay applies Soroban TX count upgrade", "[overlay-ipc]")
     }
 
     LOG_INFO(DEFAULT_LOG, "✓ Soroban TX count upgrade works with Rust overlay");
+}
+
+/**
+ * A network created at the genesis protocol must reach the latest protocol
+ * over the Rust overlay. Before generalized tx sets (protocol 20), proposals
+ * carry legacy `TransactionSet`s, which the Rust overlay cannot fetch or serve.
+ * Every validator therefore has to obtain the leader's legacy set locally:
+ * with an empty mempool, it builds the identical deterministic set itself.
+ *
+ * This reproduces the stall seen on perfnet with leader-only tx-set
+ * construction: followers that never built their own value could not obtain
+ * the leader's legacy set, so only nodes promoted to leader by nomination
+ * timeouts could externalize, one slow round at a time.
+ */
+TEST_CASE("Rust overlay upgrades from genesis through legacy tx sets",
+          "[overlay-ipc][upgrades]")
+{
+    requireOverlayBinary();
+
+    Hash networkID = sha256("Test network passphrase for genesis upgrades");
+    auto simulation = std::make_shared<Simulation>(networkID);
+
+    constexpr size_t NUM_NODES = 4;
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qSet;
+    qSet.threshold = 3;
+    for (size_t i = 0; i < NUM_NODES; ++i)
+    {
+        keys.push_back(
+            SecretKey::fromSeed(sha256(fmt::format("GENESIS_UPGRADE_{}", i))));
+        qSet.validators.push_back(keys.back().getPublicKey());
+    }
+
+    auto cfgs = makeFullMeshConfigs(*simulation, NUM_NODES);
+    for (size_t i = 0; i < NUM_NODES; ++i)
+    {
+        auto& cfg = cfgs[i];
+        // Start at the genesis protocol, like a fresh perfnet network.
+        cfg.USE_CONFIG_FOR_GENESIS = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        simulation->addNode(keys[i], qSet, &cfg);
+    }
+    simulation->startAllNodes();
+
+    auto nodes = simulation->getNodes();
+    auto const expectedClose = simulation->getExpectedLedgerCloseTime();
+    auto lclHeader = [](Application::pointer const& node) {
+        return node->getLedgerManager().getLastClosedLedgerHeader();
+    };
+    auto logLedgers = [&]() {
+        for (auto const& node : nodes)
+        {
+            auto const lcl = lclHeader(node);
+            UNSCOPED_INFO(fmt::format(
+                "node {}: ledger {} protocol {}", node->getConfig().PEER_PORT,
+                lcl.header.ledgerSeq, lcl.header.ledgerVersion));
+        }
+    };
+    // Simulation::crankUntil throws on timeout; report per-node state instead.
+    auto closesWithin = [&](std::function<bool()> const& done,
+                            std::chrono::milliseconds budget) {
+        try
+        {
+            simulation->crankUntil(done, budget, false);
+            return true;
+        }
+        catch (std::runtime_error const&)
+        {
+            logLedgers();
+            return false;
+        }
+    };
+    // Every node must have externalized a real, signed value (not an
+    // empty-tx-set replacement) whose tx set it holds, in the expected format.
+    auto requireRealTxSets = [&](std::optional<bool> generalized) {
+        for (auto const& node : nodes)
+        {
+            auto const lcl = lclHeader(node);
+            CAPTURE(node->getConfig().PEER_PORT, lcl.header.ledgerSeq);
+            REQUIRE(isSignedStellarValue(lcl.header.scpValue));
+            auto txSet =
+                node->getHerder().getTxSet(lcl.header.scpValue.txSetHash);
+            REQUIRE(std::holds_alternative<TxSetXDRFrameConstPtr>(txSet));
+            auto const& frame = std::get<TxSetXDRFrameConstPtr>(txSet);
+            REQUIRE(frame);
+            if (generalized)
+            {
+                REQUIRE(frame->isGeneralizedTxSet() == *generalized);
+            }
+        }
+    };
+
+    // Let the overlay connect and the network close its first ledger.
+    REQUIRE(
+        closesWithin([&]() { return simulation->haveAllExternalized(2, 1); },
+                     30 * expectedClose));
+    for (auto const& node : nodes)
+    {
+        REQUIRE(lclHeader(node).header.ledgerVersion ==
+                LedgerManager::GENESIS_LEDGER_VERSION);
+    }
+
+    // Legacy tx-set ledgers must close at the normal cadence. Without a
+    // locally available leader set, each one waits for nomination timeouts
+    // (1 s, 2 s, ...) to promote enough followers to leaders.
+    auto const firstLegacy = lclHeader(nodes[0]).header.ledgerSeq;
+    constexpr uint32_t LEGACY_LEDGERS = 4;
+    REQUIRE(closesWithin(
+        [&]() {
+            return simulation->haveAllExternalized(firstLegacy + LEGACY_LEDGERS,
+                                                   1);
+        },
+        LEGACY_LEDGERS * 5 * expectedClose / 2));
+    requireRealTxSets(false);
+
+    // Upgrade straight to the latest protocol. The upgrade ledger itself still
+    // uses a legacy tx set; the next one is the first generalized set.
+    Upgrades::UpgradeParameters scheduledUpgrades;
+    scheduledUpgrades.mUpgradeTime = VirtualClock::from_time_t(
+        lclHeader(nodes[0]).header.scpValue.closeTime);
+    scheduledUpgrades.mProtocolVersion =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    for (auto const& node : nodes)
+    {
+        node->getHerder().setUpgrades(scheduledUpgrades);
+    }
+    REQUIRE(closesWithin(
+        [&]() {
+            return std::all_of(
+                nodes.begin(), nodes.end(), [&](auto const& node) {
+                    return lclHeader(node).header.ledgerVersion ==
+                           Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+                });
+        },
+        10 * expectedClose));
+    // A node may already have closed the first generalized-set ledger.
+    requireRealTxSets(std::nullopt);
+
+    // Leader-only construction resumes at the latest protocol, where
+    // followers fetch the leader's generalized set through the overlay.
+    auto const firstLatest = lclHeader(nodes[0]).header.ledgerSeq;
+    REQUIRE(closesWithin(
+        [&]() { return simulation->haveAllExternalized(firstLatest + 3, 1); },
+        10 * expectedClose));
+    requireRealTxSets(true);
+
+    // Nodes that closed the same ledger agree on it.
+    std::map<uint32_t, Hash> hashBySeq;
+    for (auto const& node : nodes)
+    {
+        auto const lcl = lclHeader(node);
+        auto [it, inserted] = hashBySeq.emplace(lcl.header.ledgerSeq, lcl.hash);
+        REQUIRE((inserted || it->second == lcl.hash));
+    }
 }

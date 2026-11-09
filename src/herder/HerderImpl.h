@@ -271,6 +271,9 @@ class HerderImpl : public Herder
     void discardPreparedTxSet();
     ValueWrapperPtr makeNominationValue(uint32_t ledgerSeq,
                                         bool checkTrackingSCP);
+    // Whether a ledger closing on an LCL with this protocol uses a legacy
+    // (non-generalized) tx set, which every validator builds locally.
+    static bool buildsLegacyTxSet(uint32_t lclLedgerVersion);
 
     // Compute the trigger-timer anchor point using the local node's
     // prepare-start timestamp for the previous slot. Returns a pessimistic

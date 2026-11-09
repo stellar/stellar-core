@@ -1339,7 +1339,8 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 
 void
 HerderSCPDriver::nominate(uint64_t slotIndex, NominationValueSupplier makeValue,
-                          StellarValue const& previousValue)
+                          StellarValue const& previousValue,
+                          bool constructValueNow)
 {
     ZoneScoped;
     if (mLedgerSeqNominating != slotIndex)
@@ -1347,6 +1348,19 @@ HerderSCPDriver::nominate(uint64_t slotIndex, NominationValueSupplier makeValue,
         mCurrentValue.reset();
     }
     mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
+    if (constructValueNow && !mCurrentValue)
+    {
+        auto value = makeValue();
+        // Publishing the tx set may externalize this slot, which stops its
+        // nomination. Do not restart it.
+        if (mLedgerSeqNominating != slotIndex)
+        {
+            return;
+        }
+        // A null value is retried by the supplier below if this node becomes
+        // a leader.
+        mCurrentValue = std::move(value);
+    }
     auto prevValue = xdr::xdr_to_opaque(previousValue);
     mSCP.nominate(
         slotIndex,

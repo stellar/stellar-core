@@ -1706,13 +1706,17 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     releaseAssert(closeTime > getConsensusTime(lcl.header.scpValue));
     bool const activeLeader = getSCP().getNominationLeaders(ledgerSeq).count(
         getSCP().getLocalNodeID());
-    releaseAssert(activeLeader ||
+    bool const legacyTxSet = buildsLegacyTxSet(lcl.header.ledgerVersion);
+    releaseAssert(activeLeader || legacyTxSet ||
                   getSCP()
                       .predictNominationLeaders(
                           ledgerSeq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
                       .count(getSCP().getLocalNodeID()));
-    CLOG_INFO(Herder, "Building TX set as {} nomination leader for ledger {}",
-              activeLeader ? "active" : "first-round", ledgerSeq);
+    CLOG_INFO(Herder, "Building TX set as {} for ledger {}",
+              activeLeader  ? "active nomination leader"
+              : legacyTxSet ? "validator (legacy tx set)"
+                            : "first-round nomination leader",
+              ledgerSeq);
     // Apply-time offset: see the comment in triggerNextLedger
     auto const closeTimeOffset =
         closeTime.toApplyTime() - getApplyTime(lcl.header.scpValue);
@@ -1982,7 +1986,21 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         [this, ledgerSeqToTrigger, checkTrackingSCP]() {
             return makeNominationValue(ledgerSeqToTrigger, checkTrackingSCP);
         },
-        lcl.header.scpValue);
+        lcl.header.scpValue,
+        /*constructValueNow=*/buildsLegacyTxSet(lcl.header.ledgerVersion));
+}
+
+bool
+HerderImpl::buildsLegacyTxSet(uint32_t lclLedgerVersion)
+{
+    // Ledgers closing on a pre-Soroban LCL use legacy (non-generalized) tx
+    // sets, which the Rust overlay can neither fetch nor serve: a follower
+    // can only obtain the leader's set by building it. Every validator
+    // therefore constructs its value at the trigger for these ledgers, as
+    // before leader-only construction. With an empty mempool (genesis and
+    // the upgrade-only ledgers up to protocol 20) the set depends only on the
+    // previous ledger, so all validators build the same set as the leader.
+    return protocolVersionIsBefore(lclLedgerVersion, SOROBAN_PROTOCOL_VERSION);
 }
 
 ValueWrapperPtr

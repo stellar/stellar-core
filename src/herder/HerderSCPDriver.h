@@ -129,10 +129,14 @@ class HerderSCPDriver : public SCPDriver
     // value for slotIndex.
     void noteEmptyTxSetValueReplaced(uint64_t slotIndex) override;
 
-    // Submit a value to consider for slotIndex
+    // Start nomination for slotIndex. SCP calls makeValue only when the local
+    // node is a round leader that needs its own value, unless
+    // constructValueNow is set: then the value is constructed before
+    // nomination starts (and reused if this node becomes a leader).
     // previousValue is the value from slotIndex-1
     void nominate(uint64_t slotIndex, NominationValueSupplier makeValue,
-                  StellarValue const& previousValue);
+                  StellarValue const& previousValue,
+                  bool constructValueNow = false);
 
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 

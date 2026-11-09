@@ -33,6 +33,12 @@ First-round leaders may prepare before the trigger; later leaders do no
 speculative preparation. Nomination stops on externalization even for followers
 that never constructed a local value.
 
+Ledgers closing on a pre-protocol-20 LCL are the exception. Their legacy
+`TransactionSet`s cannot be carried by this overlay, so every validator builds
+its own value at the trigger, as before leader-only construction. With an empty
+mempool (genesis and the upgrade-only ledgers before protocol 20) the set depends
+only on the previous ledger, so each validator already holds the leader's set.
+
 Core sends `CacheTxSet` as soon as a locally constructed proposal's final XDR is
 available, before the builder's roundtrip and final validation. Rust eagerly
 compresses it at zstd level 1 on a blocking worker while Core continues those
