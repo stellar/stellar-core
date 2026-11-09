@@ -255,6 +255,11 @@ async fn getdata_batches_preserve_frames_and_leave_control_responsive() {
         sender.state.metrics.flood_fulfilled.load(Ordering::Relaxed) < transactions.len() as u64,
         "blocked response retained every requested transaction"
     );
+    // Lookups hold the TX buffer lock per batch, never across a write.
+    assert!(
+        sender.state.tx_buffer.try_write().is_ok(),
+        "a blocked GETDATA write holds the TX buffer lock"
+    );
     let scp = test_scp_envelope_xdr(987);
     sender.handle.broadcast_scp(scp.clone()).await;
     tokio::time::timeout(Duration::from_secs(5), async {

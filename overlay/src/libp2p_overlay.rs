@@ -1884,6 +1884,8 @@ async fn handle_getdata(
 /// Serve one demand in order, as one job that retains only one bounded batch
 /// while a peer is backpressured. Every TX still has its own wire frame.
 /// Batching avoids one task, stream lock and short QUIC write per transaction.
+/// Each batch is looked up under one buffer lock, released before its write,
+/// and frames are copied straight from the shared TX bytes into the batch.
 ///
 /// The job stops at the first write that fails after `send_peer_frames`'
 /// retries: the peer has usually disconnected, and the requester re-demands
@@ -1893,8 +1895,13 @@ async fn serve_getdata(state: &SharedState, peer: PeerId, hashes: Vec<[u8; 32]>)
     let total = hashes.len();
     let mut batch = Vec::new();
     let mut messages = 0;
+    let mut buffer = None;
     for (index, hash) in hashes.into_iter().enumerate() {
-        let tx = state.tx_buffer.write().await.get(&hash);
+        let tx = match &mut buffer {
+            Some(guard) => guard,
+            None => buffer.insert(state.tx_buffer.write().await),
+        }
+        .get(&hash);
         let Some(tx) = tx else {
             state
                 .metrics
@@ -1911,8 +1918,10 @@ async fn serve_getdata(state: &SharedState, peer: PeerId, hashes: Vec<[u8; 32]>)
             .metrics
             .flood_fulfilled
             .fetch_add(1, Ordering::Relaxed);
-        let encoded = tx.to_flood_frame();
-        if batch.len() + 4 + encoded.len() > BATCH_BYTES && !batch.is_empty() {
+        let parts = tx.flood_frame_parts();
+        let payload = parts.iter().map(|part| part.len()).sum::<usize>();
+        if batch.len() + 4 + payload > BATCH_BYTES && !batch.is_empty() {
+            buffer = None;
             if !send_tx_response_batch(state, peer, &batch, messages).await {
                 abandon_getdata(peer, total - index);
                 return;
@@ -1921,19 +1930,24 @@ async fn serve_getdata(state: &SharedState, peer: PeerId, hashes: Vec<[u8; 32]>)
             messages = 0;
         }
         // A transaction larger than the batch budget retains the existing
-        // segmented write, without allocating a second copy of its bytes.
-        if 4 + encoded.len() > BATCH_BYTES {
-            let result = send_to_peer_stream(state, peer, StreamType::Tx, &encoded).await;
-            if !record_tx_response_write(state, peer, result, 1, encoded.len()) {
+        // segmented write, straight from the shared TX bytes.
+        if 4 + payload > BATCH_BYTES {
+            buffer = None;
+            let result = send_to_peer_stream_parts(state, peer, StreamType::Tx, &parts).await;
+            if !record_tx_response_write(state, peer, result, 1, payload) {
                 abandon_getdata(peer, total - index - 1);
                 return;
             }
             continue;
         }
-        batch.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
-        batch.extend_from_slice(&encoded);
+        // Fits the batch budget, so the length fits the u32 prefix.
+        batch.extend_from_slice(&(payload as u32).to_be_bytes());
+        for part in parts {
+            batch.extend_from_slice(part);
+        }
         messages += 1;
     }
+    drop(buffer);
     if !batch.is_empty() {
         send_tx_response_batch(state, peer, &batch, messages).await;
     }

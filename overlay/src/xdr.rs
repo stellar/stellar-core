@@ -74,6 +74,11 @@ pub(crate) fn frame_transaction(envelope_bytes: &[u8]) -> Vec<u8> {
     frame(MessageType::Transaction, envelope_bytes)
 }
 
+/// The discriminant `frame_transaction` prefixes, for writers that place the
+/// envelope bytes directly instead of first building a framed copy.
+pub(crate) const TRANSACTION_DISCRIMINANT: [u8; 4] =
+    (MessageType::Transaction as i32).to_be_bytes();
+
 /// `StellarMessage::ScpMessage(..)` framing over canonical envelope bytes.
 pub(crate) fn frame_scp(envelope_bytes: &[u8]) -> Vec<u8> {
     frame(MessageType::ScpMessage, envelope_bytes)
