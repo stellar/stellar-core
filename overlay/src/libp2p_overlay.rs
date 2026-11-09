@@ -1557,7 +1557,7 @@ async fn send_inv_batch(state: &Arc<SharedState>, peer: PeerId, batch: InvBatch)
 }
 
 /// Read length-prefixed frame from stream
-async fn read_framed(stream: &mut Stream) -> io::Result<Vec<u8>> {
+async fn read_framed<R: futures::AsyncRead + Unpin>(stream: &mut R) -> io::Result<Vec<u8>> {
     let mut len_buf = [0u8; 4];
     stream.read_exact(&mut len_buf).await?;
     let len = u32::from_be_bytes(len_buf) as usize;
@@ -1722,14 +1722,22 @@ async fn handle_inbound_scp_streams(
     }
 }
 
+/// Inbound TX streams carry many small frames, and GETDATA responses arrive
+/// as batches of them. Reading through this buffer copies whatever QUIC has
+/// received in one call, instead of two reads (each taking the connection
+/// lock) per frame. Larger frames bypass the buffer once it is empty.
+const TX_STREAM_READ_BUFFER_BYTES: usize = 64 * 1024;
+
 /// Handle inbound TX streams from peers
 async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
-    while let Some((peer_id, mut stream)) = incoming.next().await {
+    while let Some((peer_id, stream)) = incoming.next().await {
         info!("TX_STREAM: Accepted inbound TX stream from {}", peer_id);
         state.metrics.inbound_live.fetch_add(1, Ordering::Relaxed);
         let state = state.clone();
 
         tokio::spawn(async move {
+            let mut stream =
+                futures::io::BufReader::with_capacity(TX_STREAM_READ_BUFFER_BYTES, stream);
             loop {
                 match read_framed(&mut stream).await {
                     Ok(data) => {
@@ -1739,7 +1747,7 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
                             .byte_read
                             .fetch_add(data.len() as u64, Ordering::Relaxed);
                         // Parse INV/GETDATA message
-                        handle_tx_stream_message(&state, &peer_id, &data, &mut stream).await;
+                        handle_tx_stream_message(&state, &peer_id, &data).await;
                     }
                     Err(e) => {
                         state.metrics.error_read.fetch_add(1, Ordering::Relaxed);
@@ -1754,18 +1762,13 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
 }
 
 /// Handle TX stream message in INV/GETDATA mode
-async fn handle_tx_stream_message(
-    state: &Arc<SharedState>,
-    peer_id: &PeerId,
-    data: &[u8],
-    stream: &mut Stream,
-) {
+async fn handle_tx_stream_message(state: &Arc<SharedState>, peer_id: &PeerId, data: &[u8]) {
     match TxStreamMessage::decode(data) {
         Ok(TxStreamMessage::InvBatch(batch)) => {
             handle_inv_batch(state, peer_id, batch).await;
         }
         Ok(TxStreamMessage::GetData(getdata)) => {
-            handle_getdata(state, peer_id, getdata, stream).await;
+            handle_getdata(state, peer_id, getdata);
         }
         Ok(TxStreamMessage::Tx(tx)) => {
             handle_tx_response(state, peer_id, tx).await;
@@ -1864,12 +1867,7 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
 }
 
 /// Handle GETDATA message - respond with requested TXs
-async fn handle_getdata(
-    state: &Arc<SharedState>,
-    peer_id: &PeerId,
-    getdata: GetData,
-    _stream: &mut Stream,
-) {
+fn handle_getdata(state: &Arc<SharedState>, peer_id: &PeerId, getdata: GetData) {
     debug!(
         "TX_GETDATA_RECV: Peer {} requesting {} TXs",
         peer_id,

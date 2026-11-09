@@ -46,6 +46,7 @@ pub(super) async fn write_frame_parts<W: AsyncWrite + Unpin>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::AsyncRead;
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
@@ -99,5 +100,67 @@ mod tests {
         expected_frames.extend_from_slice(&10u32.to_be_bytes());
         expected_frames.extend_from_slice(b"next frame");
         assert_eq!(writer.bytes, expected_frames);
+    }
+
+    /// Delivers at most `max` bytes per read and yields between reads, like
+    /// a QUIC stream handing over a batch as packets arrive.
+    struct ShortReader {
+        bytes: Vec<u8>,
+        pos: usize,
+        max: usize,
+        yield_next: bool,
+    }
+
+    impl AsyncRead for ShortReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            if self.yield_next {
+                self.yield_next = false;
+                cx.waker().wake_by_ref();
+                return Poll::Pending;
+            }
+            self.yield_next = true;
+            let pos = self.pos;
+            let n = buf.len().min(self.max).min(self.bytes.len() - pos);
+            buf[..n].copy_from_slice(&self.bytes[pos..pos + n]);
+            self.pos += n;
+            Poll::Ready(Ok(n))
+        }
+    }
+
+    #[tokio::test]
+    async fn batched_frames_read_back_through_a_buffered_reader() {
+        // Frames from 1 byte to more than twice the read buffer: the large
+        // ones exercise the reader's bypass once its buffer is drained.
+        let frames: Vec<Vec<u8>> = (0..40u8).map(|i| vec![i; 1 + 61 * i as usize]).collect();
+        let mut batch = Vec::new();
+        for frame in &frames[..30] {
+            batch.extend_from_slice(&(frame.len() as u32).to_be_bytes());
+            batch.extend_from_slice(frame);
+        }
+        let mut writer = ShortWriter::default();
+        Frames::Batch(&batch).write(&mut writer).await.unwrap();
+        for frame in &frames[30..] {
+            Frames::One(&[frame]).write(&mut writer).await.unwrap();
+        }
+
+        let reader = ShortReader {
+            bytes: writer.bytes,
+            pos: 0,
+            max: 700,
+            yield_next: false,
+        };
+        let mut reader = futures::io::BufReader::with_capacity(1024, reader);
+        for frame in &frames {
+            assert_eq!(
+                &super::super::read_framed(&mut reader).await.unwrap(),
+                frame
+            );
+        }
+        let end = super::super::read_framed(&mut reader).await.unwrap_err();
+        assert_eq!(end.kind(), io::ErrorKind::UnexpectedEof);
     }
 }
