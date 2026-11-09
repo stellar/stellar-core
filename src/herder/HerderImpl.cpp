@@ -35,8 +35,10 @@
 #include "scp/Slot.h"
 #include "simulation/LoadGenerator.h"
 #include "transactions/MutableTransactionResult.h"
+#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Decoder.h"
 #include "util/LogSlowExecution.h"
@@ -61,6 +63,71 @@
 using namespace std;
 namespace stellar
 {
+
+namespace
+{
+// Verifies the signatures in `env` that match the master keys of its source,
+// operation source and fee source accounts. This populates the
+// signature-verification cache that tx-set validation consults with the same
+// (key, signature, hash). Other signers need ledger state; validation verifies
+// them itself.
+void
+verifyMasterKeySignatures(Hash const& networkID, TransactionEnvelope const& env)
+{
+    auto verify = [](Hash const& contentsHash, auto const& signatures,
+                     std::vector<AccountID> const& keys) {
+        for (auto const& sig : signatures)
+        {
+            for (auto const& key : keys)
+            {
+                if (SignatureUtils::verify(sig, key, contentsHash).valid)
+                {
+                    break;
+                }
+            }
+        }
+    };
+    auto keysOf = [](AccountID const& source, auto const& operations) {
+        std::vector<AccountID> keys{source};
+        for (auto const& op : operations)
+        {
+            if (op.sourceAccount)
+            {
+                auto key = toAccountID(*op.sourceAccount);
+                if (std::find(keys.begin(), keys.end(), key) == keys.end())
+                {
+                    keys.emplace_back(std::move(key));
+                }
+            }
+        }
+        return keys;
+    };
+
+    auto frame = TransactionFrameBase::makeTransactionFromWire(networkID, env);
+    switch (env.type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+        verify(frame->getContentsHash(), env.v0().signatures,
+               keysOf(frame->getSourceID(), env.v0().tx.operations));
+        break;
+    case ENVELOPE_TYPE_TX:
+        verify(frame->getContentsHash(), env.v1().signatures,
+               keysOf(frame->getSourceID(), env.v1().tx.operations));
+        break;
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+    {
+        verify(frame->getContentsHash(), env.feeBump().signatures,
+               {frame->getFeeSourceID()});
+        TransactionEnvelope inner(ENVELOPE_TYPE_TX);
+        inner.v1() = env.feeBump().tx.innerTx.v1();
+        verifyMasterKeySignatures(networkID, inner);
+        break;
+    }
+    default:
+        break;
+    }
+}
+} // namespace
 
 // Roughly ~10 minutes of consensus
 constexpr uint32 const CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE = 120;
@@ -1729,20 +1796,9 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
 
     // Get TXs from Rust overlay
     auto& overlayMgr = mApp.getOverlayManager();
-    auto& lm = mApp.getLedgerManager();
-    size_t maxCandidates = lm.getLastMaxTxSetSizeOps();
-    if (lm.hasLastClosedSorobanNetworkConfig())
-    {
-        maxCandidates +=
-            lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
-    }
-    auto txEnvelopes =
-#ifdef BUILD_TESTS
-        mGetTopTransactionsForTesting
-            ? mGetTopTransactionsForTesting(maxCandidates * 2)
-            :
-#endif
-            overlayMgr.getTopTransactions(maxCandidates * 2);
+    // This build validates every candidate itself.
+    stopSignaturePrewarm();
+    auto txEnvelopes = pullTopTransactions(maxTxSetCandidates() * 2);
 
     CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
               txEnvelopes.size());
@@ -1988,6 +2044,94 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         },
         lcl.header.scpValue,
         /*constructValueNow=*/buildsLegacyTxSet(lcl.header.ledgerVersion));
+
+    // A follower validates the leader's set when it arrives, and most of its
+    // transactions are in this node's mempool too. Verify their signatures
+    // meanwhile, as building our own set used to before leader-only
+    // construction, so that validation finds them in the cache.
+    if (!buildsLegacyTxSet(lcl.header.ledgerVersion) &&
+        !getSCP()
+             .getNominationLeaders(ledgerSeqToTrigger)
+             .count(getSCP().getLocalNodeID()))
+    {
+        prewarmSignatureCache();
+    }
+}
+
+size_t
+HerderImpl::maxTxSetCandidates() const
+{
+    auto& lm = mApp.getLedgerManager();
+    size_t maxCandidates = lm.getLastMaxTxSetSizeOps();
+    if (lm.hasLastClosedSorobanNetworkConfig())
+    {
+        maxCandidates +=
+            lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+    }
+    return maxCandidates;
+}
+
+std::vector<TransactionEnvelope>
+HerderImpl::pullTopTransactions(size_t count)
+{
+#ifdef BUILD_TESTS
+    if (mGetTopTransactionsForTesting)
+    {
+        return mGetTopTransactionsForTesting(count);
+    }
+#endif
+    return mApp.getOverlayManager().getTopTransactions(count);
+}
+
+void
+HerderImpl::prewarmSignatureCache()
+{
+    ZoneScoped;
+    stopSignaturePrewarm();
+    // The leader's set has at most this many transactions, drawn from the
+    // top of a mempool much like ours.
+    auto envelopes = std::make_shared<std::vector<TransactionEnvelope> const>(
+        pullTopTransactions(maxTxSetCandidates()));
+    if (envelopes->empty())
+    {
+        return;
+    }
+    auto stop = std::make_shared<std::atomic<bool>>(false);
+    mSignaturePrewarmStop = stop;
+    // The batch executor (validation) is idle until the leader's set
+    // arrives; use as many background tasks as it would.
+    size_t const tasks = std::max<size_t>(
+        1, std::min<size_t>(mApp.getBatchExecutor().preferredTaskCount(),
+                            mApp.getConfig().WORKER_THREADS));
+    CLOG_DEBUG(Herder,
+               "Pre-verifying signatures of {} transactions in {} tasks",
+               envelopes->size(), tasks);
+    for (size_t task = 0; task < tasks; ++task)
+    {
+        mApp.postOnBackgroundThread(
+            [envelopes, stop, networkID = mApp.getNetworkID(), task, tasks]() {
+                ZoneScopedN("signature prewarm");
+                for (size_t i = task; i < envelopes->size(); i += tasks)
+                {
+                    if (stop->load(std::memory_order_relaxed))
+                    {
+                        return;
+                    }
+                    verifyMasterKeySignatures(networkID, (*envelopes)[i]);
+                }
+            },
+            "Herder: signature prewarm");
+    }
+}
+
+void
+HerderImpl::stopSignaturePrewarm()
+{
+    if (mSignaturePrewarmStop)
+    {
+        mSignaturePrewarmStop->store(true, std::memory_order_relaxed);
+        mSignaturePrewarmStop.reset();
+    }
 }
 
 bool

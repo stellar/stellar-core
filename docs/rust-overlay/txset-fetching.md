@@ -25,8 +25,12 @@ See [transport](transport.md).
 ## Encoding ownership
 
 Only nomination leaders construct local proposals. Followers start SCP with a
-lazy value supplier and vote for received leader proposals without pulling the
-mempool, building a private set, or compressing it. A node promoted by a
+lazy value supplier and vote for received leader proposals without building a
+private set or compressing it. At the trigger a follower pulls its mempool's top
+transactions once and verifies their master-key signatures on background
+threads, so that validating the leader's set hits the signature cache (cold, it
+costs about six times as much). The prewarm stops when validation of a received
+set or a local build starts. A node promoted by a
 nomination timeout builds only if SCP needs its own value; it rechecks ledger
 state and chooses a current close time then. Subsequent rounds reuse that value.
 First-round leaders may prepare before the trigger; later leaders do no

@@ -273,7 +273,20 @@ class HerderImpl : public Herder
     // Whether a ledger closing on an LCL with this protocol uses a legacy
     // (non-generalized) tx set, which every validator builds locally.
     static bool buildsLegacyTxSet(uint32_t lclLedgerVersion);
+    // Upper bound on the transactions a tx set for the next ledger can hold.
+    size_t maxTxSetCandidates() const;
+    std::vector<TransactionEnvelope> pullTopTransactions(size_t count);
+    // Verify the signatures of the mempool's top transactions on background
+    // threads, warming the signature cache for validating the leader's set.
+    void prewarmSignatureCache();
+    std::shared_ptr<std::atomic<bool>> mSignaturePrewarmStop;
 
+  public:
+    // Stops a running signature prewarm: called when validation or a local
+    // build is about to verify the signatures itself.
+    void stopSignaturePrewarm();
+
+  private:
     // Compute the trigger-timer anchor point using the local node's
     // prepare-start timestamp for the previous slot. Returns a pessimistic
     // estimate (now - expectedClose) if no prepare-start is recorded.

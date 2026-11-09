@@ -7461,9 +7461,10 @@ TEST_CASE("only nomination leaders construct local proposals",
             app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
             std::chrono::seconds(1));
         REQUIRE(scp.getNominationLeaders(seq) == first);
-        // The first leader refreshes its empty early snapshot. Followers do
-        // not even pull the mempool when starting nomination.
-        REQUIRE(pulls == (role == 0 ? 2 : 0));
+        // The first leader refreshes its empty early snapshot. Followers
+        // pull the mempool once, only to pre-verify signatures; they do not
+        // build or publish a set.
+        REQUIRE(pulls == (role == 0 ? 2 : 1));
         REQUIRE(scp.getLatestMessagesSend(seq).empty() == (role != 0));
 
         // With the first leader silent, real nomination timers eventually
@@ -7473,7 +7474,7 @@ TEST_CASE("only nomination leaders construct local proposals",
             app, [&]() { return !scp.getLatestMessagesSend(seq).empty(); },
             std::chrono::seconds(30));
         REQUIRE(scp.getNominationLeaders(seq).count(scp.getLocalNodeID()));
-        REQUIRE(pulls == (role == 0 ? 2 : 1));
+        REQUIRE(pulls == 2);
         auto messages = scp.getLatestMessagesSend(seq);
         auto const& votes = messages.front().statement.pledges.nominate().votes;
         REQUIRE(votes.size() == 1);
@@ -7556,7 +7557,8 @@ TEST_CASE("a follower promoted after losing sync still proposes",
             std::chrono::seconds(1));
         REQUIRE(!scp.getNominationLeaders(seq).empty());
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
-        REQUIRE(pulls == 0);
+        // Only the signature prewarm pull; no build yet.
+        REQUIRE(pulls == 1);
 
         // The stalled slot costs the node its sync before it is promoted.
         herder.lostSync();
@@ -7566,7 +7568,7 @@ TEST_CASE("a follower promoted after losing sync still proposes",
             app, [&]() { return !scp.getLatestMessagesSend(seq).empty(); },
             std::chrono::seconds(30));
         REQUIRE(scp.getNominationLeaders(seq).count(scp.getLocalNodeID()));
-        REQUIRE(pulls == 1);
+        REQUIRE(pulls == 2);
         auto messages = scp.getLatestMessagesSend(seq);
         REQUIRE(!messages.empty());
         auto const& votes = messages.front().statement.pledges.nominate().votes;
@@ -7577,6 +7579,131 @@ TEST_CASE("a follower promoted after losing sync still proposes",
         herder.mGetTopTransactionsForTesting = nullptr;
     }
     REQUIRE(checkedFollower);
+}
+
+TEST_CASE("followers pre-verify mempool signatures at the trigger",
+          "[herder][early-nomination]")
+{
+    // Followers no longer validate their own mempool by building a set, so
+    // the leader's set would be validated with a cold signature cache. At the
+    // trigger they pre-verify their top transactions' signatures instead.
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qset;
+    qset.threshold = 3;
+    for (int i = 0; i < 3; ++i)
+    {
+        keys.push_back(SecretKey::fromSeed(
+            sha256(fmt::format("early-nomination-node-{}", i))));
+        qset.validators.push_back(keys.back().getPublicKey());
+    }
+
+    std::set<bool> checkedRoles;
+    for (int i = 0; i < 3 && checkedRoles.size() < 2; ++i)
+    {
+        VirtualClock clock;
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+        auto cfg = getTestConfig(i);
+        cfg.HTTP_PORT = 0;
+        cfg.MANUAL_CLOSE = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+        cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+        cfg.NODE_SEED = keys[i];
+        cfg.QUORUM_SET = qset;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 41;
+        auto app = createTestApplication(clock, cfg);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getSCP();
+        auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const seq = lcl.header.ledgerSeq + 1;
+        bool const leader =
+            scp.predictNominationLeaders(
+                   seq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
+                .count(scp.getLocalNodeID()) != 0;
+        if (!checkedRoles.insert(leader).second)
+        {
+            continue;
+        }
+        CAPTURE(leader);
+
+        // Payments signed by their sources' master keys, one by an operation
+        // source too, and a fee bump.
+        auto dest = getGenesisAccount(*app, 40);
+        std::vector<TransactionTestFramePtr> txs;
+        for (uint32_t a = 0; a < 30; ++a)
+        {
+            auto source = getGenesisAccount(*app, a);
+            txs.push_back(source.tx({payment(dest, 1)}));
+        }
+        auto opSource = getGenesisAccount(*app, 30);
+        auto withOpSource =
+            getGenesisAccount(*app, 31).tx({opSource.op(payment(dest, 1))});
+        withOpSource->addSignature(opSource.getSecretKey());
+        txs.push_back(withOpSource);
+        auto feeSource = getGenesisAccount(*app, 32);
+        auto inner = getGenesisAccount(*app, 33);
+        txs.push_back(
+            feeBump(*app, feeSource, inner.tx({payment(dest, 1)}), 1000));
+        std::vector<TransactionEnvelope> envelopes;
+        for (auto const& tx : txs)
+        {
+            envelopes.push_back(tx->getEnvelope());
+        }
+        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        herder.mGetTopTransactionsForTesting = [&](size_t) {
+            return envelopes;
+        };
+
+        PubKeyUtils::clearVerifySigCache();
+        uint64_t hits = 0, misses = 0;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        size_t const signatures =
+            txs.size() + 1 /* op source */ + 1 /* fee bump's inner tx */;
+        EarlyNominationTestAccess::schedule(herder);
+        clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
+        testutil::crankUntil(
+            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            std::chrono::seconds(1));
+        REQUIRE(!scp.getNominationLeaders(seq).empty());
+
+        if (leader)
+        {
+            // The leader validates its own candidates while building, so it
+            // does not pre-verify. Its build verified every signature.
+            PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+            REQUIRE(misses >= signatures);
+            herder.mGetTopTransactionsForTesting = nullptr;
+            continue;
+        }
+
+        // Background tasks verify every signature once. Wait in real time
+        // without cranking: virtual nomination timeouts would promote this
+        // follower, whose build verifies signatures too.
+        uint64_t verified = 0;
+        auto const deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (verified < signatures &&
+               std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+            verified += misses;
+        }
+        REQUIRE(verified == signatures);
+        REQUIRE(scp.getLatestMessagesSend(seq).empty());
+
+        // Validating these transactions now finds every signature cached.
+        for (auto const& tx : txs)
+        {
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                        ->isSuccess());
+        }
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(misses == 0);
+        REQUIRE(hits >= signatures);
+        herder.mGetTopTransactionsForTesting = nullptr;
+    }
+    REQUIRE(checkedRoles == std::set<bool>{false, true});
 }
 
 TEST_CASE("early underfilled proposals refresh at the trigger",

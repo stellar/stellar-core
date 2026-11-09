@@ -1959,6 +1959,9 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
     if (pRes == nullptr)
     {
         ZoneNamedN(txSetValidityMissZone, "txset validity cache miss", true);
+        // Validation verifies the remaining signatures itself, on all cores;
+        // a concurrent signature prewarm would only compete with it.
+        mHerder.stopSignaturePrewarm();
         auto validationTime = mSCPMetrics.mTxSetValidation.TimeScope();
 
         // The invariant here is that we only validate tx sets nominated
