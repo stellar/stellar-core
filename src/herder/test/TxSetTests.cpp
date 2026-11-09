@@ -238,6 +238,61 @@ TEST_CASE("tx set building validates only as many candidates as it needs",
     }
 }
 
+TEST_CASE("tx set validation caches candidate hashes", "[txset]")
+{
+    uint32_t const count = 64;
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = count + 1;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = count;
+    auto app = createTestApplication(clock, cfg);
+    // Several tasks, so most hashes are computed off the main thread.
+    app->getBatchExecutor().setPreferredTaskCountForTesting(4);
+    auto dest = getGenesisAccount(*app, count);
+    // Fresh frames from the envelopes, with no hash computed yet. Every
+    // eighth candidate has a stale sequence number.
+    TxFrameList txs;
+    std::set<Hash> expectedIncluded;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        auto source = getGenesisAccount(*app, i);
+        auto signedTx = transactionFromOperations(
+            *app, source.getSecretKey(),
+            source.getLastSequenceNumber() + (i % 8 == 0 ? 0 : 1),
+            {payment(dest.getPublicKey(), 1)}, 100 + i);
+        txs.push_back(TransactionFrameBase::makeTransactionFromWire(
+            app->getNetworkID(), signedTx->getEnvelope()));
+        if (i % 8 != 0)
+        {
+            expectedIncluded.insert(xdrSha256(signedTx->getEnvelope()));
+        }
+    }
+
+    PerPhaseTransactionList phases{txs, {}};
+    PerPhaseTransactionList invalid(2);
+    auto [txSet, applicable] =
+        makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{}, invalid);
+    REQUIRE(invalid[0].size() == count / 8);
+    // The cached hashes are the envelopes' hashes.
+    for (auto const& tx : txs)
+    {
+        REQUIRE(tx->getFullHash() == xdrSha256(tx->getEnvelope()));
+    }
+    // The set holds the valid candidates, in full hash order.
+    auto const& classic =
+        txSet->getGeneralizedXDR().v1TxSet().phases[0].v0Components();
+    REQUIRE(classic.size() == 1);
+    std::vector<Hash> setHashes;
+    for (auto const& env : classic[0].txsMaybeDiscountedFee().txs)
+    {
+        setHashes.push_back(xdrSha256(env));
+    }
+    REQUIRE(std::is_sorted(setHashes.begin(), setHashes.end()));
+    REQUIRE(std::set<Hash>(setHashes.begin(), setHashes.end()) ==
+            expectedIncluded);
+    REQUIRE(applicable->checkValid(*app, 0, 0));
+}
+
 TEST_CASE("generalized tx set XDR validation", "[txset]")
 {
     Config cfg(getTestConfig());

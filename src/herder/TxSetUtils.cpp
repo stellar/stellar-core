@@ -41,6 +41,10 @@ namespace
 TxFrameList
 removeTxs(TxFrameList const& txs, TxFrameList const& txsToRemove)
 {
+    if (txsToRemove.empty())
+    {
+        return txs;
+    }
     UnorderedSet<Hash> txsToRemoveSet;
     txsToRemoveSet.reserve(txsToRemove.size());
     std::transform(
@@ -238,6 +242,12 @@ TxSetUtils::getInvalidTxListWithErrors(
             auto diagnostics = DiagnosticEventManager::createDisabled();
             for (size_t i = begin; i < end; ++i)
             {
+                // The main thread needs every candidate's full hash next
+                // (removing the invalid ones, sorting the set). Compute and
+                // cache it here, in parallel, rather than there. Each frame
+                // is in one range only, and the batch completes before the
+                // main thread reads it.
+                txs[i]->getFullHash();
                 auto res = txs[i]->checkValid(appConnector, view, 0,
                                               lowerBoundCloseTimeOffset,
                                               upperBoundCloseTimeOffset,
