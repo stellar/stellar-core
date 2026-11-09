@@ -236,7 +236,6 @@ LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
                                PerPhaseTransactionList const& perPhaseTxs)
 {
     ZoneScoped;
-    auto const& accounts = mTxGenerator.getAccounts();
 
     // An account stays in use until the transaction it submitted has been
     // applied, so that the next transaction generated for it sees the updated
@@ -257,31 +256,47 @@ LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
         }
     }
 
+    // Index the accounts selected since the last call. A transaction has been
+    // generated for each of them, so TxGenerator has cached the account.
+    if (!mAccountsInUseToIndex.empty())
+    {
+        auto const& accounts = mTxGenerator.getAccounts();
+        for (auto id : mAccountsInUseToIndex)
+        {
+            releaseAssert(mAccountsInUse.find(id) != mAccountsInUse.end());
+            auto accIt = accounts.find(id);
+            releaseAssert(accIt != accounts.end());
+            releaseAssert(
+                mAccountsInUseByKey.emplace(accIt->second->getPublicKey(), id)
+                    .second);
+        }
+        mAccountsInUseToIndex.clear();
+    }
+
+    // No account is waiting for its transaction, e.g. loadgen is idle.
+    if (mAccountsInUseByKey.empty())
+    {
+        return;
+    }
+
     // Accounts whose transaction is in the set externalized for `ledgerSeq`
     // are released once that ledger is applied. Accounts whose transaction is
-    // not in it are still pending in the mempool and remain in use.
-    UnorderedSet<AccountID> externalized;
+    // not in it are still pending in the mempool and remain in use. The set
+    // holds every node's transactions; looking each source up in the in-use
+    // index keeps this proportional to the set, however large the mempool
+    // backlog grows, and the lookups allocate nothing.
     for (auto const& txs : perPhaseTxs)
     {
         for (auto const& tx : txs)
         {
-            externalized.insert(tx->getSourceID());
-        }
-    }
-
-    for (auto it = mAccountsInUse.begin(); it != mAccountsInUse.end();)
-    {
-        auto accIt = accounts.find(*it);
-        releaseAssert(accIt != accounts.end());
-        if (externalized.find(accIt->second->getPublicKey()) !=
-            externalized.end())
-        {
-            mAccountsExternalized.emplace(*it, ledgerSeq);
-            it = mAccountsInUse.erase(it);
-        }
-        else
-        {
-            ++it;
+            auto it = mAccountsInUseByKey.find(tx->getSourceID());
+            if (it == mAccountsInUseByKey.end())
+            {
+                continue;
+            }
+            mAccountsExternalized.emplace(it->second, ledgerSeq);
+            mAccountsInUse.erase(it->second);
+            mAccountsInUseByKey.erase(it);
         }
     }
 }
@@ -293,6 +308,8 @@ LoadGenerator::reset()
 {
     mTxGenerator.reset();
     mAccountsInUse.clear();
+    mAccountsInUseByKey.clear();
+    mAccountsInUseToIndex.clear();
     mAccountsExternalized.clear();
     mAccountsAvailable.clear();
     mNoAccountsAvailableSinceLedger.reset();
@@ -1031,6 +1048,7 @@ LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
     mAccountsAvailable[sourceAccountIdx] = mAccountsAvailable.back();
     mAccountsAvailable.pop_back();
     releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
+    mAccountsInUseToIndex.push_back(sourceAccountId);
 
     return sourceAccountId;
 }
@@ -1431,6 +1449,8 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         mAccountsAvailable.insert(mAccountsAvailable.end(),
                                   mAccountsInUse.begin(), mAccountsInUse.end());
         mAccountsInUse.clear();
+        mAccountsInUseByKey.clear();
+        mAccountsInUseToIndex.clear();
         for (auto const& kv : mAccountsExternalized)
         {
             mAccountsAvailable.push_back(kv.first);

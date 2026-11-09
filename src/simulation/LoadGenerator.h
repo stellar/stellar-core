@@ -11,6 +11,7 @@
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "util/NonCopyable.h"
+#include "util/UnorderedMap.h"
 #include "xdr/Stellar-types.h"
 #include <optional>
 #include <unordered_map>
@@ -278,6 +279,13 @@ class LoadGenerator
     // Track account IDs that are currently being referenced by the transaction
     // queue (to avoid source account collisions during tx submission)
     std::unordered_set<uint64_t> mAccountsInUse;
+    // In-use accounts keyed by public key, so that cleanupAccounts matches an
+    // externalized transaction set in time proportional to the set rather
+    // than to the number of accounts waiting. Accounts selected since the last
+    // cleanupAccounts call wait in mAccountsInUseToIndex: their keys are only
+    // known once TxGenerator has generated a transaction for them.
+    UnorderedMap<AccountID, uint64_t> mAccountsInUseByKey;
+    std::vector<uint64_t> mAccountsInUseToIndex;
     // Accounts whose transaction externalized in the given ledger; released
     // once that ledger is applied.
     std::unordered_map<uint64_t, uint32_t> mAccountsExternalized;

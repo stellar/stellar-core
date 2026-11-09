@@ -251,6 +251,101 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
         100 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
+TEST_CASE("synthetic SAC load recycles source accounts in overlay-only mode",
+          "[loadgen]")
+{
+    // perfnet's block_time_check load: MIXED_PREGEN_SAC_PAYMENT with no
+    // classic stream, in overlay-only mode, with more transactions than
+    // source accounts. The soroban stream fails the run as soon as its pool
+    // is empty, so the run completes only if accounts return to the pool once
+    // their transactions' ledgers close. The pool covers twenty seconds of
+    // load, far more than the few one-second ledgers a transaction is in
+    // flight, so a stalled real-time simulation does not drain it.
+    uint32_t const nAccounts = 300;
+    uint32_t const sorobanTxRate = 15;
+    uint32_t const nTxs = nAccounts + 100;
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
+        auto cfg = getTestConfig(i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = nAccounts;
+        return cfg;
+    });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0];
+
+    // Max out Soroban network limits so synthetic footprints pass checkValid
+    // and every submitted transaction fits in the next ledger.
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            auto mx = std::numeric_limits<uint32_t>::max();
+            cfg.mLedgerMaxTxCount = mx;
+            cfg.mLedgerMaxInstructions = mx;
+            cfg.mLedgerMaxTransactionsSizeBytes = mx;
+            cfg.mLedgerMaxDiskReadEntries = mx;
+            cfg.mLedgerMaxDiskReadBytes = mx;
+            cfg.mLedgerMaxWriteLedgerEntries = mx;
+            cfg.mLedgerMaxWriteBytes = mx;
+            cfg.mTxMaxInstructions = mx;
+            cfg.mTxMaxDiskReadEntries = mx;
+            cfg.mTxMaxDiskReadBytes = mx;
+            cfg.mTxMaxWriteLedgerEntries = mx;
+            cfg.mTxMaxWriteBytes = mx;
+            cfg.mTxMaxFootprintEntries = mx;
+            cfg.mTxMaxSizeBytes = mx;
+            cfg.mTxMaxContractEventsSizeBytes = mx;
+        },
+        simulation);
+
+    // MIXED_PREGEN_* modes open a pregenerated classic file even when the
+    // classic stream is off; this run never reads from it.
+    std::string fileName =
+        app.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+    auto cleanup = gsl::finally([&]() { std::remove(fileName.c_str()); });
+    generateTransactions(app, fileName, /* numTransactions */ 1, nAccounts,
+                         /* offset */ 0);
+
+    for (auto& node : nodes)
+    {
+        node->setRunInOverlayOnlyMode(true);
+    }
+
+    auto& completed =
+        app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto& failed =
+        app.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+    auto const completedBefore = completed.count();
+    auto const failedBefore = failed.count();
+
+    GeneratedLoadConfig cfg = GeneratedLoadConfig::txLoad(
+        LoadGenMode::MIXED_PREGEN_SAC_PAYMENT, nAccounts, nTxs, sorobanTxRate,
+        /* offset */ 0);
+    cfg.preloadedTransactionsFile = fileName;
+    auto& mix = cfg.getMutMixPregenSorobanConfig();
+    mix.classicTxRate = 0;
+    mix.sorobanTxRate = sorobanTxRate;
+    app.getLoadGenerator().generateLoad(cfg);
+
+    simulation->crankUntil(
+        [&]() {
+            return completed.count() == completedBefore + 1 ||
+                   failed.count() != failedBefore;
+        },
+        60 * simulation->getExpectedLedgerCloseTime(), false);
+    REQUIRE(failed.count() == failedBefore);
+    REQUIRE(completed.count() == completedBefore + 1);
+}
+
 TEST_CASE("generate load with unique accounts", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
