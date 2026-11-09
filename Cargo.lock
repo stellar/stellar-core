@@ -4248,7 +4248,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "stellar-xdr 26.0.0",
+ "stellar-xdr 30.0.0",
  "tempfile",
  "tokio",
  "toml",

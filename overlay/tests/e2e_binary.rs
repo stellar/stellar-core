@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
-use stellar_xdr::curr::{Limits, ScpEnvelope, WriteXdr};
+use stellar_xdr::{Limits, ScpEnvelope, WriteXdr};
 
 /// IPC message types (must match src/ipc/messages.rs)
 mod ipc {

@@ -1174,7 +1174,7 @@ async fn send_txset_response(
     // built locally (trusted core). Keep the payload shared through admission
     // and transmission, writing the small discriminant separately under the
     // same stream lock as the payload.
-    let discriminant = (stellar_xdr::curr::MessageType::GeneralizedTxSet as i32).to_be_bytes();
+    let discriminant = (stellar_xdr::MessageType::GeneralizedTxSet as i32).to_be_bytes();
     let bytes = discriminant.len() + data.len();
 
     match send_to_peer_stream_parts(&state, peer, StreamType::TxSet, &[&discriminant, &data]).await
@@ -1599,13 +1599,13 @@ async fn handle_inbound_scp_streams(
                         };
 
                         let scp_envelope = match message {
-                            stellar_xdr::curr::StellarMessage::GetTxSet(hash)
+                            stellar_xdr::StellarMessage::GetTxSet(hash)
                                 if accepts_txset_requests =>
                             {
                                 handle_txset_request(&state, peer_id, hash.0);
                                 continue;
                             }
-                            stellar_xdr::curr::StellarMessage::GetScpState(ledger_seq) => {
+                            stellar_xdr::StellarMessage::GetScpState(ledger_seq) => {
                                 info!(
                                     "SCP_STATE_REQ: Peer {} requests SCP state for ledger >= {}",
                                     peer_id, ledger_seq
@@ -1622,7 +1622,7 @@ async fn handle_inbound_scp_streams(
                                 }
                                 continue;
                             }
-                            stellar_xdr::curr::StellarMessage::ScpMessage(scp_envelope) => {
+                            stellar_xdr::StellarMessage::ScpMessage(scp_envelope) => {
                                 scp_envelope
                             }
                             other => {
@@ -2093,10 +2093,10 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                         };
 
                         match message {
-                            stellar_xdr::curr::StellarMessage::GetTxSet(hash) => {
+                            stellar_xdr::StellarMessage::GetTxSet(hash) => {
                                 handle_txset_request(&state, peer_id, hash.0);
                             }
-                            stellar_xdr::curr::StellarMessage::GeneralizedTxSet(_tx_set) => {
+                            stellar_xdr::StellarMessage::GeneralizedTxSet(_tx_set) => {
                                 // The message was strict-decoded above, so the
                                 // bytes after the 4-byte discriminant are the
                                 // canonical tx set; hash the original bytes
@@ -2293,7 +2293,7 @@ fn blake2b_hash(data: &[u8]) -> [u8; 32] {
 
 #[cfg(test)]
 fn test_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
-    use stellar_xdr::curr::{Limits, ScpEnvelope, WriteXdr};
+    use stellar_xdr::{Limits, ScpEnvelope, WriteXdr};
 
     let mut envelope = ScpEnvelope::default();
     envelope.statement.slot_index = slot_index;
@@ -2308,7 +2308,7 @@ fn test_tx(sequence: i64) -> Arc<ValidatedTx> {
 
 #[cfg(test)]
 fn test_txset_xdr(seed: u8) -> ([u8; 32], Vec<u8>) {
-    use stellar_xdr::curr::{GeneralizedTransactionSet, Hash, Limits, WriteXdr};
+    use stellar_xdr::{GeneralizedTransactionSet, Hash, Limits, WriteXdr};
 
     let mut tx_set = GeneralizedTransactionSet::default();
     let GeneralizedTransactionSet::V1(v1) = &mut tx_set;
@@ -4405,7 +4405,7 @@ async fn test_inv_getdata_tx_propagation() {
 /// shows up as node1 processing zero demanded hashes.
 #[tokio::test]
 async fn test_getdata_retry_chunked_across_multiple_messages() {
-    use stellar_xdr::curr::TX_DEMAND_VECTOR_MAX_SIZE;
+    use stellar_xdr::TX_DEMAND_VECTOR_MAX_SIZE;
 
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();

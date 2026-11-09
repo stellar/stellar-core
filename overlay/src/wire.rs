@@ -20,7 +20,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use stellar_xdr::curr::{EnvelopeType, TransactionEnvelope};
+use stellar_xdr::{EnvelopeType, TransactionEnvelope};
 
 use crate::xdr::{self, XdrError};
 
@@ -139,10 +139,10 @@ fn fee_and_ops(envelope: &TransactionEnvelope) -> Result<(i64, u32), XdrError> {
 mod tests {
     use super::*;
     use crate::xdr::tests::valid_transaction_xdr;
-    use stellar_xdr::curr::{Limits, TransactionEnvelope, WriteXdr};
+    use stellar_xdr::{Limits, TransactionEnvelope, WriteXdr};
 
     fn decode(bytes: &[u8]) -> TransactionEnvelope {
-        use stellar_xdr::curr::ReadXdr;
+        use stellar_xdr::ReadXdr;
         TransactionEnvelope::from_xdr(bytes, Limits::none()).unwrap()
     }
 
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn to_flood_frame_matches_typed_stellar_message() {
-        use stellar_xdr::curr::StellarMessage;
+        use stellar_xdr::StellarMessage;
         let bytes = valid_transaction_xdr(1000, 1, 1);
         let tx = ValidatedTx::from_network(&decode(&bytes), &bytes).unwrap();
 

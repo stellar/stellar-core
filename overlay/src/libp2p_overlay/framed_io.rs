@@ -65,7 +65,7 @@ mod tests {
     async fn segmented_txset_frame_matches_xdr_with_partial_writes() {
         let (_, data) = super::super::test_txset_xdr(7);
         let expected = crate::xdr::frame_tx_set(&data);
-        let discriminant = (stellar_xdr::curr::MessageType::GeneralizedTxSet as i32).to_be_bytes();
+        let discriminant = (stellar_xdr::MessageType::GeneralizedTxSet as i32).to_be_bytes();
         let mut writer = ShortWriter::default();
         write_frame_parts(&mut writer, &[&discriminant, &[], &data])
             .await

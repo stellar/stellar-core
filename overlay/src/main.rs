@@ -1517,7 +1517,7 @@ mod tests {
         create_overlay(keypair, metrics, OverlayHandle::new(cmd_tx))
     }
 
-    use stellar_xdr::curr::{Limits, ScpEnvelope, WriteXdr};
+    use stellar_xdr::{Limits, ScpEnvelope, WriteXdr};
 
     fn test_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
         let mut envelope = ScpEnvelope::default();
@@ -1986,7 +1986,7 @@ mod tests {
     /// A minimal valid GeneralizedTransactionSet whose content hash matches,
     /// so it passes the CacheTxSet hash guard.
     fn test_txset_xdr(seed: u8) -> ([u8; 32], Vec<u8>) {
-        use stellar_xdr::curr::{GeneralizedTransactionSet, Hash};
+        use stellar_xdr::{GeneralizedTransactionSet, Hash};
 
         let mut tx_set = GeneralizedTransactionSet::default();
         let GeneralizedTransactionSet::V1(v1) = &mut tx_set;
@@ -1997,7 +1997,7 @@ mod tests {
     }
 
     fn test_mempool_tx(seq: i64) -> Arc<ValidatedTx> {
-        use stellar_xdr::curr::{
+        use stellar_xdr::{
             Operation, SequenceNumber, Transaction, TransactionEnvelope, TransactionV1Envelope,
         };
         let envelope = TransactionEnvelope::Tx(TransactionV1Envelope {

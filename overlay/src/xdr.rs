@@ -7,10 +7,10 @@
 
 use sha2::{Digest, Sha256};
 use std::fmt;
-use stellar_xdr::curr as xdr;
+use stellar_xdr as xdr;
 use xdr::{
     Limits, MessageType, ReadXdr, ScpBallot, ScpEnvelope, ScpStatementPledges, StellarMessage,
-    StellarValue,
+    StellarValue, StellarValueExt,
 };
 
 #[derive(Debug)]
@@ -143,6 +143,15 @@ fn collect_stellar_value_hash(hashes: &mut Vec<[u8; 32]>, value: &[u8]) {
     let Ok(stellar_value) = StellarValue::from_xdr(value, Limits::none()) else {
         return;
     };
+    // Empty-tx-set values (both close-time formats) carry Core's synthetic
+    // empty tx set hash. Core builds that set locally, so there is nothing to
+    // fetch from the network.
+    if matches!(
+        stellar_value.ext,
+        StellarValueExt::EmptyTxSet(_) | StellarValueExt::EmptyTxSetMs(_)
+    ) {
+        return;
+    }
     let hash: [u8; 32] = stellar_value.tx_set_hash.into();
     if !hashes.contains(&hash) {
         hashes.push(hash);
@@ -153,9 +162,11 @@ fn collect_stellar_value_hash(hashes: &mut Vec<[u8; 32]>, value: &[u8]) {
 pub(crate) mod tests {
     use super::*;
     use xdr::{
-        DecoratedSignature, GeneralizedTransactionSet, Hash, Limits, Operation, ScpNomination,
-        ScpStatementPledges, SequenceNumber, StellarValueExt, TimePoint, Transaction,
-        TransactionEnvelope, TransactionV1Envelope, Uint256, Value, VecM, WriteXdr,
+        DecoratedSignature, GeneralizedTransactionSet, Hash, LedgerCloseValueSignature, Limits,
+        Operation, ScpNomination, ScpStatementExternalize, ScpStatementPledges, SequenceNumber,
+        StellarValueExt, StellarValueProposedMsValue, StellarValueProposedValue,
+        StellarValueSignedMsValue, TimePoint, TimePointMs, Transaction, TransactionEnvelope,
+        TransactionV1Envelope, Uint256, Value, VecM, WriteXdr,
     };
 
     pub(crate) fn valid_transaction_xdr(fee: u32, sequence: i64, num_ops: usize) -> Vec<u8> {
@@ -267,5 +278,108 @@ pub(crate) mod tests {
 
         let hashes = extract_txset_hashes_from_envelope(&envelope);
         assert_eq!(hashes, vec![expected_hash]);
+    }
+
+    const VALUE_TX_SET_HASH: [u8; 32] = [0x42; 32];
+
+    fn stellar_value_xdr(ext: StellarValueExt) -> Vec<u8> {
+        StellarValue {
+            tx_set_hash: Hash(VALUE_TX_SET_HASH),
+            close_time: TimePoint(1_704_067_200),
+            upgrades: VecM::default(),
+            ext,
+        }
+        .to_xdr(Limits::none())
+        .unwrap()
+    }
+
+    fn nominate_envelope(value_xdr: Vec<u8>) -> ScpEnvelope {
+        let value = Value::try_from(value_xdr).unwrap();
+        let mut envelope = ScpEnvelope::default();
+        envelope.statement.pledges = ScpStatementPledges::Nominate(ScpNomination {
+            quorum_set_hash: Hash([0; 32]),
+            votes: VecM::try_from(vec![value.clone()]).unwrap(),
+            accepted: VecM::try_from(vec![value]).unwrap(),
+        });
+        envelope
+    }
+
+    fn signed_ms_ext() -> StellarValueExt {
+        StellarValueExt::SignedMs(StellarValueSignedMsValue {
+            close_time_ms: TimePointMs(1_704_067_200_123),
+            lc_value_signature: LedgerCloseValueSignature::default(),
+        })
+    }
+
+    // Every StellarValue format Core can produce, including the millisecond
+    // close time arms (protocol 30), must decode. Empty-tx-set values carry
+    // Core's synthetic hash and must never trigger a network fetch.
+    #[test]
+    fn extracts_txset_hashes_from_every_value_format() {
+        let proposed = |close_time_ms: Option<u64>| {
+            let tx_set_hash = Hash([0x11; 32]);
+            let previous_ledger_hash = Hash([0x22; 32]);
+            let lc_value_signature = LedgerCloseValueSignature::default();
+            match close_time_ms {
+                None => StellarValueExt::EmptyTxSet(StellarValueProposedValue {
+                    tx_set_hash,
+                    previous_ledger_hash,
+                    previous_ledger_version: 29,
+                    lc_value_signature,
+                }),
+                Some(ms) => StellarValueExt::EmptyTxSetMs(StellarValueProposedMsValue {
+                    close_time_ms: TimePointMs(ms),
+                    tx_set_hash,
+                    previous_ledger_hash,
+                    previous_ledger_version: 30,
+                    lc_value_signature,
+                }),
+            }
+        };
+        let cases = [
+            (StellarValueExt::Basic, true),
+            (
+                StellarValueExt::Signed(LedgerCloseValueSignature::default()),
+                true,
+            ),
+            (signed_ms_ext(), true),
+            (proposed(None), false),
+            (proposed(Some(1_704_067_200_456)), false),
+        ];
+        for (ext, fetchable) in cases {
+            let envelope = nominate_envelope(stellar_value_xdr(ext.clone()));
+            let expected = if fetchable {
+                vec![VALUE_TX_SET_HASH]
+            } else {
+                vec![]
+            };
+            assert_eq!(
+                extract_txset_hashes_from_envelope(&envelope),
+                expected,
+                "{ext:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn extracts_txset_hash_from_ms_ballot() {
+        let value = Value::try_from(stellar_value_xdr(signed_ms_ext())).unwrap();
+        let mut envelope = ScpEnvelope::default();
+        envelope.statement.pledges = ScpStatementPledges::Externalize(ScpStatementExternalize {
+            commit: ScpBallot { counter: 1, value },
+            n_h: 1,
+            commit_quorum_set_hash: Hash([0; 32]),
+        });
+        assert_eq!(
+            extract_txset_hashes_from_envelope(&envelope),
+            vec![VALUE_TX_SET_HASH]
+        );
+    }
+
+    #[test]
+    fn skips_malformed_ms_values() {
+        let mut bytes = stellar_value_xdr(signed_ms_ext());
+        bytes.pop();
+        assert!(extract_txset_hashes_from_envelope(&nominate_envelope(bytes)).is_empty());
     }
 }

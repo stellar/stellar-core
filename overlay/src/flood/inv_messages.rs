@@ -4,7 +4,7 @@
 
 use std::io;
 use std::sync::Arc;
-use stellar_xdr::curr::{
+use stellar_xdr::{
     FloodAdvert, FloodDemand, Hash, Limits, ReadXdr, StellarMessage, TxAdvertVector,
     TxDemandVector, WriteXdr, TX_DEMAND_VECTOR_MAX_SIZE,
 };
