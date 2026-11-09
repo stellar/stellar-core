@@ -7688,7 +7688,9 @@ TEST_CASE("followers pre-verify mempool signatures at the trigger",
             PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
             verified += misses;
         }
-        REQUIRE(verified == signatures);
+        // The counters are process-global and other code flushes them too, so
+        // they only bound the wait; the cache check below is the assertion.
+        INFO("verified " << verified << " of " << signatures);
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
 
         // Validating these transactions now finds every signature cached.

@@ -74,12 +74,25 @@ namespace
 void
 verifyMasterKeySignatures(Hash const& networkID, TransactionEnvelope const& env)
 {
-    auto verify = [](Hash const& contentsHash, auto const& signatures,
-                     std::vector<AccountID> const& keys) {
+    // Bound the work per transaction: a signature is only verified against
+    // keys whose hint it matches, but colliding hints could otherwise make a
+    // crafted transaction cost many verifications.
+    size_t budget = 20;
+    auto verify = [&budget](Hash const& contentsHash, auto const& signatures,
+                            std::vector<AccountID> const& keys) {
         for (auto const& sig : signatures)
         {
             for (auto const& key : keys)
             {
+                if (!SignatureUtils::doesHintMatch(key.ed25519(), sig.hint))
+                {
+                    continue;
+                }
+                if (budget == 0)
+                {
+                    return;
+                }
+                --budget;
                 if (SignatureUtils::verify(sig, key, contentsHash).valid)
                 {
                     break;
@@ -373,6 +386,7 @@ void
 HerderImpl::shutdown()
 {
     discardPreparedTxSet();
+    stopSignaturePrewarm();
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
@@ -566,6 +580,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
 {
     ZoneScoped;
     int const DUMP_SCP_TIMEOUT_SECONDS = 20;
+    // The prewarm only serves validating this slot's values.
+    stopSignaturePrewarm();
 
     recordExternalizeAndCheckCloseTimeDrift(slotIndex, value,
                                             mDriftCTSlidingWindow);
@@ -2048,11 +2064,13 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // A follower validates the leader's set when it arrives, and most of its
     // transactions are in this node's mempool too. Verify their signatures
     // meanwhile, as building our own set used to before leader-only
-    // construction, so that validation finds them in the cache.
+    // construction, so that validation finds them in the cache. Skip it if
+    // this node already voted, i.e. validated the leader's value.
     if (!buildsLegacyTxSet(lcl.header.ledgerVersion) &&
         !getSCP()
              .getNominationLeaders(ledgerSeqToTrigger)
-             .count(getSCP().getLocalNodeID()))
+             .count(getSCP().getLocalNodeID()) &&
+        getSCP().getLatestMessagesSend(ledgerSeqToTrigger).empty())
     {
         prewarmSignatureCache();
     }
@@ -2099,10 +2117,12 @@ HerderImpl::prewarmSignatureCache()
     auto stop = std::make_shared<std::atomic<bool>>(false);
     mSignaturePrewarmStop = stop;
     // The batch executor (validation) is idle until the leader's set
-    // arrives; use as many background tasks as it would.
+    // arrives; use as many background tasks as it would, but leave worker
+    // threads for long background jobs such as bucket merges.
+    size_t const workers = static_cast<size_t>(mApp.getConfig().WORKER_THREADS);
     size_t const tasks = std::max<size_t>(
         1, std::min<size_t>(mApp.getBatchExecutor().preferredTaskCount(),
-                            mApp.getConfig().WORKER_THREADS));
+                            workers > 2 ? workers - 2 : 1));
     CLOG_DEBUG(Herder,
                "Pre-verifying signatures of {} transactions in {} tasks",
                envelopes->size(), tasks);
