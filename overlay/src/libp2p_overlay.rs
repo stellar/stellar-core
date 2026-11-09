@@ -96,8 +96,15 @@ pub enum OverlayCommand {
     BroadcastScp(Vec<u8>),
     /// Broadcast a validated TX to all peers
     BroadcastTx(Arc<ValidatedTx>),
-    /// Request TX set from a peer (picks best peer)
-    FetchTxSet { hash: [u8; 32], slot: u32 },
+    /// Request TX set from a peer (picks best peer). `retry` re-requests a
+    /// set that a previous request has not delivered, from another peer.
+    FetchTxSet {
+        hash: [u8; 32],
+        slot: u32,
+        retry: bool,
+    },
+    /// Drop TX set request reservations for slots below `min_slot`
+    PruneTxSetRequests { min_slot: u32 },
     /// Send TX set to a specific peer (response to their request)
     SendTxSet {
         hash: [u8; 32],
@@ -209,13 +216,40 @@ impl OverlayHandle {
     }
 
     pub async fn fetch_txset(&self, hash: [u8; 32], slot: u32) {
+        self.send_fetch_txset(hash, slot, false).await;
+    }
+
+    /// Re-request a set an earlier request has not delivered. Unlike
+    /// `fetch_txset`, this replaces an outstanding reservation and prefers
+    /// another connected peer.
+    pub async fn refetch_txset(&self, hash: [u8; 32], slot: u32) {
+        self.send_fetch_txset(hash, slot, true).await;
+    }
+
+    async fn send_fetch_txset(&self, hash: [u8; 32], slot: u32, retry: bool) {
         if let Err(e) = self
             .cmd_tx
-            .send(OverlayCommand::FetchTxSet { hash, slot })
+            .send(OverlayCommand::FetchTxSet { hash, slot, retry })
             .await
         {
             warn!(
                 "Overlay command channel closed, failed to send FetchTxSet: {}",
+                e
+            );
+        }
+    }
+
+    /// Forget TX set requests for slots below `min_slot`. A request that is
+    /// never answered (e.g. a set no peer can serve) otherwise stays reserved
+    /// until its peer disconnects.
+    pub async fn prune_txset_requests(&self, min_slot: u32) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::PruneTxSetRequests { min_slot })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send PruneTxSetRequests: {}",
                 e
             );
         }
@@ -574,8 +608,11 @@ impl StellarOverlay {
                         OverlayCommand::BroadcastTx(tx) => {
                             self.broadcast_tx(tx).await;
                         }
-                        OverlayCommand::FetchTxSet { hash, slot } => {
-                            self.fetch_txset(hash, slot).await;
+                        OverlayCommand::FetchTxSet { hash, slot, retry } => {
+                            self.fetch_txset(hash, slot, retry).await;
+                        }
+                        OverlayCommand::PruneTxSetRequests { min_slot } => {
+                            self.prune_txset_requests(min_slot).await;
                         }
                         OverlayCommand::SendTxSet { hash, data, to, permits } => {
                             let state = Arc::clone(&self.state);
@@ -945,67 +982,63 @@ impl StellarOverlay {
         queue_inv(&self.state, &peers, InvEntry { hash, fee_per_op }).await;
     }
 
-    /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it
-    async fn fetch_txset(&mut self, hash: [u8; 32], slot: u32) {
-        // Check if we're already fetching this TxSet from a connected peer (dedup)
-        {
+    /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it.
+    /// A `retry` replaces an outstanding request (which never delivered) and
+    /// prefers a different connected peer: the previous one may have been
+    /// silent or not had the set, and there is no negative response.
+    async fn fetch_txset(&mut self, hash: [u8; 32], slot: u32, retry: bool) {
+        // Read each shared map on its own; never nest these locks.
+        let previous_peer = {
             let pending = self.state.pending_txset_requests.read().await;
-            if let Some((pending_peer, _, _)) = pending.get(&hash) {
-                // Check if that peer is still connected
-                let streams = self.state.peer_streams.read().await;
-                if streams.contains_key(pending_peer) {
-                    debug!(
-                        "TXSET_FETCH_SKIP: TxSet {:02x?}... already being fetched from {}, skipping duplicate",
-                        &hash[..4], pending_peer
-                    );
-                    return;
-                }
-                // Otherwise, peer disconnected - we'll re-request below
-            }
-        }
-
-        // First check if we know which peer has this TX set (from SCP message)
+            pending.get(&hash).map(|(peer, _, _)| *peer)
+        };
         let known_source = {
             let sources = self.state.txset_sources.read().await;
             sources.peek(&hash).cloned()
         };
-
-        let peer = if let Some(source_peer) = known_source {
-            // Verify this peer is still connected
-            let streams = self.state.peer_streams.read().await;
-            if streams.contains_key(&source_peer) {
-                info!(
-                    "TXSET_FETCH: Fetching TX set {:02x?}... from known source {}",
-                    &hash[..4],
-                    source_peer
+        let streams = self.state.peer_streams.read().await;
+        // Check if we're already fetching this TxSet from a connected peer (dedup)
+        if let Some(pending_peer) = previous_peer {
+            if !retry && streams.contains_key(&pending_peer) {
+                debug!(
+                    "TXSET_FETCH_SKIP: TxSet {:02x?}... already being fetched from {}, skipping duplicate",
+                    &hash[..4], pending_peer
                 );
-                source_peer
-            } else {
-                // Source peer disconnected, fall back to any peer
-                match streams.keys().next().cloned() {
-                    Some(p) => {
-                        info!("TXSET_FETCH: Fetching TX set {:02x?}... from fallback peer {} (source {} disconnected)",
-                              &hash[..4], p, source_peer);
-                        p
-                    }
-                    None => {
-                        warn!(
-                            "TXSET_FETCH_FAIL: No peers to fetch TX set {:02x?}... from",
-                            &hash[..4]
-                        );
-                        return;
-                    }
-                }
+                return;
             }
+            // Otherwise the peer disconnected or the request is being retried.
+        }
+        // Avoid the previous peer on a retry unless it is the only one left.
+        let avoid = previous_peer.filter(|p| retry && streams.keys().any(|other| other != p));
+        let eligible = |p: &PeerId| streams.contains_key(p) && Some(*p) != avoid;
+
+        // Prefer the peer that referenced the set in an SCP message
+        let peer = if let Some(source_peer) = known_source.filter(|p| eligible(p)) {
+            info!(
+                "TXSET_FETCH: Fetching TX set {:02x?}... from known source {}{}",
+                &hash[..4],
+                source_peer,
+                if retry { " (retry)" } else { "" }
+            );
+            source_peer
         } else {
-            // No known source, pick any connected peer
-            let streams = self.state.peer_streams.read().await;
-            match streams.keys().next().cloned() {
+            // No usable known source: pick a connected peer, at random on a
+            // retry so repeated retries spread over the peers.
+            let mut candidates = streams.keys().filter(|p| eligible(p));
+            let choice = if retry {
+                use rand::seq::IteratorRandom;
+                candidates.choose(&mut rand::thread_rng()).cloned()
+            } else {
+                candidates.next().cloned()
+            };
+            match choice {
                 Some(p) => {
                     info!(
-                        "TXSET_FETCH: Fetching TX set {:02x?}... from random peer {} (no known source)",
+                        "TXSET_FETCH: Fetching TX set {:02x?}... from peer {} (source {:?}{})",
                         &hash[..4],
-                        p
+                        p,
+                        known_source,
+                        if retry { ", retry" } else { "" }
                     );
                     p
                 }
@@ -1018,6 +1051,7 @@ impl StellarOverlay {
                 }
             }
         };
+        drop(streams);
 
         // Keep selection and reservation in the dispatcher, before spawning
         // the write, so repeated FetchTxSet commands cannot race past dedup.
@@ -1053,6 +1087,20 @@ impl StellarOverlay {
                 }
             }
         });
+    }
+
+    /// Forget requests for slots below `min_slot` that were never answered.
+    async fn prune_txset_requests(&mut self, min_slot: u32) {
+        let mut pending = self.state.pending_txset_requests.write().await;
+        let before = pending.len();
+        pending.retain(|_, (_, _, slot)| *slot >= min_slot);
+        if pending.len() < before {
+            debug!(
+                "Pruned {} unanswered TX set requests below slot {}",
+                before - pending.len(),
+                min_slot
+            );
+        }
     }
 
     /// Request SCP state from all connected peers

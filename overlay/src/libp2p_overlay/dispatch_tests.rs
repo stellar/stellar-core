@@ -1252,8 +1252,8 @@ async fn fetch_reservation_is_deduplicated_and_failure_preserves_reassignment() 
             .await
             .insert(peer, Arc::new(PeerOutboundStreams::new()));
         let hash = [3; 32];
-        overlay.fetch_txset(hash, 12).await;
-        overlay.fetch_txset(hash, 12).await;
+        overlay.fetch_txset(hash, 12, false).await;
+        overlay.fetch_txset(hash, 12, false).await;
         assert_eq!(
             overlay.sends.len(),
             1,
@@ -1287,6 +1287,73 @@ async fn fetch_reservation_is_deduplicated_and_failure_preserves_reassignment() 
             reassigned.then_some(replacement)
         );
     }
+}
+
+#[tokio::test]
+async fn retried_fetch_moves_to_another_peer_and_stale_requests_are_pruned() {
+    let (_handle, _events, _admissions, mut overlay) =
+        create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+    let peers = [PeerId::random(), PeerId::random()];
+    for peer in peers {
+        overlay
+            .state
+            .peer_streams
+            .write()
+            .await
+            .insert(peer, Arc::new(PeerOutboundStreams::new()));
+    }
+    let hash = [5; 32];
+    let requested_peer = |overlay: &StellarOverlay| {
+        let state = Arc::clone(&overlay.state);
+        async move {
+            state
+                .pending_txset_requests
+                .read()
+                .await
+                .get(&hash)
+                .map(|(peer, _, slot)| (*peer, *slot))
+        }
+    };
+    // The peer that referenced the set in SCP is asked first.
+    overlay
+        .state
+        .txset_sources
+        .write()
+        .await
+        .put(hash, peers[0]);
+    overlay.fetch_txset(hash, 20, false).await;
+    assert_eq!(requested_peer(&overlay).await, Some((peers[0], 20)));
+    // Further prefetches are deduplicated against the outstanding request.
+    overlay.fetch_txset(hash, 20, false).await;
+    assert_eq!(overlay.sends.len(), 1);
+
+    // A retry replaces the unanswered request with one to another peer,
+    // although the SCP source still names the first.
+    overlay.fetch_txset(hash, 21, true).await;
+    assert_eq!(overlay.sends.len(), 2);
+    assert_eq!(requested_peer(&overlay).await, Some((peers[1], 21)));
+    // With no other peer left, a retry asks the remaining one again.
+    overlay.state.peer_streams.write().await.remove(&peers[0]);
+    overlay.fetch_txset(hash, 21, true).await;
+    assert_eq!(overlay.sends.len(), 3);
+    assert_eq!(requested_peer(&overlay).await, Some((peers[1], 21)));
+
+    // Requests that are never answered expire by slot.
+    let other = [6; 32];
+    overlay
+        .state
+        .pending_txset_requests
+        .write()
+        .await
+        .insert(other, (peers[1], Instant::now(), 40));
+    overlay.prune_txset_requests(30).await;
+    assert_eq!(requested_peer(&overlay).await, None);
+    assert!(overlay
+        .state
+        .pending_txset_requests
+        .read()
+        .await
+        .contains_key(&other));
 }
 
 #[tokio::test]

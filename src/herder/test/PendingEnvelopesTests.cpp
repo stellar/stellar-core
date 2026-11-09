@@ -800,3 +800,82 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope without parallel tx set download",
         REQUIRE(herder.getSCP().getLatestMessage(pk) != nullptr);
     }
 }
+
+TEST_CASE("PendingEnvelopes re-requests tx sets the overlay does not deliver",
+          "[herder]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    auto s = SecretKey::pseudoRandomForTesting();
+    auto& pk = s.getPublicKey();
+    cfg.QUORUM_SET.validators.emplace_back(pk);
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& pendingEnvelopes = herder.getPendingEnvelopes();
+
+    auto root = app->getRoot();
+    std::vector<TestAccount> accs;
+    for (size_t i = 0; i < 2; i++)
+    {
+        accs.push_back(TestAccount{*app, getAccount("A" + std::to_string(i))});
+    }
+    auto qSet = SCPQuorumSet{};
+    qSet.threshold = 1;
+    qSet.validators.push_back(pk);
+    auto qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+    auto p = makeTxPair(herder, s, makeTransactions(*app, accs, *root, 2), 10);
+    auto const hash = p.second->getContentsHash();
+    auto const slot = lcl.header.ledgerSeq + 1;
+    auto envelope = makeEnvelope(herder, s, p, qSetHash, slot);
+    pendingEnvelopes.addSCPQuorumSet(qSetHash, qSet);
+
+    auto& retries =
+        app->getMetrics().NewCounter({"overlay", "fetch", "txset-retry"});
+    auto const initialRetries = retries.count();
+    auto const interval = PendingEnvelopes::TX_SET_FETCH_RETRY_INTERVAL;
+    // Advance virtual time by exactly `d` (crankFor can jump past it to the
+    // next timer).
+    auto crankBy = [&](VirtualClock::duration d) {
+        bool reached = false;
+        VirtualTimer sentinel(clock);
+        sentinel.expires_from_now(d);
+        sentinel.async_wait([&]() { reached = true; },
+                            &VirtualTimer::onFailureNoop);
+        while (!reached && clock.crank(false) > 0)
+        {
+        }
+        REQUIRE(reached);
+    };
+
+    REQUIRE(pendingEnvelopes.recvSCPEnvelope(envelope) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(pendingEnvelopes.getTxSetWaitingTime(hash));
+
+    // Nothing is repeated before the retry interval.
+    crankBy(interval / 2);
+    REQUIRE(retries.count() == initialRetries);
+
+    SECTION("an undelivered set is requested again until it arrives")
+    {
+        crankBy(2 * interval);
+        auto const retried = retries.count() - initialRetries;
+        REQUIRE(retried >= 1);
+        REQUIRE(retried <= 2);
+
+        REQUIRE(pendingEnvelopes.recvTxSet(hash, p.second));
+        REQUIRE(!pendingEnvelopes.getTxSetWaitingTime(hash));
+        crankBy(3 * interval);
+        REQUIRE(retries.count() == initialRetries + retried);
+    }
+
+    SECTION("purging the waiting slot stops the fetch")
+    {
+        pendingEnvelopes.eraseOutsideRange(slot + 1, std::nullopt, 0);
+        REQUIRE(!pendingEnvelopes.getTxSetWaitingTime(hash));
+        crankBy(3 * interval);
+        REQUIRE(retries.count() == initialRetries);
+        // The envelope is gone with its slot, so a late delivery is unused.
+        REQUIRE(!pendingEnvelopes.recvTxSet(hash, p.second));
+    }
+}

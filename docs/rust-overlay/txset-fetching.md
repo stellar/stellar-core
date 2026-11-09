@@ -86,8 +86,16 @@ the attempt returns without reserving the hash.
 
 A failed write removes only its own reservation. Disconnect cleanup removes
 reservations assigned to that peer. A received response clears its matching
-reservation and records fetch latency and the requested slot. This does not
-provide a timeout or automatic retry for a silent peer.
+reservation and records fetch latency and the requested slot. `LedgerClosed`
+drops reservations older than the retained-slot window (`sequence - 12`).
+
+Rust has no request timer. Core repeats a `RequestTxSet` for a set it has not
+received after one second, then every second, logging a warning on every
+doubling of the request count (and counting `overlay.fetch.txset-retry`).
+A request for a hash Core is still waiting for is a retry: it replaces the
+reservation and goes to another connected peer, preferring the SCP source only
+if it was not the previous target, else a random one. Core stops fetching when
+the slots waiting for the set are purged.
 
 ## Cache and externalization
 
@@ -109,6 +117,8 @@ See [mempool](mempool.md).
 
 ## Remaining limitations
 
-- A peer that stays connected but silent can leave a fetch pending indefinitely.
-- A cache miss at the selected peer has no explicit negative response or retry.
+- A cache miss at the selected peer has no explicit negative response; the
+  requester only notices through Core's one-second retry.
 - Selecting one connected peer does not guarantee it has the requested body.
+- Legacy (pre-protocol 20) `TransactionSet`s cannot be fetched at all; see
+  encoding ownership.

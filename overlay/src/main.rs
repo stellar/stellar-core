@@ -1015,6 +1015,10 @@ impl App {
                 hash.copy_from_slice(&msg.payload[0..32]);
                 let slot = u32::from_le_bytes(msg.payload[32..36].try_into().unwrap());
 
+                // Core requests a hash once per fetch and re-requests it only
+                // when the earlier request has not delivered. Retry that from
+                // another peer instead of deduplicating against the stuck one.
+                let retry = self.pending_core_tx_sets.contains_key(&hash);
                 self.pending_core_tx_sets
                     .entry(hash)
                     .and_modify(|needed_slot| *needed_slot = (*needed_slot).max(slot))
@@ -1033,12 +1037,17 @@ impl App {
                     // Not in local cache - request from peers. Spawn so the main
                     // loop never awaits on the bounded libp2p cmd channel.
                     info!(
-                        "TXSET_FETCH_START: TX set {:02x?}... not in cache, fetching from peers",
-                        &hash[..4]
+                        "TXSET_FETCH_START: TX set {:02x?}... not in cache, fetching from peers{}",
+                        &hash[..4],
+                        if retry { " (retry)" } else { "" }
                     );
                     let handle = self.libp2p_handle.clone();
                     tokio::spawn(async move {
-                        handle.fetch_txset(hash, slot).await;
+                        if retry {
+                            handle.refetch_txset(hash, slot).await;
+                        } else {
+                            handle.fetch_txset(hash, slot).await;
+                        }
                     });
                 }
             }
@@ -1177,6 +1186,13 @@ impl App {
                         .evict_before(ledger_seq.saturating_sub(12));
                     self.pending_core_tx_sets
                         .retain(|_, slot| *slot >= ledger_seq.saturating_sub(12));
+                    // Requests that were never answered expire with the same
+                    // retained-slot window.
+                    let handle = self.libp2p_handle.clone();
+                    let min_slot = ledger_seq.saturating_sub(12);
+                    tokio::spawn(async move {
+                        handle.prune_txset_requests(min_slot).await;
+                    });
                 }
             }
 

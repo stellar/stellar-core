@@ -9,6 +9,7 @@
 #include "herder/QuorumTracker.h"
 #include "lib/json/json.h"
 #include "util/RandomEvictionCache.h"
+#include "util/Timer.h"
 #include <autocheck/function.hpp>
 #include <chrono>
 #include <map>
@@ -64,9 +65,20 @@ class PendingEnvelopes
     // hashes of txsets/qsets we're currently fetching
     std::map<Hash, std::vector<SCPEnvelope>> mPendingTxSetFetches;
     std::map<Hash, std::vector<SCPEnvelope>> mPendingQSetFetches;
-    // when each pending tx set fetch was started, used to report how long
-    // we've been waiting for a tx set (see getTxSetWaitingTime)
-    std::map<Hash, VirtualClock::time_point> mTxSetFetchStartTimes;
+    // State of each pending tx set fetch: when it started (see
+    // getTxSetWaitingTime), the newest slot waiting for it, and its overlay
+    // requests. The overlay has no request timeout of its own; Core
+    // re-requests sets it has not delivered (retryStalledTxSetFetches).
+    struct TxSetFetchState
+    {
+        VirtualClock::time_point mStarted;
+        VirtualClock::time_point mLastRequested;
+        uint64 mSlot;
+        uint32_t mRequests;
+    };
+    std::map<Hash, TxSetFetchState> mTxSetFetches;
+    VirtualTimer mTxSetFetchRetryTimer;
+    bool mTxSetFetchRetryScheduled{false};
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetXDRFrameConstPtr>;
     // recent txsets
@@ -91,6 +103,7 @@ class PendingEnvelopes
     medida::Timer& mFetchDuration;
     medida::Timer& mFetchTxSetTimer;
     medida::Timer& mFetchQsetTimer;
+    medida::Counter& mTxSetFetchRetries;
     // Tracked cost per slot
     medida::Histogram& mCostPerSlot;
 
@@ -101,6 +114,8 @@ class PendingEnvelopes
     // Hands a newly known tx set to the envelopes waiting to fetch it.
     void completeTxSetFetch(Hash const& hash,
                             TxSetXDRFrameConstPtr const& txset);
+    void scheduleTxSetFetchRetry();
+    void retryStalledTxSetFetches();
 
     void updateMetrics();
 
@@ -135,6 +150,10 @@ class PendingEnvelopes
                              std::optional<uint64> maxSlot, uint64 slotToKeep);
 
   public:
+    // How long a tx set request may stay unanswered before it is repeated
+    static constexpr std::chrono::milliseconds TX_SET_FETCH_RETRY_INTERVAL{
+        1000};
+
     PendingEnvelopes(Application& app, HerderImpl& herder);
     ~PendingEnvelopes();
 
