@@ -6,6 +6,7 @@
 
 #include "herder/SurgePricingUtils.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
 #include "util/NonCopyable.h"
@@ -108,6 +109,12 @@ using PerPhaseTransactionList = std::vector<TxFrameList>;
 // Not all the transactions will be included in the result: invalid
 // transactions are trimmed and optionally returned via `invalidTxs` and if
 // there are too many remaining transactions surge pricing is applied.
+// `closeTimeOffset` is how far ahead of the last closed ledger's apply time the
+// ledger this set is built for applies. Transaction time bounds are
+// whole-second quantities checked against that apply time (used as both the
+// lower and the upper bound, since the close time is known exactly), which is
+// why the offset is in apply-time units rather than derived from the consensus
+// close time.
 // The result is guaranteed to pass `checkValid` check with the same
 // arguments as in this method, so additional validation is not needed.
 //
@@ -116,44 +123,50 @@ using PerPhaseTransactionList = std::vector<TxFrameList>;
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     PerPhaseTransactionList const& txPhases, Application& app,
-    uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset
+    ApplyTimeOffset closeTimeOffset
 #ifdef BUILD_TESTS
-    // Skips the tx set validation and preserves the pointers
-    // to the passed-in transactions - use in conjunction with
-    // `enforceTxsApplyOrder` argument in test-only overrides.
+    // `enforceTxsApplyOrder` forces the transactions to be ordered the same
+    // way as in the provided container. This is used by the test `closeLedger`
+    // helpers with the `strictOrder` flag enabled.
+    // `disableTxValidationForLegacyScenario` is used in the same helpers
+    // and it disables the input transaction validation.
     ,
-    bool skipValidation = false,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {}
+    bool enforceTxsApplyOrder = false,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+    bool disableTxValidationForLegacyScenario = false
 #endif
 );
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     PerPhaseTransactionList const& txPhases, Application& app,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    ApplyTimeOffset closeTimeOffset,
     PerPhaseTransactionList& invalidTxsPerPhase
 #ifdef BUILD_TESTS
-    // Skips the tx set validation and preserves the pointers
-    // to the passed-in transactions - use in conjunction with
-    // `enforceTxsApplyOrder` argument in test-only overrides.
+    // `enforceTxsApplyOrder` forces the transactions to be ordered the same
+    // way as in the provided container. This is used by the test `closeLedger`
+    // helpers with the `strictOrder` flag enabled.
+    // `disableTxValidationForLegacyScenario` is used in the same helpers
+    // and it disables the input transaction validation.
     ,
-    bool skipValidation = false,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {}
+    bool enforceTxsApplyOrder = false,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+    bool disableTxValidationForLegacyScenario = false
 #endif
 );
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
-    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset, bool enforceTxsApplyOrder = false,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
+    TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+    bool enforceTxsApplyOrder = false,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+    bool disableTxValidationForLegacyScenario = false);
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
-    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
-    bool enforceTxsApplyOrder = false,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
+    TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+    TxFrameList& invalidTxs, bool enforceTxsApplyOrder = false,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+    bool disableTxValidationForLegacyScenario = false);
 #endif
 
 // `TxSetFrame` is a wrapper around `TransactionSet` or
@@ -374,21 +387,22 @@ class TxSetPhaseFrame
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
         PerPhaseTransactionList const& txPhases, Application& app,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        ApplyTimeOffset closeTimeOffset,
         PerPhaseTransactionList& invalidTxsPerPhase
 #ifdef BUILD_TESTS
         ,
-        bool skipValidation,
-        txtest::ParallelSorobanOrder const& parallelSorobanOrder
+        bool enforceTxsApplyOrder,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        bool disableTxValidationForLegacyScenario
 #endif
     );
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
-        TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
-        bool enforceTxsApplyOrder,
-        txtest::ParallelSorobanOrder const& parallelSorobanOrder);
+        TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+        TxFrameList& invalidTxs, bool enforceTxsApplyOrder,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        bool disableTxValidationForLegacyScenario);
 #endif
     TxSetPhaseFrame(TxSetPhase phase, TxFrameList const& txs,
                     std::shared_ptr<InclusionFeeMap> inclusionFeeMap);
@@ -508,11 +522,12 @@ class ApplicableTxSetFrame
         return mPhases.size();
     }
 
-    // Returns the sum of all fees that this transaction set would take.
+    // Returns the sum of all fees that this transaction set would take. Clamps
+    // at INT64_MAX.
     int64_t getTotalFees(LedgerHeader const& lh) const;
 
     // Returns the sum of all _inclusion fee_ bids for all transactions in this
-    // set.
+    // set. Clamps at INT64_MAX.
     int64_t getTotalInclusionFees() const;
 
     // Returns whether this transaction set is generalized, i.e. representable
@@ -546,21 +561,22 @@ class ApplicableTxSetFrame
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
         PerPhaseTransactionList const& txPhases, Application& app,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        ApplyTimeOffset closeTimeOffset,
         PerPhaseTransactionList& invalidTxsPerPhase
 #ifdef BUILD_TESTS
         ,
-        bool skipValidation,
-        txtest::ParallelSorobanOrder const& parallelSorobanOrder
+        bool enforceTxsApplyOrder,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        bool disableTxValidationForLegacyScenario
 #endif
     );
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
-        TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
-        bool enforceTxsApplyOrder,
-        txtest::ParallelSorobanOrder const& parallelSorobanOrder);
+        TxFrameList txs, Application& app, ApplyTimeOffset closeTimeOffset,
+        TxFrameList& invalidTxs, bool enforceTxsApplyOrder,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        bool disableTxValidationForLegacyScenario);
 #endif
 
     ApplicableTxSetFrame(Application& app,

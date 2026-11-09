@@ -50,20 +50,20 @@ ManageBuyOfferOpFrame::isDeleteOffer() const
 }
 
 int64_t
-ManageBuyOfferOpFrame::getOfferBuyingLiabilities() const
+ManageBuyOfferOpFrame::getOfferBuyingLiabilities(uint32_t ledgerVersion) const
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
-        mManageBuyOffer.buyAmount, RoundingType::NORMAL);
+        ledgerVersion, getInversePrice(mManageBuyOffer.price), INT64_MAX,
+        INT64_MAX, INT64_MAX, mManageBuyOffer.buyAmount, RoundingType::NORMAL);
     return res.numSheepSend;
 }
 
 int64_t
-ManageBuyOfferOpFrame::getOfferSellingLiabilities() const
+ManageBuyOfferOpFrame::getOfferSellingLiabilities(uint32_t ledgerVersion) const
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
-        mManageBuyOffer.buyAmount, RoundingType::NORMAL);
+        ledgerVersion, getInversePrice(mManageBuyOffer.price), INT64_MAX,
+        INT64_MAX, INT64_MAX, mManageBuyOffer.buyAmount, RoundingType::NORMAL);
     return res.numWheatReceived;
 }
 

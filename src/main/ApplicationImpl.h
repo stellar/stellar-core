@@ -5,7 +5,6 @@
 #pragma once
 
 #include "Application.h"
-#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "medida/timer_context.h"
@@ -13,6 +12,7 @@
 #include "util/MetricResetter.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include <atomic>
 #include <optional>
 #include <thread>
 
@@ -77,7 +77,6 @@ class ApplicationImpl : public Application
     virtual CommandHandler& getCommandHandler() override;
     virtual WorkScheduler& getWorkScheduler() override;
     virtual BanManager& getBanManager() override;
-    virtual BannedAccountsPersistor& getBannedAccountsPersistor() override;
     virtual RustOverlayManager& getOverlayManager() override;
     virtual StatusManager& getStatusManager() override;
     virtual AppConnector& getAppConnector() override;
@@ -89,7 +88,7 @@ class ApplicationImpl : public Application
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
     virtual asio::io_context& getOverlayIOContext() override;
-    virtual asio::io_context& getLedgerCloseIOContext() override;
+    virtual asio::io_context& getLedgerApplyIOContext() override;
 
     virtual BatchExecutor& getBatchExecutor() override;
 
@@ -102,7 +101,7 @@ class ApplicationImpl : public Application
 
     virtual void postOnOverlayThread(std::function<void()>&& f,
                                      std::string jobName) override;
-    virtual void postOnLedgerCloseThread(std::function<void()>&& f,
+    virtual void postOnLedgerApplyThread(std::function<void()>&& f,
                                          std::string jobName) override;
     virtual void start() override;
     void startServices();
@@ -175,8 +174,8 @@ class ApplicationImpl : public Application
     std::unique_ptr<asio::io_context> mOverlayIOContext;
     std::unique_ptr<asio::io_context::work> mOverlayWork;
 
-    std::unique_ptr<asio::io_context> mLedgerCloseIOContext;
-    std::unique_ptr<asio::io_context::work> mLedgerCloseWork;
+    std::unique_ptr<asio::io_context> mLedgerApplyIOContext;
+    std::unique_ptr<asio::io_context::work> mLedgerApplyWork;
 
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
@@ -197,7 +196,6 @@ class ApplicationImpl : public Application
     std::shared_ptr<NtpProbe> mNtpProbe;
     std::unique_ptr<PersistentState> mPersistentState;
     std::unique_ptr<BanManager> mBanManager;
-    std::unique_ptr<BannedAccountsPersistor> mBannedAccountsPersistor;
     std::unique_ptr<StatusManager> mStatusManager;
     std::unique_ptr<AbstractLedgerTxnParent> mLedgerTxnRoot;
     std::unique_ptr<AppConnector> mAppConnector;
@@ -234,7 +232,7 @@ class ApplicationImpl : public Application
 
     std::vector<std::unique_ptr<std::thread>> mWorkerThreads;
     std::unique_ptr<std::thread> mOverlayThread;
-    std::unique_ptr<std::thread> mLedgerCloseThread;
+    std::unique_ptr<std::thread> mLedgerApplyThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
     // medium priority thread. In the future, this may become a more general
@@ -255,7 +253,9 @@ class ApplicationImpl : public Application
     std::atomic<bool> mStopping;
 
 #ifdef BUILD_TESTS
-    bool mRunInOverlayOnlyMode;
+    // Read from the parallel transaction validation threads while the
+    // `toggleoverlayonlymode` command may flip it from the main thread.
+    std::atomic<bool> mRunInOverlayOnlyMode;
 #endif
 
     VirtualTimer mStoppingTimer;
@@ -265,7 +265,7 @@ class ApplicationImpl : public Application
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     medida::Timer& mPostOnOverlayThreadDelay;
-    medida::Timer& mPostOnLedgerCloseThreadDelay;
+    medida::Timer& mPostOnLedgerApplyThreadDelay;
 
     VirtualClock::system_time_point mStartedOn;
 

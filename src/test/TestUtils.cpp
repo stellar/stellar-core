@@ -400,8 +400,10 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
             [&]() {
                 return std::all_of(
                     nodes.begin(), nodes.end(), [&](auto const& node) {
-                        return node->getLedgerManager()
-                                   .getLastClosedSorobanNetworkConfig() == cfg;
+                        return staticConfigSettingsAreEqual(
+                            node->getLedgerManager()
+                                .getLastClosedSorobanNetworkConfig(),
+                            cfg);
                     });
             },
             10 * simulation->getExpectedLedgerCloseTime(), false);
@@ -425,10 +427,9 @@ prepareSorobanNetworkConfigUpgrade(
     auto root = app.getRoot();
 
     auto closeWithTx = [&](TransactionFrameBaseConstPtr tx) {
-        auto res = txtest::closeLedgerOn(
+        txtest::closeLedgerOn(
             app, app.getLedgerManager().getLastClosedLedgerNum() + 1, 2, 1,
             2016, {tx});
-        root->loadSequenceNumber();
     };
 
     auto wasm = rust_bridge::get_write_bytes();
@@ -536,17 +537,28 @@ modifySorobanNetworkConfig(Application& app,
     auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
     TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
 
-    app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
-                                     lclHeader.header.ledgerSeq + 1, closeTime,
-                                     {upgrade});
-    app.getRoot()->loadSequenceNumber();
+    app.getHerder().externalizeValue(
+        TxSetXDRFrame::makeEmpty(lclHeader), lclHeader.header.ledgerSeq + 1,
+        txtest::makeConsensusTime(closeTime), {upgrade});
 
     txtest::captureLastClosedLedgerLcm(app);
 
     // Check that the upgrade was actually applied.
     auto postUpgradeCfg =
         app.getLedgerManager().getLastClosedSorobanNetworkConfig();
-    releaseAssertOrThrow(postUpgradeCfg == upgradeCfg);
+    releaseAssertOrThrow(
+        staticConfigSettingsAreEqual(postUpgradeCfg, upgradeCfg));
+}
+
+bool
+staticConfigSettingsAreEqual(SorobanNetworkConfig const& lhs,
+                             SorobanNetworkConfig const& rhs)
+{
+    auto rhsCopy = rhs;
+    rhsCopy.mEvictionIterator = lhs.mEvictionIterator;
+    rhsCopy.mAverageSorobanStateSize = lhs.mAverageSorobanStateSize;
+    rhsCopy.mFeeRent1KB = lhs.mFeeRent1KB;
+    return lhs == rhsCopy;
 }
 
 void

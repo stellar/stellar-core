@@ -2,10 +2,26 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/TcmallocConfig.h"
 #include "config.h"
 
 #ifdef USE_TCMALLOC
 #include <gperftools/malloc_extension.h>
+
+namespace stellar
+{
+size_t
+getMallocBytesInUse()
+{
+    size_t out;
+    MallocExtension* ext = MallocExtension::instance();
+    if (ext && ext->GetNumericProperty("generic.current_allocated_bytes", &out))
+    {
+        return out;
+    }
+    return 0;
+}
+}
 
 namespace
 {
@@ -44,4 +60,13 @@ initTcmallocConfig()
     }
 }
 } // namespace
+#else
+namespace stellar
+{
+size_t
+getMallocBytesInUse()
+{
+    return 0;
+}
+}
 #endif // USE_TCMALLOC

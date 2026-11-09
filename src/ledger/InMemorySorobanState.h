@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "ledger/LedgerEntryRefs.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -20,7 +21,7 @@ namespace stellar
 class ApplyLedgerView;
 
 class InvariantManagerImpl;
-class SorobanMetrics;
+class SorobanMetricsRegistry;
 
 // TTLData stores both liveUntilLedgerSeq and lastModifiedLedgerSeq for TTL
 // entries. This allows us to construct a LedgerEntry for TTLs without having to
@@ -396,7 +397,7 @@ class InMemorySorobanState
     // CONTRACT_CODE.
     void deleteContractCode(LedgerKey const& ledgerKey);
 
-    void reportMetrics(SorobanMetrics& metrics) const;
+    void reportMetrics(SorobanMetricsRegistry& metrics) const;
 
   public:
     InMemorySorobanState() = default;
@@ -444,12 +445,10 @@ class InMemorySorobanState
     // Update the map with entries from a ledger close. ledgerSeq must be
     // exactly mLastClosedLedgerSeq + 1.
     void
-    updateState(std::vector<LedgerEntry> const& initEntries,
-                std::vector<LedgerEntry> const& liveEntries,
-                std::vector<LedgerKey> const& deadEntries,
-                LedgerHeader const& lh,
+    updateState(LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+                LedgerKeyRefs deadEntries, LedgerHeader const& lh,
                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-                SorobanMetrics& metrics);
+                SorobanMetricsRegistry& metrics);
 
     // Should only be called in manual ledger close paths.
     void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);

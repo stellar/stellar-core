@@ -66,7 +66,7 @@ AppConnector::isStopping() const
     return mApp.isStopping();
 }
 
-SorobanMetrics&
+SorobanMetricsRegistry&
 AppConnector::getSorobanMetrics() const
 {
     return mApp.getLedgerManager().getSorobanMetrics();
@@ -167,22 +167,10 @@ AppConnector::getBatchExecutor()
     return mApp.getBatchExecutor();
 }
 
-ImmutableLedgerView
-AppConnector::copyImmutableLedgerView()
-{
-    return mApp.getLedgerManager().copyImmutableLedgerView();
-}
-
 ApplyLedgerView
 AppConnector::copyApplyLedgerView()
 {
     return mApp.getLedgerManager().copyApplyLedgerView();
-}
-
-void
-AppConnector::maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView)
-{
-    mApp.getLedgerManager().maybeUpdateImmutableLedgerView(ledgerView);
 }
 
 std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&

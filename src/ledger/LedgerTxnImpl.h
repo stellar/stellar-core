@@ -100,6 +100,7 @@ class LedgerTxn::Impl
     UnorderedMap<InternalLedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
+    uint32_t mActiveViewCount;
     LedgerTxnConsistency mConsistency;
     std::thread::id const mActiveThreadId;
 
@@ -275,6 +276,7 @@ class LedgerTxn::Impl
 
     void throwIfChild() const;
     void throwIfSealed() const;
+    void throwIfViewActive() const;
     void abortIfWrongThread(char const* functionName) const;
     void throwIfNotExactConsistency() const;
     void throwIfErasingConfig(InternalLedgerKey const& key) const;
@@ -300,6 +302,9 @@ class LedgerTxn::Impl
 
     void maybeUpdateLastModified() noexcept;
 
+    // Deactivates all the active entries and the header.
+    void deactivateAll() noexcept;
+
     // f should not throw
     // C++ doesn't support "std::function<void(EntryMap const&) nothrow>" yet
     void maybeUpdateLastModifiedThenInvokeThenSeal(
@@ -319,6 +324,11 @@ class LedgerTxn::Impl
     void updateEntry(InternalLedgerKey const& key,
                      EntryMap::iterator const* keyHint, LedgerEntryPtr lePtr,
                      bool effectiveActive) noexcept;
+    void updateEntry(InternalLedgerKey&& key, EntryMap::iterator const* keyHint,
+                     LedgerEntryPtr lePtr, bool effectiveActive) noexcept;
+    template <typename KeyT>
+    void updateEntryImpl(KeyT&& key, EntryMap::iterator const* keyHint,
+                         LedgerEntryPtr lePtr, bool effectiveActive) noexcept;
 
     // updateWorstBestOffer has the strong exception safety guarantee
     void updateWorstBestOffer(AssetPair const& assets,
@@ -351,6 +361,10 @@ class LedgerTxn::Impl
 
     // deactivateHeader has the strong exception safety guarantee
     void deactivateHeader();
+
+    // registerView/unregisterView have the strong exception safety guarantee
+    void registerView();
+    void unregisterView() noexcept;
 
     // erase has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -427,10 +441,10 @@ class LedgerTxn::Impl
     std::vector<InflationWinner> queryInflationWinners(size_t maxWinners,
                                                        int64_t minBalance);
 
-    // getAllEntries has the strong exception safety guarantee
-    void getAllEntries(std::vector<LedgerEntry>& initEntries,
-                       std::vector<LedgerEntry>& liveEntries,
-                       std::vector<LedgerKey>& deadEntries);
+    // sealAndBorrowAllEntries has the strong exception safety guarantee
+    void sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                 LedgerEntryRefVec& liveEntries,
+                                 LedgerKeyRefVec& deadEntries);
     // getRestoredHotArchiveKeys and getRestoredLiveBucketListKeys
     // have the strong exception safety guarantee
     UnorderedMap<LedgerKey, LedgerEntry> getRestoredHotArchiveKeys() const;
@@ -457,11 +471,11 @@ class LedgerTxn::Impl
 
     // createWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
-    void createWithoutLoading(InternalLedgerEntry const& entry);
+    void createWithoutLoading(InternalLedgerEntry&& entry);
 
     // updateWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
-    void updateWithoutLoading(InternalLedgerEntry const& entry);
+    void updateWithoutLoading(InternalLedgerEntry&& entry);
 
     // eraseWithoutLoading has the strong exception safety guarantee. If it
     // throws an exception, then the current LedgerTxn::Impl is unchanged.

@@ -820,7 +820,7 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
 
     // Verify the destination account exists (TX was applied).
     {
-        auto view = node0->getAppConnector().copyImmutableLedgerView();
+        auto view = node0->getLedgerManager().copyImmutableLedgerView();
         auto destAccount = view.getAccount(destKey.getPublicKey());
         REQUIRE(destAccount);
         LOG_INFO(DEFAULT_LOG, "Destination account created successfully!");
@@ -828,7 +828,7 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
 
     // Also verify on node1 (TX propagated and was applied)
     {
-        auto view = node1->getAppConnector().copyImmutableLedgerView();
+        auto view = node1->getLedgerManager().copyImmutableLedgerView();
         auto destAccount = view.getAccount(destKey.getPublicKey());
         REQUIRE(destAccount);
         LOG_INFO(DEFAULT_LOG, "Destination account exists on node1 too!");
@@ -1029,7 +1029,7 @@ TEST_CASE("Rust overlay SCP latency under TX load",
                 // Count included TXs by checking dest account balance
                 // (each payment adds 0.1 XLM = 1000000 stroops, starting from
                 // 100 XLM)
-                auto view = node0->getAppConnector().copyImmutableLedgerView();
+                auto view = node0->getLedgerManager().copyImmutableLedgerView();
                 auto destAccount = view.getAccount(destKey.getPublicKey());
                 if (destAccount)
                 {

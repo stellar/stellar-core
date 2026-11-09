@@ -17,6 +17,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/SecretManager.h"
 #include "util/UnorderedSet.h"
 
@@ -32,11 +33,8 @@
 
 namespace stellar
 {
-uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 28
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                                                       + 1
-#endif
-    ;
+uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION =
+    MAX_SUPPORTED_PROTOCOL_VERSION;
 
 bool gIsProductionNetwork = false;
 
@@ -165,8 +163,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
-    OVERLAY_PROTOCOL_MIN_VERSION = 41;
-    OVERLAY_PROTOCOL_VERSION = 42;
+    OVERLAY_PROTOCOL_MIN_VERSION = 42;
+    OVERLAY_PROTOCOL_VERSION = 43;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -361,8 +359,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKFILL_STELLAR_ASSET_EVENTS = false;
     BACKFILL_RESTORE_META = false;
 
-    FILTERED_G_ADDRESSES = {};
-
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     COMMANDS = {};
@@ -468,23 +464,6 @@ parseApplyLoadModelTx(ConfigItem const& item)
     throw std::invalid_argument(
         "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token, "
         "soroswap");
-}
-
-ApplyLoadTimingPhases
-parseApplyLoadTimingPhases(ConfigItem const& item)
-{
-    auto phases = readString(item);
-    if (phases == "apply")
-    {
-        return ApplyLoadTimingPhases::APPLY_ONLY;
-    }
-    if (phases == "txset-validation-and-apply")
-    {
-        return ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY;
-    }
-    throw std::invalid_argument(
-        "invalid 'APPLY_LOAD_TIMING_PHASES', expected one of: apply, "
-        "txset-validation-and-apply");
 }
 #endif
 
@@ -1674,17 +1653,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"FILTERED_G_ADDRESSES",
                  [&]() {
-                     FILTERED_G_ADDRESSES = readArray<std::string>(item);
-                     for (auto const& addr : FILTERED_G_ADDRESSES)
-                     {
-                         KeyUtils::fromStrKey<PublicKey>(addr);
-                     }
+                     // The account banning feature has been removed; accept
+                     // the entry for backwards compatibility but ignore it.
+                     readArray<std::string>(item);
                      CLOG_WARNING(
-                         Overlay,
-                         "FILTERED_G_ADDRESSES is deprecated. It will be "
-                         "removed in a future release. Please use "
-                         "`banaccounts` HTTP endpoint instead to ban accounts "
-                         "from submitting transactions to this node.");
+                         Herder,
+                         "FILTERED_G_ADDRESSES is deprecated and has no "
+                         "effect; account banning has been removed. Please "
+                         "remove it from the config. See CAP-0077 "
+                         "(https://github.com/stellar/stellar-protocol/blob/"
+                         "master/core/cap-0077.md) for a more robust "
+                         "alternative.");
                  }},
                 {"LOADGEN_BYTE_COUNT_FOR_TESTING",
                  [&]() {
@@ -1903,11 +1882,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_TIME_WRITES",
                  [&]() { APPLY_LOAD_TIME_WRITES = readBool(item); }},
-                {"APPLY_LOAD_TIMING_PHASES",
-                 [&]() {
-                     APPLY_LOAD_TIMING_PHASES =
-                         parseApplyLoadTimingPhases(item);
-                 }},
 #endif // BUILD_TESTS
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {
@@ -2108,7 +2082,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
-        if (PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
+        if (PARALLEL_LEDGER_APPLY && !backgroundLedgerApply())
         {
             LOG_WARNING(DEFAULT_LOG,
                         "PARALLEL_LEDGER_APPLY is not supported with "
@@ -2688,7 +2662,7 @@ Config::allBucketsInMemory() const
 }
 
 bool
-Config::parallelLedgerClose() const
+Config::backgroundLedgerApply() const
 {
     return PARALLEL_LEDGER_APPLY && DATABASE.value != "sqlite3://:memory:";
 }
@@ -2944,7 +2918,7 @@ Config::getExpectedLedgerCloseTimeTestingOverride() const
     if (ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
     {
         return std::chrono::milliseconds{
-            ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING * 1000};
+            ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING};
     }
 
     if (ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)

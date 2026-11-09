@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/test/TransactionTestFrame.h"
+#include "ledger/SorobanMetrics.h"
+#include "main/AppConnector.h"
 #include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureUtils.h"
@@ -12,6 +14,28 @@
 
 namespace stellar
 {
+namespace
+{
+// Some legacy tests are not passing the Soroban config into functions that are
+// expected to have access to it, so we load the config from LTX when not
+// provided.
+// Ideally this should be cleaned up in the future (preferably by getting rid
+// of TransactionTestFrame altogether).
+std::optional<SorobanNetworkConfig const>
+maybeLoadSorobanConfig(
+    AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& providedConfig)
+{
+    if (providedConfig ||
+        protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        return providedConfig;
+    }
+    return SorobanNetworkConfig::loadFromLedger(ltx);
+}
+} // namespace
+
 class ThreadParallelApplyLedgerState;
 TransactionTestFrame::TransactionTestFrame(TransactionFrameBasePtr tx)
     : mTransactionFrame(tx)
@@ -36,8 +60,8 @@ TransactionTestFrame::apply(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     Hash const& sorobanBasePrngSeed)
 {
-    return mTransactionFrame->apply(app, ltx, meta, *mTransactionTxResult,
-                                    sorobanConfig, sorobanBasePrngSeed);
+    return apply(app, ltx, meta, *mTransactionTxResult, sorobanConfig,
+                 sorobanBasePrngSeed);
 }
 
 void
@@ -73,30 +97,30 @@ TransactionTestFrame::apply(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     Hash const& sorobanBasePrngSeed) const
 {
-    auto ret = mTransactionFrame->apply(app, ltx, meta, txResult, sorobanConfig,
-                                        sorobanBasePrngSeed);
+    // Direct test applies run outside of a ledger close, so the apply metrics
+    // recorded here are simply dropped.
+    SorobanApplyMetrics sorobanMetrics;
+    return apply(app, ltx, meta, txResult, sorobanConfig, sorobanBasePrngSeed,
+                 sorobanMetrics);
+}
+
+bool
+TransactionTestFrame::apply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed, SorobanApplyMetrics& sorobanMetrics) const
+{
+    auto config = maybeLoadSorobanConfig(ltx, sorobanConfig);
+    auto ret = mTransactionFrame->apply(app, ltx, meta, txResult, config,
+                                        sorobanBasePrngSeed, sorobanMetrics);
     mTransactionTxResult = txResult.clone();
     return ret;
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
-                                 SequenceNumber current,
-                                 uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset) const
-{
-    LedgerTxn ltx(ltxOuter);
-    auto ledgerView = CheckValidLedgerViewWrapper(ltx);
-    auto diagnostics = DiagnosticEventManager::createDisabled();
-    mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ledgerView, current, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset, diagnostics);
-    return mTransactionTxResult->clone();
-}
-
-MutableTxResultPtr
 TransactionTestFrame::checkValid(
-    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    AppConnector& app, AbstractLedgerView const& ledgerView,
     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset,
     std::optional<uint32_t> validationLedgerSeq) const
@@ -109,7 +133,7 @@ TransactionTestFrame::checkValid(
 
 MutableTxResultPtr
 TransactionTestFrame::checkValid(
-    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    AppConnector& app, AbstractLedgerView const& ledgerView,
     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents,
@@ -123,7 +147,7 @@ TransactionTestFrame::checkValid(
 
 MutableTxResultPtr
 TransactionTestFrame::checkValidForOverlay(
-    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    AppConnector& app, AbstractLedgerView const& ledgerView,
     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents,
@@ -137,13 +161,13 @@ TransactionTestFrame::checkValidForOverlay(
 
 bool
 TransactionTestFrame::checkValidForTesting(AppConnector& app,
-                                           AbstractLedgerTxn& ltxOuter,
+                                           AbstractLedgerView const& ledgerView,
                                            SequenceNumber current,
                                            uint64_t lowerBoundCloseTimeOffset,
                                            uint64_t upperBoundCloseTimeOffset)
 {
     mTransactionTxResult =
-        checkValid(app, ltxOuter, current, lowerBoundCloseTimeOffset,
+        checkValid(app, ledgerView, current, lowerBoundCloseTimeOffset,
                    upperBoundCloseTimeOffset);
     return mTransactionTxResult->isSuccess();
 }
@@ -205,14 +229,6 @@ TransactionTestFrame::validateSorobanTxForFlooding(
 }
 
 bool
-TransactionTestFrame::validateAccountFilterForFlooding(
-    std::set<AccountID> const& filteredAccounts) const
-{
-    return mTransactionFrame->validateAccountFilterForFlooding(
-        filteredAccounts);
-}
-
-bool
 TransactionTestFrame::validateSorobanMemo() const
 {
     return mTransactionFrame->validateSorobanMemo();
@@ -255,8 +271,7 @@ TransactionTestFrame::checkSignature(SignatureChecker& signatureChecker,
 
 bool
 TransactionTestFrame::checkOperationSignatures(
-    SignatureChecker& signatureChecker,
-    CheckValidLedgerViewWrapper const& ledgerView,
+    SignatureChecker& signatureChecker, AbstractLedgerView const& ledgerView,
     MutableTransactionResultBase* txResult) const
 {
     return mTransactionFrame->checkOperationSignatures(signatureChecker,
@@ -372,21 +387,30 @@ TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 }
 
 void
-TransactionTestFrame::preParallelApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& resPayload,
-    SorobanNetworkConfig const& sorobanConfig) const
+TransactionTestFrame::preParallelApplyReadOnly(
+    AppConnector& app, AbstractLedgerView const& ls,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& resPayload,
+    SorobanApplyMetrics& sorobanMetrics) const
 {
-    mTransactionFrame->preParallelApply(app, ltx, meta, resPayload,
-                                        sorobanConfig);
+    mTransactionFrame->preParallelApplyReadOnly(app, ls, meta, resPayload,
+                                                sorobanMetrics);
+}
+
+void
+TransactionTestFrame::preParallelApplyWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase const& txResult) const
+{
+    mTransactionFrame->preParallelApplyWrite(app, ltx, meta, txResult);
 }
 
 std::optional<ParallelTxSuccessVal>
 TransactionTestFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    MutableTransactionResultBase& resPayload, SorobanMetrics& sorobanMetrics,
-    Hash const& txPrngSeed, TxEffects& effects) const
+    MutableTransactionResultBase& resPayload,
+    SorobanApplyMetrics& sorobanMetrics, Hash const& txPrngSeed,
+    TxEffects& effects) const
 {
     return mTransactionFrame->parallelApply(
         app, threadState, config, ledgerInfo, resPayload, sorobanMetrics,

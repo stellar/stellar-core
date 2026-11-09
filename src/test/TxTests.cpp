@@ -28,11 +28,13 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
+#include "xdrpp/printer.h"
 
 #include <lib/catch.hpp>
 
@@ -73,6 +75,16 @@ captureLastClosedLedgerLcm(Application& app)
     // then applies the tx directly, so txs never appear in LCM. Fix this
     // by restructuring applyCheck to use closeLedger(app, {tx}) when
     // capturing LCM.
+    if (isLcmCaptureEnabled())
+    {
+        // Configs whose ledger content depends on thread scheduling or on
+        // randomized nomination cannot produce reproducible golden data.
+        if (app.getConfig().EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD ||
+            app.getConfig().TESTING_NOMINATE_RANDOM_VALUES)
+        {
+            disableLcmCapture();
+        }
+    }
     if (isLcmCaptureEnabled() && !app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         auto const& closeMeta =
@@ -160,279 +172,91 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
 }
 
 bool
-applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
+applyCheck(TransactionTestFramePtr const& tx, Application& app,
+           bool checkSeqNum)
 {
-    // Close the ledger here to advance ledgerSeq
-    closeLedger(app);
+    // Fee bump transactions are not supported by this helper.
+    // Use `closeLedger` directly instead.
+    REQUIRE(tx->getEnvelope().type() != ENVELOPE_TYPE_TX_FEE_BUMP);
+    auto ledgerVersion =
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
+    auto lclView = app.getLedgerManager().getLCLView();
 
-    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto diagnostics = DiagnosticEventManager::createDisabled();
+    auto validationResult =
+        tx->checkValid(app.getAppConnector(), *lclView, 0, 0, 0, diagnostics);
 
-    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-
-    bool check = false;
-    TransactionResult checkResult;
-    TransactionResultCode code;
-    AccountEntry srcAccountBefore;
-
-    auto rawTxFrame = TransactionFrameBase::makeTransactionFromWire(
-        app.getNetworkID(), tx->getEnvelope());
-    auto checkedTx = TransactionTestFrame::fromTxFrame(rawTxFrame);
-    bool checkedTxApplyRes = false;
+    if (!validationResult->isSuccess())
     {
-        LedgerTxn ltxFeeProc(ltx);
-        // use checkedTx here for validity check as to keep tx untouched
-        check = checkedTx->checkValidForTesting(app.getAppConnector(),
-                                                ltxFeeProc, 0, 0, 0);
-        checkResult = checkedTx->getResult();
-        REQUIRE((!check || checkResult.result.code() == txSUCCESS));
+        return false;
+    }
+    auto srcAccountBefore = lclView->getAccount(tx->getSourceID());
+    auto seqNumBefore = srcAccountBefore.current().data.account().seqNum;
+    // With in-memory DB lclView is backed by LTX, so only one instance can
+    // exist at a time.
+    lclView.reset();
 
-        // now, check what happens when simulating what happens during a ledger
-        // close and reconcile it with the return value of "apply" with the one
-        // from checkValid:
-        // * an invalid (as per isValid) tx is still invalid during apply (and
-        // the same way)
-        // * a valid tx can fail later
-        code = checkResult.result.code();
+    auto resultSet = closeLedger(app, {tx});
+    REQUIRE(resultSet.results.size() == 1);
+    // When going through the normal ledgerClose path, TransactionFrame
+    // objects are reconstructed from raw XDR before being applied, meaning
+    // the TransactionTestFrame does not have its internal cached state
+    // updated during apply. We manually update the result here.
+    tx->overrideResultXDR(resultSet.results.at(0).result);
 
-        // compute the same changes in parallel on checkedTx
-        {
-            LedgerTxn ltxCleanTx(ltxFeeProc);
-            auto baseFee = ltxCleanTx.loadHeader().current().baseFee;
-            if (code != txNO_ACCOUNT)
-            {
-                checkedTx->processFeeSeqNum(ltxCleanTx, baseFee);
-            }
-            // else, leave feeCharged as per checkValid
-            try
-            {
-                TransactionMetaBuilder cleanTm(
-                    true, *checkedTx,
-                    ltxCleanTx.loadHeader().current().ledgerVersion,
-                    app.getAppConnector());
-                checkedTxApplyRes = checkedTx->apply(app.getAppConnector(),
-                                                     ltxCleanTx, cleanTm);
-            }
-            catch (...)
-            {
-                checkedTx->overrideResult(
-                    checkedTx->createTxErrorResult(txINTERNAL_ERROR));
-            }
-            // do not commit this one
-        }
+    auto txResult = resultSet.results[0].result;
 
-        if (code != txNO_ACCOUNT)
-        {
-            srcAccountBefore = loadAccount(ltxFeeProc, tx->getSourceID(), true)
-                                   .current()
-                                   .data.account();
+    auto txMeta = app.getLedgerManager().getLastClosedLedgerTxMeta();
+    REQUIRE(txMeta.size() == 1);
+    recordOrCheckGlobalTestTxMetadata(txMeta.back().getXDR());
 
-            // no account -> can't process the fee
-            auto baseFee = ltxFeeProc.loadHeader().current().baseFee;
-            tx->processFeeSeqNum(ltxFeeProc, baseFee);
-            // check that the recommended fee is correct, ignore the difference
-            // for later
-            if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_11))
-            {
-                REQUIRE(checkResult.feeCharged >= tx->getResult().feeCharged);
-            }
-            // this is to ignore potential changes in feeCharged
-            // as `checkValid` returns an estimate
-            checkResult.feeCharged = tx->getResult().feeCharged;
-
-            // verify that the fee got processed
-            auto ltxDelta = ltxFeeProc.getDelta();
-            REQUIRE(ltxDelta.entry.size() == 1);
-            auto current = ltxDelta.entry.begin()->second.current;
-            REQUIRE(current);
-            REQUIRE(current->type() == InternalLedgerEntryType::LEDGER_ENTRY);
-            auto previous = ltxDelta.entry.begin()->second.previous;
-            REQUIRE(previous);
-            REQUIRE(previous->type() == InternalLedgerEntryType::LEDGER_ENTRY);
-            auto currAcc = current->ledgerEntry().data.account();
-            auto prevAcc = previous->ledgerEntry().data.account();
-            REQUIRE(prevAcc == srcAccountBefore);
-            REQUIRE(currAcc.accountID == tx->getSourceID());
-            REQUIRE(currAcc.balance < prevAcc.balance);
-            currAcc.balance = prevAcc.balance;
-            if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
-            {
-                // v9 and below, we also need to verify that the sequence number
-                // also got processed at this time
-                REQUIRE(currAcc.seqNum == prevAcc.seqNum + 1);
-                currAcc.seqNum = prevAcc.seqNum;
-            }
-            REQUIRE(currAcc == prevAcc);
-        }
-        else
-        {
-            // this basically makes it that we ignore that field when we
-            // don't have an account
-            tx->overrideResultFeeCharged(checkResult.feeCharged);
-        }
-        ltxFeeProc.commit();
+    auto code = txResult.result.code();
+    bool isSuccess = isSuccessResult(txResult);
+    if (!isSuccess)
+    {
+        // `txFAILED` is the blanket error code for all the inner operation
+        // failures.
+        // Non-txFAILED error codes are technically allowed and possible in some
+        // edge cases (e.g. if an account is removed during the classic phase is
+        // then accessed during the Soroban phase). However, this helper is only
+        // used to apply a *single* transaction, and when we're applying a
+        // single transaction we should be able to do all the necessary
+        // validation at the time of tx set validation. Thus we should never
+        // encounter any codes besides txFAILED in this helper.
+        // There are some rare edge cases where due to a bug we would still end
+        // up with a different code (due to incorrect tx set validation logic);
+        // these should be covered with direct `closeLedger` if necessary.
+        REQUIRE(code == txFAILED);
+        REQUIRE(txMeta.back().getNumOperations() == 0);
     }
 
-    bool res = false;
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_11))
     {
-        LedgerTxn ltxTx(ltx);
-        TransactionMetaBuilder tmBuilder(
-            true, *tx, ltxTx.loadHeader().current().ledgerVersion,
-            app.getAppConnector());
-        try
-        {
-            res = tx->apply(app.getAppConnector(), ltxTx, tmBuilder);
-        }
-        catch (...)
-        {
-            checkedTx->overrideResult(
-                checkedTx->createTxErrorResult(txINTERNAL_ERROR));
-        }
-        TransactionMetaFrame tm(tmBuilder.finalize(res));
-
-        // check that both tx and cleanTx behave the same
-        REQUIRE(res == checkedTxApplyRes);
-        REQUIRE(tx->getEnvelope() == checkedTx->getEnvelope());
-        REQUIRE(tx->getResult() == checkedTx->getResult());
-
-        REQUIRE((!res || tx->getResultCode() == txSUCCESS));
-
-        if (!res || tx->getResultCode() != txSUCCESS)
-        {
-            REQUIRE(tm.getNumOperations() == 0);
-        }
-        // checks that the failure is the same if pre checks failed
-        if (!check)
-        {
-            if (tx->getResultCode() != txFAILED)
-            {
-                REQUIRE(checkResult == tx->getResult());
-            }
-            else
-            {
-                auto const& txResults = tx->getResult().result.results();
-                auto const& checkResults = checkResult.result.results();
-                for (auto i = 0u; i < txResults.size(); i++)
-                {
-                    REQUIRE(checkResults[i] == txResults[i]);
-                    if (checkResults[i].code() == opBAD_AUTH)
-                    {
-                        // results may not match after first opBAD_AUTH
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (code != txNO_ACCOUNT)
-        {
-            auto srcAccountAfter =
-                loadAccount(ltxTx, srcAccountBefore.accountID, false);
-            if (srcAccountAfter)
-            {
-                bool earlyFailure =
-                    (code == txMISSING_OPERATION || code == txTOO_EARLY ||
-                     code == txTOO_LATE || code == txINSUFFICIENT_FEE ||
-                     code == txBAD_SEQ || code == txMALFORMED ||
-                     code == txFROZEN_KEY_ACCESSED);
-                // verify that the sequence number changed (v10+)
-                // do not perform the check if there was a failure before
-                // or during the sequence number processing
-                auto header = ltxTx.loadHeader();
-                if (checkSeqNum &&
-                    protocolVersionStartsFrom(ledgerVersion,
-                                              ProtocolVersion::V_10) &&
-                    !earlyFailure)
-                {
-                    REQUIRE(srcAccountAfter.current().data.account().seqNum ==
-                            (srcAccountBefore.seqNum + 1));
-                }
-                // on failure, no other changes should have been made
-                if (!res)
-                {
-                    bool noChangeOnEarlyFailure =
-                        earlyFailure &&
-                        protocolVersionIsBefore(ledgerVersion,
-                                                ProtocolVersion::V_13);
-                    if (noChangeOnEarlyFailure ||
-                        protocolVersionIsBefore(ledgerVersion,
-                                                ProtocolVersion::V_10))
-                    {
-                        // no changes during an early failure
-                        REQUIRE(ltxTx.getDelta().entry.empty());
-                    }
-                    else
-                    {
-                        auto ltxDelta = ltxTx.getDelta();
-                        for (auto const& kvp : ltxDelta.entry)
-                        {
-                            auto current = kvp.second.current;
-                            REQUIRE(current);
-                            REQUIRE(current->type() ==
-                                    InternalLedgerEntryType::LEDGER_ENTRY);
-                            auto previous = kvp.second.previous;
-                            REQUIRE(previous);
-                            REQUIRE(previous->type() ==
-                                    InternalLedgerEntryType::LEDGER_ENTRY);
-
-                            // From V13, it's possible to remove one-time
-                            // signers on early failures
-                            if (protocolVersionStartsFrom(
-                                    ledgerVersion, ProtocolVersion::V_13) &&
-                                earlyFailure)
-                            {
-                                auto currAcc =
-                                    current->ledgerEntry().data.account();
-                                auto prevAcc =
-                                    previous->ledgerEntry().data.account();
-                                REQUIRE(currAcc.signers.size() + 1 ==
-                                        prevAcc.signers.size());
-                                REQUIRE(hasAccountEntryExtV2(currAcc) ==
-                                        hasAccountEntryExtV2(prevAcc));
-
-                                // signers should be the only change so this
-                                // should make the accounts equivalent
-                                if (hasAccountEntryExtV2(currAcc))
-                                {
-                                    auto& currSignerSponsoringIDs =
-                                        getAccountEntryExtensionV2(currAcc)
-                                            .signerSponsoringIDs;
-                                    auto const& prevSignerSponsoringIDs =
-                                        getAccountEntryExtensionV2(prevAcc)
-                                            .signerSponsoringIDs;
-
-                                    REQUIRE(currSignerSponsoringIDs.size() +
-                                                1 ==
-                                            prevSignerSponsoringIDs.size());
-                                    currSignerSponsoringIDs =
-                                        prevSignerSponsoringIDs;
-                                }
-                                currAcc.signers = prevAcc.signers;
-                                currAcc.numSubEntries = prevAcc.numSubEntries;
-                                REQUIRE(currAcc == prevAcc);
-                            }
-                        }
-                        // could check more here if needed
-                    }
-                }
-            }
-        }
-        ltxTx.commit();
-        recordOrCheckGlobalTestTxMetadata(tm.getXDR());
+        REQUIRE(validationResult->getFeeCharged() >= txResult.feeCharged);
+    }
+    else
+    {
+        // In older protocols the fee charged is expected to match exactly the
+        // fee estimated during validation.
+        REQUIRE(validationResult->getFeeCharged() == txResult.feeCharged);
     }
 
-    // TODO: in-memory mode doesn't work with parallel ledger apply because
-    // it manually modifies LedgerTxn without closing a ledger; this results
-    // in a different ledger header stored inside of LedgerTxn
-    ltx.commit();
+    auto lclViewAfter = app.getLedgerManager().getLCLView();
+    auto srcAccountAfter = lclViewAfter->getAccount(tx->getSourceID());
+    if (srcAccountAfter && checkSeqNum)
+    {
+        auto seqNumAfter = srcAccountAfter.current().data.account().seqNum;
+        REQUIRE(seqNumAfter == seqNumBefore + 1);
+    }
 
-    return res;
+    return isSuccess;
 }
 
 void
 checkTransaction(TransactionTestFrame& txFrame, Application& app)
 {
     REQUIRE(txFrame.getResult().feeCharged ==
-            app.getLedgerManager().getLastTxFee());
+            app.getLedgerManager().getLastTxFee() * txFrame.getNumOperations());
     REQUIRE((txFrame.getResultCode() == txSUCCESS ||
              txFrame.getResultCode() == txFAILED));
 }
@@ -440,41 +264,22 @@ checkTransaction(TransactionTestFrame& txFrame, Application& app)
 void
 applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
 {
-    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        applyCheck(tx, app, checkSeqNum);
-    }
-    // We cannot commit directly to the DB if running BucketListDB, so close a
-    // ledger with the TX instead
-    else
-    {
-        auto resultSet = closeLedger(app, {tx});
 
-        // When going through the normal ledgerClose path, TransactionFrame
-        // objects are reconstructed from raw XDR before being applied, meaning
-        // the TestTransactionFrame does not have it's internal cached state
-        // updated during apply. We manually update the result here.
-        REQUIRE(resultSet.results.size() == 1);
-        tx->overrideResultXDR(resultSet.results.at(0).result);
-
-        auto meta = app.getLedgerManager().getLastClosedLedgerTxMeta();
-        REQUIRE(meta.size() == 1);
-        recordOrCheckGlobalTestTxMetadata(meta.back().getXDR());
-    }
-
+    applyCheck(tx, app, checkSeqNum);
     throwIf(tx->getResult());
     checkTransaction(*tx, app);
 
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto account = stellar::loadAccount(ltx, tx->getSourceID());
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+    auto ledgerView = app.getLedgerManager().copyImmutableLedgerView();
+    auto account = ledgerView.getAccount(tx->getSourceID());
+    auto const& header = ledgerView.getLedgerHeader().current();
+    if (protocolVersionStartsFrom(header.ledgerVersion,
                                   ProtocolVersion::V_19) &&
         account)
     {
         auto const& v3 =
             getAccountEntryExtensionV3(account.current().data.account());
-        REQUIRE(v3.seqLedger == ltx.loadHeader().current().ledgerSeq);
-        REQUIRE(v3.seqTime == ltx.loadHeader().current().scpValue.closeTime);
+        REQUIRE(v3.seqLedger == header.ledgerSeq);
+        REQUIRE(v3.seqTime == header.scpValue.closeTime);
     }
 }
 
@@ -489,9 +294,9 @@ validateTxResults(TransactionTestFramePtr const& tx, Application& app,
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
                                                       tx->getEnvelope()));
     {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(checkedTx->checkValidForTesting(app.getAppConnector(), ltx, 0,
-                                                0, 0) == shouldValidateOk);
+        REQUIRE(checkedTx->checkValidForTesting(
+                    app.getAppConnector(), *app.getLedgerManager().getLCLView(),
+                    0, 0, 0) == shouldValidateOk);
     }
     REQUIRE(checkedTx->getResult().result.code() == validationResult.code);
     REQUIRE(checkedTx->getResult().feeCharged == validationResult.fee);
@@ -543,11 +348,13 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
 
 TransactionResultSet
 closeLedgerOn(Application& app, int day, int month, int year,
-              std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
+              std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder,
+              bool disableTxValidationForLegacyScenario)
 {
     auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
     return closeLedgerOn(app, nextLedgerSeq, getTestDate(day, month, year), txs,
-                         strictOrder, emptyUpgradeSteps);
+                         strictOrder, emptyUpgradeSteps, {},
+                         disableTxValidationForLegacyScenario);
 }
 
 TransactionResultSet
@@ -566,7 +373,8 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
 
 TransactionResultSet
 closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
-            bool strictOrder, xdr::xvector<UpgradeType, 6> const& upgrades)
+            bool strictOrder, xdr::xvector<UpgradeType, 6> const& upgrades,
+            bool disableTxValidationForLegacyScenario)
 {
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
@@ -575,41 +383,56 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
     auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
     return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txs, strictOrder,
-                         upgrades);
+                         upgrades, {}, disableTxValidationForLegacyScenario);
 }
 
 TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder,
               xdr::xvector<UpgradeType, 6> const& upgrades,
-              ParallelSorobanOrder const& parallelSorobanOrder)
+              ParallelSorobanOrder const& parallelSorobanOrder,
+              bool disableTxValidationForLegacyScenario)
+{
+    return closeLedgerOn(
+        app, ledgerSeq,
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(closeTime)), txs,
+        strictOrder, upgrades, parallelSorobanOrder,
+        disableTxValidationForLegacyScenario);
+}
+
+TransactionResultSet
+closeLedgerOn(Application& app, uint32 ledgerSeq, ConsensusTime closeTime,
+              std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder,
+              xdr::xvector<UpgradeType, 6> const& upgrades,
+              ParallelSorobanOrder const& parallelSorobanOrder,
+              bool disableTxValidationForLegacyScenario)
 {
     // Ensure that parallelSorobanOrder is only used with strictOrder
     releaseAssert((parallelSorobanOrder.empty() || strictOrder));
+    releaseAssert(!disableTxValidationForLegacyScenario || strictOrder);
 
     // Ensure we're not trying to close a ledger that's already closed
     releaseAssert(ledgerSeq > app.getLedgerManager().getLastClosedLedgerNum());
 
-    auto lastCloseTime = app.getLedgerManager()
-                             .getLastClosedLedgerHeader()
-                             .header.scpValue.closeTime;
-    if (closeTime < lastCloseTime)
-    {
-        closeTime = lastCloseTime;
-    }
+    // Make sure the close time is never less than the lcl close time
+    closeTime =
+        std::max(closeTime, getConsensusTime(app.getLedgerManager()
+                                                 .getLastClosedLedgerHeader()
+                                                 .header.scpValue));
 
     std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr> txSet;
     if (strictOrder)
     {
-        txSet = makeTxSetFromTransactions(txs, app, 0, 0, true,
-                                          parallelSorobanOrder);
+        txSet = makeTxSetFromTransactions(txs, app, ApplyTimeOffset{}, true,
+                                          parallelSorobanOrder,
+                                          disableTxValidationForLegacyScenario);
     }
     else
     {
         if (std::none_of(txs.begin(), txs.end(),
                          [&](auto const& tx) { return tx->isSoroban(); }))
         {
-            txSet = makeTxSetFromTransactions(txs, app, 0, 0);
+            txSet = makeTxSetFromTransactions(txs, app, ApplyTimeOffset{});
         }
         else
         {
@@ -626,7 +449,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
             {
                 phases.emplace_back(soroban);
             }
-            txSet = makeTxSetFromTransactions(phases, app, 0, 0);
+            txSet = makeTxSetFromTransactions(phases, app, ApplyTimeOffset{});
         }
     }
     if (!strictOrder)
@@ -651,15 +474,24 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
 TransactionResultSet
 closeLedger(Application& app, TxSetXDRFrameConstPtr txSet)
 {
-    auto lastCloseTime = app.getLedgerManager()
-                             .getLastClosedLedgerHeader()
-                             .header.scpValue.closeTime;
+    auto lastCloseTime = getConsensusTime(
+        app.getLedgerManager().getLastClosedLedgerHeader().header.scpValue);
     auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
     return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txSet);
 }
 
 TransactionResultSet
-closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
+              TxSetXDRFrameConstPtr txSet)
+{
+    return closeLedgerOn(
+        app, ledgerSeq,
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(closeTime)),
+        txSet);
+}
+
+TransactionResultSet
+closeLedgerOn(Application& app, uint32 ledgerSeq, ConsensusTime closeTime,
               TxSetXDRFrameConstPtr txSet)
 {
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
@@ -673,6 +505,35 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     captureLastClosedLedgerLcm(app);
 
     return z1;
+}
+
+ConsensusTime
+makeConsensusTime(TimePoint timePoint, uint32_t milliseconds)
+{
+    releaseAssert(milliseconds < 1000);
+    auto const wholeSecond =
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(timePoint));
+    if (milliseconds != 0)
+    {
+        auto const base = wholeSecond.milliseconds();
+        return ConsensusTime::fromMilliseconds(base > UINT64_MAX - milliseconds
+                                                   ? UINT64_MAX
+                                                   : base + milliseconds);
+    }
+    return wholeSecond;
+}
+
+ConsensusTime
+withMsCloseTime(Application& app, TimePoint closeTimeSec)
+{
+    if (protocolHasMsCloseTime(app.getLedgerManager()
+                                   .getLastClosedLedgerHeader()
+                                   .header.ledgerVersion))
+    {
+        // A random offset within the same whole second
+        return makeConsensusTime(closeTimeSec, rand_uniform<uint32_t>(0, 999));
+    }
+    return makeConsensusTime(closeTimeSec);
 }
 
 SecretKey
@@ -711,15 +572,15 @@ loadAccount(AbstractLedgerTxn& ltx, PublicKey const& k, bool mustExist)
 bool
 doesAccountExist(Application& app, PublicKey const& k)
 {
-    CheckValidLedgerViewWrapper lss(app);
-    return (bool)lss.getAccount(k);
+    auto lss = app.getLedgerManager().getLCLView();
+    return (bool)lss->getAccount(k);
 }
 
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
-    CheckValidLedgerViewWrapper lss(app);
-    auto account = lss.getAccount(k);
+    auto lss = app.getLedgerManager().getLCLView();
+    auto account = lss->getAccount(k);
     return account.current().data.account().signers;
 }
 
@@ -1821,6 +1682,7 @@ getFirstResultCode(TransactionTestFramePtr tx)
 void
 checkTx(int index, TransactionResultSet& r, TransactionResultCode expected)
 {
+    REQUIRE(index < r.results.size());
     REQUIRE(r.results[index].result.result.code() == expected);
 };
 
@@ -1989,8 +1851,10 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto txSet = TxSetXDRFrame::makeEmpty(lcl);
     auto lastCloseTime = lcl.header.scpValue.closeTime;
-    app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
-                                     lastCloseTime, upgrades);
+    app.getHerder().externalizeValue(
+        txSet, lcl.header.ledgerSeq + 1,
+        ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(lastCloseTime)),
+        upgrades);
 
     captureLastClosedLedgerLcm(app);
 
@@ -2054,8 +1918,7 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
     ltx.create(InternalLedgerEntry(ttl));
 
     auto upgradeKey = ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
-    CheckValidLedgerViewWrapper ledgerView(ltx);
-    return ConfigUpgradeSetFrame::makeFromKey(ledgerView, upgradeKey);
+    return ConfigUpgradeSetFrame::makeFromKey(ltx.makeView(), upgradeKey);
 }
 
 LedgerUpgrade

@@ -202,8 +202,7 @@ class LoadGenerator
 
     // Verify cached accounts are properly reflected in the database
     // return any accounts that are inconsistent.
-    std::vector<TxGenerator::TestAccountPtr>
-    checkAccountSynced(Application& app);
+    std::vector<CachedTestAccountPtr> checkAccountSynced(Application& app);
     std::vector<LedgerKey>
     checkSorobanStateSynced(Application& app, GeneratedLoadConfig const& cfg);
 
@@ -335,8 +334,6 @@ class LoadGenerator
     uint32_t mClassicAppliedAtStart{0};
     uint32_t mSorobanAppliedAtStart{0};
 
-    TxGenerator::TestAccountPtr mRoot;
-
     medida::Meter& mLoadgenComplete;
     medida::Meter& mLoadgenFail;
 
@@ -367,7 +364,7 @@ class LoadGenerator
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
 
     // Create a transaction in MIXED_CLASSIC_SOROBAN mode
-    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     createMixedClassicSorobanTransaction(
         uint32_t ledgerNum, uint64_t sourceAccountId,
         std::optional<uint32_t> classicByteCount,
@@ -376,16 +373,16 @@ class LoadGenerator
     // Build a synthetic-state soroban transaction for the requested mode
     // (one of MIXED_PREGEN_SAC_PAYMENT / OZ_TOKEN_TRANSFER / SOROSWAP_SWAP).
     // Lazily initializes the mSynthetic* state on first call.
-    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     createSyntheticSorobanTransaction(uint32_t ledgerNum,
                                       uint64_t sourceAccountId,
                                       GeneratedLoadConfig const& cfg);
 
-    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
                                 uint32_t ledgerNum, uint64_t sourceAccountId);
 
-    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     createInstanceTransaction(GeneratedLoadConfig const& cfg,
                               uint32_t ledgerNum, uint64_t sourceAccountId);
 
@@ -394,14 +391,14 @@ class LoadGenerator
     // wasm of that size as well as the size itself.
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
     void maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
-                             TxGenerator::TestAccountPtr sourceAccount,
+                             CachedTestAccountPtr sourceAccount,
                              TxSubmitStatus status, TransactionResultCode code);
 
     void logProgress(std::chrono::nanoseconds submitTimer,
                      GeneratedLoadConfig const& cfg) const;
 
     bool submitTx(GeneratedLoadConfig const& cfg,
-                  std::function<std::pair<TxGenerator::TestAccountPtr,
+                  std::function<std::pair<CachedTestAccountPtr,
                                           TransactionFrameBaseConstPtr>()>
                       generateTx);
     void waitTillComplete(GeneratedLoadConfig cfg);
@@ -417,7 +414,7 @@ class LoadGenerator
 
     // Generate transaction by reading a pre-generated transaction from an XDR
     // file
-    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     readTransactionFromFile(GeneratedLoadConfig const& cfg);
 };
 }

@@ -38,6 +38,10 @@ Simulation::Simulation(Hash const& networkID, ConfigGen confGen,
     , mConfigGen(confGen)
     , mQuorumSetAdjuster(qSetAdjust)
 {
+    // A multi-node simulation's ledger progression depends on thread
+    // scheduling and on how many SCP rounds happen to run, so meta captured
+    // from one is not reproducible across platforms or runs.
+    disableLcmCapture();
     auto cfg = newConfig();
     mIdleApp = Application::create(mClock, cfg);
 }

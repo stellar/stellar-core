@@ -211,6 +211,60 @@ BatchExecutor::pinWorker(size_t index)
 }
 
 void
+BatchExecutor::executeBatchOverRanges(
+    size_t count, size_t numTasks,
+    std::function<void(size_t, size_t, size_t)> const& work)
+{
+    if (numTasks <= 1 || count < numTasks)
+    {
+        work(0, count, 0);
+        return;
+    }
+    auto rangeSize = (count + numTasks - 1) / numTasks;
+    std::vector<std::function<int()>> tasks;
+    tasks.reserve(numTasks);
+    for (size_t begin = 0; begin < count; begin += rangeSize)
+    {
+        auto end = std::min(begin + rangeSize, count);
+        auto rangeIndex = tasks.size();
+        tasks.emplace_back([begin, end, rangeIndex, &work]() {
+            work(begin, end, rangeIndex);
+            return 0;
+        });
+    }
+    executeBatch(std::move(tasks));
+}
+
+size_t
+BatchExecutor::preferredTaskCount() const
+{
+#ifdef BUILD_TESTS
+    if (mPreferredTaskCountForTesting)
+    {
+        return *mPreferredTaskCountForTesting;
+    }
+#endif
+    // As this is meant to be used for parallelizing CPU-heavy work, we want to
+    // only run the tasks on the physical cores (when physical core info is
+    // available).
+    auto concurrency = mPhysicalCoreCount > 0
+                           ? mPhysicalCoreCount
+                           : std::thread::hardware_concurrency();
+    // We want to leave at least one core free to not compete with the main
+    // thread and other background work.
+    return concurrency > 1 ? concurrency - 1 : 1;
+}
+
+#ifdef BUILD_TESTS
+void
+BatchExecutor::setPreferredTaskCountForTesting(size_t count)
+{
+    releaseAssert(count > 0);
+    mPreferredTaskCountForTesting = count;
+}
+#endif
+
+void
 BatchExecutor::runBatchImpl(size_t numTasks,
                             std::function<void(size_t)> const& runTask)
 {

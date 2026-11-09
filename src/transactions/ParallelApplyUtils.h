@@ -7,9 +7,11 @@
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerEntryScope.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/ParallelApplyStage.h"
+#include "transactions/ParallelApplyTypes.h"
 #include "transactions/TransactionFrameBase.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <unordered_set>
@@ -19,17 +21,18 @@ namespace stellar
 
 class InMemorySorobanState;
 class GlobalParallelApplyLedgerState;
+struct SorobanApplyMetrics;
 
 class ParallelLedgerInfo
 {
 
   public:
     ParallelLedgerInfo(uint32_t version, uint32_t seq, uint32_t reserve,
-                       TimePoint time, Hash const& id)
+                       ApplyTime applyTime, Hash const& id)
         : ledgerVersion(version)
         , ledgerSeq(seq)
         , baseReserve(reserve)
-        , closeTime(time)
+        , mApplyTime(applyTime)
         , networkID(id)
     {
     }
@@ -49,10 +52,10 @@ class ParallelLedgerInfo
     {
         return baseReserve;
     }
-    TimePoint
-    getCloseTime() const
+    ApplyTime
+    getApplyTime() const
     {
-        return closeTime;
+        return mApplyTime;
     }
     Hash
     getNetworkID() const
@@ -64,7 +67,7 @@ class ParallelLedgerInfo
     uint32_t ledgerVersion;
     uint32_t ledgerSeq;
     uint32_t baseReserve;
-    TimePoint closeTime;
+    ApplyTime mApplyTime;
     Hash networkID;
 };
 
@@ -79,10 +82,6 @@ class ThreadParallelApplyLedgerState
     // (CONTRACT_DATA, CONTRACT_CODE, TTL), query this in-memory state instead
     // of mLiveSnapshot.
     InMemorySorobanState const& mInMemorySorobanState;
-
-    // Reference to the Soroban configuration common for all the transactions
-    // and thus common for all the threads.
-    SorobanNetworkConfig const& mSorobanConfig;
 
     rust::Box<rust_bridge::SorobanModuleCache> mModuleCache;
 
@@ -109,20 +108,33 @@ class ThreadParallelApplyLedgerState
     // Contains a buffered set of RO TTL bumps that should only be observed
     // when/if the corresponding entry is modified, otherwise they are merged
     // (by taking maximums) into the global map at the end of the thread's life.
-    UnorderedMap<LedgerKey, uint32_t> mRoTTLBumps;
+    ParallelApplyLedgerKeyMap<uint32_t> mRoTTLBumps;
+
+    // TTL keys of all the RW footprint entries in the footprints of this
+    // thread's transactions. This is populated once on construction and is not
+    // deduplicated.
+    std::vector<ParallelApplyLedgerKey> mRwFootprintTTLKeys;
 
     void collectClusterFootprintEntriesFromGlobal(
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
 
-    void upsertEntry(LedgerKey const& key,
-                     ThreadParApplyLedgerEntry const& entry,
-                     uint32_t ledgerSeq);
-    void eraseEntry(LedgerKey const& key);
+    // Records a dirty entry in the thread entry map. `isNew` indicates that
+    // the entry does not exist in the pre-phase ledger state; it is only
+    // consulted when the key is not tracked in the map yet (the recorded
+    // flag stays authoritative otherwise).
+    void upsertEntry(ParallelApplyLedgerKey const& key,
+                     ThreadParApplyLedgerEntry&& entry, uint32_t ledgerSeq,
+                     bool isNew);
+    // Records a dirty deletion in the thread entry map. `isNew` has the same
+    // semantics as in `upsertEntry`.
+    void eraseEntry(ParallelApplyLedgerKey const& key, bool isNew);
+    void putEntry(ParallelApplyLedgerKey const& key,
+                  ThreadParallelApplyEntry&& entry);
     void
-    commitChangeFromSuccessfulTx(LedgerKey const& key,
-                                 ThreadParApplyLedgerEntryOpt const& entryOpt,
-                                 UnorderedSet<LedgerKey> const& roTTLSet);
+    commitChangeFromSuccessfulTx(ParallelApplyLedgerKey const& key,
+                                 ThreadParApplyLedgerEntryOpt&& entryOpt,
+                                 ParallelApplyLedgerKeySet const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
@@ -154,24 +166,31 @@ class ThreadParallelApplyLedgerState
     // TTL entry is present in the `mThreadEntryMap` and is >= the bump TTL.
     void flushRemainingRoTTLBumps();
 
-    ParallelApplyEntryMap<staticScope> const& getEntryMap() const;
+    // TTL keys of all the RW footprint entries in the footprints of this
+    // thread's transactions.
+    std::vector<ParallelApplyLedgerKey> const& getRwFootprintTTLKeys() const;
+
+    // Mutable access to the thread's entry map. This should only be used to
+    // consume the map after the thread has finished processing its cluster,
+    // otherwise the map should only be mutated through
+    // `commitChangesFromSuccessfulTx`.
+    ParallelApplyEntryMap<staticScope>& getEntryMapMut();
 
     RestoredEntries const& getRestoredEntries() const;
 
     OptionalEntryT getLiveEntryOpt(LedgerKey const& key) const;
+    OptionalEntryT getLiveEntryOpt(ParallelApplyLedgerKey const& key) const;
     bool entryWasRestored(LedgerKey const& key) const;
 
     void setDeltaForInvariantsFromSuccessfulTx(ParallelTxSuccessVal const& res,
                                                TxEffects& effects) const;
 
-    void commitChangesFromSuccessfulTx(ParallelTxSuccessVal const& res,
+    void commitChangesFromSuccessfulTx(ParallelTxSuccessVal&& res,
                                        TxBundle const& txBundle);
 
     // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.
     uint32_t getSnapshotLedgerSeq() const;
-
-    SorobanNetworkConfig const& getSorobanConfig() const;
 
     ApplyLedgerView const& getSnapshot() const;
 
@@ -194,10 +213,6 @@ class GlobalParallelApplyLedgerState
     // key does not exist as part of the live state.
     InMemorySorobanState const& mInMemorySorobanState;
 
-    // Reference to the common global Soroban configuration to use during the
-    // transaction application.
-    SorobanNetworkConfig const& mSorobanConfig;
-
     // Contains restorations that happened during each stage of the parallel
     // soroban phase. As with mGlobalEntryMap, this is propagated stage to
     // stage by being split into per-thread maps and re-merged at the end of
@@ -217,46 +232,76 @@ class GlobalParallelApplyLedgerState
     //    These are propagated from stage to stage of the parallel soroban phase
     //    -- split into disjoint per-thread maps during execution and merged
     //    after -- as well as written back to the ltx at the phase's end.
-    ParallelApplyEntryMap<staticScope> mGlobalEntryMap;
+    //
+    // The map is sharded by key hash, so that it's possible to update it
+    // concurrently using as many threads as there are shards.
+    //
+    // Note: the map sharding is separate from the partitioning of txs
+    // into apply clusters. Sharding exists to enable parallel write-back
+    // of apply clusters at the end of each stage, and the same sharding
+    // is used from stage to stage even as the tx clustering changes.
+    std::vector<ParallelApplyEntryMap<staticScope>> mGlobalEntryMap;
 
-    void preParallelApplyAndCollectModifiedClassicEntries(
+    size_t globalMapShardOf(ParallelApplyLedgerKey const& key) const;
+    ParallelApplyEntryMap<staticScope>&
+    globalMapShardFor(ParallelApplyLedgerKey const& key);
+
+    void preApplyAndCollectModifiedClassicEntries(
         AppConnector& app, AbstractLedgerTxn& ltx,
-        std::vector<ApplyStage> const& stages);
+        std::vector<ApplyStage> const& stages,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
-    bool
-    maybeMergeRoTTLBumps(LedgerKey const& key,
-                         GlobalParallelApplyEntry const& newEntry,
-                         GlobalParallelApplyEntry& oldEntry,
-                         std::unordered_set<LedgerKey> const& readWriteSet);
+    // Runs the read-only pre-apply stage for every bundle.
+    void readOnlyParallelPreApply(
+        AppConnector& app, std::vector<TxBundle const*> const& txBundles,
+        std::shared_ptr<LedgerHeader const> header,
+        AbstractLedgerTxn const& ltx,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
-    void
-    commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
-                           LedgerKey const& key,
-                           ThreadParallelApplyEntry const& parEntry,
-                           std::unordered_set<LedgerKey> const& readWriteSet);
+    bool maybeMergeRoTTLBumps(ParallelApplyLedgerKey const& key,
+                              GlobalParallelApplyEntry const& newEntry,
+                              GlobalParallelApplyEntry& oldEntry,
+                              ParallelApplyLedgerKeySet const& readWriteSet);
 
-    void
-    commitChangesFromThread(AppConnector& app,
-                            ThreadParallelApplyLedgerState const& thread,
-                            std::unordered_set<LedgerKey> const& readWriteSet);
+    void commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
+                                ParallelApplyLedgerKey const& key,
+                                ThreadParallelApplyEntry&& parEntry,
+                                ParallelApplyLedgerKeySet const& readWriteSet);
+
+    // Merges the entries of every thread that belong to shard `shardIdx`.
+    // Used as the per-worker body of the parallelized
+    // commitChangesFromThreads: every entry belongs to exactly one shard, so
+    // concurrent calls for different shards need no synchronization.
+    //
+    // Note: the number of shards is separate from and likely different
+    // from the number of transaction clusters or tx-apply tasks. The
+    // per-shard commits happen from a separate set of per-shard tasks
+    // spawned after the tx-apply tasks are finished.
+    void commitShardChangesFromThreads(
+        size_t shardIdx,
+        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
+            threads,
+        size_t rwKeyCountHint);
 
   public:
-    GlobalParallelApplyLedgerState(AppConnector& app, ApplyLedgerView applyView,
-                                   AbstractLedgerTxn& ltx,
-                                   std::vector<ApplyStage> const& stages,
-                                   InMemorySorobanState const& inMemoryState,
-                                   SorobanNetworkConfig const& sorobanConfig);
+    GlobalParallelApplyLedgerState(
+        AppConnector& app, ApplyLedgerView applyView, AbstractLedgerTxn& ltx,
+        std::vector<ApplyStage> const& stages,
+        InMemorySorobanState const& inMemoryState,
+        std::vector<SorobanApplyMetrics>& sorobanApplyMetricsPerThread);
 
-    ParallelApplyEntryMap<staticScope> const& getGlobalEntryMap() const;
+    GlobalParallelApplyEntry const*
+    findInGlobalEntryMap(ParallelApplyLedgerKey const& key) const;
     RestoredEntries const& getRestoredEntries() const;
 
     void commitChangesFromThreads(
         AppConnector& app,
         std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
-            threads,
-        ApplyStage const& stage);
+            threads);
 
-    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
+    // Commits the final state of every dirty entry to the ltx. This consumes
+    // the entry payloads, so the global entry map must not be read afterwards.
+    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx);
 
     // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.
@@ -303,6 +348,7 @@ class TxParallelApplyLedgerState
   public:
     TxParallelApplyLedgerState(ThreadParallelApplyLedgerState const& parent);
     OptionalEntryT getLiveEntryOpt(LedgerKey const& key) const;
+    OptionalEntryT getLiveEntryOpt(ParallelApplyLedgerKey const& key) const;
 
     // Upsert the entry and sets the lastModifiedLedgerSeq to the given ledger
     // sequence number.

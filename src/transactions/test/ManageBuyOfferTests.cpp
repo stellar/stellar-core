@@ -373,14 +373,18 @@ TEST_CASE_VERSIONS("manage buy offer liabilities", "[tx][offers]")
                 *app, SecretKey::pseudoRandomForTesting(), 1, {op});
 
             {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0);
+                tx->checkValidForTesting(app->getAppConnector(),
+                                         *app->getLedgerManager().getLCLView(),
+                                         0, 0, 0);
             }
 
             auto buyOp = std::static_pointer_cast<ManageBuyOfferOpFrame const>(
                 tx->getRawTransactionFrame().getOperations().front());
-            REQUIRE(expectedBuying == buyOp->getOfferBuyingLiabilities());
-            REQUIRE(expectedSelling == buyOp->getOfferSellingLiabilities());
+            auto ledgerVersion = getLclProtocolVersion(*app);
+            REQUIRE(expectedBuying ==
+                    buyOp->getOfferBuyingLiabilities(ledgerVersion));
+            REQUIRE(expectedSelling ==
+                    buyOp->getOfferSellingLiabilities(ledgerVersion));
         }
     };
 

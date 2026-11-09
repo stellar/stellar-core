@@ -397,11 +397,11 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     // Check that the settings were properly updated. Read from the last
     // closed ledger view rather than the LedgerTxn root: the node is still
     // closing ledgers and the root belongs to the apply thread while it does.
-    CheckValidLedgerViewWrapper ledgerView(app);
-    auto contractExecutionLanesSettingsEntry = ledgerView.load(
+    auto ledgerView = app.getLedgerManager().getLCLView();
+    auto contractExecutionLanesSettingsEntry = ledgerView->load(
         configSettingKey(CONFIG_SETTING_CONTRACT_EXECUTION_LANES));
     auto stateArchivalConfigSettinsgEntry =
-        ledgerView.load(configSettingKey(CONFIG_SETTING_STATE_ARCHIVAL));
+        ledgerView->load(configSettingKey(CONFIG_SETTING_STATE_ARCHIVAL));
     auto& contractExecutionLanesSettings =
         contractExecutionLanesSettingsEntry.current().data.configSetting();
     auto& stateArchivalSettings =
@@ -623,8 +623,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
 
     ConfigUpgradeSet upgrades;
     {
-        CheckValidLedgerViewWrapper ledgerView(app);
-        auto entry = ledgerView.load(upgradeLK);
+        auto ledgerView = app.getLedgerManager().getLCLView();
+        auto entry = ledgerView->load(upgradeLK);
         REQUIRE(entry);
         xdr::xdr_from_opaque(entry.current().data.contractData().val.bytes(),
                              upgrades);
@@ -858,8 +858,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             auto lk = contractDataKey(contractID, txtest::makeU32(i),
                                       ContractDataDurability::PERSISTENT);
 
-            CheckValidLedgerViewWrapper ledgerView(app);
-            auto entry = ledgerView.load(lk);
+            auto ledgerView = app.getLedgerManager().getLCLView();
+            auto entry = ledgerView->load(lk);
             REQUIRE(entry);
             uint32_t sizeBytes =
                 static_cast<uint32_t>(xdr::xdr_size(entry.current()));
@@ -965,12 +965,8 @@ TEST_CASE("Multi-byte payment transactions are valid", "[loadgen]")
 
 TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
 {
-    auto const timingPhases =
-        GENERATE(ApplyLoadTimingPhases::APPLY_ONLY,
-                 ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY);
     auto cfg = getTestConfig();
     cfg.APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
-    cfg.APPLY_LOAD_TIMING_PHASES = timingPhases;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -1046,25 +1042,18 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >=
             lclBeforeExecute + cfg.APPLY_LOAD_NUM_LEDGERS);
     REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
-    if (timingPhases == ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY)
-    {
-        // Each benchmark ledger runs at least one cold tx set validation.
-        REQUIRE(app->getMetrics()
-                    .NewTimer({"herder", "txset", "validate"})
-                    .count() >= cfg.APPLY_LOAD_NUM_LEDGERS);
-    }
+    // Each benchmark ledger runs at least one cold tx set validation.
+    REQUIRE(
+        app->getMetrics().NewTimer({"herder", "txset", "validate"}).count() >=
+        cfg.APPLY_LOAD_NUM_LEDGERS);
 }
 
 TEST_CASE("apply load benchmark model tx",
           "[loadgen][applyload][soroban][acceptance]")
 {
-    auto const timingPhases =
-        GENERATE(ApplyLoadTimingPhases::APPLY_ONLY,
-                 ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY);
     auto cfg = getTestConfig();
     cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
     cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
-    cfg.APPLY_LOAD_TIMING_PHASES = timingPhases;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -1094,11 +1083,8 @@ TEST_CASE("apply load benchmark model tx",
     auto& successCountMetric =
         app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
     REQUIRE(successCountMetric.count() > 0);
-    if (timingPhases == ApplyLoadTimingPhases::TX_SET_VALIDATION_AND_APPLY)
-    {
-        // Each benchmark ledger runs at least one cold tx set validation.
-        REQUIRE(app->getMetrics()
-                    .NewTimer({"herder", "txset", "validate"})
-                    .count() >= cfg.APPLY_LOAD_NUM_LEDGERS);
-    }
+    // Each benchmark ledger runs at least one cold tx set validation.
+    REQUIRE(
+        app->getMetrics().NewTimer({"herder", "txset", "validate"}).count() >=
+        cfg.APPLY_LOAD_NUM_LEDGERS);
 }

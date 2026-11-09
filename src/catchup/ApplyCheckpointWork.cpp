@@ -12,6 +12,7 @@
 #include "history/HistoryUtils.h"
 #include "historywork/Progress.h"
 #include "ledger/CheckpointRange.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
@@ -154,6 +155,15 @@ ApplyCheckpointWork::getCurrentTxSet()
         }
         else
         {
+            // The legacy field has to be empty when the generalized tx set
+            // is present.
+            if (!mTxHistoryEntry.txSet.txs.empty())
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("txset entry for {:d} has both legacy and "
+                               "generalized transactions"),
+                    seq));
+            }
             return TxSetXDRFrame::makeFromWire(
                 mTxHistoryEntry.ext.generalizedTxSet());
         }
@@ -277,12 +287,49 @@ ApplyCheckpointWork::getNextLedgerCloseData()
 
     // Empty-tx-set values should have the empty-tx-set hash (and vice versa)
     if ((header.scpValue.txSetHash == Herder::EMPTY_TX_SET_HASH) !=
-        (header.scpValue.ext.v() == STELLAR_VALUE_EMPTY_TX_SET))
+        isEmptyTxSetStellarValue(header.scpValue))
     {
         throw std::runtime_error(fmt::format(
             FMT_STRING("ledger header for {:d} has mismatched empty-tx-set "
                        "hash and StellarValue type {:d}"),
             header.ledgerSeq, static_cast<int32_t>(header.scpValue.ext.v())));
+    }
+
+    // Check that we use the correct time format in the ledger header.
+    if (!hasValidCloseTime(header.scpValue))
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("ledger header for {:d} has inconsistent close time "
+                       "fields: closeTime {:d}, consensus close time {}"),
+            header.ledgerSeq, header.scpValue.closeTime,
+            getConsensusTime(header.scpValue).toString()));
+    }
+
+    bool const hasMsCloseTime = isMsCloseTimeStellarValue(header.scpValue);
+    bool const protocolRequiresMsCloseTime =
+        protocolHasMsCloseTime(lclHeader.header.ledgerVersion);
+    if (hasMsCloseTime != protocolRequiresMsCloseTime)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("ledger header for {:d} has a {} close time "
+                       "(StellarValue type {:d}) but protocol {:d} requires a "
+                       "{} close time"),
+            header.ledgerSeq, hasMsCloseTime ? "millisecond" : "whole-second",
+            static_cast<int32_t>(header.scpValue.ext.v()),
+            lclHeader.header.ledgerVersion,
+            protocolRequiresMsCloseTime ? "millisecond" : "whole-second"));
+    }
+
+    // Close times must strictly increase from ledger to ledger
+    auto const previousCloseTime = getConsensusTime(lclHeader.header.scpValue);
+    auto const nextCloseTime = getConsensusTime(header.scpValue);
+    if (nextCloseTime <= previousCloseTime)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("ledger header for {:d} has a non-advancing close "
+                       "time {} (previous ledger closed at {})"),
+            header.ledgerSeq, nextCloseTime.toString(),
+            previousCloseTime.toString()));
     }
 
     // We've verified the ledgerHeader (in the "trusted part of history"
@@ -310,6 +357,18 @@ ApplyCheckpointWork::getNextLedgerCloseData()
                            "but its ledger header carries the empty-tx-set "
                            "hash"),
                 header.ledgerSeq, txset->sizeTxTotal()));
+        }
+
+        // Empty tx sets are not stored in history archives, so if no txs are
+        // present, the tx set must match the canonical empty tx set.
+        if (txset->getContentsHash() !=
+            TxSetXDRFrame::makeEmpty(lclHeader)->getContentsHash())
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("replay txset for {:d} is not the canonical empty "
+                           "tx set, but its ledger header carries the "
+                           "empty-tx-set hash"),
+                header.ledgerSeq));
         }
     }
     else if (header.scpValue.txSetHash != txset->getContentsHash())

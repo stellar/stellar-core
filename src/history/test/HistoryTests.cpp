@@ -39,6 +39,7 @@
 #include <lib/catch.hpp>
 
 using namespace stellar;
+using namespace stellar::txtest;
 using namespace historytestutils;
 
 TEST_CASE("checkpoint containing ledger", "[history]")
@@ -1169,7 +1170,7 @@ TEST_CASE("History catchup over empty-tx-set ledgers", "[history][catchup]")
     }
 }
 
-TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
+TEST_CASE("History catchup rejects forged tx sets for empty-tx-set ledgers",
           "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
@@ -1179,6 +1180,8 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
     {
         catchupSimulation.generateRandomLedger();
     }
+    Hash const prevLedgerHash =
+        simApp.getLedgerManager().getLastClosedLedgerHeader().hash;
     catchupSimulation.generateEmptyTxSetLedger();
     uint32_t const emptyTxSetSeq =
         simApp.getLedgerManager().getLastClosedLedgerNum();
@@ -1186,7 +1189,7 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 
-    // Forge a non-empty TransactionHistoryEntry for the empty-tx-set ledger
+    // Forge a TransactionHistoryEntry for the empty-tx-set ledger
     // into the published transactions file, keeping the file sorted by
     // ledgerSeq.
     std::string archiveDir =
@@ -1213,9 +1216,49 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
         REQUIRE(!txs.empty());
         REQUIRE(std::filesystem::remove(nonGzPath));
 
-        // Copy an existing non-empty entry and retarget it at the empty-tx-set
-        // ledger
-        TransactionHistoryEntry forged = txs.front();
+        // Honest archives never contain an entry for an empty-tx-set ledger,
+        // as it has no transactions. Nothing in the header binds such an
+        // entry, so replay must reject any of them.
+        TransactionHistoryEntry forged;
+        SECTION("tx set with transactions")
+        {
+            // Copy an existing non-empty entry
+            forged = txs.front();
+        }
+        SECTION("legacy tx set without transactions")
+        {
+            // Applying this would crash the node when populating the
+            // (generalized) tx set in the ledger close meta.
+            forged.txSet.previousLedgerHash = prevLedgerHash;
+        }
+        SECTION("non-canonical tx set without transactions")
+        {
+            // No transactions, but the parallel Soroban phase carries a base
+            // fee, so this doesn't hash like `makeEmpty`
+            forged.ext.v(1);
+            auto& xdr = forged.ext.generalizedTxSet();
+            xdr.v(1);
+            xdr.v1TxSet().previousLedgerHash = prevLedgerHash;
+            xdr.v1TxSet().phases.emplace_back(0);
+            xdr.v1TxSet()
+                .phases.emplace_back(1)
+                .parallelTxsComponent()
+                .baseFee.activate() = 12345;
+        }
+        SECTION("canonical tx set with legacy transactions")
+        {
+            // Both the legacy and the generalized tx set are populated,
+            // which is malformed and rejected before it's looked at (so the
+            // legacy transaction contents don't matter).
+            forged.ext.v(1);
+            TxSetXDRFrame::makeEmpty(prevLedgerHash,
+                                     simApp.getLedgerManager()
+                                         .getLastClosedLedgerHeader()
+                                         .header.ledgerVersion)
+                ->toXDR(forged.ext.generalizedTxSet());
+            forged.txSet.txs.emplace_back();
+        }
+        // Retarget the entry at the empty-tx-set ledger
         forged.ledgerSeq = emptyTxSetSeq;
         auto insertAt =
             std::find_if(txs.begin(), txs.end(), [&](auto const& e) {
@@ -1254,74 +1297,155 @@ TEST_CASE("History catchup rejects empty-tx-set ledgers with transactions",
     auto work = appWm.executeWork<DownloadApplyTxsWork>(
         tmpDir, range, lastApplied, /*waitForPublish=*/true, nullptr);
     REQUIRE(work->getState() == BasicWork::State::WORK_FAILURE);
-    // Replay stops exactly at the skip ledger whose forged entry was rejected
+    // Replay stops exactly at the ledger whose forged entry was rejected
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
             emptyTxSetSeq - 1);
+}
+
+// Replay a real ledger, changing only the StellarValue under test.
+static BasicWork::State
+applyMutatedLedgerHeader(
+    uint32_t genesisVersion,
+    std::function<void(StellarValue&)> mutate = [](StellarValue&) {})
+{
+    LedgerHeaderHistoryEntry entry;
+    {
+        Config sourceCfg(getTestConfig(1));
+        sourceCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = genesisVersion;
+        VirtualClock sourceClock;
+        auto sourceApp = createTestApplication(sourceClock, sourceCfg);
+        closeLedgerOn(
+            *sourceApp,
+            sourceApp->getLedgerManager().getLastClosedLedgerNum() + 1,
+            makeConsensusTime(10, protocolHasMsCloseTime(genesisVersion) ? 250
+                                                                         : 0));
+        entry = sourceApp->getLedgerManager().getLastClosedLedgerHeader();
+    }
+
+    Config cfg(getTestConfig(0));
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = genesisVersion;
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+
+    REQUIRE(entry.header.ledgerSeq == lcl.header.ledgerSeq + 1);
+    REQUIRE(entry.header.previousLedgerHash == lcl.hash);
+    mutate(entry.header.scpValue);
+    entry.hash = sha256(xdr::xdr_to_opaque(entry.header));
+
+    auto checkpoint = HistoryManager::checkpointContainingLedger(
+        entry.header.ledgerSeq, app->getConfig());
+    auto tmpDir = app->getTmpDirManager().tmpDir("mutated-ledger-header");
+    FileTransferInfo hi(tmpDir, FileType::HISTORY_FILE_TYPE_LEDGER, checkpoint);
+    {
+        XDROutputFileStream out(app->getClock().getIOContext(), true);
+        out.open(hi.localPath_nogz());
+        out.writeOne(entry);
+    }
+    // The transactions file must exist even when empty
+    FileTransferInfo ti(tmpDir, FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
+                        checkpoint);
+    {
+        XDROutputFileStream out(app->getClock().getIOContext(), true);
+        out.open(ti.localPath_nogz());
+    }
+
+    auto range =
+        LedgerRange::inclusive(lcl.header.ledgerSeq, entry.header.ledgerSeq);
+    auto w = app->getWorkScheduler().executeWork<ApplyCheckpointWork>(
+        tmpDir, range, OnFailureCallback{});
+    // A rejection must happen before applying the ledger, rather than at the
+    // subsequent comparison against its expected hash.
+    if (w->getState() == BasicWork::State::WORK_FAILURE)
+    {
+        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
+                entry.header.ledgerSeq - 1);
+    }
+    return w->getState();
 }
 
 TEST_CASE("ApplyCheckpointWork rejects malformed empty-tx-set ledger headers",
           "[history][catchup]")
 {
-    auto runWithFabricatedHeader =
-        [](uint32_t genesisVersion, std::function<void(StellarValue&)> mutate) {
-            Config cfg(getTestConfig(0));
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = genesisVersion;
-            VirtualClock clock;
-            auto app = createTestApplication(clock, cfg);
-            auto const& lcl =
-                app->getLedgerManager().getLastClosedLedgerHeader();
-
-            LedgerHeaderHistoryEntry entry;
-            entry.header.ledgerSeq = lcl.header.ledgerSeq + 1;
-            entry.header.previousLedgerHash = lcl.hash;
-            entry.header.ledgerVersion = lcl.header.ledgerVersion;
-            mutate(entry.header.scpValue);
-            entry.hash = sha256(xdr::xdr_to_opaque(entry.header));
-
-            auto checkpoint = HistoryManager::checkpointContainingLedger(
-                entry.header.ledgerSeq, app->getConfig());
-            auto tmpDir =
-                app->getTmpDirManager().tmpDir("malformed-empty-tx-set-header");
-            FileTransferInfo hi(tmpDir, FileType::HISTORY_FILE_TYPE_LEDGER,
-                                checkpoint);
-            {
-                XDROutputFileStream out(app->getClock().getIOContext(), true);
-                out.open(hi.localPath_nogz());
-                out.writeOne(entry);
-            }
-            // The transactions file must exist even when empty
-            FileTransferInfo ti(
-                tmpDir, FileType::HISTORY_FILE_TYPE_TRANSACTIONS, checkpoint);
-            {
-                XDROutputFileStream out(app->getClock().getIOContext(), true);
-                out.open(ti.localPath_nogz());
-            }
-
-            auto range = LedgerRange::inclusive(lcl.header.ledgerSeq,
-                                                entry.header.ledgerSeq);
-            auto w = app->getWorkScheduler().executeWork<ApplyCheckpointWork>(
-                tmpDir, range, OnFailureCallback{});
-            return w->getState();
-        };
-
     SECTION("empty-tx-set hash without empty-tx-set value")
     {
-        REQUIRE(runWithFabricatedHeader(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                        [](StellarValue& sv) {
-                                            sv.txSetHash =
-                                                Herder::EMPTY_TX_SET_HASH;
-                                            // ext stays STELLAR_VALUE_BASIC
-                                        }) == BasicWork::State::WORK_FAILURE);
+        REQUIRE(
+            applyMutatedLedgerHeader(
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION, [](StellarValue& sv) {
+                    sv.txSetHash = Herder::EMPTY_TX_SET_HASH;
+                }) == BasicWork::State::WORK_FAILURE);
     }
 
     SECTION("empty-tx-set value before protocol support")
     {
-        REQUIRE(runWithFabricatedHeader(
+        REQUIRE(applyMutatedLedgerHeader(
                     static_cast<uint32_t>(EMPTY_TX_SET_PROTOCOL_VERSION) - 1,
                     [](StellarValue& sv) {
                         sv.txSetHash = Herder::EMPTY_TX_SET_HASH;
                         sv.ext.v(STELLAR_VALUE_EMPTY_TX_SET);
                     }) == BasicWork::State::WORK_FAILURE);
+    }
+}
+
+TEST_CASE("ApplyCheckpointWork rejects malformed ms close time ledger headers",
+          "[history][catchup]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    auto const msVersion =
+        static_cast<uint32_t>(MS_CLOSE_TIME_PROTOCOL_VERSION);
+    auto setMsValue = [](StellarValue& sv, TimePoint closeTime,
+                         TimePointMs closeTimeMs) {
+        sv.ext.v(STELLAR_VALUE_SIGNED_MS);
+        sv.closeTime = closeTime;
+        sv.ext.signedMsValue().closeTimeMs = closeTimeMs;
+    };
+
+    SECTION("valid ms ledger replays")
+    {
+        REQUIRE(applyMutatedLedgerHeader(msVersion) ==
+                BasicWork::State::WORK_SUCCESS);
+    }
+    SECTION("valid whole-second ledger before activation replays")
+    {
+        REQUIRE(applyMutatedLedgerHeader(msVersion - 1) ==
+                BasicWork::State::WORK_SUCCESS);
+    }
+    SECTION("closeTime inconsistent with closeTimeMs")
+    {
+        REQUIRE(applyMutatedLedgerHeader(msVersion, [&](StellarValue& sv) {
+                    setMsValue(sv, 10, 11'000);
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("closeTimeMs holding only the ms remainder")
+    {
+        REQUIRE(applyMutatedLedgerHeader(msVersion, [&](StellarValue& sv) {
+                    setMsValue(sv, 10, 250);
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("ms value before protocol support")
+    {
+        REQUIRE(applyMutatedLedgerHeader(msVersion - 1, [&](StellarValue& sv) {
+                    setMsValue(sv, 10, 10'250);
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("whole-second value once ms close times are active")
+    {
+        REQUIRE(applyMutatedLedgerHeader(msVersion, [](StellarValue& sv) {
+                    sv.ext.v(STELLAR_VALUE_SIGNED);
+                    sv.closeTime = 10;
+                }) == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("close time not advancing past the previous ledger")
+    {
+        // The test network's genesis ledger closes at time 0 (see
+        // "genesisledger"), so a value at 0 does not advance past it
+        REQUIRE(applyMutatedLedgerHeader(msVersion, [&](StellarValue& sv) {
+                    setMsValue(sv, 0, 0);
+                }) == BasicWork::State::WORK_FAILURE);
     }
 }
 
@@ -1672,17 +1796,17 @@ TEST_CASE("History catchup with different modes",
     }
 }
 
-TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
+TEST_CASE("Retriggering catchups after trimming mBufferedLedgers",
           "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
 
     // Try to get to ledger 1000 with 200 ledgers buffered
     // when there are 20 checkpoints available.
-    // In order to prevent mSyncingLedgers from growing indefinitely,
+    // In order to prevent mBufferedLedgers from growing indefinitely,
     // it gets trimmed periodically.
     // This test makes sure that we are able to catch up to the network
-    // even when some ledgers get trimmed from mSyncingLedgers.
+    // even when some ledgers get trimmed from mBufferedLedgers.
 
     auto const bufferLedgers = 200;
     auto const initLedger = 1000;
@@ -1694,7 +1818,7 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
 
     auto app = catchupSimulation.createCatchupApplication(
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
-        std::string("Retriggering catchups after trimming mSyncingLedgers"));
+        std::string("Retriggering catchups after trimming mBufferedLedgers"));
     auto& lm = app->getLedgerManager();
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -1737,7 +1861,7 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
         firstLedgerInCheckpoint, app->getConfig());
 
     // 1. The app hears initLedger, ..., dividingLedger - 1.
-    //    NB: dividingLedger must be chosen such that mSyncingLedgers gets
+    //    NB: dividingLedger must be chosen such that mBufferedLedgers gets
     //    trimmed in this step.
     // 2. We will let Catchup run right after hearing (dividingLedger - 1).
     // 3. The app hears dividingLedger, ..., triggerLedger + bufferLedgers.
@@ -1751,20 +1875,20 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
 
         // Let the catchup run.
         // We expect that it'll land at the checkpoint containing (initLedger -
-        // 1). It can't apply the buffered ledgers because mSyncingLedgers must
+        // 1). It can't apply the buffered ledgers because mBufferedLedgers must
         // have popped some elements in order to prevent it from growing
         // exponentially, and thus there is a gap between the LCL and
-        // mSyncingLedgers.
+        // mBufferedLedgers.
         runCatchup(HistoryManager::checkpointContainingLedger(
             initLedger - 1, app->getConfig()));
 
-        // As mentioned above, mSyncingLedgers must have been trimmed
+        // As mentioned above, mBufferedLedgers must have been trimmed
         // after hearing up to (dividingLedger - 1).
         // And if it has been trimmed, CatchupWork should not be able to catch
         // up without being re-triggered.
         REQUIRE(!lm.isSynced());
 
-        // In order to close the gap between the LCL and mSyncingLedgers,
+        // In order to close the gap between the LCL and mBufferedLedgers,
         // we need to run a CatchupWork again.
         // processLedger is responsible for that, and thus we call it
         // by externalizing ledgers.
@@ -1803,14 +1927,14 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
         runTest(dividingLedger);
     }
 
-    SECTION(
-        "mSyncingLedgers gets trimmed between the first and second Catchup run")
+    SECTION("mBufferedLedgers gets trimmed between the first and second "
+            "Catchup run")
     {
         // When adding the second ledger in a checkpoint,
         // we become certain that nodes started publishing the checkpoint.
         // Thus the ledgers before the checkpoint will be trimmed.
         // By setting dividingLedger to the second ledger in a checkpoint,
-        // we can make sure that mSyncingLedgers gets trimmed between the first
+        // we can make sure that mBufferedLedgers gets trimmed between the first
         // and second Catchup run.
         auto dividingLedger =
             HistoryManager::firstLedgerInCheckpointContaining(
@@ -1927,6 +2051,18 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
                 LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         }
     }
+    SECTION("millisecond close time upgrade")
+    {
+        // Replays the CAP-0088 boundary through history: the ledger that
+        // applies the upgrade still carries a whole-second close time while
+        // already reporting the new protocol version, and the ledger after it
+        // is the first with a millisecond close time
+        if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                      MS_CLOSE_TIME_PROTOCOL_VERSION))
+        {
+            testUpgrade(MS_CLOSE_TIME_PROTOCOL_VERSION);
+        }
+    }
 }
 
 TEST_CASE("Catchup fatal failure", "[catchup][history]")
@@ -2000,10 +2136,11 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
             uint64_t minBalance = lm.getLastMinBalance(5);
             uint64_t big = minBalance + ledgerSeq;
-            uint64_t closeTime = 60 * 5 * ledgerSeq;
+            TimePoint closeTime = 60 * 5 * ledgerSeq;
 
             auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
-                {root->tx({txtest::createAccount(stranger, big)})}, *a, 0, 0);
+                {root->tx({txtest::createAccount(stranger, big)})}, *a,
+                ApplyTimeOffset{});
 
             // On first iteration of advance, perform a ledger-protocol version
             // upgrade to the new protocol, to activate INITENTRY behaviour.
@@ -2021,8 +2158,8 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
                 applicableTxSet->size(lm.getLastClosedLedgerHeader().header),
                 hexAbbrev(txSet->getContentsHash()));
             StellarValue sv = a->getHerder().makeStellarValue(
-                txSet->getContentsHash(), closeTime, upgrades,
-                a->getConfig().NODE_SEED);
+                txSet->getContentsHash(), makeConsensusTime(closeTime),
+                upgrades, a->getConfig().NODE_SEED);
             lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         }
 
@@ -2424,7 +2561,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     // ledger 133 (= init + 60) will be missing.
     // The app hears up to ledger 189 close. (189 = 129 + 60 where 129
     // is the trigger ledger and 60 is the number of ledgers to buffer.)
-    // Then mSyncingLedgers = {128, 129, ..., 132, 134, ..., 189}.
+    // Then mBufferedLedgers = {128, 129, ..., 132, 134, ..., 189}.
     // We get up to 127 using checkpoint data, and apply {128, ..., 132}.
     LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 60, init + 60));
@@ -2665,4 +2802,43 @@ TEST_CASE("CheckpointBuilder", "[history][publish]")
         cb.checkpointComplete(ledgerSeq);
         validateCheckpointFiles(*app, ledgerSeq, true);
     }
+}
+
+TEST_CASE("History publish and catchup over sub-second ledgers",
+          "[history][catchup]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    CatchupSimulation catchupSimulation{};
+    auto& lm = catchupSimulation.getApp().getLedgerManager();
+
+    // Generate a run of ledgers containing a same-second triple: one ledger
+    // at a whole second and two more within that second at increasing ms
+    catchupSimulation.generateRandomLedger();
+    auto const closeTime =
+        getConsensusTime(lm.getLastClosedLedgerHeader().header.scpValue);
+    auto const applyTime = closeTime.toApplyTime();
+    REQUIRE(closeTime.isWholeSecond());
+    catchupSimulation.generateRandomLedger(
+        0, makeConsensusTime(applyTime.timePoint(), 250));
+    catchupSimulation.generateRandomLedger(
+        0, makeConsensusTime(applyTime.timePoint(), 750));
+    auto const& lclValue = lm.getLastClosedLedgerHeader().header.scpValue;
+    REQUIRE(getApplyTime(lclValue) == applyTime);
+    REQUIRE(getConsensusTime(lclValue) ==
+            makeConsensusTime(applyTime.timePoint(), 750));
+
+    // Fill up to a published checkpoint with normally-spaced ledgers
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+
+    // A full replay from genesis re-applies the sub-second ledgers through
+    // the ms-close-time format and monotonicity replay checks
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+        "sub-second-catchup");
+    REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
 }
