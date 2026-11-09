@@ -5,6 +5,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "herder/ParallelTxSetBuilder.h"
+#include "herder/SurgePricingUtils.h"
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "herder/test/TestTxSetUtils.h"
@@ -28,6 +29,7 @@
 #include <algorithm>
 #include <limits>
 #include <map>
+#include <numeric>
 namespace stellar
 {
 namespace
@@ -291,6 +293,69 @@ TEST_CASE("tx set validation caches candidate hashes", "[txset]")
     REQUIRE(std::set<Hash>(setHashes.begin(), setHashes.end()) ==
             expectedIncluded);
     REQUIRE(applicable->checkValid(*app, 0, 0));
+}
+
+TEST_CASE("fee comparator with precomputed bids orders like the plain one",
+          "[txset]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    overrideSorobanNetworkConfigForTest(*app);
+    auto root = app->getRoot();
+    // Classic transactions with 1-3 operations and Soroban transactions with
+    // varying resource fees (so their full fees don't order like their
+    // inclusion fees), over few fee rates, so that many compare equal.
+    TxFrameList txs;
+    for (int i = 0; i < 200; ++i)
+    {
+        uint32_t const rate = 100 * rand_uniform<uint32_t>(1, 4);
+        if (i % 2 == 0)
+        {
+            uint32_t const ops = rand_uniform<uint32_t>(1, 3);
+            std::vector<Operation> payments(ops,
+                                            payment(root->getPublicKey(), 1));
+            txs.push_back(transactionFromOperations(
+                *app, SecretKey::pseudoRandomForTesting(), 1, payments,
+                ops * rate));
+        }
+        else
+        {
+            SorobanResources resources;
+            resources.instructions = 800'000;
+            resources.diskReadBytes = 1000;
+            resources.writeBytes = 1000;
+            auto const resourceFee =
+                sorobanResourceFee(*app, resources, 5000, 100) +
+                rand_uniform<int64_t>(0, 10'000);
+            txs.push_back(createUploadWasmTx(*app, *root, rate, resourceFee,
+                                             resources, std::nullopt, 0,
+                                             std::nullopt, i));
+        }
+    }
+    for (bool isGreater : {true, false})
+    {
+        TxFeeComparator comparator(
+            isGreater,
+            rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+        auto plain = txs;
+        std::sort(plain.begin(), plain.end(), comparator);
+
+        std::vector<std::pair<int64_t, uint32_t>> bids;
+        for (auto const& tx : txs)
+        {
+            bids.emplace_back(tx->getInclusionFee(), tx->getNumOperations());
+        }
+        std::vector<size_t> order(txs.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+            return comparator(txs[a], bids[a].first, bids[a].second, txs[b],
+                              bids[b].first, bids[b].second);
+        });
+        for (size_t i = 0; i < txs.size(); ++i)
+        {
+            REQUIRE(txs[order[i]] == plain[i]);
+        }
+    }
 }
 
 TEST_CASE("generalized tx set XDR validation", "[txset]")

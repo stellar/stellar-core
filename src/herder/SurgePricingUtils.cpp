@@ -12,19 +12,6 @@
 
 namespace stellar
 {
-namespace
-{
-
-// Use _inclusion_ fee to order transactions
-int
-feeRate3WayCompare(TransactionFrameBase const& l, TransactionFrameBase const& r)
-{
-    return stellar::feeRate3WayCompare(
-        l.getInclusionFee(), l.getNumOperations(), r.getInclusionFee(),
-        r.getNumOperations());
-}
-
-} // namespace
 
 int
 feeRate3WayCompare(int64_t lFeeBid, uint32_t lNbOps, int64_t rFeeBid,
@@ -82,7 +69,17 @@ bool
 TxFeeComparator::operator()(TransactionFrameBasePtr const& tx1,
                             TransactionFrameBasePtr const& tx2) const
 {
-    return txLessThan(tx1, tx2);
+    // Use _inclusion_ fee to order transactions
+    return txLessThan(tx1, tx1->getInclusionFee(), tx1->getNumOperations(), tx2,
+                      tx2->getInclusionFee(), tx2->getNumOperations());
+}
+
+bool
+TxFeeComparator::operator()(TransactionFrameBasePtr const& tx1, int64_t tx1Bid,
+                            uint32_t tx1Ops, TransactionFrameBasePtr const& tx2,
+                            int64_t tx2Bid, uint32_t tx2Ops) const
+{
+    return txLessThan(tx1, tx1Bid, tx1Ops, tx2, tx2Bid, tx2Ops);
 }
 
 bool
@@ -108,10 +105,11 @@ TxFeeComparator::isGreater() const
 }
 
 bool
-TxFeeComparator::txLessThan(TransactionFrameBasePtr const& tx1,
-                            TransactionFrameBasePtr const& tx2) const
+TxFeeComparator::txLessThan(TransactionFrameBasePtr const& tx1, int64_t tx1Bid,
+                            uint32_t tx1Ops, TransactionFrameBasePtr const& tx2,
+                            int64_t tx2Bid, uint32_t tx2Ops) const
 {
-    auto cmp3 = feeRate3WayCompare(*tx1, *tx2);
+    auto cmp3 = feeRate3WayCompare(tx1Bid, tx1Ops, tx2Bid, tx2Ops);
 
     if (cmp3 != 0)
     {

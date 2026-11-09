@@ -34,6 +34,11 @@ class TxFeeComparator
 
     bool operator()(TransactionFrameBasePtr const& tx1,
                     TransactionFrameBasePtr const& tx2) const;
+    // The same comparison, given the transactions' inclusion fee bids and
+    // operation counts (e.g. computed once per transaction for a sort).
+    bool operator()(TransactionFrameBasePtr const& tx1, int64_t tx1Bid,
+                    uint32_t tx1Ops, TransactionFrameBasePtr const& tx2,
+                    int64_t tx2Bid, uint32_t tx2Ops) const;
 
     bool compareFeeOnly(TransactionFrameBase const& tx1,
                         TransactionFrameBase const& tx2) const;
@@ -42,8 +47,9 @@ class TxFeeComparator
     bool isGreater() const;
 
   private:
-    bool txLessThan(TransactionFrameBasePtr const& tx1,
-                    TransactionFrameBasePtr const& tx2) const;
+    bool txLessThan(TransactionFrameBasePtr const& tx1, int64_t tx1Bid,
+                    uint32_t tx1Ops, TransactionFrameBasePtr const& tx2,
+                    int64_t tx2Bid, uint32_t tx2Ops) const;
 
     bool const mIsGreater;
 #ifndef BUILD_TESTS
