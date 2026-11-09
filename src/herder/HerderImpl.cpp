@@ -88,6 +88,10 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
     , mTriggerPrepareStartFallback(app.getMetrics().NewMeter(
           {"scp", "trigger", "prepare-start-fallback"}, "trigger"))
     , mTxSetBuild(app.getMetrics().NewTimer({"herder", "txset", "build"}))
+    , mTriggerLateness(
+          app.getMetrics().NewTimer({"scp", "trigger", "lateness"}))
+    , mTriggerImmediate(
+          app.getMetrics().NewMeter({"scp", "trigger", "immediate"}, "trigger"))
 {
 }
 
@@ -1466,6 +1470,7 @@ HerderImpl::setupTriggerNextLedger()
     // This ensures that next value to nominate is valid
     auto triggerTime = lastLedgerStartingPoint + milliseconds;
 
+    bool const triggerDue = triggerTime <= now;
     if (triggerTime < now)
     {
         triggerTime = now;
@@ -1492,10 +1497,18 @@ HerderImpl::setupTriggerNextLedger()
 
     if (!mApp.getConfig().MANUAL_CLOSE)
     {
-        mTriggerTimer.async_wait(std::bind(&HerderImpl::triggerNextLedger, this,
-                                           static_cast<uint32_t>(nextIndex),
-                                           true),
-                                 &VirtualTimer::onFailureNoop);
+        if (triggerDue)
+        {
+            mSCPMetrics.mTriggerImmediate.Mark();
+        }
+        mTriggerTimer.async_wait(
+            [this, nextIndex, triggerTime]() {
+                mSCPMetrics.mTriggerLateness.Update(
+                    std::max(VirtualClock::duration::zero(),
+                             mApp.getClock().now() - triggerTime));
+                triggerNextLedger(static_cast<uint32_t>(nextIndex), true);
+            },
+            &VirtualTimer::onFailureNoop);
 
         if (getSCP().isValidator())
         {

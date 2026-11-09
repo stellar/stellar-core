@@ -6739,6 +6739,12 @@ class EarlyNominationTestAccess
             slot, herder.mApp.getClock().now(), std::chrono::seconds(2));
     }
 
+    static void
+    setupTrigger(HerderImpl& herder)
+    {
+        herder.setupTriggerNextLedger();
+    }
+
     static TxSetXDRFrameConstPtr
     prepared(HerderImpl& herder)
     {
@@ -7069,6 +7075,104 @@ TEST_CASE("trigger anchor keeps millisecond close times",
     REQUIRE(fallback.count() == before);
     REQUIRE(waitAt(milliseconds(2601)) == milliseconds::zero());
     REQUIRE(fallback.count() == before + 1);
+}
+
+TEST_CASE("trigger-to-ballot time is recorded at first ballot entry",
+          "[herder][trigger-construction]")
+{
+    using namespace std::chrono;
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = true;
+    auto app = createTestApplication(clock, cfg);
+    auto& driver =
+        static_cast<HerderImpl&>(app->getHerder()).getHerderSCPDriver();
+    auto& timer =
+        app->getMetrics().NewTimer({"scp", "timing", "trigger-to-ballot"});
+    REQUIRE(timer.count() == 0);
+
+    // Construction and nomination both count, up to the first ballot entry.
+    uint64_t const slot = 100;
+    driver.recordNominationTrigger(slot);
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(400));
+    driver.recordSCPEvent(slot, true);
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(100));
+    driver.recordSCPEvent(slot, false);
+    REQUIRE(timer.count() == 1);
+    REQUIRE(timer.max() == Approx(500.0));
+
+    // Later ballot events of the same slot are not new intervals.
+    clock.setCurrentVirtualTime(clock.now() + milliseconds(50));
+    driver.recordSCPEvent(slot, false);
+    REQUIRE(timer.count() == 1);
+
+    // No interval without a local trigger, or when ballot started first.
+    driver.recordSCPEvent(slot + 1, false);
+    driver.recordSCPEvent(slot + 2, false);
+    driver.recordNominationTrigger(slot + 2);
+    driver.recordSCPEvent(slot + 2, true);
+    REQUIRE(timer.count() == 1);
+}
+
+TEST_CASE("trigger lateness and immediate triggers are recorded",
+          "[herder][trigger-construction]")
+{
+    using namespace std::chrono;
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    cfg.MANUAL_CLOSE = false;
+    cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 1000;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    auto& lateness = app->getMetrics().NewTimer({"scp", "trigger", "lateness"});
+    auto& immediate =
+        app->getMetrics().NewMeter({"scp", "trigger", "immediate"}, "trigger");
+
+    // Let the standalone validator close ledgers until its next trigger has
+    // been scheduled after closing at least `minLcl`.
+    auto waitForScheduledTrigger = [&](uint32_t minLcl) {
+        testutil::crankUntil(
+            app,
+            [&]() {
+                auto const lcl = lm.getLastClosedLedgerNum();
+                return lcl >= minLcl && herder.mTriggerNextLedgerSeq == lcl + 1;
+            },
+            seconds(60));
+        auto const lcl = lm.getLastClosedLedgerNum();
+        REQUIRE(lcl >= minLcl);
+        REQUIRE(herder.mTriggerNextLedgerSeq == lcl + 1);
+        return lcl;
+    };
+
+    // The trigger callback runs 300 ms after its scheduled time, as if the
+    // main thread were busy.
+    auto lcl = waitForScheduledTrigger(3);
+    auto const scheduled = herder.getTriggerTimer().expiry_time();
+    REQUIRE(scheduled > clock.now());
+    auto const latenessCount = lateness.count();
+    clock.setCurrentVirtualTime(scheduled + milliseconds(300));
+    testutil::crankUntil(
+        app, [&]() { return lateness.count() > latenessCount; }, seconds(10));
+    REQUIRE(lateness.count() == latenessCount + 1);
+    // Timers otherwise fire exactly on time under virtual time.
+    REQUIRE(lateness.max() == Approx(300.0));
+
+    // Rescheduling once the next trigger is already overdue fires it at once
+    // and counts as an immediate trigger.
+    lcl = waitForScheduledTrigger(lcl + 1);
+    auto const overdue = herder.getTriggerTimer().expiry_time();
+    clock.setCurrentVirtualTime(std::max(overdue, clock.now()) +
+                                milliseconds(500));
+    auto const immediateCount = immediate.count();
+    EarlyNominationTestAccess::setupTrigger(herder);
+    REQUIRE(immediate.count() == immediateCount + 1);
+    REQUIRE(herder.getTriggerTimer().expiry_time() == clock.now());
+    testutil::crankUntil(
+        app, [&]() { return lm.getLastClosedLedgerNum() > lcl; }, seconds(10));
+    REQUIRE(lm.getLastClosedLedgerNum() > lcl);
 }
 
 TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")

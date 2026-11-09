@@ -197,6 +197,9 @@ scp.timing.externalized                   | timer     | time spent in ballot pro
 scp.timing.first-to-self-externalize-lag  | timer     | delay between first externalize message and local node externalizing
 scp.timing.self-to-others-externalize-lag | timer     | delay between local node externalizing and later externalize messages from other nodes
 scp.timing.ballot-blocked-on-txset        | timer     | time balloting was blocked waiting for a txset download (milliseconds)
+scp.timing.trigger-to-ballot              | timer     | time from the local next-ledger trigger to first entry into the ballot protocol (proposal construction and nomination)
+scp.trigger.immediate                     | meter     | next-ledger trigger was already due when scheduled (the node is behind the target block time)
+scp.trigger.lateness                      | timer     | delay between the scheduled next-ledger trigger time and the trigger callback running
 scp.trigger.prepare-start-fallback        | meter     | trigger timer fell back from the network-close-time anchor to the local prepare-start anchor
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid

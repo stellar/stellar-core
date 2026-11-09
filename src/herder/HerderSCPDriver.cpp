@@ -60,6 +60,8 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewTimer({"scp", "timing", "nominated"}))
     , mPrepareToExternalize(
           app.getMetrics().NewTimer({"scp", "timing", "externalized"}))
+    , mTriggerToBallot(
+          app.getMetrics().NewTimer({"scp", "timing", "trigger-to-ballot"}))
     , mFirstToSelfExternalizeLag(app.getMetrics().NewTimer(
           {"scp", "timing", "first-to-self-externalize-lag"}))
     , mSelfToOthersExternalizeLag(app.getMetrics().NewTimer(
@@ -1544,6 +1546,12 @@ HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
     }
     else
     {
+        // The first entry into ballot ends the trigger-to-ballot interval
+        if (!timing.mPrepareStart && timing.mTriggerStart &&
+            start >= *timing.mTriggerStart)
+        {
+            mSCPMetrics.mTriggerToBallot.Update(start - *timing.mTriggerStart);
+        }
         timing.mPrepareStart =
             std::make_optional<VirtualClock::time_point>(start);
     }

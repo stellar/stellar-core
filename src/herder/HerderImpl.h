@@ -374,6 +374,14 @@ class HerderImpl : public Herder
         // Time spent building the tx set proposed at nomination.
         medida::Timer& mTxSetBuild;
 
+        // How long after its scheduled time the trigger timer callback ran
+        // (main-thread congestion)
+        medida::Timer& mTriggerLateness;
+
+        // Marked when the next trigger is already due when it is scheduled,
+        // i.e. the node is behind the target block time
+        medida::Meter& mTriggerImmediate;
+
         SCPMetrics(Application& app);
     };
 

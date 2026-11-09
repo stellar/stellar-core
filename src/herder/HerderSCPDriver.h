@@ -271,6 +271,10 @@ class HerderSCPDriver : public SCPDriver
         medida::Timer& mNominateToPrepare;
         medida::Timer& mPrepareToExternalize;
 
+        // Local trigger to first entry into ballot (proposal construction
+        // plus nomination); the drift allowance of the trigger anchor
+        medida::Timer& mTriggerToBallot;
+
         // Timers tracking externalize messages
         medida::Timer& mFirstToSelfExternalizeLag;
         medida::Timer& mSelfToOthersExternalizeLag;
