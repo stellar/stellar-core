@@ -101,6 +101,11 @@ Simulation::addNode(SecretKey nodeKey, QuorumSetSpec qSet, Config const* cfg2,
     cfg->NODE_SEED = nodeKey;
     cfg->MANUAL_CLOSE = false;
     cfg->RUN_STANDALONE = false;
+    // Rust-overlay nodes are networked validators, which may not emit
+    // diagnostic events. Test configs turn them on while capturing or checking
+    // LedgerCloseMeta (--capture-lcm/--check-lcm), but simulations never
+    // capture (see disableLcmCapture() in the constructor).
+    cfg->ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
 
     if (SCPQuorumSet const* manualQSet = std::get_if<SCPQuorumSet>(&qSet))
     {
