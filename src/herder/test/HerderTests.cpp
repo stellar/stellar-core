@@ -7501,6 +7501,84 @@ TEST_CASE("only nomination leaders construct local proposals",
     REQUIRE(checkedRoles == std::set<int>{0, 1, 2});
 }
 
+TEST_CASE("a follower promoted after losing sync still proposes",
+          "[herder][early-nomination]")
+{
+    // Unanimous three-node quorum with silent peers: the slot cannot
+    // externalize, so the local follower eventually loses sync. Nomination
+    // timeouts must still let it propose a value of its own once promoted.
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qset;
+    qset.threshold = 3;
+    for (int i = 0; i < 3; ++i)
+    {
+        keys.push_back(SecretKey::fromSeed(
+            sha256(fmt::format("early-nomination-node-{}", i))));
+        qset.validators.push_back(keys.back().getPublicKey());
+    }
+
+    bool checkedFollower = false;
+    for (int i = 0; i < 3 && !checkedFollower; ++i)
+    {
+        VirtualClock clock;
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+        auto cfg = getTestConfig(i);
+        cfg.HTTP_PORT = 0;
+        cfg.MANUAL_CLOSE = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+        cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+        cfg.NODE_SEED = keys[i];
+        cfg.QUORUM_SET = qset;
+        auto app = createTestApplication(clock, cfg);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getSCP();
+        auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const seq = lcl.header.ledgerSeq + 1;
+        if (scp.predictNominationLeaders(
+                   seq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
+                .count(scp.getLocalNodeID()))
+        {
+            // The first leader proposes at the trigger; test a follower.
+            continue;
+        }
+        checkedFollower = true;
+        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        size_t pulls = 0;
+        herder.mGetTopTransactionsForTesting = [&](size_t) {
+            ++pulls;
+            return std::vector<TransactionEnvelope>{};
+        };
+
+        EarlyNominationTestAccess::schedule(herder);
+        clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
+        testutil::crankUntil(
+            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            std::chrono::seconds(1));
+        REQUIRE(!scp.getNominationLeaders(seq).empty());
+        REQUIRE(scp.getLatestMessagesSend(seq).empty());
+        REQUIRE(pulls == 0);
+
+        // The stalled slot costs the node its sync before it is promoted.
+        herder.lostSync();
+        REQUIRE(!herder.isTracking());
+
+        testutil::crankUntil(
+            app, [&]() { return !scp.getLatestMessagesSend(seq).empty(); },
+            std::chrono::seconds(30));
+        REQUIRE(scp.getNominationLeaders(seq).count(scp.getLocalNodeID()));
+        REQUIRE(pulls == 1);
+        auto messages = scp.getLatestMessagesSend(seq);
+        REQUIRE(!messages.empty());
+        auto const& votes = messages.front().statement.pledges.nominate().votes;
+        REQUIRE(votes.size() == 1);
+        REQUIRE(herder.getHerderSCPDriver().validateValue(seq, votes.front(),
+                                                          true) ==
+                SCPDriver::kFullyValidatedValue);
+        herder.mGetTopTransactionsForTesting = nullptr;
+    }
+    REQUIRE(checkedFollower);
+}
+
 TEST_CASE("early underfilled proposals refresh at the trigger",
           "[herder][early-nomination]")
 {

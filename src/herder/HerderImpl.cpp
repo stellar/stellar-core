@@ -1983,8 +1983,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     getHerderSCPDriver().recordSCPEvent(ledgerSeqToTrigger, true);
     mHerderSCPDriver.nominate(
         ledgerSeqToTrigger,
-        [this, ledgerSeqToTrigger, checkTrackingSCP]() {
-            return makeNominationValue(ledgerSeqToTrigger, checkTrackingSCP);
+        [this, ledgerSeqToTrigger]() {
+            return makeNominationValue(ledgerSeqToTrigger);
         },
         lcl.header.scpValue,
         /*constructValueNow=*/buildsLegacyTxSet(lcl.header.ledgerVersion));
@@ -2004,13 +2004,15 @@ HerderImpl::buildsLegacyTxSet(uint32_t lclLedgerVersion)
 }
 
 ValueWrapperPtr
-HerderImpl::makeNominationValue(uint32_t ledgerSeqToTrigger,
-                                bool checkTrackingSCP)
+HerderImpl::makeNominationValue(uint32_t ledgerSeqToTrigger)
 {
     // A follower can be promoted long after the trigger. Recheck the ledger
     // state and select a fresh close time when SCP actually needs our value.
-    if ((!isTracking() && checkTrackingSCP) || !mLedgerManager.isSynced() ||
-        mLedgerManager.isApplying())
+    // Herder tracking was checked at the trigger. Do not require it again:
+    // a node that lost sync while the slot stalled (e.g. waiting for a tx set
+    // it cannot fetch) must still propose once promoted, like a value built at
+    // the trigger would have been, or the slot can stall forever.
+    if (!mLedgerManager.isSynced() || mLedgerManager.isApplying())
     {
         return nullptr;
     }
