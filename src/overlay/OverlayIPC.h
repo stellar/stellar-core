@@ -46,8 +46,9 @@ class OverlayIPC
         std::function<std::vector<SCPEnvelope>(uint32_t ledgerSeq)>;
 
     /// Callback when TX set received from peers (async fetch response)
+    /// (the callee may take ownership of the decoded set)
     using TxSetReceivedCallback = std::function<void(
-        Hash const& hash, GeneralizedTransactionSet const& txSet)>;
+        Hash const& hash, GeneralizedTransactionSet&& txSet)>;
 
     /**
      * Create an OverlayIPC instance.
@@ -171,10 +172,10 @@ class OverlayIPC
      * who request it via TX set fetching.
      *
      * @param hash The TX set hash
-     * @param xdr The serialized TX set XDR
+     * @param txSet The TX set, serialized directly into the IPC message
      * @param slotIndex The slot the set is for (stamps the cache entry)
      */
-    void cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr,
+    void cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
                     uint32_t slotIndex);
 
     /// Set callback for received SCP envelopes

@@ -199,6 +199,11 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     static TxSetXDRFrameConstPtr makeFromWire(TransactionSet const& xdrTxSet);
     static TxSetXDRFrameConstPtr
     makeFromWire(GeneralizedTransactionSet const& xdrTxSet);
+    // Take ownership of the XDR instead of copying it (a large set has
+    // thousands of nested allocations).
+    static TxSetXDRFrameConstPtr makeFromWire(TransactionSet&& xdrTxSet);
+    static TxSetXDRFrameConstPtr
+    makeFromWire(GeneralizedTransactionSet&& xdrTxSet);
 
     static TxSetXDRFrameConstPtr
     makeFromStoredTxSet(StoredTransactionSet const& storedSet);
@@ -215,6 +220,8 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     void toXDR(TransactionSet& set) const;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const;
     void storeXDR(StoredTransactionSet& txSet) const;
+    // The generalized set's XDR without copying it; the frame is immutable.
+    GeneralizedTransactionSet const& getGeneralizedXDR() const;
 
     ~TxSetXDRFrame() = default;
 
@@ -282,6 +289,8 @@ class TxSetXDRFrame : public NonMovableOrCopyable
   private:
     TxSetXDRFrame(TransactionSet const& xdrTxSet);
     TxSetXDRFrame(GeneralizedTransactionSet const& xdrTxSet);
+    TxSetXDRFrame(TransactionSet&& xdrTxSet);
+    TxSetXDRFrame(GeneralizedTransactionSet&& xdrTxSet);
 
     std::variant<TransactionSet, GeneralizedTransactionSet> mXDRTxSet;
     size_t mEncodedSize{};

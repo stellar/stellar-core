@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "herder/ParallelTxSetBuilder.h"
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
@@ -3690,6 +3691,140 @@ TEST_CASE("parallel tx set validation matches sequential", "[txset]")
                         invalidTxs[i]->getFullHash());
             }
         }
+    }
+}
+
+// Costs on the tx-set dissemination path for a large set: the leader's
+// encoding for the overlay, the follower's frame construction from the
+// overlay's bytes, and the follower's validation with a cold vs warm
+// signature-verification cache. Classic payments (one signature each).
+TEST_CASE("received tx set processing costs", "[txset][.][benchmark]")
+{
+    size_t const txCount = 6000;
+    int const reps = 5;
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = txCount + 1;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 2 * txCount;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto dest = getGenesisAccount(*app, static_cast<uint32_t>(txCount));
+    PerPhaseTransactionList phases(2);
+    for (size_t i = 0; i < txCount; ++i)
+    {
+        auto source = getGenesisAccount(*app, static_cast<uint32_t>(i));
+        phases[0].push_back(transactionFromOperations(
+            *app, source.getSecretKey(), source.getLastSequenceNumber() + 1,
+            {payment(dest.getPublicKey(), 1)}, 100));
+    }
+    auto [txSet, applicable] =
+        makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
+    REQUIRE(txSet->isGeneralizedTxSet());
+    REQUIRE(txSet->sizeTxTotal() == txCount);
+    auto const bytes = xdr::xdr_to_opaque(txSet->getGeneralizedXDR());
+
+    using Clock = std::chrono::steady_clock;
+    auto medianMs = [](std::vector<double> v) {
+        std::sort(v.begin(), v.end());
+        return v[v.size() / 2];
+    };
+    auto timeMs = [](auto&& f) {
+        auto start = Clock::now();
+        f();
+        return std::chrono::duration<double, std::milli>(Clock::now() - start)
+            .count();
+    };
+    auto report = [&](std::string const& what, std::vector<double> const& v) {
+        auto sorted = v;
+        std::sort(sorted.begin(), sorted.end());
+        std::cout << what << ": median " << medianMs(v) << " ms (min "
+                  << sorted.front() << ", max " << sorted.back()
+                  << ", n=" << v.size() << ")" << std::endl;
+    };
+
+    std::cout << "=== " << txCount << " txs, " << bytes.size()
+              << " XDR bytes ===" << std::endl;
+    // Leader: hand the set to the overlay.
+    std::vector<double> encodeCopy, encodeDirect;
+    for (int i = 0; i < reps; ++i)
+    {
+        encodeCopy.push_back(timeMs([&]() {
+            GeneralizedTransactionSet copy;
+            txSet->toXDR(copy);
+            auto out = xdr::xdr_to_opaque(copy);
+            REQUIRE(out.size() == bytes.size());
+        }));
+        encodeDirect.push_back(timeMs([&]() {
+            auto const& xdrSet = txSet->getGeneralizedXDR();
+            std::vector<uint8_t> out(36 + xdr::xdr_argpack_size(xdrSet));
+            xdr::xdr_put put(out.data() + 36, out.data() + out.size());
+            xdr::xdr_argpack_archive(put, xdrSet);
+            REQUIRE(out.size() == 36 + bytes.size());
+        }));
+    }
+    report("leader encode: toXDR copy + xdr_to_opaque", encodeCopy);
+    report("leader encode: in place from frame", encodeDirect);
+
+    // Follower: decode the overlay's bytes into a frame.
+    std::vector<double> decode, frameCopy, frameMove;
+    for (int i = 0; i < reps; ++i)
+    {
+        GeneralizedTransactionSet parsed;
+        decode.push_back(
+            timeMs([&]() { xdr::xdr_from_opaque(bytes, parsed); }));
+        frameCopy.push_back(timeMs([&]() {
+            auto frame = TxSetXDRFrame::makeFromWire(parsed);
+            REQUIRE(frame->getContentsHash() == txSet->getContentsHash());
+        }));
+        frameMove.push_back(timeMs([&]() {
+            auto frame = TxSetXDRFrame::makeFromWire(std::move(parsed));
+            REQUIRE(frame->getContentsHash() == txSet->getContentsHash());
+        }));
+    }
+    report("follower decode bytes", decode);
+    report("follower frame: copy (makeFromWire const&)", frameCopy);
+    report("follower frame: move (makeFromWire &&)", frameMove);
+
+    // Follower: validate the received set (what herder.txset.validate times).
+    for (size_t tasks :
+         {app->getBatchExecutor().preferredTaskCount(), size_t(4), size_t(1)})
+    {
+        app->getBatchExecutor().setPreferredTaskCountForTesting(tasks);
+        std::vector<double> cold, warm;
+        for (int i = 0; i < reps; ++i)
+        {
+            // A fresh frame per run, as for each received set; built outside
+            // the timed region.
+            auto validate = [&](TxSetXDRFrameConstPtr const& received) {
+                return timeMs([&]() {
+                    auto prepared = received->prepareForApply(*app, lcl.header);
+                    REQUIRE(prepared);
+                    REQUIRE(prepared->checkValid(*app, 0, 0));
+                });
+            };
+            auto first = TxSetXDRFrame::makeFromWire(
+                GeneralizedTransactionSet(txSet->getGeneralizedXDR()));
+            auto second = TxSetXDRFrame::makeFromWire(
+                GeneralizedTransactionSet(txSet->getGeneralizedXDR()));
+            PubKeyUtils::clearVerifySigCache();
+            uint64_t hits = 0, misses = 0;
+            PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+            cold.push_back(validate(first));
+            PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+            if (i == 0)
+            {
+                std::cout << "cold run: " << misses
+                          << " signature verifications, " << hits
+                          << " cache hits" << std::endl;
+            }
+            warm.push_back(validate(second));
+        }
+        report("validate, " + std::to_string(tasks) +
+                   " tasks, cold signature cache",
+               cold);
+        report("validate, " + std::to_string(tasks) +
+                   " tasks, warm signature cache",
+               warm);
     }
 }
 

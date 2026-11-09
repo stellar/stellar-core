@@ -201,6 +201,22 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
                     Herder::ENVELOPE_STATUS_PROCESSED);
         }
 
+        SECTION("reject a delivered set whose content hash differs")
+        {
+            REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
+            auto other = TxSetXDRFrame::makeEmpty(
+                sha256("another previous ledger"), lcl.header.ledgerVersion);
+            REQUIRE(other->getContentsHash() != p.second->getContentsHash());
+            REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
+                                                other));
+            REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
+            REQUIRE(pendingEnvelopes.getTxSetWaitingTime(
+                p.second->getContentsHash()));
+            REQUIRE(pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
+                                               p.second));
+            REQUIRE(herder.getSCP().getLatestMessage(pk));
+        }
+
         SECTION("process when the tx set being fetched is built locally")
         {
             REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));

@@ -299,6 +299,17 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
         return false;
     }
 
+    // The overlay checks the content hash before delivering a set, but the
+    // frame recomputed it: never file a set under another hash.
+    if (txset->getContentsHash() != hash)
+    {
+        CLOG_WARNING(Herder,
+                     "TxSet {} delivered with content hash {} - "
+                     "rejecting",
+                     hexAbbrev(hash), hexAbbrev(txset->getContentsHash()));
+        return false;
+    }
+
     putTxSet(hash, 0, txset);
     completeTxSetFetch(hash, txset);
     return true;

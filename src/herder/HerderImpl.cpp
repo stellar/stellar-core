@@ -1823,10 +1823,10 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
             // validation. Its eager compression runs concurrently in Rust.
             if (txSet->isGeneralizedTxSet())
             {
-                GeneralizedTransactionSet xdrTxSet;
-                txSet->toXDR(xdrTxSet);
+                // Serialized straight into the IPC message, without copying
+                // the set's XDR first.
                 overlayMgr.cacheTxSet(txSet->getContentsHash(),
-                                      xdr::xdr_to_opaque(xdrTxSet), ledgerSeq);
+                                      txSet->getGeneralizedXDR(), ledgerSeq);
             }
         });
     CLOG_INFO(Herder, "Proposed TX set has {} transactions",
@@ -2091,11 +2091,9 @@ HerderImpl::makeNominationValue(uint32_t ledgerSeqToTrigger)
         // The overlay only cached the set built above; peers fetch this one.
         if (proposedSet->isGeneralizedTxSet())
         {
-            GeneralizedTransactionSet xdrTxSet;
-            proposedSet->toXDR(xdrTxSet);
-            mApp.getOverlayManager().cacheTxSet(proposedSet->getContentsHash(),
-                                                xdr::xdr_to_opaque(xdrTxSet),
-                                                lcl.header.ledgerSeq + 1);
+            mApp.getOverlayManager().cacheTxSet(
+                proposedSet->getContentsHash(),
+                proposedSet->getGeneralizedXDR(), lcl.header.ledgerSeq + 1);
         }
     }
 #endif

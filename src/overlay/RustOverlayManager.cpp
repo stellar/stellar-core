@@ -63,16 +63,14 @@ RustOverlayManager::start()
         return mApp.getHerder().getSCPStateForPeer(ledgerSeq);
     });
 
-    mOverlayIPC->setOnTxSetReceived(
-        [this](Hash const& hash, GeneralizedTransactionSet const& txSet) {
-            // Called from IPC reader thread - post to main thread
-            auto frame = TxSetXDRFrame::makeFromWire(txSet);
-            mApp.postOnMainThread(
-                [this, hash, frame]() {
-                    mApp.getHerder().recvTxSet(hash, frame);
-                },
-                "RustOverlayManager: TxSetReceived");
-        });
+    mOverlayIPC->setOnTxSetReceived([this](Hash const& hash,
+                                           GeneralizedTransactionSet&& txSet) {
+        // Called from IPC reader thread - post to main thread
+        auto frame = TxSetXDRFrame::makeFromWire(std::move(txSet));
+        mApp.postOnMainThread(
+            [this, hash, frame]() { mApp.getHerder().recvTxSet(hash, frame); },
+            "RustOverlayManager: TxSetReceived");
+    });
 
     if (!mOverlayIPC->start())
     {
@@ -221,12 +219,12 @@ RustOverlayManager::requestTxSet(Hash const& txSetHash, uint32_t slotIndex)
 
 void
 RustOverlayManager::cacheTxSet(Hash const& txSetHash,
-                               std::vector<uint8_t> const& xdr,
+                               GeneralizedTransactionSet const& txSet,
                                uint32_t slotIndex)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
-        mOverlayIPC->cacheTxSet(txSetHash, xdr, slotIndex);
+        mOverlayIPC->cacheTxSet(txSetHash, txSet, slotIndex);
     }
 }
 

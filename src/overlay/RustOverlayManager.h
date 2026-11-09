@@ -71,8 +71,8 @@ class RustOverlayManager
 
     // Cache a locally-built TX set in Rust overlay. slotIndex is the slot the
     // set is for, used to stamp the Rust-side cache entry.
-    void cacheTxSet(Hash const& txSetHash, std::vector<uint8_t> const& xdr,
-                    uint32_t slotIndex);
+    void cacheTxSet(Hash const& txSetHash,
+                    GeneralizedTransactionSet const& txSet, uint32_t slotIndex);
 
     // Get top transactions from Rust overlay's mempool for TX set building.
     // Blocks until the overlay responds, shuts down, or disconnects.

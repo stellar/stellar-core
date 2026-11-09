@@ -4,6 +4,7 @@
 
 #include "overlay/OverlayIPC.h"
 #include "crypto/Hex.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-ledger.h"
 #include <fmt/format.h>
@@ -414,13 +415,16 @@ OverlayIPC::handleMessage(IPCMessage const& msg)
         {
             try
             {
+                // Decode in place after the hash (offset 32 keeps the 4-byte
+                // alignment xdrpp requires) and hand over the decoded set.
                 GeneralizedTransactionSet txSet;
-                std::vector<uint8_t> xdrData(msg.payload.begin() + 32,
-                                             msg.payload.end());
-                xdr::xdr_from_opaque(xdrData, txSet);
+                xdr::xdr_get get(msg.payload.data() + 32,
+                                 msg.payload.data() + msg.payload.size());
+                xdr::xdr_argpack_archive(get, txSet);
+                get.done();
                 CLOG_INFO(Overlay, "Received TX set {} ({} bytes) from overlay",
-                          hexAbbrev(hash), xdrData.size());
-                mOnTxSetReceived(hash, txSet);
+                          hexAbbrev(hash), msg.payload.size() - 32);
+                mOnTxSetReceived(hash, std::move(txSet));
             }
             catch (std::exception const& e)
             {
@@ -700,7 +704,7 @@ OverlayIPC::requestTxSet(Hash const& hash, uint32_t slotIndex)
 }
 
 void
-OverlayIPC::cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr,
+OverlayIPC::cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
                        uint32_t slotIndex)
 {
     if (!mChannel || !mChannel->isConnected())
@@ -712,14 +716,19 @@ OverlayIPC::cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr,
     msg.type = IPCMessageType::CACHE_TX_SET;
     // Payload: [hash:32][slotSeq:4][txSetXDR...]. The slot the set is for;
     // used by the Rust overlay to stamp the cache entry for exact age-based
-    // eviction.
-    msg.payload.resize(36 + xdr.size());
+    // eviction. The set is serialized in place (offset 36 keeps the 4-byte
+    // alignment xdrpp requires).
+    auto const xdrSize = xdr::xdr_argpack_size(txSet);
+    msg.payload.resize(36 + xdrSize);
     std::memcpy(msg.payload.data(), hash.data(), 32);
     std::memcpy(msg.payload.data() + 32, &slotIndex, 4);
-    std::memcpy(msg.payload.data() + 36, xdr.data(), xdr.size());
+    xdr::xdr_put put(msg.payload.data() + 36,
+                     msg.payload.data() + msg.payload.size());
+    xdr::xdr_argpack_archive(put, txSet);
+    releaseAssert(put.p_ == put.e_);
 
     CLOG_DEBUG(Overlay, "Caching TX set {} for slot {} ({} bytes)",
-               hexAbbrev(hash), slotIndex, xdr.size());
+               hexAbbrev(hash), slotIndex, xdrSize);
     std::lock_guard<std::mutex> lock(mSendMutex);
     mChannel->send(msg);
 }
