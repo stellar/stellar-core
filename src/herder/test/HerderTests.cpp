@@ -7905,6 +7905,9 @@ TEST_CASE("early preparation respects manual and immediately due triggers",
         EarlyNominationTestAccess::schedule(herder);
         // No previous prepare timestamp: the normal fallback triggers now.
         REQUIRE(herder.getTriggerTimer().expiry_time() == clock.now());
+        // A due trigger builds itself. Preparing too could build twice: the
+        // two timers would fire at the same instant in either order.
+        REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
         testutil::crankUntil(
             app,
             [&]() {

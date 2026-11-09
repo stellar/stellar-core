@@ -1587,7 +1587,12 @@ HerderImpl::setupTriggerNextLedger()
             },
             &VirtualTimer::onFailureNoop);
 
-        if (getSCP().isValidator())
+        // Prepare early only if the trigger is still ahead. A due trigger
+        // fires now and builds itself; both timers would fire at the same
+        // instant in an unspecified order (event sequence numbers are per
+        // timer), so the leader could build once to prepare and again at the
+        // trigger.
+        if (getSCP().isValidator() && !triggerDue)
         {
             auto leaders = getSCP().predictNominationLeaders(
                 nextIndex, xdr::xdr_to_opaque(lcl.header.scpValue), 1);
