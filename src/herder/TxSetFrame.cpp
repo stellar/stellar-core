@@ -878,11 +878,14 @@ makeTxSetFromTransactions(
     bool disableTxValidationForLegacyScenario
 #endif
     ,
-    TxSetReadyCallback const& onTxSetReady)
+    TxSetReadyCallback const& onTxSetReady,
+    std::vector<size_t> const& validTxTargets)
 {
     releaseAssert(threadIsMain());
     releaseAssert(!app.getLedgerManager().isApplying());
     releaseAssert(txPhases.size() == invalidTxs.size());
+    releaseAssert(validTxTargets.empty() ||
+                  validTxTargets.size() == txPhases.size());
     releaseAssert(txPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 
@@ -918,9 +921,27 @@ makeTxSetFromTransactions(
                 app.getMetrics()
                     .NewTimer({"herder", "txset", "build-trim"})
                     .TimeScope();
-            validatedTxs = TxSetUtils::trimInvalid(
-                phaseTxs, app, accountFeeMap, closeTimeOffset.seconds(),
-                closeTimeOffset.seconds(), invalid);
+            if (validTxTargets.empty())
+            {
+                validatedTxs = TxSetUtils::trimInvalid(
+                    phaseTxs, app, accountFeeMap, closeTimeOffset.seconds(),
+                    closeTimeOffset.seconds(), invalid);
+            }
+            else
+            {
+                // Transactions of limited lanes (DEX) can't fill the phase,
+                // so only generic lane ones count toward the target.
+                auto laneConfig = createSurgePricingLangeConfig(
+                    static_cast<TxSetPhase>(i), app);
+                validatedTxs = TxSetUtils::trimInvalidPrefix(
+                    phaseTxs, validTxTargets[i],
+                    [&laneConfig](TransactionFrameBase const& tx) {
+                        return laneConfig->getLane(tx) ==
+                               SurgePricingPriorityQueue::GENERIC_LANE;
+                    },
+                    app, accountFeeMap, closeTimeOffset.seconds(),
+                    closeTimeOffset.seconds(), invalid);
+            }
 #ifdef BUILD_TESTS
             // In tests we shouldn't be really trying to close ledgers with
             // invalid transactions trimmed (which is unfortunately a very

@@ -333,4 +333,49 @@ TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
     return removeTxs(txs, invalidTxs);
 }
 
+TxFrameList
+TxSetUtils::trimInvalidPrefix(
+    TxFrameList const& txs, size_t targetValidTxs,
+    std::function<bool(TransactionFrameBase const&)> const& countsTowardTarget,
+    Application& app, UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    TxFrameList& invalidTxs)
+{
+    ZoneScoped;
+    TxFrameList validTxs;
+    invalidTxs.clear();
+    size_t counted = 0;
+    size_t validated = 0;
+    // Each pass validates the candidates right after the previous ones, so
+    // fee-source totals accumulate in the same order as when validating the
+    // whole prefix at once. The last pass validates everything left, so
+    // there are at most three passes.
+    for (int pass = 0;
+         pass < 3 && counted < targetValidTxs && validated < txs.size(); ++pass)
+    {
+        size_t const missing = targetValidTxs - counted;
+        size_t const left = txs.size() - validated;
+        size_t const count = pass == 0   ? std::min(missing, left)
+                             : pass == 1 ? std::min(2 * missing, left)
+                                         : left;
+        TxFrameList const batch(txs.begin() + validated,
+                                txs.begin() + validated + count);
+        validated += count;
+        TxFrameList batchInvalid;
+        for (auto const& tx :
+             trimInvalid(batch, app, accountFeeMap, lowerBoundCloseTimeOffset,
+                         upperBoundCloseTimeOffset, batchInvalid))
+        {
+            if (!countsTowardTarget || countsTowardTarget(*tx))
+            {
+                ++counted;
+            }
+            validTxs.push_back(tx);
+        }
+        invalidTxs.insert(invalidTxs.end(), batchInvalid.begin(),
+                          batchInvalid.end());
+    }
+    return validTxs;
+}
+
 } // namespace stellar

@@ -72,6 +72,172 @@ TEST_CASE("built tx set is available before final validation returns",
     REQUIRE(applicable->checkValid(*app, 0, 0));
 }
 
+TEST_CASE("tx set building validates only as many candidates as it needs",
+          "[txset]")
+{
+    // A classic phase of 10 operations, of which DEX transactions may use 2.
+    // The herder's target for it is 5/4 of that: 13 valid transactions.
+    uint32_t const candidates = 40;
+    std::vector<size_t> const targets{13, 13};
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = candidates + 1;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10;
+    cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET = 2;
+    auto app = createTestApplication(clock, cfg);
+    REQUIRE(app->getLedgerManager().getLastMaxTxSetSizeOps() == 10);
+    auto dest = getGenesisAccount(*app, candidates);
+    auto const usd = makeAsset(dest.getSecretKey(), "USD");
+
+    enum class Kind
+    {
+        PAYMENT,
+        BAD_SEQ,
+        DEX,
+        SIX_OPS
+    };
+    // Candidate i bids 1000 - i per operation, so the input order is the
+    // priority order. Each one has its own source account.
+    auto makeCandidates = [&](std::function<Kind(uint32_t)> const& kindOf) {
+        TxFrameList txs;
+        for (uint32_t i = 0; i < candidates; ++i)
+        {
+            auto source = getGenesisAccount(*app, i);
+            auto const kind = kindOf(i);
+            std::vector<Operation> ops;
+            if (kind == Kind::DEX)
+            {
+                ops.push_back(
+                    manageOffer(0, makeNativeAsset(), usd, Price{1, 1}, 1));
+            }
+            else
+            {
+                ops.resize(kind == Kind::SIX_OPS ? 6 : 1,
+                           payment(dest.getPublicKey(), 1));
+            }
+            auto const seq = source.getLastSequenceNumber() +
+                             (kind == Kind::BAD_SEQ ? 0 : 1);
+            txs.push_back(transactionFromOperations(
+                *app, source.getSecretKey(), seq, ops,
+                static_cast<uint32_t>((1000 - i) * ops.size())));
+        }
+        return txs;
+    };
+    struct Built
+    {
+        Hash contentsHash;
+        std::set<uint32_t> included;
+        std::vector<uint32_t> invalid;
+    };
+    // Builds with the targets, or validating every candidate (`targets` {}).
+    auto build = [&](TxFrameList const& txs,
+                     std::vector<size_t> const& validTxTargets) {
+        std::map<Hash, uint32_t> indexOf;
+        for (uint32_t i = 0; i < txs.size(); ++i)
+        {
+            indexOf.emplace(txs[i]->getFullHash(), i);
+        }
+        PerPhaseTransactionList phases{txs, {}};
+        PerPhaseTransactionList invalid(2);
+        auto [txSet, applicable] =
+            makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{}, invalid,
+                                      false, {}, false, {}, validTxTargets);
+        REQUIRE(applicable->checkValid(*app, 0, 0));
+        REQUIRE(invalid[1].empty());
+        Built built{txSet->getContentsHash(), {}, {}};
+        for (auto const& tx : applicable->getPhase(TxSetPhase::CLASSIC))
+        {
+            built.included.insert(indexOf.at(tx->getFullHash()));
+        }
+        for (auto const& tx : invalid[0])
+        {
+            built.invalid.push_back(indexOf.at(tx->getFullHash()));
+        }
+        return built;
+    };
+    auto range = [](uint32_t begin, uint32_t end) {
+        std::set<uint32_t> result;
+        for (uint32_t i = begin; i < end; ++i)
+        {
+            result.insert(i);
+        }
+        return result;
+    };
+
+    SECTION("nothing invalid near the top: same set as validating everything")
+    {
+        // Candidate 30 is past the 13 validated ones, so the windowed build
+        // never finds out that it is invalid.
+        auto txs = makeCandidates(
+            [](uint32_t i) { return i == 30 ? Kind::BAD_SEQ : Kind::PAYMENT; });
+        auto windowed = build(txs, targets);
+        auto full = build(txs, {});
+        REQUIRE(windowed.included == range(0, 10));
+        REQUIRE(windowed.invalid.empty());
+        REQUIRE(full.invalid == std::vector<uint32_t>{30});
+        REQUIRE(windowed.contentsHash == full.contentsHash);
+    }
+    SECTION("invalid top candidates are replaced from further down")
+    {
+        // The first pass validates 0-12 and finds 8 valid, the second
+        // validates the next 2 * 5 (13-22).
+        auto txs = makeCandidates([](uint32_t i) {
+            return i < 5 || i == 30 ? Kind::BAD_SEQ : Kind::PAYMENT;
+        });
+        auto windowed = build(txs, targets);
+        auto full = build(txs, {});
+        REQUIRE(windowed.included == range(5, 15));
+        REQUIRE(windowed.invalid == std::vector<uint32_t>{0, 1, 2, 3, 4});
+        REQUIRE(full.invalid == std::vector<uint32_t>{0, 1, 2, 3, 4, 30});
+        REQUIRE(windowed.contentsHash == full.contentsHash);
+    }
+    SECTION("mostly invalid: each candidate is validated once")
+    {
+        // Three passes: 0-12, 13-38, 39. Every invalid candidate is reported
+        // exactly once, and the set holds the two valid ones.
+        auto txs = makeCandidates([](uint32_t i) {
+            return i == 25 || i == 35 ? Kind::PAYMENT : Kind::BAD_SEQ;
+        });
+        auto windowed = build(txs, targets);
+        auto full = build(txs, {});
+        REQUIRE(windowed.included == std::set<uint32_t>{25, 35});
+        auto expectedInvalid = range(0, candidates);
+        expectedInvalid.erase(25);
+        expectedInvalid.erase(35);
+        REQUIRE(windowed.invalid ==
+                std::vector<uint32_t>(expectedInvalid.begin(),
+                                      expectedInvalid.end()));
+        REQUIRE(windowed.contentsHash == full.contentsHash);
+    }
+    SECTION("DEX transactions don't count toward the target")
+    {
+        // The DEX lane takes only 2 of the 15 DEX candidates. Had they
+        // counted, the 13 validated ones would have filled the target and the
+        // set would hold just those 2.
+        auto txs = makeCandidates(
+            [](uint32_t i) { return i < 15 ? Kind::DEX : Kind::PAYMENT; });
+        auto windowed = build(txs, targets);
+        auto full = build(txs, {});
+        auto expected = range(15, 23);
+        expected.insert({0, 1});
+        REQUIRE(windowed.included == expected);
+        REQUIRE(windowed.contentsHash == full.contentsHash);
+    }
+    SECTION("where it differs: only candidates past the window fit the rest")
+    {
+        // The first six-operation transaction leaves room for four
+        // operations, which none of the other validated (six-operation)
+        // candidates fit. Validating everything fills that room with the
+        // one-operation candidates 13-16.
+        auto txs = makeCandidates(
+            [](uint32_t i) { return i < 13 ? Kind::SIX_OPS : Kind::PAYMENT; });
+        auto windowed = build(txs, targets);
+        auto full = build(txs, {});
+        REQUIRE(windowed.included == std::set<uint32_t>{0});
+        REQUIRE(full.included == std::set<uint32_t>{0, 13, 14, 15, 16});
+    }
+}
+
 TEST_CASE("generalized tx set XDR validation", "[txset]")
 {
     Config cfg(getTestConfig());

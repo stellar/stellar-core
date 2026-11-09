@@ -6778,6 +6778,15 @@ class EarlyNominationTestAccess
         return herder.buildTxSet(ledgerSeq, closeTime).txSet;
     }
 
+    // The same, with the hashes of the invalid candidates it found.
+    static std::pair<TxSetXDRFrameConstPtr, std::vector<Hash>>
+    buildWithInvalid(HerderImpl& herder, uint32_t ledgerSeq,
+                     ConsensusTime closeTime)
+    {
+        auto prepared = herder.buildTxSet(ledgerSeq, closeTime);
+        return {prepared.txSet, prepared.invalidTxHashes};
+    }
+
     // These fixtures inspect a local proposal while requiring an absent peer
     // to prevent externalization. Pick that peer so the local node is the
     // first leader, independently of the test RNG seed and previous ledger.
@@ -8309,6 +8318,72 @@ TEST_CASE("upgrade scheduling under sub-second ledgers", "[upgrades]")
     auto notDue = Upgrades{makeUpgradeCfg(VirtualClock::from_time_t(T + 1))}
                       .createUpgradesFor(header, *ledgerView, app->getConfig());
     REQUIRE(notDue.empty());
+}
+
+TEST_CASE("leader builds validate only the top of the mempool pull",
+          "[herder][txset]")
+{
+    // Classic capacity 10: the herder validates classic candidates until 13
+    // are valid. The mempool holds 60 payments bidding 1000 - i, so its order
+    // is i. The top 5 and #40 have a stale sequence number (the account's
+    // current one), so the herder drops them from the mempool once it finds
+    // them invalid.
+    uint32_t const candidates = 60;
+    auto cfg = getTestConfig();
+    cfg.MANUAL_CLOSE = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = candidates + 1;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10;
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    REQUIRE(lm.getLastMaxTxSetSizeOps() == 10);
+    auto dest = getGenesisAccount(*app, candidates);
+    std::vector<TransactionEnvelope> mempool;
+    std::vector<Hash> hashes;
+    for (uint32_t i = 0; i < candidates; ++i)
+    {
+        auto source = getGenesisAccount(*app, i);
+        bool const badSeq = i < 5 || i == 40;
+        auto tx = transactionFromOperations(
+            *app, source.getSecretKey(),
+            source.getLastSequenceNumber() + (badSeq ? 0 : 1),
+            {payment(dest.getPublicKey(), 1)}, 1000 - i);
+        mempool.push_back(tx->getEnvelope());
+        hashes.push_back(tx->getFullHash());
+    }
+    size_t requested = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t count) {
+        requested = count;
+        return std::vector<TransactionEnvelope>(
+            mempool.begin(), mempool.begin() + std::min(count, mempool.size()));
+    };
+
+    auto const lcl = lm.getLastClosedLedgerHeader();
+    auto [txSet, invalid] = EarlyNominationTestAccess::buildWithInvalid(
+        herder, lcl.header.ledgerSeq + 1,
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion));
+    herder.mGetTopTransactionsForTesting = nullptr;
+
+    // The pull is unchanged: twice the capacity of both phases.
+    REQUIRE(
+        requested ==
+        2 * (10 + lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount()));
+    // The invalid top candidates were replaced: the set is full, with the
+    // best valid ones.
+    auto applicable = txSet->prepareForApply(*app, lcl.header);
+    REQUIRE(applicable);
+    std::set<Hash> included;
+    for (auto const& tx : applicable->getPhase(TxSetPhase::CLASSIC))
+    {
+        included.insert(tx->getFullHash());
+    }
+    REQUIRE(included ==
+            std::set<Hash>(hashes.begin() + 5, hashes.begin() + 15));
+    // #40 is past the validated candidates (0-22): it stays in the mempool
+    // until it reaches them.
+    REQUIRE(std::set<Hash>(invalid.begin(), invalid.end()) ==
+            std::set<Hash>(hashes.begin(), hashes.begin() + 5));
 }
 
 #if __has_include(<valgrind/callgrind.h>)

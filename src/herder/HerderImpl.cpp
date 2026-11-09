@@ -1891,6 +1891,28 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
         txPhases.emplace_back(std::move(sorobanTxs));
     }
 
+    // Selection only uses the best valid candidates up to each phase's
+    // capacity, and validating (mostly: verifying the signatures of) the rest
+    // of the pull is most of the build's cost. Validate each phase in mempool
+    // order only until it holds 5/4 of its capacity in valid transactions
+    // (more if some are invalid, see TxSetUtils::trimInvalidPrefix). The slack
+    // covers candidates that selection skips: those that don't fit the
+    // remaining resources, and those the mempool ranks above ones with a
+    // higher inclusion fee (it orders by total fee per operation).
+    auto validationTarget = [](size_t capacity) {
+        return capacity + (capacity + 3) / 4;
+    };
+    std::vector<size_t> validTxTargets{
+        validationTarget(mLedgerManager.getLastMaxTxSetSizeOps())};
+    if (supportsSoroban)
+    {
+        validTxTargets.push_back(validationTarget(
+            mLedgerManager.hasLastClosedSorobanNetworkConfig()
+                ? mLedgerManager.getLastClosedSorobanNetworkConfig()
+                      .ledgerMaxTxCount()
+                : 0));
+    }
+
     PerPhaseTransactionList invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
     framesTimer.Stop();
@@ -1914,7 +1936,8 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
                 overlayMgr.cacheTxSet(txSet->getContentsHash(),
                                       txSet->getGeneralizedXDR(), ledgerSeq);
             }
-        });
+        },
+        validTxTargets);
     CLOG_INFO(Herder, "Proposed TX set has {} transactions",
               proposedSet->sizeTxTotal());
 
@@ -1952,6 +1975,11 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     // or small snapshot doesn't prevent collecting transactions during the
     // timer wait. Reuse a snapshot when selection actually excluded valid
     // candidates. Invalid transactions do not establish excess demand.
+    // Candidates past a phase's validated prefix count as valid here. There
+    // are such candidates only when the prefix already held more valid ones
+    // than the phase can include, so they don't change the result (except
+    // in a phase that can include nothing: it validates nothing, and counts
+    // as capacity limited whenever it has candidates).
     size_t validCandidates = 0;
     for (size_t i = 0; i < txPhases.size(); ++i)
     {

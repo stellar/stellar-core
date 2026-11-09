@@ -118,6 +118,12 @@ using PerPhaseTransactionList = std::vector<TxFrameList>;
 // close time.
 // The result is guaranteed to pass `checkValid` check with the same
 // arguments as in this method, so additional validation is not needed.
+// With `validTxTargets` (one entry per phase), the transactions of each phase
+// must be in priority order, and only the prefix of phase `i` that holds
+// `validTxTargets[i]` valid transactions of its generic surge pricing lane is
+// validated and offered to selection (see `TxSetUtils::trimInvalidPrefix`).
+// The transactions past that prefix are left out without being validated, so
+// they appear neither in the result nor in `invalidTxs`.
 //
 // **Note**: the output `ApplicableTxSetFrame` will *not* contain the input
 // transaction pointers.
@@ -154,7 +160,8 @@ makeTxSetFromTransactions(
     bool disableTxValidationForLegacyScenario = false
 #endif
     ,
-    TxSetReadyCallback const& onTxSetReady = {});
+    TxSetReadyCallback const& onTxSetReady = {},
+    std::vector<size_t> const& validTxTargets = {});
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -417,7 +424,8 @@ class TxSetPhaseFrame
         bool disableTxValidationForLegacyScenario
 #endif
         ,
-        TxSetReadyCallback const& onTxSetReady);
+        TxSetReadyCallback const& onTxSetReady,
+        std::vector<size_t> const& validTxTargets);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
@@ -592,7 +600,8 @@ class ApplicableTxSetFrame
         bool disableTxValidationForLegacyScenario
 #endif
         ,
-        TxSetReadyCallback const& onTxSetReady);
+        TxSetReadyCallback const& onTxSetReady,
+        std::vector<size_t> const& validTxTargets);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
