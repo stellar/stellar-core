@@ -332,6 +332,66 @@ async fn getdata_job_stops_after_a_failed_write() {
 }
 
 #[tokio::test]
+async fn received_tx_is_announced_to_every_peer_except_known_sources() {
+    use crate::flood::{InvEntry, INV_BATCH_MAX_SIZE};
+
+    let (_handle, _events, _admissions, overlay) =
+        create_test_overlay(Keypair::generate_ed25519(), Arc::new(OverlayMetrics::new())).unwrap();
+    let state = Arc::clone(&overlay.state);
+    let source = PeerId::random();
+    let advertiser = PeerId::random();
+    let others: Vec<PeerId> = (0..5).map(|_| PeerId::random()).collect();
+    {
+        let mut streams = state.peer_streams.write().await;
+        for peer in others.iter().chain([&source, &advertiser]) {
+            streams.insert(*peer, Arc::new(PeerOutboundStreams::new()));
+        }
+    }
+    // One peer's batch is one entry short of full, so this TX completes it.
+    let full = others[0];
+    {
+        let mut batcher = state.inv_batcher.write().await;
+        for index in 0..INV_BATCH_MAX_SIZE - 1 {
+            let mut hash = [0xa5; 32];
+            hash[..8].copy_from_slice(&(index as u64).to_be_bytes());
+            assert!(batcher
+                .add(
+                    full,
+                    InvEntry {
+                        hash,
+                        fee_per_op: 1
+                    }
+                )
+                .is_none());
+        }
+    }
+    let tx = test_tx(1);
+    state
+        .inv_tracker
+        .write()
+        .await
+        .record_source(*tx.hash(), advertiser);
+
+    handle_tx_response(&state, &source, Arc::clone(&tx)).await;
+
+    let mut batcher = state.inv_batcher.write().await;
+    // The completed batch was handed to a sender, not left queued.
+    assert!(batcher.flush(&full).is_none());
+    for peer in &others[1..] {
+        let batch = batcher
+            .flush(peer)
+            .expect("INV queued for every other peer");
+        assert_eq!(batch.entries.len(), 1);
+        assert_eq!(batch.entries[0].hash, *tx.hash());
+    }
+    assert!(batcher.flush(&source).is_none(), "INV echoed to the sender");
+    assert!(
+        batcher.flush(&advertiser).is_none(),
+        "INV sent to a peer that already advertised the TX"
+    );
+}
+
+#[tokio::test]
 async fn scp_state_sends_preserve_slot_order_without_blocking_other_peers() {
     let mut sender = TestNode::start().await;
     let mut receiver = TestNode::start().await;

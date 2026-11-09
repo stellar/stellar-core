@@ -11,7 +11,7 @@ mod tx_buffer;
 mod txset;
 
 pub use inv_batcher::InvBatcher;
-pub use inv_messages::{GetData, InvBatch, InvEntry, TxStreamMessage};
+pub use inv_messages::{GetData, InvBatch, InvEntry, TxStreamMessage, INV_BATCH_MAX_SIZE};
 pub use inv_tracker::InvTracker;
 pub use mempool::Mempool;
 pub use pending_requests::PendingRequests;

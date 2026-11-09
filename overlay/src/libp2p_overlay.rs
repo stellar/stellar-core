@@ -2105,15 +2105,21 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
 
         let inv_entry = InvEntry { hash, fee_per_op };
 
-        // Add to batcher for each peer, send batch immediately when full
-        for peer in &peers_to_announce {
-            let batch_to_send = {
-                let mut batcher = state.inv_batcher.write().await;
-                batcher.add(*peer, inv_entry.clone())
-            };
-            if let Some(batch) = batch_to_send {
-                send_inv_batch(state, *peer, batch).await;
-            }
+        // Queue the INV for every peer under one batcher lock, rather than
+        // one lock per peer, then send any batches that filled up.
+        let full_batches: Vec<(PeerId, InvBatch)> = {
+            let mut batcher = state.inv_batcher.write().await;
+            peers_to_announce
+                .iter()
+                .filter_map(|peer| {
+                    batcher
+                        .add(*peer, inv_entry.clone())
+                        .map(|batch| (*peer, batch))
+                })
+                .collect()
+        };
+        for (peer, batch) in full_batches {
+            send_inv_batch(state, peer, batch).await;
         }
     }
 
