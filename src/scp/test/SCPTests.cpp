@@ -292,6 +292,15 @@ class TestSCP : public SCPDriver
     std::map<int, TimerData> mTimers;
     std::chrono::milliseconds mCurrentTimerOffset{0};
 
+    // Defers this node's nomination emits, like
+    // ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING does for Herder.
+    std::chrono::milliseconds mNominationEmitDelay{0};
+    std::chrono::milliseconds
+    getNominationEmitDelayForTesting() const override
+    {
+        return mNominationEmitDelay;
+    }
+
     void
     setupTimer(uint64 slotIndex, int timerID, std::chrono::milliseconds timeout,
                std::function<void()> cb) override
@@ -2888,6 +2897,68 @@ TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
     };
 
     testTimeouts(scp, test);
+}
+
+TEST_CASE("delayed nomination emit after an immediate emit",
+          "[scp][nominationprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
+    SIMULATION_CREATE_NODE(4);
+
+    // v-blocking set size 2, quorum threshold 4
+    SCPQuorumSet qSet;
+    qSet.threshold = 4;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+    qSet.validators.push_back(v3NodeID);
+    qSet.validators.push_back(v4NodeID);
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+    scp.mNominationEmitDelay = std::chrono::milliseconds(1000);
+
+    // v0 leads the round and votes for x, but its emit is deferred
+    REQUIRE(scp.nominate(0, xValue, false));
+    REQUIRE(scp.mEnvs.empty());
+    REQUIRE(scp.mTimers.count(Slot::NOMINATION_EMIT_TIMER) == 1);
+    auto delayedEmit = scp.mTimers[Slot::NOMINATION_EMIT_TIMER].mCallback;
+    REQUIRE(delayedEmit);
+
+    std::vector<Value> votes{xValue};
+
+    SECTION("nothing emitted meanwhile: the delayed emit sends the vote")
+    {
+        delayedEmit();
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes, {});
+    }
+
+    SECTION("an immediate emit meanwhile: the delayed emit is not repeated")
+    {
+        // A v-blocking set accepting x makes v0 accept it, and processEnvelope
+        // emits the new state at once while the delayed emit is still armed.
+        std::vector<Value> accepted{xValue};
+        scp.receiveEnvelope(
+            makeNominate(v1SecretKey, qSetHash, 0, votes, accepted));
+        REQUIRE(scp.mEnvs.empty());
+        scp.receiveEnvelope(
+            makeNominate(v2SecretKey, qSetHash, 0, votes, accepted));
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes,
+                       accepted);
+
+        // Nothing changed since: re-emitting the same statement used to be
+        // rejected by our own processEnvelope ("moved to a bad state").
+        REQUIRE_NOTHROW(delayedEmit());
+        REQUIRE(scp.mEnvs.size() == 1);
+    }
 }
 
 TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")

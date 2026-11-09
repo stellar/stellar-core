@@ -202,6 +202,32 @@ NominationProtocol::emitNomination()
     }
 }
 
+#ifdef BUILD_TESTS
+void
+NominationProtocol::emitDelayedNomination()
+{
+    // While the deferred emit was pending, processEnvelope may already have
+    // emitted (and self-processed) a statement carrying the same votes and
+    // accepted values. Emitting it again would be rejected as not newer by
+    // our own processEnvelope, which emitNomination treats as a bad state.
+    SCPNomination nom;
+    for (auto const& v : mVotes)
+    {
+        nom.votes.emplace_back(v->getValue());
+    }
+    for (auto const& a : mAccepted)
+    {
+        nom.accepted.emplace_back(a->getValue());
+    }
+    if (!isNewerStatement(mSlot.getLocalNode()->getNodeID(), nom))
+    {
+        CLOG_DEBUG(SCP, "NominationProtocol: delayed emit already sent");
+        return;
+    }
+    emitNomination();
+}
+#endif
+
 bool
 NominationProtocol::acceptPredicate(Value const& v, SCPStatement const& st)
 {
@@ -704,7 +730,7 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
         {
             mSlot.getSCPDriver().setupTimer(
                 mSlot.getSlotIndex(), Slot::NOMINATION_EMIT_TIMER, delay,
-                [slot, this]() { emitNomination(); });
+                [slot, this]() { emitDelayedNomination(); });
             return updated;
         }
         if (delay > std::chrono::milliseconds::zero())
