@@ -8,6 +8,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "herder/HerderImpl.h"
+#include "herder/LeaderSchedule.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/PendingEnvelopes.h"
 #include "ledger/LedgerHeaderUtils.h"
@@ -54,10 +55,6 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
     , mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
     , mValueInvalid(
           app.getMetrics().NewMeter({"scp", "value", "invalid"}, "value"))
-    , mCombinedCandidates(app.getMetrics().NewMeter(
-          {"scp", "nomination", "combinecandidates"}, "value"))
-    , mNominateToPrepare(
-          app.getMetrics().NewTimer({"scp", "timing", "nominated"}))
     , mPrepareToExternalize(
           app.getMetrics().NewTimer({"scp", "timing", "externalized"}))
     , mTriggerToBallot(
@@ -88,13 +85,14 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mSCP{*this, mApp.getConfig().NODE_SEED.getPublicKey(),
            mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET}
     , mSCPMetrics{mApp}
-    , mNominateTimeout{mApp.getMetrics().NewHistogram(
-          {"scp", "timeout", "nominate"})}
+    , mLeaderTimeout{mApp.getMetrics().NewHistogram(
+          {"scp", "timeout", "leader"})}
+    , mLeaderRound{mApp.getMetrics().NewHistogram({"scp", "leader", "round"})}
     , mPrepareTimeout{mApp.getMetrics().NewHistogram(
           {"scp", "timeout", "prepare"})}
     , mUniqueValues{mApp.getMetrics().NewHistogram(
           {"scp", "slot", "values-referenced"})}
-    , mLedgerSeqNominating(0)
+    , mLedgerSeqProposing(0)
     , mTxSetValidCache(TXSETVALID_CACHE_SIZE)
 {
 }
@@ -406,7 +404,7 @@ HerderSCPDriver::validatePastOrFutureValue(
 SCPDriver::ValidationLevel
 HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
                                                 StellarValue const& b,
-                                                bool nomination) const
+                                                bool proposal) const
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -437,13 +435,13 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
                 return SCPDriver::kInvalidValue;
             }
 
-            if (nomination)
+            if (proposal)
             {
-                // Empty-tx-set values should only appear in balloting, and so
-                // are considered invalid during nomination.
+                // Empty-tx-set values only come out of balloting (a node
+                // gives up on a download): nobody proposes one.
                 CLOG_DEBUG(Herder,
                            "HerderSCPDriver::validateValue i: {} rejecting "
-                           "empty-tx-set value during nomination",
+                           "empty-tx-set value as a proposal",
                            slotIndex);
                 return SCPDriver::kInvalidValue;
             }
@@ -609,14 +607,14 @@ HerderSCPDriver::deserializeAndValidateStellarValue(uint64_t slotIndex,
 }
 
 void
-HerderSCPDriver::extractValidUpgrades(StellarValue& sv, bool nomination) const
+HerderSCPDriver::extractValidUpgrades(StellarValue& sv, bool proposal) const
 {
     LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
     LedgerUpgradeType thisUpgradeType;
     bool first = true;
     for (auto it = sv.upgrades.begin(); it != sv.upgrades.end();)
     {
-        if (!mUpgrades.isValid(*it, thisUpgradeType, nomination, mApp))
+        if (!mUpgrades.isValid(*it, thisUpgradeType, proposal, mApp))
         {
             it = sv.upgrades.erase(it);
         }
@@ -635,7 +633,7 @@ HerderSCPDriver::extractValidUpgrades(StellarValue& sv, bool nomination) const
 
 SCPDriver::ValidationLevel
 HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
-                               bool nomination) const
+                               bool proposal) const
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -648,11 +646,11 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
     }
 
     SCPDriver::ValidationLevel res =
-        validateValueAgainstLocalState(slotIndex, b, nomination);
+        validateValueAgainstLocalState(slotIndex, b, proposal);
     if (res != SCPDriver::kInvalidValue)
     {
         auto origSize = b.upgrades.size();
-        extractValidUpgrades(b, nomination);
+        extractValidUpgrades(b, proposal);
         if (b.upgrades.size() != origSize)
         {
             CLOG_TRACE(Herder,
@@ -671,27 +669,6 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
     {
         mSCPMetrics.mValueInvalid.Mark();
     }
-    return res;
-}
-
-ValueWrapperPtr
-HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
-{
-    ZoneScoped;
-    StellarValue b;
-    if (!deserializeAndValidateStellarValue(slotIndex, value, b))
-    {
-        return nullptr;
-    }
-
-    ValueWrapperPtr res;
-    if (validateValueAgainstLocalState(slotIndex, b, true) >=
-        SCPDriver::kStructurallyValidValue)
-    {
-        extractValidUpgrades(b, true);
-        res = wrapStellarValue(b);
-    }
-
     return res;
 }
 
@@ -776,18 +753,6 @@ void
 HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
                                       std::function<void()> cb)
 {
-#ifdef BUILD_TESTS
-    if (timerID == Slot::NOMINATION_EMIT_TIMER)
-    {
-        if (!mHerder.isTracking() ||
-            mHerder.nextConsensusLedgerIndex() == slotIndex)
-        {
-            cb();
-        }
-        return;
-    }
-#endif
-
     // reschedule timers for future slots when tracking
     if (mHerder.isTracking() && mHerder.nextConsensusLedgerIndex() != slotIndex)
     {
@@ -811,11 +776,8 @@ HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
             }
             else
             {
-                if (!SCPTiming.mPrepareStart)
-                {
-                    // Timeout happened between nominate and first prepare
-                    ++SCPTiming.mNominationTimeoutCount;
-                }
+                // Timed out waiting for the round leader's proposal
+                ++SCPTiming.mLeaderTimeoutCount;
             }
         }
 
@@ -876,7 +838,7 @@ HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
 static uint32_t const MAX_TIMEOUT_MS = (30 * 60) * 1000;
 
 std::chrono::milliseconds
-HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
+HerderSCPDriver::computeTimeout(uint32 roundNumber)
 {
     releaseAssertOrThrow(roundNumber > 0);
 
@@ -891,18 +853,8 @@ HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
     {
         auto const& networkConfig =
             mLedgerManager.getLastClosedSorobanNetworkConfig();
-        if (isNomination)
-        {
-            initialTimeoutMS =
-                networkConfig.nominationTimeoutInitialMilliseconds();
-            incrementMS =
-                networkConfig.nominationTimeoutIncrementMilliseconds();
-        }
-        else
-        {
-            initialTimeoutMS = networkConfig.ballotTimeoutInitialMilliseconds();
-            incrementMS = networkConfig.ballotTimeoutIncrementMilliseconds();
-        }
+        initialTimeoutMS = networkConfig.ballotTimeoutInitialMilliseconds();
+        incrementMS = networkConfig.ballotTimeoutIncrementMilliseconds();
     }
 
     auto timeoutMS = initialTimeoutMS + (roundNumber - 1) * incrementMS;
@@ -911,284 +863,6 @@ HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
         timeoutMS = MAX_TIMEOUT_MS;
     }
     return std::chrono::milliseconds(timeoutMS);
-}
-
-#ifdef BUILD_TESTS
-std::chrono::milliseconds
-HerderSCPDriver::getNominationEmitDelayForTesting() const
-{
-    return mApp.getConfig().ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING;
-}
-#endif
-
-// returns true if l < r
-// lh, rh are the hashes of l,h
-static bool
-compareTxSets(ApplicableTxSetFrameConstPtr const& l,
-              ApplicableTxSetFrameConstPtr const& r, Hash const& lh,
-              Hash const& rh, std::optional<size_t> lEncodedSize,
-              std::optional<size_t> rEncodedSize, LedgerHeader const& header,
-              Hash const& s)
-{
-    if (!l && !r)
-    {
-        // Do not have either tx set. Compare hashes
-        return lessThanXored(lh, rh, s);
-    }
-
-    if (!l || !r)
-    {
-        // If one exists, choose it
-        return !l;
-    }
-
-    auto lSize = l->size(header);
-    auto rSize = r->size(header);
-    if (lSize != rSize)
-    {
-        return lSize < rSize;
-    }
-    if (protocolVersionStartsFrom(header.ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        auto lBids = l->getTotalInclusionFees();
-        auto rBids = r->getTotalInclusionFees();
-        if (lBids != rBids)
-        {
-            return lBids < rBids;
-        }
-    }
-    if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11))
-    {
-        auto lFee = l->getTotalFees(header);
-        auto rFee = r->getTotalFees(header);
-        if (lFee != rFee)
-        {
-            return lFee < rFee;
-        }
-    }
-    if (protocolVersionStartsFrom(header.ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        if (lEncodedSize.value() != rEncodedSize.value())
-        {
-            // Look for the smallest encoded size.
-            return lEncodedSize.value() > rEncodedSize.value();
-        }
-    }
-    return lessThanXored(lh, rh, s);
-}
-
-ValueWrapperPtr
-HerderSCPDriver::combineCandidates(uint64_t slotIndex,
-                                   ValueWrapperPtrSet const& candidates)
-{
-    ZoneScoped;
-    CLOG_DEBUG(Herder, "Combining {} candidates", candidates.size());
-    mSCPMetrics.mCombinedCandidates.Mark(candidates.size());
-
-    std::map<LedgerUpgradeType, LedgerUpgrade> upgrades;
-
-    std::set<TransactionFramePtr> aggSet;
-
-    releaseAssert(!mLedgerManager.isApplying());
-    releaseAssert(threadIsMain());
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-
-    Hash candidatesHash;
-
-    std::vector<StellarValue> candidateValues;
-
-    for (auto const& c : candidates)
-    {
-        candidateValues.emplace_back();
-        StellarValue& sv = candidateValues.back();
-        Value const& val = c->getValue();
-        uint256 const valHash = sha256(val);
-
-        if (!toStellarValue(val, sv))
-        {
-            throw std::runtime_error(fmt::format(
-                "HerderSCPDriver::combineCandidates: cannot parse candidate "
-                "value with hash {}",
-                binToHex(valHash)));
-        }
-
-        candidatesHash ^= valHash;
-
-        for (auto const& upgrade : sv.upgrades)
-        {
-            LedgerUpgrade lupgrade;
-            try
-            {
-                xdr::xdr_from_opaque(upgrade, lupgrade);
-            }
-            catch (...)
-            {
-                throw std::runtime_error(
-                    fmt::format("HerderSCPDriver::combineCandidates: cannot "
-                                "parse upgrade in candidate with hash {}",
-                                binToHex(valHash)));
-            }
-            auto it = upgrades.find(lupgrade.type());
-            if (it == upgrades.end())
-            {
-                upgrades.emplace(std::make_pair(lupgrade.type(), lupgrade));
-            }
-            else
-            {
-                LedgerUpgrade& clUpgrade = it->second;
-                switch (lupgrade.type())
-                {
-                case LEDGER_UPGRADE_VERSION:
-                    // pick the highest version
-                    clUpgrade.newLedgerVersion() =
-                        std::max(clUpgrade.newLedgerVersion(),
-                                 lupgrade.newLedgerVersion());
-                    break;
-                case LEDGER_UPGRADE_BASE_FEE:
-                    // take the max fee
-                    clUpgrade.newBaseFee() =
-                        std::max(clUpgrade.newBaseFee(), lupgrade.newBaseFee());
-                    break;
-                case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-                    // take the max tx set size
-                    clUpgrade.newMaxTxSetSize() =
-                        std::max(clUpgrade.newMaxTxSetSize(),
-                                 lupgrade.newMaxTxSetSize());
-                    break;
-                case LEDGER_UPGRADE_BASE_RESERVE:
-                    // take the max base reserve
-                    clUpgrade.newBaseReserve() = std::max(
-                        clUpgrade.newBaseReserve(), lupgrade.newBaseReserve());
-                    break;
-                case LEDGER_UPGRADE_FLAGS:
-                    clUpgrade.newFlags() =
-                        std::max(clUpgrade.newFlags(), lupgrade.newFlags());
-                    break;
-                case LEDGER_UPGRADE_CONFIG:
-                    if (clUpgrade.newConfig().contractID <
-                        lupgrade.newConfig().contractID)
-                    {
-                        clUpgrade.newConfig() = lupgrade.newConfig();
-                    }
-                    else if (clUpgrade.newConfig().contractID ==
-                                 lupgrade.newConfig().contractID &&
-                             clUpgrade.newConfig().contentHash <
-                                 lupgrade.newConfig().contentHash)
-                    {
-                        clUpgrade.newConfig() = lupgrade.newConfig();
-                    }
-                    break;
-                case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
-                    clUpgrade.newMaxSorobanTxSetSize() =
-                        std::max(clUpgrade.newMaxSorobanTxSetSize(),
-                                 lupgrade.newMaxSorobanTxSetSize());
-                    break;
-                default:
-                    // should never get there with values that are not valid
-                    throw std::runtime_error("invalid upgrade step");
-                }
-            }
-        }
-    }
-
-    StellarValue comp;
-    // take the txSet with the biggest size, highest xored hash that we have
-    {
-        auto highest = candidateValues.cend();
-        TxSetXDRFrameConstPtr highestTxSet;
-        ApplicableTxSetFrameConstPtr highestApplicableTxSet;
-        for (auto it = candidateValues.cbegin(); it != candidateValues.cend();
-             ++it)
-        {
-            auto const& sv = *it;
-            TxSetXDRFrameConstPtr cTxSet;
-            auto const cTxSetResult = mPendingEnvelopes.getTxSet(sv.txSetHash);
-            if (auto const* ptr =
-                    std::get_if<TxSetXDRFrameConstPtr>(&cTxSetResult))
-            {
-                cTxSet = *ptr;
-            }
-            // else: EmptyTxSet -> cTxSet stays null, handled by existing
-
-            // Prefer applicable tx sets. `compareTxSets` down-ranks
-            // non-applicable ones. Without CAP-0083 every candidate here is
-            // applicable (a mismatched one can't be ratified), so the
-            // non-applicable case doesn't arise. Under CAP-0083 a
-            // non-applicable candidate may be selected and is replaced with an
-            // empty-tx-set value during balloting.
-            ApplicableTxSetFrameConstPtr cApplicableTxSet = nullptr;
-            if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
-            {
-                cApplicableTxSet = cTxSet->prepareForApply(mApp, lcl.header);
-            }
-
-            if (highest == candidateValues.cend() ||
-                compareTxSets(highestApplicableTxSet, cApplicableTxSet,
-                              highest->txSetHash, sv.txSetHash,
-                              highestTxSet ? std::make_optional(
-                                                 highestTxSet->encodedSize())
-                                           : std::nullopt,
-                              cTxSet ? std::make_optional(cTxSet->encodedSize())
-                                     : std::nullopt,
-                              lcl.header, candidatesHash))
-            {
-                highest = it;
-                highestTxSet = cTxSet;
-                highestApplicableTxSet = std::move(cApplicableTxSet);
-            }
-        }
-        if (highest == candidateValues.cend())
-        {
-            throw std::runtime_error(
-                "No highest candidate transaction set found");
-        }
-        comp = *highest;
-    }
-    comp.upgrades.clear();
-    for (auto const& upgrade : upgrades)
-    {
-        Value v(xdr::xdr_to_opaque(upgrade.second));
-        comp.upgrades.emplace_back(v.begin(), v.end());
-    }
-
-    auto res = wrapStellarValue(comp);
-    return res;
-}
-
-bool
-HerderSCPDriver::hasUpgrades(Value const& v)
-{
-    StellarValue sv;
-    if (!toStellarValue(v, sv))
-    {
-        return false;
-    }
-    return !sv.upgrades.empty();
-}
-
-ValueWrapperPtr
-HerderSCPDriver::stripAllUpgrades(Value const& v)
-{
-    StellarValue sv;
-    if (!toStellarValue(v, sv))
-    {
-        return nullptr;
-    }
-
-    // Remove all upgrades
-    sv.upgrades.clear();
-
-    // Serialize back to Value
-    return wrapStellarValue(sv);
-}
-
-uint32_t
-HerderSCPDriver::getUpgradeNominationTimeoutLimit() const
-{
-    return mUpgrades.getParameters().mNominationTimeoutLimit.value_or(
-        std::numeric_limits<uint32_t>::max());
 }
 
 std::optional<std::chrono::milliseconds>
@@ -1253,17 +927,11 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
             logQuorumInformationAndUpdateMetrics(slotIndex - 2);
         }
 
-        if (mLedgerSeqNominating != 0)
-        {
-            // stop nomination
-            // this may or may not be the ledger that is currently externalizing
-            // in both cases, we want to stop nomination as:
-            // either we're closing the current ledger (typical case)
-            // or we're going to trigger catchup from history
-            mSCP.stopNomination(mLedgerSeqNominating);
-            mCurrentValue.reset();
-            mLedgerSeqNominating = 0;
-        }
+        // this may or may not be the ledger the local node started: either
+        // way its own proposal is obsolete (the ledger is closing, or catchup
+        // is about to trigger)
+        mCurrentValue.reset();
+        mLedgerSeqProposing = 0;
 
         if (!mHerder.isTracking())
         {
@@ -1338,22 +1006,20 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 }
 
 void
-HerderSCPDriver::nominate(uint64_t slotIndex, NominationValueSupplier makeValue,
-                          StellarValue const& previousValue,
-                          bool constructValueNow)
+HerderSCPDriver::startSlot(uint64_t slotIndex, ProposalValueSupplier makeValue,
+                           bool constructValueNow)
 {
     ZoneScoped;
-    if (mLedgerSeqNominating != slotIndex)
+    if (mLedgerSeqProposing != slotIndex)
     {
         mCurrentValue.reset();
     }
-    mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
+    mLedgerSeqProposing = static_cast<uint32_t>(slotIndex);
     if (constructValueNow && !mCurrentValue)
     {
         auto value = makeValue();
-        // Publishing the tx set may externalize this slot, which stops its
-        // nomination. Do not restart it.
-        if (mLedgerSeqNominating != slotIndex)
+        // Publishing the tx set may externalize this slot. Do not restart it.
+        if (mLedgerSeqProposing != slotIndex)
         {
             return;
         }
@@ -1361,28 +1027,85 @@ HerderSCPDriver::nominate(uint64_t slotIndex, NominationValueSupplier makeValue,
         // a leader.
         mCurrentValue = std::move(value);
     }
-    auto prevValue = xdr::xdr_to_opaque(previousValue);
-    mSCP.nominate(
-        slotIndex,
-        [this, slotIndex,
-         makeValue = std::move(makeValue)]() -> ValueWrapperPtr {
-            if (mLedgerSeqNominating != slotIndex)
-            {
-                return nullptr;
-            }
-            if (!mCurrentValue)
-            {
-                auto value = makeValue();
-                // Publishing the tx set may externalize a pending value.
-                if (mLedgerSeqNominating != slotIndex)
-                {
-                    return nullptr;
-                }
-                mCurrentValue = std::move(value);
-            }
-            return mCurrentValue;
-        },
-        prevValue);
+    mSCP.startSlot(slotIndex,
+                   [this, slotIndex,
+                    makeValue = std::move(makeValue)]() -> ValueWrapperPtr {
+                       if (mLedgerSeqProposing != slotIndex)
+                       {
+                           return nullptr;
+                       }
+                       if (!mCurrentValue)
+                       {
+                           auto value = makeValue();
+                           // Publishing the tx set may externalize a pending
+                           // value.
+                           if (mLedgerSeqProposing != slotIndex)
+                           {
+                               return nullptr;
+                           }
+                           mCurrentValue = std::move(value);
+                       }
+                       return mCurrentValue;
+                   });
+}
+
+std::vector<NodeID> const&
+HerderSCPDriver::getLeaderSchedule(uint64_t slotIndex)
+{
+    static std::vector<NodeID> const empty;
+    releaseAssert(threadIsMain());
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (slotIndex != static_cast<uint64_t>(lcl.header.ledgerSeq) + 1)
+    {
+        // The seed is the hash of the previous ledger's header: unknown for
+        // any slot but the next one.
+        return empty;
+    }
+    // Force a pending rebuild of the transitive quorum, if any
+    mPendingEnvelopes.isNodeDefinitelyInQuorum(mSCP.getLocalNodeID());
+    auto const& quorum = mPendingEnvelopes.getCurrentlyTrackedQuorum();
+    auto& cache = mLeaderSchedule;
+    if (cache.mSlotIndex != slotIndex || cache.mSeed != lcl.hash ||
+        cache.mQuorumSize != quorum.size() ||
+        cache.mQuorumRebuildCount != mPendingEnvelopes.getQuorumRebuildCount())
+    {
+        std::vector<NodeID> nodes;
+        nodes.reserve(quorum.size());
+        for (auto const& n : quorum)
+        {
+            nodes.emplace_back(n.first);
+        }
+        cache.mSchedule = computeLeaderSchedule(lcl.hash, std::move(nodes));
+        cache.mSlotIndex = slotIndex;
+        cache.mSeed = lcl.hash;
+        cache.mQuorumSize = quorum.size();
+        cache.mQuorumRebuildCount = mPendingEnvelopes.getQuorumRebuildCount();
+    }
+    return cache.mSchedule;
+}
+
+std::optional<NodeID>
+HerderSCPDriver::getRoundLeader(uint64 slotIndex, uint32 round)
+{
+    auto const& schedule = getLeaderSchedule(slotIndex);
+    if (schedule.empty() || round == 0)
+    {
+        return std::nullopt;
+    }
+    return schedule[(round - 1) % schedule.size()];
+}
+
+bool
+HerderSCPDriver::isProposalPending(uint64 slotIndex, NodeID const& leader) const
+{
+    return mPendingEnvelopes.hasPendingEnvelopeFrom(slotIndex, leader);
+}
+
+bool
+HerderSCPDriver::isLocalNodeRoundLeader(uint64_t slotIndex, uint32_t round)
+{
+    auto leader = getRoundLeader(slotIndex, round);
+    return leader && *leader == mSCP.getLocalNodeID();
 }
 
 SCPQuorumSetPtr
@@ -1432,22 +1155,44 @@ HerderSCPDriver::measureAndRecordBallotBlockedOnTxSet(uint64_t slotIndex,
 }
 
 void
-HerderSCPDriver::nominatingValue(uint64_t slotIndex, Value const& value)
+HerderSCPDriver::proposedValue(uint64_t slotIndex, uint32 round,
+                               Value const& value)
 {
-    CLOG_DEBUG(Herder, "nominatingValue i:{} v: {}", slotIndex,
+    CLOG_DEBUG(Herder, "proposedValue i:{} round:{} v: {}", slotIndex, round,
                getValueString(value));
 }
 
 void
-HerderSCPDriver::updatedCandidateValue(uint64_t slotIndex, Value const& value)
+HerderSCPDriver::enteredRound(uint64_t slotIndex, uint32 round, bool timedOut)
 {
+    auto it = mSCPExecutionTimes.find(slotIndex);
+    if (it != mSCPExecutionTimes.end())
+    {
+        it->second.mMaxRound = std::max(it->second.mMaxRound, round);
+    }
+    if (round > 1)
+    {
+        // Only read the cached schedule here: this is called from inside SCP
+        // state changes (including state restore), where a quorum rebuild
+        // (database reads) does not belong.
+        auto const& cache = mLeaderSchedule;
+        std::string leader = "unknown";
+        if (cache.mSlotIndex == slotIndex && !cache.mSchedule.empty())
+        {
+            leader = toShortString(
+                cache.mSchedule[(round - 2) % cache.mSchedule.size()]);
+        }
+        CLOG_INFO(Herder, "Slot {} moved to round {}{} (round {} leader: {})",
+                  slotIndex, round, timedOut ? " after a timeout" : "",
+                  round - 1, leader);
+    }
 }
 
 void
 HerderSCPDriver::startedBallotProtocol(uint64_t slotIndex,
                                        SCPBallot const& ballot)
 {
-    recordSCPEvent(slotIndex, false);
+    recordBallotStart(slotIndex);
     // Prewarm the next ledger's signatures, after SCP has finished processing
     // (and emitting) this step: the mempool pull waits for the overlay.
     StellarValue sv;
@@ -1560,40 +1305,34 @@ HerderSCPDriver::getExternalizeLag(NodeID const& id) const
 }
 
 void
-HerderSCPDriver::recordNominationTrigger(uint64_t slotIndex)
+HerderSCPDriver::recordTrigger(uint64_t slotIndex)
 {
     auto& timing = mSCPExecutionTimes[slotIndex];
-    if (!timing.mTriggerStart && !timing.mNominationStart)
+    if (!timing.mTriggerStart)
     {
         timing.mTriggerStart = mApp.getClock().now();
+        if (timing.mPrepareStart)
+        {
+            // The node already voted for the round leader's proposal before
+            // its own trigger fired.
+            mSCPMetrics.mTriggerToBallot.Update(std::chrono::nanoseconds(0));
+        }
     }
 }
 
 void
-HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
+HerderSCPDriver::recordBallotStart(uint64_t slotIndex)
 {
-
     auto& timing = mSCPExecutionTimes[slotIndex];
     VirtualClock::time_point start = mApp.getClock().now();
 
-    if (isNomination)
+    // The first entry into ballot ends the trigger-to-ballot interval
+    if (!timing.mPrepareStart && timing.mTriggerStart &&
+        start >= *timing.mTriggerStart)
     {
-        if (!timing.mNominationStart)
-        {
-            timing.mNominationStart = start;
-        }
+        mSCPMetrics.mTriggerToBallot.Update(start - *timing.mTriggerStart);
     }
-    else
-    {
-        // The first entry into ballot ends the trigger-to-ballot interval
-        if (!timing.mPrepareStart && timing.mTriggerStart &&
-            start >= *timing.mTriggerStart)
-        {
-            mSCPMetrics.mTriggerToBallot.Update(start - *timing.mTriggerStart);
-        }
-        timing.mPrepareStart =
-            std::make_optional<VirtualClock::time_point>(start);
-    }
+    timing.mPrepareStart = std::make_optional<VirtualClock::time_point>(start);
 }
 
 void
@@ -1686,33 +1425,20 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
 
     auto& SCPTiming = SCPTimingIt->second;
 
-    mNominateTimeout.Update(SCPTiming.mNominationTimeoutCount);
+    mLeaderTimeout.Update(SCPTiming.mLeaderTimeoutCount);
     mPrepareTimeout.Update(SCPTiming.mPrepareTimeoutCount);
-
-    if (SCPTiming.mNominationTimeoutCount > 0)
+    if (SCPTiming.mMaxRound > 0)
     {
-        auto const leaders = getSCP().getNominationLeaders(slotIndex);
-        std::string leaderStr;
-        for (auto const& leader : leaders)
-        {
-            if (!leaderStr.empty())
-            {
-                leaderStr += ", ";
-            }
-            leaderStr += toShortString(leader);
-        }
-        CLOG_INFO(Herder,
-                  "Nomination for slot {} timed out {} time(s) with "
-                  "the following round leaders: [{}]",
-                  slotIndex, SCPTiming.mNominationTimeoutCount, leaderStr);
+        mLeaderRound.Update(SCPTiming.mMaxRound);
     }
 
-    // Compute nomination time
-    if (SCPTiming.mNominationStart && SCPTiming.mPrepareStart)
+    if (SCPTiming.mLeaderTimeoutCount > 0)
     {
-        recordLogTiming(*SCPTiming.mNominationStart, *SCPTiming.mPrepareStart,
-                        mSCPMetrics.mNominateToPrepare, "Nominate", threshold,
-                        slotIndex);
+        CLOG_INFO(Herder,
+                  "Slot {} timed out {} time(s) waiting for a round leader "
+                  "(externalized in round {})",
+                  slotIndex, SCPTiming.mLeaderTimeoutCount,
+                  SCPTiming.mMaxRound);
     }
 
     // Compute prepare time
@@ -2026,81 +1752,13 @@ HerderSCPDriver::TxSetValidityKeyHash::operator()(
     return res;
 }
 
-uint64
-HerderSCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
-                               bool const isLocalNode) const
-{
-    releaseAssert(!mLedgerManager.isApplying());
-    Config const& cfg = mApp.getConfig();
-    bool const unsupportedProtocol = protocolVersionIsBefore(
-        mApp.getLedgerManager()
-            .getLastClosedLedgerHeader()
-            .header.ledgerVersion,
-        APPLICATION_SPECIFIC_NOMINATION_LEADER_ELECTION_PROTOCOL_VERSION);
-    if (unsupportedProtocol || !cfg.VALIDATOR_WEIGHT_CONFIG.has_value() ||
-        cfg.FORCE_OLD_STYLE_LEADER_ELECTION)
-    {
-        // Fall back on old weight algorithm if any of the following are true:
-        // 1. The network has not yet upgraded to
-        //    APPLICATION_SPECIFIC_NOMINATION_LEADER_ELECTION_PROTOCOL_VERSION,
-        // 2. The node is using manual quorum set configuration, or
-        // 3. The node has the FORCE_OLD_STYLE_LEADER_ELECTION flag
-        //    set
-        return SCPDriver::getNodeWeight(nodeID, qset, isLocalNode);
-    }
-
-    ValidatorWeightConfig const& vwc =
-        mApp.getConfig().VALIDATOR_WEIGHT_CONFIG.value();
-
-    auto entryIt = vwc.mValidatorEntries.find(nodeID);
-    if (entryIt == vwc.mValidatorEntries.end())
-    {
-        // This shouldn't be possible as the validator entries should contain
-        // all validators in the config. For this to happen, `getNodeWeight`
-        // would have to be called with a non-validator `nodeID`. Throw if
-        // building tests, and otherwise fall back on the old algorithm.
-        throw std::runtime_error(
-            fmt::format(FMT_STRING("Validator entry not found for node {}"),
-                        toShortString(nodeID)));
-    }
-
-    ValidatorEntry const& entry = entryIt->second;
-    auto homeDomainSizeIt = vwc.mHomeDomainSizes.find(entry.mHomeDomain);
-    if (homeDomainSizeIt == vwc.mHomeDomainSizes.end())
-    {
-        // This shouldn't be possible as the home domain sizes should contain
-        // all home domains in the config. For this to happen, `getNodeWeight`
-        // would have to be called with a non-validator, or the config parser
-        // would have to allow a validator without a home domain. Throw if
-        // building tests, and otherwise fall back on the old algorithm.
-        throw std::runtime_error(
-            fmt::format(FMT_STRING("Home domain size not found for domain {}"),
-                        entry.mHomeDomain));
-    }
-
-    auto qualityWeightIt = vwc.mQualityWeights.find(entry.mQuality);
-    if (qualityWeightIt == vwc.mQualityWeights.end())
-    {
-        // This shouldn't be possible as the quality weights should contain all
-        // quality levels in the config.
-        throw std::runtime_error(
-            fmt::format(FMT_STRING("Quality weight not found for quality {}"),
-                        static_cast<int>(entry.mQuality)));
-    }
-
-    // Node's weight is its quality's weight divided by the number of nodes in
-    // its home domain
-    releaseAssert(homeDomainSizeIt->second > 0);
-    return qualityWeightIt->second / homeDomainSizeIt->second;
-}
-
 std::optional<int64_t>
-HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
+HerderSCPDriver::getLeaderTimeouts(uint64_t slotIndex) const
 {
     auto it = mSCPExecutionTimes.find(slotIndex);
     if (it != mSCPExecutionTimes.end())
     {
-        return it->second.mNominationTimeoutCount;
+        return it->second.mLeaderTimeoutCount;
     }
     return std::nullopt;
 }

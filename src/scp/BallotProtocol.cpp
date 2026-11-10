@@ -32,6 +32,11 @@ BallotProtocol::BallotProtocol(Slot& slot)
     , mPhase(SCP_PHASE_PREPARE)
     , mCurrentMessageLevel(0)
     , mTimerExpCount(0)
+    , mLeaderRound(0)
+    , mLeaderRoundsStarted(false)
+    , mLeaderTimerRound(0)
+    , mLeaderTimerExtended(false)
+    , mInProgressRound(false)
 {
 }
 
@@ -247,7 +252,18 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
         }
 
         recordEnvelope(envelope);
+        if (!self)
+        {
+            // the statement may be the round leader's proposal
+            progressRound();
+        }
         advanceSlot(statement);
+        if (!self)
+        {
+            // processing the statement may have moved the local node to a
+            // new round, or given it a value it has to stick to
+            progressRound();
+        }
         return SCP::EnvelopeState::VALID;
     }
 
@@ -349,28 +365,331 @@ BallotProtocol::abandonBallot(uint32 n)
 {
     ZoneScoped;
     CLOG_TRACE(SCP, "BallotProtocol::abandonBallot");
-    bool res = false;
-    auto v = mSlot.getLatestCompositeCandidate();
+    if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
+    {
+        return false;
+    }
+    if (n == 0 && mLeaderRound == UINT32_MAX)
+    {
+        // already at the "infinite" counter of a committed ballot
+        return false;
+    }
+    uint32 newRound = (n == 0) ? (mLeaderRound + 1) : n;
+    if (newRound > mLeaderRound)
+    {
+        mLeaderRound = newRound;
+        if (mLeaderRound != UINT32_MAX)
+        {
+            mSlot.getSCPDriver().enteredRound(mSlot.getSlotIndex(),
+                                              mLeaderRound, n == 0);
+        }
+    }
+    return progressRound();
+}
 
-    if (!v || v->getValue().empty())
+bool
+BallotProtocol::startLeaderRounds(ProposalValueSupplier const& makeValue)
+{
+    ZoneScoped;
+    if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
     {
-        if (mCurrentBallot)
-        {
-            v = mCurrentBallot->getWValue();
-        }
+        return false;
     }
-    if (v && !v->getValue().empty())
+    mMakeValue = makeValue;
+    mLeaderRoundsStarted = true;
+    if (mLeaderRound == 0)
     {
-        if (n == 0)
-        {
-            res = bumpState(v->getValue(), true);
-        }
-        else
-        {
-            res = bumpState(v->getValue(), n);
-        }
+        mLeaderRound = 1;
+        mSlot.getSCPDriver().enteredRound(mSlot.getSlotIndex(), mLeaderRound,
+                                          false);
     }
+    return progressRound();
+}
+
+std::optional<SCPBallot>
+BallotProtocol::getLeaderBallot(NodeID const& leader, uint32 round) const
+{
+    auto it = mLatestEnvelopes.find(leader);
+    if (it == mLatestEnvelopes.end())
+    {
+        return std::nullopt;
+    }
+    auto const& pl = it->second->getStatement().pledges;
+    switch (pl.type())
+    {
+    case SCP_ST_PREPARE:
+        if (pl.prepare().ballot.counter == round)
+        {
+            return pl.prepare().ballot;
+        }
+        break;
+    case SCP_ST_CONFIRM:
+        if (pl.confirm().ballot.counter == round)
+        {
+            return pl.confirm().ballot;
+        }
+        break;
+    default:
+        // an EXTERNALIZE statement is not tied to a round: the regular
+        // accept/confirm steps deal with it
+        break;
+    }
+    return std::nullopt;
+}
+
+bool
+BallotProtocol::progressRound()
+{
+    ZoneScoped;
+    if (mInProgressRound)
+    {
+        // the outer call loops until there is nothing left to do
+        return false;
+    }
+    mInProgressRound = true;
+    bool res = false;
+    try
+    {
+        // A step that changes the ballot may enable another one (e.g. the
+        // node moved to a new round while processing its own statement).
+        // The ballot only ever increases, and each productive step raises
+        // its counter to the current round, so this ends.
+        while (progressRoundStep())
+        {
+            res = true;
+        }
+        updateLeaderTimer();
+    }
+    catch (...)
+    {
+        mInProgressRound = false;
+        throw;
+    }
+    mInProgressRound = false;
     return res;
+}
+
+bool
+BallotProtocol::progressRoundStep()
+{
+    if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
+    {
+        return false;
+    }
+    if (!getLocalNode()->isValidator())
+    {
+        // only validators vote
+        return false;
+    }
+
+    // Before the application starts the slot, the local node may still adopt
+    // what the round 1 leader put forward: followers do not wait for their
+    // own clock.
+    uint32 const round = std::max<uint32>(mLeaderRound, 1);
+    uint32 const counter =
+        mCurrentBallot ? mCurrentBallot->getBallot().counter : 0;
+    if (counter >= round)
+    {
+        return false;
+    }
+
+    auto& driver = mSlot.getSCPDriver();
+    uint64 const slotIndex = mSlot.getSlotIndex();
+
+    if (mValueOverride)
+    {
+        // The node saw this value confirmed prepared, or voted to commit it:
+        // it sticks to it whoever leads the round (bumpState enforces this
+        // for any value passed in).
+        if (mLeaderRound == 0)
+        {
+            return false;
+        }
+        return bumpState(mValueOverride->getValue(), round);
+    }
+
+    if (mPhase != SCP_PHASE_PREPARE)
+    {
+        // CONFIRM has a value override
+        return false;
+    }
+
+    if (round == UINT32_MAX)
+    {
+        // The "infinite" counter of a committed ballot (a v-blocking set
+        // externalized) is not a round and has no leader: just keep up with
+        // the value the node already votes for, if any.
+        if (mCurrentBallot && mLeaderRound != 0)
+        {
+            Value v = mCurrentBallot->getBallot().value;
+            return bumpState(v, round);
+        }
+        return false;
+    }
+
+    auto leader = driver.getRoundLeader(slotIndex, round);
+    if (!leader)
+    {
+        return false;
+    }
+
+    if (*leader == getLocalNode()->getNodeID())
+    {
+        if (mLeaderRound == 0)
+        {
+            // not started: the application is not ready to propose
+            return false;
+        }
+        // Keep the value the node already votes for unless it is not
+        // acceptable as a proposal (e.g. an empty-tx-set value): the nodes
+        // that voted for it already know (or are fetching) its transaction
+        // set. bumpState gives up on a transaction set that never arrived.
+        if (mCurrentBallot &&
+            driver.validateValue(slotIndex, mCurrentBallot->getBallot().value,
+                                 /*proposal=*/true) != SCPDriver::kInvalidValue)
+        {
+            Value v = mCurrentBallot->getBallot().value;
+            driver.proposedValue(slotIndex, round, v);
+            return bumpState(v, round);
+        }
+        if (!mLeaderRoundsStarted || !mMakeValue || mCurrentMessageLevel != 0)
+        {
+            // Building a value re-enters the slot, so it is only done from
+            // the top level; processEnvelope calls back once it is there.
+            return false;
+        }
+        auto value = mMakeValue();
+        // Building the value can make pending envelopes ready and re-enter
+        // SCP: the slot may have moved on.
+        uint32 const newCounter =
+            mCurrentBallot ? mCurrentBallot->getBallot().counter : 0;
+        if (!value || mPhase != SCP_PHASE_PREPARE || mValueOverride ||
+            mLeaderRound != round || newCounter >= round)
+        {
+            // re-evaluate from the new state, if it changed
+            return newCounter != counter || mLeaderRound != round ||
+                   mValueOverride != nullptr;
+        }
+        driver.proposedValue(slotIndex, round, value->getValue());
+        return bumpState(value->getValue(), round);
+    }
+
+    uint32 adoptRound = round;
+    auto leaderBallot = getLeaderBallot(*leader, round);
+    if (!leaderBallot && !mCurrentBallot)
+    {
+        // The node gave up on earlier rounds without ever voting. If one of
+        // their leaders' proposals shows up late (e.g. its transaction set
+        // took longer than the leader timeout to arrive), vote for it at its
+        // own counter rather than discard it: the nodes that were in time
+        // voted for it too. The node stays in its round, so the current
+        // leader's ballot (higher counter) still takes over when it comes.
+        static uint32 const MAX_LATE_ROUNDS = 8;
+        for (uint32 r = round - 1;
+             r >= 1 && round - r <= MAX_LATE_ROUNDS && !leaderBallot; --r)
+        {
+            auto pastLeader = driver.getRoundLeader(slotIndex, r);
+            if (pastLeader && !(*pastLeader == getLocalNode()->getNodeID()))
+            {
+                leaderBallot = getLeaderBallot(*pastLeader, r);
+                adoptRound = r;
+            }
+        }
+    }
+    if (!leaderBallot)
+    {
+        return false;
+    }
+    // Voting for a leader's value is the local node's endorsement of it as a
+    // proposal, so the stricter validation applies (as it did for nomination
+    // votes): e.g. it must only carry upgrades the local node armed.
+    // An empty-tx-set value is never built as a proposal: a leader only votes
+    // for one after the ballot protocol replaced a value whose transaction
+    // set did not arrive. Following it is a ballot-level decision, so the
+    // ballot validation applies.
+    bool const proposal = !driver.isEmptyTxSetValue(leaderBallot->value);
+    if (driver.validateValue(slotIndex, leaderBallot->value, proposal) <
+        SCPDriver::kStructurallyValidValue)
+    {
+        return false;
+    }
+    return bumpState(leaderBallot->value, adoptRound);
+}
+
+void
+BallotProtocol::updateLeaderTimer()
+{
+    uint32 const counter =
+        mCurrentBallot ? mCurrentBallot->getBallot().counter : 0;
+    bool const waiting = mPhase == SCP_PHASE_PREPARE && mLeaderRound != 0 &&
+                         mLeaderRound != UINT32_MAX && counter < mLeaderRound &&
+                         getLocalNode()->isValidator();
+    if (waiting)
+    {
+        if (mLeaderTimerRound != mLeaderRound)
+        {
+            // The ballot (if any) is for a round the node gave up on.
+            stopBallotProtocolTimer();
+            mLeaderTimerRound = mLeaderRound;
+            mLeaderTimerExtended = false;
+            armLeaderTimer(mLeaderRound);
+        }
+    }
+    else if (mLeaderTimerRound != 0)
+    {
+        mLeaderTimerRound = 0;
+        mSlot.getSCPDriver().setupTimer(mSlot.getSlotIndex(),
+                                        Slot::LEADER_TIMER,
+                                        std::chrono::seconds::zero(), nullptr);
+    }
+}
+
+void
+BallotProtocol::armLeaderTimer(uint32 round)
+{
+    std::shared_ptr<Slot> slot = mSlot.shared_from_this();
+    mSlot.getSCPDriver().setupTimer(
+        mSlot.getSlotIndex(), Slot::LEADER_TIMER,
+        mSlot.getSCPDriver().computeTimeout(round), [slot, round]() {
+            slot->getBallotProtocol().leaderTimerExpired(round);
+        });
+}
+
+void
+BallotProtocol::leaderTimerExpired(uint32 round)
+{
+    if (mLeaderTimerRound != round)
+    {
+        // stale callback
+        return;
+    }
+    uint32 const counter =
+        mCurrentBallot ? mCurrentBallot->getBallot().counter : 0;
+    if (mPhase != SCP_PHASE_PREPARE || mLeaderRound != round ||
+        counter >= round)
+    {
+        mLeaderTimerRound = 0;
+        return;
+    }
+    if (!mLeaderTimerExtended)
+    {
+        // The leader is not silent if its statement already reached the
+        // application and is only waiting for its transaction set: give it
+        // one more timeout before moving on, rather than have the next leader
+        // build a competing value.
+        auto leader =
+            mSlot.getSCPDriver().getRoundLeader(mSlot.getSlotIndex(), round);
+        if (leader && mSlot.getSCPDriver().isProposalPending(
+                          mSlot.getSlotIndex(), *leader))
+        {
+            mLeaderTimerExtended = true;
+            armLeaderTimer(round);
+            return;
+        }
+    }
+    mLeaderTimerRound = 0;
+    mTimerExpCount++;
+    abandonBallot(0);
 }
 
 bool
@@ -580,13 +899,27 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
     {
         mHeardFromQuorum = false;
     }
+
+    // The ballot can also move through the regular accept/confirm steps
+    // (e.g. a quorum confirmed a higher ballot prepared).
+    if (ballot.counter > mLeaderRound)
+    {
+        mLeaderRound = ballot.counter;
+        // UINT32_MAX is the "infinite" counter of a committed ballot, not a
+        // round
+        if (mLeaderRound != UINT32_MAX)
+        {
+            mSlot.getSCPDriver().enteredRound(mSlot.getSlotIndex(),
+                                              mLeaderRound, false);
+        }
+    }
 }
 
 void
 BallotProtocol::startBallotProtocolTimer()
 {
     std::chrono::milliseconds timeout = mSlot.getSCPDriver().computeTimeout(
-        mCurrentBallot->getBallot().counter, /*isNomination=*/false);
+        mCurrentBallot->getBallot().counter);
 
     std::shared_ptr<Slot> slot = mSlot.shared_from_this();
     mSlot.getSCPDriver().setupTimer(
@@ -607,6 +940,8 @@ void
 BallotProtocol::ballotProtocolTimerExpired()
 {
     mTimerExpCount++;
+    // The timer only runs for a ballot at the current round (see
+    // checkHeardFromQuorum), so this moves to the round after it.
     abandonBallot(0);
 }
 
@@ -1438,7 +1773,7 @@ void
 BallotProtocol::throwIfValueInvalidForConfirmCommit(Value const& value)
 {
     auto validationLevel = mSlot.getSCPDriver().validateValue(
-        mSlot.getSlotIndex(), value, /*nomination=*/false);
+        mSlot.getSlotIndex(), value, /*proposal=*/false);
 
     if (validationLevel == SCPDriver::kFullyValidatedValue ||
         validationLevel == SCPDriver::kMaybeValidNotCurrentValue)
@@ -1685,7 +2020,7 @@ BallotProtocol::setConfirmCommit(SCPBallot const& c, SCPBallot const& h)
 
     emitCurrentStateStatement();
 
-    mSlot.stopNomination();
+    updateLeaderTimer();
 
     mSlot.getSCPDriver().valueExternalized(mSlot.getSlotIndex(),
                                            mCommit->getBallot().value);
@@ -1931,6 +2266,11 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
         {
             mCommit = makeBallot(prep.nC, b.value);
         }
+        if (prep.nH)
+        {
+            // as when the node confirmed the ballot prepared
+            mValueOverride = mSlot.getSCPDriver().wrapValue(b.value);
+        }
         mPhase = SCP_PHASE_PREPARE;
     }
     break;
@@ -1942,6 +2282,7 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
         mPrepared = makeBallot(c.nPrepared, v);
         mHighBallot = makeBallot(c.nH, v);
         mCommit = makeBallot(c.nCommit, v);
+        mValueOverride = mSlot.getSCPDriver().wrapValue(v);
         mPhase = SCP_PHASE_CONFIRM;
     }
     break;
@@ -2174,6 +2515,12 @@ BallotProtocol::getJsonInfo()
     ret["heard"] = mHeardFromQuorum;
     ret["ballot"] = ballotToStr(mCurrentBallot);
     ret["phase"] = phaseNames[mPhase];
+    ret["round"] = mLeaderRound;
+    if (auto leader = mSlot.getSCPDriver().getRoundLeader(
+            mSlot.getSlotIndex(), std::max<uint32>(mLeaderRound, 1)))
+    {
+        ret["leader"] = mSlot.getSCPDriver().toShortString(*leader);
+    }
 
     ret["state"] = getLocalState();
     return ret;
@@ -2387,7 +2734,10 @@ BallotProtocol::checkHeardFromQuorum()
                 // if we transition from not heard -> heard, we start the timer
                 mSlot.getSCPDriver().ballotDidHearFromQuorum(
                     mSlot.getSlotIndex(), mCurrentBallot->getBallot());
-                if (mPhase != SCP_PHASE_EXTERNALIZE)
+                // A ballot behind the current round is one the node already
+                // gave up on: the leader timer runs instead.
+                if (mPhase != SCP_PHASE_EXTERNALIZE &&
+                    mCurrentBallot->getBallot().counter >= mLeaderRound)
                 {
                     startBallotProtocolTimer();
                 }

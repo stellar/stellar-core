@@ -51,13 +51,16 @@ class SCP
     // invokes the appropriate methods
     EnvelopeState receiveEnvelope(SCPEnvelopeWrapperPtr envelope);
 
-    // Start nomination for slotIndex, constructing a local value only if needed
-    // previousValue is the value from slotIndex-1
-    bool nominate(uint64 slotIndex, NominationValueSupplier const& makeValue,
-                  Value const& previousValue);
+    // Starts consensus on slotIndex for the local node (its trigger fired).
+    // There is no nomination phase: each round (ballot counter) has one leader
+    // given by SCPDriver::getRoundLeader, and nodes vote for the leader's
+    // ballot. `makeValue` is invoked only if the local node becomes the leader
+    // of a round and has no value to put forward.
+    bool startSlot(uint64 slotIndex, ProposalValueSupplier const& makeValue);
 
-    // stops nomination for a slot
-    void stopNomination(uint64 slotIndex);
+    // The round the local node is in for slotIndex (0 if it has not started
+    // the slot or does not know it).
+    uint32 getLeaderRound(uint64 slotIndex);
 
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(SCPQuorumSet const& qSet);
@@ -89,14 +92,6 @@ class SCP
     // index = 0 for returning information for the latest known slot.
     // Get a list of nodes from id's quorum set that are missing in consensus
     std::set<NodeID> getMissingNodes(NodeID const& id, uint64 index = 0);
-
-    // returns the current nomination leaders for the given slot
-    std::set<NodeID> getNominationLeaders(uint64 slotIndex);
-
-    // A read-only preview; does not create or modify a live SCP slot.
-    std::set<NodeID> predictNominationLeaders(uint64 slotIndex,
-                                              Value const& previousValue,
-                                              uint32_t rounds);
 
     // Purges all data relative to slots that fall outside the range
     // [minSlotIndex, maxSlotIndex]. Either bound may be nullopt to skip
@@ -148,8 +143,8 @@ class SCP
     // or nullptr if not found
     SCPEnvelope const* getLatestMessage(NodeID const& id);
 
-    bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                     SCPStatement const& newSt);
+    // returns true if newSt is newer than oldSt (same node, same slot)
+    bool isNewerStatement(SCPStatement const& oldSt, SCPStatement const& newSt);
 
     // returns messages that contributed to externalizing the slot
     // (or empty if the slot didn't externalize)

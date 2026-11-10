@@ -24,16 +24,9 @@ Slot::Slot(uint64 slotIndex, SCP& scp)
     : mSlotIndex(slotIndex)
     , mSCP(scp)
     , mBallotProtocol(*this)
-    , mNominationProtocol(*this)
     , mFullyValidated(scp.getLocalNode()->isValidator())
     , mGotVBlocking(false)
 {
-}
-
-ValueWrapperPtr const&
-Slot::getLatestCompositeCandidate()
-{
-    return mNominationProtocol.getLatestCompositeCandidate();
 }
 
 std::vector<SCPEnvelope>
@@ -42,13 +35,7 @@ Slot::getLatestMessagesSend() const
     std::vector<SCPEnvelope> res;
     if (mFullyValidated)
     {
-        SCPEnvelope const* e;
-        e = mNominationProtocol.getLastMessageSend();
-        if (e)
-        {
-            res.emplace_back(*e);
-        }
-        e = mBallotProtocol.getLastMessageSend();
+        SCPEnvelope const* e = mBallotProtocol.getLastMessageSend();
         if (e)
         {
             res.emplace_back(*e);
@@ -68,12 +55,11 @@ Slot::setStateFromEnvelope(SCPEnvelopeWrapperPtr env)
 
         if (e.statement.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
         {
-            mNominationProtocol.setStateFromEnvelope(env);
+            // Nomination no longer exists: ignore state saved by a build that
+            // still had it.
+            return;
         }
-        else
-        {
-            mBallotProtocol.setStateFromEnvelope(env);
-        }
+        mBallotProtocol.setStateFromEnvelope(env);
 
         if (!prev)
         {
@@ -91,53 +77,24 @@ void
 Slot::processCurrentState(std::function<bool(SCPEnvelope const&)> const& f,
                           bool forceSelf) const
 {
-    mNominationProtocol.processCurrentState(f, forceSelf) &&
-        mBallotProtocol.processCurrentState(f, forceSelf);
+    mBallotProtocol.processCurrentState(f, forceSelf);
 }
 
 SCPEnvelope const*
 Slot::getLatestMessage(NodeID const& id) const
 {
-    auto m = mBallotProtocol.getLatestMessage(id);
-    if (m == nullptr)
-    {
-        m = mNominationProtocol.getLatestMessage(id);
-    }
-    return m;
+    return mBallotProtocol.getLatestMessage(id);
 }
 
 bool
-Slot::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                  SCPStatement const& newSt)
+Slot::isNewerStatement(SCPStatement const& oldSt, SCPStatement const& newSt)
 {
-    bool oldNomination =
-        oldSt.pledges.type() == SCPStatementType::SCP_ST_NOMINATE;
-    bool newNomination =
-        newSt.pledges.type() == SCPStatementType::SCP_ST_NOMINATE;
-
-    if (oldNomination != newNomination)
+    if (oldSt.pledges.type() == SCPStatementType::SCP_ST_NOMINATE ||
+        newSt.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
     {
         return false;
     }
-
-    bool replace = false;
-    if (oldNomination)
-    {
-        if (NominationProtocol::isNewerStatement(oldSt.pledges.nominate(),
-                                                 newSt.pledges.nominate()))
-        {
-            replace = true;
-        }
-    }
-    else
-    {
-        if (BallotProtocol::isNewerStatement(oldSt, newSt))
-        {
-            replace = true;
-        }
-    }
-
-    return replace;
+    return BallotProtocol::isNewerStatement(oldSt, newSt);
 }
 
 std::vector<SCPEnvelope>
@@ -173,12 +130,11 @@ Slot::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 
         if (st.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
         {
-            res = mNominationProtocol.processEnvelope(envelope);
+            // There is no nomination phase: the round leader's ballot is the
+            // proposal. Nomination statements are dropped.
+            return SCP::EnvelopeState::INVALID;
         }
-        else
-        {
-            res = mBallotProtocol.processEnvelope(envelope, self);
-        }
+        res = mBallotProtocol.processEnvelope(envelope, self);
 
         if (!prev && res == SCP::VALID)
         {
@@ -212,12 +168,6 @@ Slot::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 }
 
 bool
-Slot::abandonBallot()
-{
-    return mBallotProtocol.abandonBallot(0);
-}
-
-bool
 Slot::bumpState(Value const& value, bool force)
 {
 
@@ -225,22 +175,15 @@ Slot::bumpState(Value const& value, bool force)
 }
 
 bool
-Slot::nominate(NominationValueSupplier const& makeValue,
-               Value const& previousValue, bool timedout)
+Slot::startLeaderRounds(ProposalValueSupplier const& makeValue)
 {
-    return mNominationProtocol.nominate(makeValue, previousValue, timedout);
+    return mBallotProtocol.startLeaderRounds(makeValue);
 }
 
-void
-Slot::stopNomination()
+uint32
+Slot::getLeaderRound() const
 {
-    mNominationProtocol.stopNomination();
-}
-
-std::set<NodeID>
-Slot::getNominationLeaders() const
-{
-    return mNominationProtocol.getLeaders();
+    return mBallotProtocol.getLeaderRound();
 }
 
 bool
@@ -300,7 +243,9 @@ Slot::getStatementValues(SCPStatement const& st)
     std::vector<Value> res;
     if (st.pledges.type() == SCP_ST_NOMINATE)
     {
-        res = NominationProtocol::getStatementValues(st);
+        auto const& nom = st.pledges.nominate();
+        res.insert(res.end(), nom.votes.begin(), nom.votes.end());
+        res.insert(res.end(), nom.accepted.begin(), nom.accepted.end());
     }
     else
     {
@@ -378,7 +323,6 @@ Slot::getJsonInfo(bool fullKeys)
     }
 
     ret["validated"] = mFullyValidated;
-    ret["nomination"] = mNominationProtocol.getJsonInfo();
     ret["ballotProtocol"] = mBallotProtocol.getJsonInfo();
 
     return ret;
@@ -387,12 +331,7 @@ Slot::getJsonInfo(bool fullKeys)
 SCP::QuorumInfoNodeState
 Slot::getState(NodeID const& node, bool selfAlreadyMovedOn)
 {
-    auto b = mBallotProtocol.getState(node, selfAlreadyMovedOn);
-    if (b != SCP::QuorumInfoNodeState::NO_INFO)
-    {
-        return b;
-    }
-    return mNominationProtocol.getState(node, selfAlreadyMovedOn);
+    return mBallotProtocol.getState(node, selfAlreadyMovedOn);
 }
 
 Json::Value

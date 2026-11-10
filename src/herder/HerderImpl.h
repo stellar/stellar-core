@@ -138,7 +138,7 @@ class HerderImpl : public Herder
     // still run through their production paths.
     std::function<std::vector<TransactionEnvelope>(size_t)>
         mGetTopTransactionsForTesting;
-    friend class EarlyNominationTestAccess;
+    friend class LeaderBuildTestAccess;
 
     std::optional<uint32_t> mMaxClassicTxSize;
     std::optional<uint32_t> mMaxTxSizeOverride;
@@ -162,7 +162,7 @@ class HerderImpl : public Herder
     // When set, this node nominates the tx set returned by this function
     // (given the LCL) instead of the one it builds.
     std::function<TxSetXDRFrameConstPtr(LedgerHeaderHistoryEntry const&)>
-        mNominatedTxSetOverride;
+        mProposedTxSetOverride;
 #endif
     std::vector<SCPEnvelope> getSCPStateForPeer(uint32 ledgerSeq) override;
 
@@ -195,8 +195,8 @@ class HerderImpl : public Herder
 
     uint32_t getMinLedgerSeqToRemember() const override;
 
-    bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                     SCPStatement const& newSt) override;
+    bool isNewerStatement(SCPStatement const& oldSt,
+                          SCPStatement const& newSt) override;
 
     uint32_t getMostRecentCheckpointSeq() override;
 
@@ -272,7 +272,7 @@ class HerderImpl : public Herder
     PreparedTxSet buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
     void prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
     void discardPreparedTxSet();
-    ValueWrapperPtr makeNominationValue(uint32_t ledgerSeq);
+    ValueWrapperPtr makeProposalValue(uint32_t ledgerSeq);
     // Whether a ledger closing on an LCL with this protocol uses a legacy
     // (non-generalized) tx set, which every validator builds locally.
     static bool buildsLegacyTxSet(uint32_t lclLedgerVersion);

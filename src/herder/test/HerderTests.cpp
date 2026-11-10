@@ -2675,23 +2675,15 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         return makeTxUpgradePair(herder, txSet, closeTime, emptyUpgradeSteps);
     };
     auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash qSetHash,
-                             uint64_t slotIndex, bool nomination) {
+                             uint64_t slotIndex) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
         auto envelope = SCPEnvelope{};
         envelope.statement.slotIndex = slotIndex;
-        if (nomination)
-        {
-            envelope.statement.pledges.type(SCP_ST_NOMINATE);
-            envelope.statement.pledges.nominate().votes.push_back(p.first);
-            envelope.statement.pledges.nominate().quorumSetHash = qSetHash;
-        }
-        else
-        {
-            envelope.statement.pledges.type(SCP_ST_PREPARE);
-            envelope.statement.pledges.prepare().ballot.value = p.first;
-            envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
-        }
+        envelope.statement.pledges.type(SCP_ST_PREPARE);
+        envelope.statement.pledges.prepare().ballot.counter = 1;
+        envelope.statement.pledges.prepare().ballot.value = p.first;
+        envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
         envelope.statement.nodeID = s.getPublicKey();
         herder.signEnvelope(s, envelope);
         return envelope;
@@ -2708,156 +2700,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         return makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{});
     };
 
-    SECTION("combineCandidates")
-    {
-        auto& herder = static_cast<HerderImpl&>(app->getHerder());
-
-        ValueWrapperPtrSet candidates;
-
-        auto addToCandidates = [&](TxPair const& p) {
-            auto envelope = makeEnvelope(
-                herder, p, {}, herder.trackingConsensusLedgerIndex() + 1, true);
-            REQUIRE(herder.recvSCPEnvelope(envelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(p.second->getContentsHash(), p.second));
-            auto v = herder.getHerderSCPDriver().wrapValue(p.first);
-            candidates.emplace(v);
-        };
-
-        struct CandidateSpec
-        {
-            int const n;
-            int const nbOps;
-            uint32 const feeMulti;
-            TimePoint const closeTime;
-            std::optional<uint32> const baseFeeIncrement;
-        };
-
-        std::vector<Hash> txSetHashes;
-        std::vector<size_t> txSetSizes;
-        std::vector<size_t> txSetOpSizes;
-        std::vector<TimePoint> closeTimes;
-        std::vector<decltype(lcl.header.baseFee)> baseFees;
-
-        auto addCandidateThenTest = [&](CandidateSpec const& spec) {
-            // Create a transaction set using the given parameters, combine
-            // it with the given closeTime and optionally a given base fee
-            // increment, and make it into a StellarValue to add to the list
-            // of candidates so far.  Keep track of the hashes and sizes and
-            // operation sizes of all the transaction sets, all of the close
-            // times, and all of the base fee upgrades that we've seen, so that
-            // we can compute the expected result of combining all the
-            // candidates so far.  (We're using base fees simply as one example
-            // of a type of upgrade, whose expected result is the maximum of all
-            // candidates'.)
-            auto [txSet, applicableTxSet] =
-                makeTransactions(spec.n, spec.nbOps, spec.feeMulti);
-            txSetHashes.push_back(txSet->getContentsHash());
-            txSetSizes.push_back(applicableTxSet->size(lcl.header));
-            txSetOpSizes.push_back(applicableTxSet->sizeOpTotal());
-            closeTimes.push_back(spec.closeTime);
-            if (spec.baseFeeIncrement)
-            {
-                auto const baseFee =
-                    lcl.header.baseFee + *spec.baseFeeIncrement;
-                baseFees.push_back(baseFee);
-                LedgerUpgrade ledgerUpgrade;
-                ledgerUpgrade.type(LEDGER_UPGRADE_BASE_FEE);
-                ledgerUpgrade.newBaseFee() = baseFee;
-                Value upgrade(xdr::xdr_to_opaque(ledgerUpgrade));
-                SVUpgrades upgrades;
-                upgrades.emplace_back(upgrade.begin(), upgrade.end());
-                addToCandidates(
-                    makeTxUpgradePair(herder, txSet, spec.closeTime, upgrades));
-            }
-            else
-            {
-                addToCandidates(makeTxPair(herder, txSet, spec.closeTime));
-            }
-
-            // Compute the expected transaction set, close time, and upgrade
-            // vector resulting from combining all the candidates so far.
-            auto const bestTxSetIndex = std::distance(
-                txSetSizes.begin(),
-                std::max_element(txSetSizes.begin(), txSetSizes.end()));
-            REQUIRE(txSetSizes.size() == closeTimes.size());
-            auto const expectedHash = txSetHashes[bestTxSetIndex];
-            auto const expectedCloseTime = closeTimes[bestTxSetIndex];
-            SVUpgrades expectedUpgradeVector;
-            if (!baseFees.empty())
-            {
-                LedgerUpgrade expectedLedgerUpgrade;
-                expectedLedgerUpgrade.type(LEDGER_UPGRADE_BASE_FEE);
-                expectedLedgerUpgrade.newBaseFee() =
-                    *std::max_element(baseFees.begin(), baseFees.end());
-                Value const expectedUpgradeValue(
-                    xdr::xdr_to_opaque(expectedLedgerUpgrade));
-                expectedUpgradeVector.emplace_back(expectedUpgradeValue.begin(),
-                                                   expectedUpgradeValue.end());
-            }
-
-            // Combine all the candidates seen so far, and extract the
-            // returned StellarValue.
-            ValueWrapperPtr v =
-                herder.getHerderSCPDriver().combineCandidates(1, candidates);
-            StellarValue sv;
-            xdr::xdr_from_opaque(v->getValue(), sv);
-
-            // Compare the returned StellarValue's contents with the
-            // expected ones that we computed above.
-            REQUIRE(isSignedStellarValue(sv));
-            REQUIRE(sv.txSetHash == expectedHash);
-            REQUIRE(sv.closeTime == expectedCloseTime);
-            REQUIRE(sv.upgrades == expectedUpgradeVector);
-        };
-
-        // Test some list of candidates, comparing the output of
-        // combineCandidates() and the one we compute at each step.
-
-        std::vector<CandidateSpec> const specs{
-            {0, 1, 100, 10, std::nullopt},
-            {10, 1, 100, 5, std::make_optional<uint32>(1)},
-            {5, 3, 100, 20, std::make_optional<uint32>(2)},
-            {7, 2, 5, 30, std::make_optional<uint32>(3)}};
-
-        std::for_each(specs.begin(), specs.end(), addCandidateThenTest);
-
-        auto const bestTxSetIndex = std::distance(
-            txSetSizes.begin(),
-            std::max_element(txSetSizes.begin(), txSetSizes.end()));
-        REQUIRE(txSetOpSizes[bestTxSetIndex] == expectedOps);
-
-        auto txSetL = makeTransactions(maxTxSetSize, 1, 101).first;
-        addToCandidates(makeTxPair(herder, txSetL, 20));
-        auto txSetL2 = makeTransactions(maxTxSetSize, 1, 1000).first;
-        addToCandidates(makeTxPair(herder, txSetL2, 20));
-        auto v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
-        StellarValue sv;
-        xdr::xdr_from_opaque(v->getValue(), sv);
-        REQUIRE(isSignedStellarValue(sv));
-        REQUIRE(sv.txSetHash == txSetL2->getContentsHash());
-
-        if (protocolVersionStartsFrom(protocolVersion,
-                                      MS_CLOSE_TIME_PROTOCOL_VERSION))
-        {
-            // Test that the winning candidate keeps its full ms close time
-            // along with the redundant whole-second close time.
-            auto txSetL3 = makeTransactions(maxTxSetSize, 1, 2000).first;
-            StellarValue msVal = herder.makeStellarValue(
-                txSetL3->getContentsHash(), makeConsensusTime(20, 7),
-                emptyUpgradeSteps, root->getSecretKey());
-            addToCandidates(TxPair{xdr::xdr_to_opaque(msVal), txSetL3});
-            auto v2 =
-                herder.getHerderSCPDriver().combineCandidates(1, candidates);
-            StellarValue sv2;
-            xdr::xdr_from_opaque(v2->getValue(), sv2);
-            REQUIRE(sv2.ext.v() == STELLAR_VALUE_SIGNED_MS);
-            REQUIRE(sv2.closeTime == 20);
-            REQUIRE(getConsensusTime(sv2).milliseconds() == 20007);
-            REQUIRE(sv2.txSetHash == txSetL3->getContentsHash());
-        }
-    }
-
     SECTION("validateValue signatures")
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -2869,7 +2711,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         {
             // make sure that txSet0 is loaded
             auto p = makeTxPair(herder, txSet0, ct);
-            auto envelope = makeEnvelope(herder, p, {}, seq, true);
+            auto envelope = makeEnvelope(herder, p, {}, seq);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(txSet0->getContentsHash(), txSet0));
@@ -2887,19 +2729,19 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         }
         SECTION("invalid")
         {
-            auto checkInvalid = [&](StellarValue const& sv, bool nomination) {
+            auto checkInvalid = [&](StellarValue const& sv, bool proposal) {
                 auto v = xdr::xdr_to_opaque(sv);
-                REQUIRE(scp.validateValue(seq, v, nomination) ==
+                REQUIRE(scp.validateValue(seq, v, proposal) ==
                         SCPDriver::kInvalidValue);
             };
 
-            auto testInvalidValue = [&](bool isNomination) {
+            auto testInvalidValue = [&](bool isProposal) {
                 SECTION("basic value")
                 {
                     auto basicVal =
                         StellarValue(txSet0->getContentsHash(), ct,
                                      emptyUpgradeSteps, STELLAR_VALUE_BASIC);
-                    checkInvalid(basicVal, isNomination);
+                    checkInvalid(basicVal, isProposal);
                 }
                 SECTION("signed value")
                 {
@@ -2911,28 +2753,28 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                     SECTION("missing signature")
                     {
                         getLcValueSignature(sv).signature.clear();
-                        checkInvalid(sv, isNomination);
+                        checkInvalid(sv, isProposal);
                     }
                     SECTION("wrong signature")
                     {
                         getLcValueSignature(sv).signature[0] ^= 1;
-                        checkInvalid(sv, isNomination);
+                        checkInvalid(sv, isProposal);
                     }
                     SECTION("wrong signature 2")
                     {
                         getLcValueSignature(sv).nodeID.ed25519()[0] ^= 1;
-                        checkInvalid(sv, isNomination);
+                        checkInvalid(sv, isProposal);
                     }
                 }
             };
 
-            SECTION("nomination")
+            SECTION("proposal")
             {
-                testInvalidValue(/* isNomination */ true);
+                testInvalidValue(/* isProposal */ true);
             }
             SECTION("ballot")
             {
-                testInvalidValue(/* isNomination */ false);
+                testInvalidValue(/* isProposal */ false);
             }
         }
 
@@ -2945,10 +2787,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                         SCPDriver::kInvalidValue);
                 REQUIRE(scp.validateValue(seq, v, false) ==
                         SCPDriver::kInvalidValue);
-
-                ValueWrapperPtr extracted;
-                REQUIRE_NOTHROW(extracted = scp.extractValidValue(seq, v));
-                REQUIRE(extracted == nullptr);
             };
 
             SECTION("signed value with empty-tx-set hash")
@@ -2985,13 +2823,13 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             // once the protocol allows them. This is the assertion that
             // catches an inverted check in deserializeAndValidateStellarValue.
             REQUIRE(scp.validateValue(seq, emptyTxSetValue,
-                                      /*nomination=*/false) ==
+                                      /*proposal=*/false) ==
                     (allowed ? SCPDriver::kFullyValidatedValue
                              : SCPDriver::kInvalidValue));
 
-            // Nomination path: empty-tx-set values are rejected by design.
+            // Proposal path: empty-tx-set values are rejected by design.
             REQUIRE(scp.validateValue(seq, emptyTxSetValue,
-                                      /*nomination=*/true) ==
+                                      /*proposal=*/true) ==
                     SCPDriver::kInvalidValue);
         }
     }
@@ -3048,7 +2886,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                         emptyUpgradeSteps, root->getSecretKey());
                     auto val = TxPair{xdr::xdr_to_opaque(sv), txSet};
                     auto const seq = herder.trackingConsensusLedgerIndex() + 1;
-                    auto envelope = makeEnvelope(herder, val, {}, seq, true);
+                    auto envelope = makeEnvelope(herder, val, {}, seq);
                     REQUIRE(herder.recvSCPEnvelope(envelope) ==
                             Herder::ENVELOPE_STATUS_FETCHING);
                     REQUIRE(herder.recvTxSet(txSet->getContentsHash(), txSet));
@@ -3122,7 +2960,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         // All hits during the whole SCP round. One of them is the validity
         // check that determines whether or not to replace the transaction set
         // with an empty one (CAP-0083).
-        uint64_t const expectedHits = 11;
+        uint64_t const expectedHits = 9;
         REQUIRE(cache.getCounters().mHits == expectedHits);
         // One miss from the initial makeTxSetFromTransactions
         REQUIRE(cache.getCounters().mMisses == 1);
@@ -3173,13 +3011,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         auto p2 = makeTxPair(herder, transactions1, 10);
         // use current + 1 to allow for any value (old values get filtered more)
         auto lseq = herder.trackingConsensusLedgerIndex() + 1;
-        auto saneEnvelopeQ1T1 =
-            makeEnvelope(herder, p1, saneQSet1Hash, lseq, true);
-        auto saneEnvelopeQ1T2 =
-            makeEnvelope(herder, p2, saneQSet1Hash, lseq, true);
-        auto saneEnvelopeQ2T1 =
-            makeEnvelope(herder, p1, saneQSet2Hash, lseq, true);
-        auto bigEnvelope = makeEnvelope(herder, p1, bigQSetHash, lseq, true);
+        auto saneEnvelopeQ1T1 = makeEnvelope(herder, p1, saneQSet1Hash, lseq);
+        auto saneEnvelopeQ1T2 = makeEnvelope(herder, p2, saneQSet1Hash, lseq);
+        auto saneEnvelopeQ2T1 = makeEnvelope(herder, p1, saneQSet2Hash, lseq);
+        auto bigEnvelope = makeEnvelope(herder, p1, bigQSetHash, lseq);
 
         TxSetXDRFrameConstPtr malformedTxSet;
         if (transactions1->isGeneralizedTxSet())
@@ -3204,7 +3039,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         }
         auto malformedTxSetPair = makeTxPair(herder, malformedTxSet, 10);
         auto malformedTxSetEnvelope =
-            makeEnvelope(herder, malformedTxSetPair, saneQSet1Hash, lseq, true);
+            makeEnvelope(herder, malformedTxSetPair, saneQSet1Hash, lseq);
 
         SECTION("return FETCHING until fetched")
         {
@@ -3357,7 +3192,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         {
             // make sure that txSet0 is loaded
             auto p = makeTxPair(herder, txSet0, ct);
-            auto envelope = makeEnvelope(herder, p, {}, seq, true);
+            auto envelope = makeEnvelope(herder, p, {}, seq);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(txSet0->getContentsHash(), txSet0));
@@ -3365,7 +3200,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
         auto check = [&](StellarValue const& sv, bool expectValid) {
             auto v = xdr::xdr_to_opaque(sv);
-            auto res = scp.validateValue(seq, v, /*nomination=*/true);
+            auto res = scp.validateValue(seq, v, /*proposal=*/true);
             if (expectValid)
             {
                 REQUIRE(res == SCPDriver::kFullyValidatedValue);
@@ -3428,14 +3263,14 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 REQUIRE(scp.validateValue(
                             pastSlot,
                             xdr::xdr_to_opaque(makeLegacySignedValue(ct)),
-                            /*nomination=*/false) ==
+                            /*proposal=*/false) ==
                         SCPDriver::kMaybeValidNotCurrentValue);
                 // Newer-than-externalized close time for an older slot:
                 // rejected
                 REQUIRE(scp.validateValue(
                             pastSlot,
                             xdr::xdr_to_opaque(makeLegacySignedValue(ct + 60)),
-                            /*nomination=*/false) == SCPDriver::kInvalidValue);
+                            /*proposal=*/false) == SCPDriver::kInvalidValue);
             }
             SECTION("legacy signed value rejected for future slots")
             {
@@ -3445,7 +3280,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 REQUIRE(scp.validateValue(
                             seq + 1,
                             xdr::xdr_to_opaque(makeLegacySignedValue(ct)),
-                            /*nomination=*/false) == SCPDriver::kInvalidValue);
+                            /*proposal=*/false) == SCPDriver::kInvalidValue);
             }
             SECTION("legacy empty-tx-set value rejected for ratifiable slots")
             {
@@ -3455,7 +3290,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 xdr::xdr_from_opaque(legacyEmpty, esv);
                 REQUIRE(esv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
                 REQUIRE(scp.validateValue(seq, legacyEmpty,
-                                          /*nomination=*/false) ==
+                                          /*proposal=*/false) ==
                         SCPDriver::kInvalidValue);
             }
             SECTION("closeTime inconsistent with closeTimeMs")
@@ -3576,7 +3411,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                                           rand_uniform<uint32_t>(1, 999)),
                         emptyUpgradeSteps, s);
                     auto val = TxPair{xdr::xdr_to_opaque(msv), txSet};
-                    auto envelope = makeEnvelope(herder, val, {}, zSeq, true);
+                    auto envelope = makeEnvelope(herder, val, {}, zSeq);
                     REQUIRE(herder.recvSCPEnvelope(envelope) ==
                             Herder::ENVELOPE_STATUS_FETCHING);
                     REQUIRE(herder.recvTxSet(txSet->getContentsHash(), txSet));
@@ -3673,7 +3508,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             // triggers catchup
             herder.lostSync();
             REQUIRE(scp.validateValue(seq + 1, xdr::xdr_to_opaque(msv),
-                                      /*nomination=*/false) ==
+                                      /*proposal=*/false) ==
                     SCPDriver::kMaybeValidNotCurrentValue);
         }
     }
@@ -3688,64 +3523,6 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
     SECTION("protocol current")
     {
         testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);
-    }
-}
-
-// Test combineCandidates handling of candidates where
-// previousLedgerHash != LCL.hash
-TEST_CASE("combineCandidates with mismatched previousLedgerHash candidate",
-          "[herder][bug]")
-{
-    Config cfg(getTestConfig());
-
-    VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
-    auto& herder = dynamic_cast<HerderImpl&>(app->getHerder());
-    auto& pe = herder.getPendingEnvelopes();
-    auto& driver = herder.getHerderSCPDriver();
-
-    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-    uint32_t const ver = lcl.header.ledgerVersion;
-    TimePoint const closeTime = lcl.header.scpValue.closeTime + 1;
-    uint64_t const slotIndex = lcl.header.ledgerSeq + 1;
-
-    // Two structurally-valid empty tx sets that differ only in
-    // previousLedgerHash.
-    auto goodTxSet = TxSetXDRFrame::makeEmpty(lcl.hash, ver); // matches LCL
-    auto badTxSet = TxSetXDRFrame::makeEmpty(sha256("not the LCL hash"),
-                                             ver); // mismatched
-
-    ValueWrapperPtrSet candidates;
-    // Register the tx set so combineCandidates' getTxSet() returns it, then add
-    // a candidate value referencing it.
-    auto addCandidate = [&](TxSetXDRFrameConstPtr const& txSet) {
-        pe.addTxSet(txSet->getContentsHash(), slotIndex, txSet);
-        StellarValue sv = herder.makeStellarValue(
-            txSet->getContentsHash(), makeConsensusTime(closeTime),
-            emptyUpgradeSteps, cfg.NODE_SEED);
-        candidates.emplace(driver.wrapValue(xdr::xdr_to_opaque(sv)));
-    };
-    auto combinedTxSetHash = [&]() {
-        ValueWrapperPtr result =
-            driver.combineCandidates(slotIndex, candidates);
-        StellarValue sv;
-        xdr::xdr_from_opaque(result->getValue(), sv);
-        return sv.txSetHash;
-    };
-
-    SECTION("prefer applicable candidate over mismatched candidate")
-    {
-        addCandidate(goodTxSet);
-        addCandidate(badTxSet);
-        REQUIRE(combinedTxSetHash() == goodTxSet->getContentsHash());
-    }
-
-    SECTION("all candidates have mismatched previousLedgerHash")
-    {
-        // If the *only* option is a candidate with a mismatched
-        // previousLedgerHash, choose it.
-        addCandidate(badTxSet);
-        REQUIRE(combinedTxSetHash() == badTxSet->getContentsHash());
     }
 }
 
@@ -4728,11 +4505,14 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     // A and B keep closing ledgers in real time while C is fed slot 2 by
     // hand. Use a longer close time so that C's slot-2 EXTERNALIZE reaches
-    // A and B before they close ledger 3.
+    // A and B before they close ledger 3. C is not connected, so it only has
+    // slot 2's (empty) transaction set once it built one itself, i.e. once it
+    // led a round: with three nodes that can take until round 3 (two leader
+    // timeouts, 3 s).
     auto confGen = [](int i) {
         auto cfg = getTestConfig(i);
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5000;
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 10000;
         return cfg;
     };
     auto simulation = std::make_shared<Simulation>(networkID, confGen);
@@ -4796,6 +4576,19 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
                 ++actualTypes[env.statement.pledges.type()];
             }
 
+            std::string actual;
+            for (auto const& [type, count] : actualTypes)
+            {
+                actual +=
+                    fmt::format("type {}: {}; ", static_cast<int>(type), count);
+            }
+            UNSCOPED_INFO("scphistory of ledger "
+                          << ledgerNum << " on "
+                          << node->getConfig().toShortString(
+                                 node->getConfig().NODE_SEED.getPublicKey())
+                          << ": " << actual << "(LCL "
+                          << node->getLedgerManager().getLastClosedLedgerNum()
+                          << ")");
             return actualTypes == expectedTypes;
         };
 
@@ -4829,13 +4622,29 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
     std::vector<SCPEnvelope> BEnvs = herderB.getSCP().getLatestMessagesSend(2);
 
     // Pass A and B's messages to C
+    auto const tFeedC = A->getClock().now();
+    UNSCOPED_INFO(
+        "feeding C: A LCL "
+        << A->getLedgerManager().getLastClosedLedgerNum() << ", C round "
+        << dynamic_cast<HerderImpl&>(C->getHerder()).getSCP().getLeaderRound(2)
+        << ", C sent "
+        << dynamic_cast<HerderImpl&>(C->getHerder())
+               .getSCP()
+               .getLatestMessagesSend(2)
+               .size());
     for (auto const& env : AEnvs)
     {
-        C->getHerder().recvSCPEnvelope(env);
+        auto st = C->getHerder().recvSCPEnvelope(env);
+        UNSCOPED_INFO("C status for A's message type "
+                      << static_cast<int>(env.statement.pledges.type()) << ": "
+                      << static_cast<int>(st));
     }
     for (auto const& env : BEnvs)
     {
-        C->getHerder().recvSCPEnvelope(env);
+        auto st = C->getHerder().recvSCPEnvelope(env);
+        UNSCOPED_INFO("C status for B's message type "
+                      << static_cast<int>(env.statement.pledges.type()) << ": "
+                      << static_cast<int>(st));
     }
 
     // Crank C until it is on ledger 2
@@ -4843,15 +4652,31 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
         [&]() { return C->getLedgerManager().getLastClosedLedgerNum() == 2; },
         4 * simulation->getExpectedLedgerCloseTime(), false);
 
+    UNSCOPED_INFO("C reached ledger 2 after "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(
+                         A->getClock().now() - tFeedC)
+                         .count()
+                  << " ms");
+
     // Get messages from C
     HerderImpl& herderC = dynamic_cast<HerderImpl&>(C->getHerder());
     std::vector<SCPEnvelope> CEnvs = herderC.getSCP().getLatestMessagesSend(2);
 
     // Pass C's messages to A and B
+    INFO("C sent " << CEnvs.size() << " message(s) for ledger 2; A at LCL "
+                   << A->getLedgerManager().getLastClosedLedgerNum()
+                   << ", B at LCL "
+                   << B->getLedgerManager().getLastClosedLedgerNum()
+                   << " when they are delivered");
     for (auto const& env : CEnvs)
     {
-        A->getHerder().recvSCPEnvelope(env);
-        B->getHerder().recvSCPEnvelope(env);
+        INFO("C message type "
+             << static_cast<int>(env.statement.pledges.type()));
+        auto const statusA = A->getHerder().recvSCPEnvelope(env);
+        auto const statusB = B->getHerder().recvSCPEnvelope(env);
+        UNSCOPED_INFO("delivery status A " << static_cast<int>(statusA)
+                                           << ", B "
+                                           << static_cast<int>(statusB));
     }
 
     // Crank A and B until they're on at least ledger 3
@@ -4880,1088 +4705,6 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
     // check ensures that C does not double count messages from ledger 2 when
     // closing ledger 3.
     REQUIRE(checkSCPHistoryEntries(C, 2, expectedTypes));
-}
-
-using Topology = std::pair<std::vector<SecretKey>, std::vector<ValidatorEntry>>;
-
-// Generate a Topology with a single org containing 3 validators of HIGH quality
-static Topology
-simpleThreeNode()
-{
-    // Generate validators
-    std::vector<SecretKey> sks;
-    std::vector<ValidatorEntry> validators;
-    int constexpr numValidators = 3;
-    for (int i = 0; i < numValidators; ++i)
-    {
-        SecretKey const& key =
-            sks.emplace_back(SecretKey::pseudoRandomForTesting());
-        ValidatorEntry& entry = validators.emplace_back();
-        entry.mName = fmt::format("validator-{}", i);
-        entry.mHomeDomain = "A";
-        entry.mQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
-        entry.mKey = key.getPublicKey();
-        entry.mHasHistory = false;
-    }
-    return {sks, validators};
-}
-
-// Generate a topology with 3 orgs of HIGH quality. Two orgs have 3 validators
-// and one org has 5 validators.
-static Topology
-unbalancedOrgs()
-{
-    // Generate validators
-    std::vector<SecretKey> sks;
-    std::vector<ValidatorEntry> validators;
-    int constexpr numValidators = 11;
-    for (int i = 0; i < numValidators; ++i)
-    {
-        // Orgs A and B have 3 validators each. Org C has 5 validators.
-        std::string org = "C";
-        if (i < 3)
-        {
-            org = "A";
-        }
-        else if (i < 6)
-        {
-            org = "B";
-        }
-
-        SecretKey const& key =
-            sks.emplace_back(SecretKey::pseudoRandomForTesting());
-        ValidatorEntry& entry = validators.emplace_back();
-        entry.mName = fmt::format("validator-{}", i);
-        entry.mHomeDomain = org;
-        entry.mQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
-        entry.mKey = key.getPublicKey();
-        entry.mHasHistory = false;
-    }
-    return {sks, validators};
-}
-
-// Generate a tier 1-like topology. This topology has 7 HIGH quality orgs, each
-// with 3 validators.
-static Topology
-tier1Like()
-{
-    std::vector<SecretKey> sks;
-    std::vector<ValidatorEntry> validators;
-    int constexpr numOrgs = 7;
-    int constexpr validatorsPerOrg = 3;
-
-    for (int i = 0; i < numOrgs; ++i)
-    {
-        std::string const org = fmt::format("org-{}", i);
-        for (int j = 0; j < validatorsPerOrg; ++j)
-        {
-            SecretKey const& key =
-                sks.emplace_back(SecretKey::pseudoRandomForTesting());
-            ValidatorEntry& entry = validators.emplace_back();
-            entry.mName = fmt::format("validator-{}-{}", i, j);
-            entry.mHomeDomain = org;
-            entry.mQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
-            entry.mKey = key.getPublicKey();
-            entry.mHasHistory = false;
-        }
-    }
-
-    return {sks, validators};
-}
-
-// Generate a slightly unbalanced topology. This topology has 7 HIGH quality
-// orgs, 6 of which have 3 validators and 1 has 5 validators.
-static Topology
-slightlyUnbalancedOrgs()
-{
-    std::vector<SecretKey> sks;
-    std::vector<ValidatorEntry> validators;
-    int constexpr numOrgs = 7;
-
-    for (int i = 0; i < numOrgs; ++i)
-    {
-        std::string const org = fmt::format("org-{}", i);
-        int const numValidators = i == 0 ? 5 : 3;
-        for (int j = 0; j < numValidators; ++j)
-        {
-            SecretKey const& key =
-                sks.emplace_back(SecretKey::pseudoRandomForTesting());
-            ValidatorEntry& entry = validators.emplace_back();
-            entry.mName = fmt::format("validator-{}-{}", i, j);
-            entry.mHomeDomain = org;
-            entry.mQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
-            entry.mKey = key.getPublicKey();
-            entry.mHasHistory = false;
-        }
-    }
-
-    return {sks, validators};
-}
-
-// Returns a random quality up to `maxQuality`
-static ValidatorQuality
-randomQuality(ValidatorQuality maxQuality)
-{
-    return static_cast<ValidatorQuality>(rand_uniform<int>(
-        static_cast<int>(ValidatorQuality::VALIDATOR_LOW_QUALITY),
-        static_cast<int>(maxQuality)));
-}
-
-// Returns the minimum size an org of quality `q` can have
-static int constexpr minOrgSize(ValidatorQuality q)
-{
-    switch (q)
-    {
-    case ValidatorQuality::VALIDATOR_LOW_QUALITY:
-    case ValidatorQuality::VALIDATOR_MED_QUALITY:
-        return 1;
-    case ValidatorQuality::VALIDATOR_HIGH_QUALITY:
-    case ValidatorQuality::VALIDATOR_CRITICAL_QUALITY:
-        return 3;
-    }
-}
-
-// Generate a random topology with up to `maxValidators` validators. Ensures at
-// least one org is HIGH quality.
-static Topology
-randomTopology(int maxValidators)
-{
-    int const numValidators = rand_uniform<int>(3, maxValidators);
-    int constexpr minCritOrgSize =
-        minOrgSize(ValidatorQuality::VALIDATOR_CRITICAL_QUALITY);
-
-    // Generate validators
-    int curOrg = 0;
-    int curOrgSize = 0;
-    ValidatorQuality curQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
-    std::vector<SecretKey> sks(numValidators);
-    std::vector<ValidatorEntry> validators(numValidators);
-    for (int i = 0; i < numValidators; ++i)
-    {
-        if (curOrgSize >= minOrgSize(curQuality) && rand_flip())
-        {
-            // Start new org
-            ++curOrg;
-            curOrgSize = 0;
-            curQuality =
-                randomQuality(numValidators - i >= minCritOrgSize
-                                  ? ValidatorQuality::VALIDATOR_CRITICAL_QUALITY
-                                  : ValidatorQuality::VALIDATOR_MED_QUALITY);
-        }
-
-        std::string const org = fmt::format("org-{}", curOrg);
-        SecretKey const& key = sks.at(i) = SecretKey::pseudoRandomForTesting();
-
-        ValidatorEntry& entry = validators.at(i);
-        entry.mName = fmt::format("validator-{}", i);
-        entry.mHomeDomain = org;
-        entry.mQuality = curQuality;
-        entry.mKey = key.getPublicKey();
-        entry.mHasHistory = false;
-
-        ++curOrgSize;
-    }
-
-    return {sks, validators};
-}
-
-// Expected weight of an org with quality `orgQuality` in a topology with a max
-// quality of `maxQuality` and or quality counts of `orgQualityCounts`. This
-// function normalizes the weight so that the highest quality has a weight of
-// `1`.
-static double
-expectedOrgNormalizedWeight(
-    std::unordered_map<ValidatorQuality, uint64> const& orgQualityCounts,
-    ValidatorQuality maxQuality, ValidatorQuality orgQuality)
-{
-    if (orgQuality == ValidatorQuality::VALIDATOR_LOW_QUALITY)
-    {
-        return 0.0;
-    }
-
-    double normalizedWeight = 1.0;
-
-    // For each quality level higher than `orgQuality`, divide the weight by 10
-    // times the number of orgs at that quality level
-    for (int q = static_cast<int>(maxQuality); q > static_cast<int>(orgQuality);
-         --q)
-    {
-        normalizedWeight /=
-            10 * orgQualityCounts.at(static_cast<ValidatorQuality>(q));
-    }
-    return normalizedWeight;
-}
-
-// Expected weight of a validator in an org of size `orgSize` with quality
-// `orgQuality`.  `maxQuality` is the maximum quality present in the
-// configuration. This function normalizes the weight so that the highest
-// organization-level quality has a weight of `1`.
-static double
-expectedNormalizedWeight(
-    std::unordered_map<ValidatorQuality, uint64> const& orgQualityCounts,
-    ValidatorQuality maxQuality, ValidatorQuality orgQuality, int orgSize)
-{
-    return expectedOrgNormalizedWeight(orgQualityCounts, maxQuality,
-                                       orgQuality) /
-           orgSize;
-}
-
-// Collect information about the qualities and sizes of organizations in
-// `validators` and store them in `maxQuality`, `orgQualities`, `orgSizes`, and
-// `orgQualityCounts`.
-static void
-collectOrgInfo(ValidatorQuality& maxQuality,
-               std::unordered_map<std::string, ValidatorQuality>& orgQualities,
-               std::unordered_map<std::string, int>& orgSizes,
-               std::unordered_map<ValidatorQuality, uint64>& orgQualityCounts,
-               std::vector<ValidatorEntry> const& validators)
-{
-    maxQuality = ValidatorQuality::VALIDATOR_LOW_QUALITY;
-    ValidatorQuality minQuality = ValidatorQuality::VALIDATOR_CRITICAL_QUALITY;
-    std::unordered_map<ValidatorQuality, std::unordered_set<std::string>>
-        orgsByQuality;
-    for (ValidatorEntry const& validator : validators)
-    {
-        maxQuality = std::max(maxQuality, validator.mQuality);
-        minQuality = std::min(minQuality, validator.mQuality);
-        orgQualities[validator.mHomeDomain] = validator.mQuality;
-        ++orgSizes[validator.mHomeDomain];
-        orgsByQuality[validator.mQuality].insert(validator.mHomeDomain);
-    }
-
-    // Count orgs at each quality level
-    for (int q = static_cast<int>(minQuality);
-         q <= static_cast<int>(maxQuality); ++q)
-    {
-        orgQualityCounts[static_cast<ValidatorQuality>(q)] =
-            orgsByQuality[static_cast<ValidatorQuality>(q)].size();
-        if (q != static_cast<int>(minQuality))
-        {
-            // Add virtual org covering next lower quality level
-            ++orgQualityCounts[static_cast<ValidatorQuality>(q)];
-        }
-    }
-}
-
-// Given a list of validators, test that the weights of the validators herder
-// reports are correct
-static void
-testWeights(std::vector<ValidatorEntry> const& validators)
-{
-    Config cfg = getTestConfig(0);
-
-    cfg.generateQuorumSetForTesting(validators);
-
-    VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
-
-    // Collect info about orgs
-    ValidatorQuality maxQuality;
-    std::unordered_map<std::string, ValidatorQuality> orgQualities;
-    std::unordered_map<std::string, int> orgSizes;
-    std::unordered_map<ValidatorQuality, uint64> orgQualityCounts;
-    collectOrgInfo(maxQuality, orgQualities, orgSizes, orgQualityCounts,
-                   validators);
-
-    // Check per-validator weights
-    HerderImpl& herder = dynamic_cast<HerderImpl&>(app->getHerder());
-    std::unordered_map<std::string, double> normalizedOrgWeights;
-    for (ValidatorEntry const& validator : validators)
-    {
-        uint64_t weight = herder.getHerderSCPDriver().getNodeWeight(
-            validator.mKey, cfg.QUORUM_SET, false);
-        double normalizedWeight =
-            static_cast<double>(weight) / static_cast<double>(UINT64_MAX);
-        normalizedOrgWeights[validator.mHomeDomain] += normalizedWeight;
-
-        std::string const& org = validator.mHomeDomain;
-        REQUIRE_THAT(normalizedWeight,
-                     Catch::Matchers::WithinAbs(
-                         expectedNormalizedWeight(orgQualityCounts, maxQuality,
-                                                  orgQualities.at(org),
-                                                  orgSizes.at(org)),
-                         0.0001));
-    }
-
-    // Check per-org weights
-    for (auto const& [org, weight] : normalizedOrgWeights)
-    {
-        REQUIRE_THAT(
-            weight, Catch::Matchers::WithinAbs(
-                        expectedOrgNormalizedWeight(
-                            orgQualityCounts, maxQuality, orgQualities.at(org)),
-                        0.0001));
-    }
-}
-
-// Test that HerderSCPDriver::getNodeWeight produces weights that result in a
-// fair distribution of nomination wins.
-TEST_CASE("getNodeWeight", "[herder]")
-{
-    SECTION("3 tier 1 validators, 1 org")
-    {
-        testWeights(simpleThreeNode().second);
-    }
-
-    SECTION("11 tier 1 validators, 3 unbalanced orgs")
-    {
-        testWeights(unbalancedOrgs().second);
-    }
-
-    SECTION("Tier1-like topology")
-    {
-        testWeights(tier1Like().second);
-    }
-
-    SECTION("Tier1-like topology with a single unbalanced org")
-    {
-        testWeights(slightlyUnbalancedOrgs().second);
-    }
-
-    SECTION("Random topology")
-    {
-        // Test weights for 1000 random topologies of up to 200 validators
-        for (int i = 0; i < 1000; ++i)
-        {
-            testWeights(randomTopology(200).second);
-        }
-    }
-}
-
-static Value
-getRandomValue()
-{
-    auto h = sha256(fmt::format("value {}", getGlobalRandomEngine()()));
-    return xdr::xdr_to_opaque(h);
-}
-
-// A test version of NominationProtocol that exposes `updateRoundLeaders`
-class TestNominationProtocol : public NominationProtocol
-{
-  public:
-    TestNominationProtocol(Slot& slot) : NominationProtocol(slot)
-    {
-    }
-
-    std::set<NodeID> const&
-    updateRoundLeadersForTesting(
-        std::optional<Value> const& previousValue = std::nullopt)
-    {
-        mPreviousValue = previousValue.value_or(getRandomValue());
-        updateRoundLeaders();
-        return getLeaders();
-    }
-
-    // Detect fast timeouts by examining the final round number
-    bool
-    fastTimedOut() const
-    {
-        return mRoundNumber > 0;
-    }
-};
-
-// Test nomination over `numLedgers` slots. After running, check that the win
-// percentages of each node and org are within 5% of the expected win
-// percentages.
-static void
-testWinProbabilities(std::vector<SecretKey> const& sks,
-                     std::vector<ValidatorEntry> const& validators,
-                     int const numLedgers)
-{
-    REQUIRE(sks.size() == validators.size());
-
-    // Collect info about orgs
-    ValidatorQuality maxQuality;
-    std::unordered_map<std::string, ValidatorQuality> orgQualities;
-    std::unordered_map<std::string, int> orgSizes;
-    std::unordered_map<ValidatorQuality, uint64> orgQualityCounts;
-    collectOrgInfo(maxQuality, orgQualities, orgSizes, orgQualityCounts,
-                   validators);
-
-    // Generate a config
-    Config cfg = getTestConfig();
-    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-    cfg.generateQuorumSetForTesting(validators);
-    cfg.NODE_SEED = sks.front();
-
-    // Create an application
-    VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
-
-    // Run for `numLedgers` slots, recording the number of times each
-    // node wins nomination
-    UnorderedMap<NodeID, int> publishCounts;
-    HerderImpl& herder = dynamic_cast<HerderImpl&>(app->getHerder());
-    SCP& scp = herder.getSCP();
-    int fastTimeouts = 0;
-    for (int i = 0; i < numLedgers; ++i)
-    {
-        auto s = std::make_shared<Slot>(i, scp);
-        TestNominationProtocol np(*s);
-
-        std::set<NodeID> const& leaders = np.updateRoundLeadersForTesting();
-        REQUIRE(leaders.size() == 1);
-        for (NodeID const& leader : leaders)
-        {
-            ++publishCounts[leader];
-        }
-
-        if (np.fastTimedOut())
-        {
-            ++fastTimeouts;
-        }
-    }
-
-    CLOG_INFO(Herder, "Fast Timeouts: {} ({}%)", fastTimeouts,
-              fastTimeouts * 100.0 / numLedgers);
-
-    // Compute total expected normalized weight across all nodes
-    double totalNormalizedWeight = 0.0;
-    for (ValidatorEntry const& validator : validators)
-    {
-        totalNormalizedWeight +=
-            expectedNormalizedWeight(orgQualityCounts, maxQuality,
-                                     orgQualities.at(validator.mHomeDomain),
-                                     orgSizes.at(validator.mHomeDomain));
-    }
-
-    // Check validator win rates
-    std::map<std::string, int> orgPublishCounts;
-    for (ValidatorEntry const& validator : validators)
-    {
-        NodeID const& nodeID = validator.mKey;
-        int publishCount = publishCounts[nodeID];
-
-        // Compute and report node's win rate
-        double winRate = static_cast<double>(publishCount) / numLedgers;
-        CLOG_INFO(Herder, "Node {} win rate: {} (published {} ledgers)",
-                  cfg.toShortString(nodeID), winRate, publishCount);
-
-        // Expected win rate is `weight / total weight`
-        double expectedWinRate =
-            expectedNormalizedWeight(orgQualityCounts, maxQuality,
-                                     orgQualities.at(validator.mHomeDomain),
-                                     orgSizes.at(validator.mHomeDomain)) /
-            totalNormalizedWeight;
-
-        // Check that actual win rate is within .05 of expected win
-        // rate.
-        REQUIRE_THAT(winRate,
-                     Catch::Matchers::WithinAbs(expectedWinRate, 0.05));
-
-        // Record org publish counts for the next set of checks
-        orgPublishCounts[validator.mHomeDomain] += publishCount;
-    }
-
-    // Check org win rates
-    for (auto const& [org, count] : orgPublishCounts)
-    {
-        // Compute and report org's win rate
-        double winRate = static_cast<double>(count) / numLedgers;
-        CLOG_INFO(Herder, "Org {} win rate: {} (published {} ledgers)", org,
-                  winRate, count);
-
-        // Expected win rate is `weight / total weight`
-        double expectedWinRate =
-            expectedOrgNormalizedWeight(orgQualityCounts, maxQuality,
-                                        orgQualities.at(org)) /
-            totalNormalizedWeight;
-
-        // Check that actual win rate is within .05 of expected win
-        // rate.
-        REQUIRE_THAT(winRate,
-                     Catch::Matchers::WithinAbs(expectedWinRate, 0.05));
-    }
-}
-
-// Test that the nomination algorithm produces a fair distribution of ledger
-// publishers.
-TEST_CASE("Fair nomination win rates", "[herder]")
-{
-    SECTION("3 tier 1 validators, 1 org")
-    {
-        auto [sks, validators] = simpleThreeNode();
-        testWinProbabilities(sks, validators, 10000);
-    }
-
-    SECTION("11 tier 1 validators, 3 unbalanced orgs")
-    {
-        auto [sks, validators] = unbalancedOrgs();
-        testWinProbabilities(sks, validators, 10000);
-    }
-
-    SECTION("Tier 1-like topology")
-    {
-        auto [sks, validators] = tier1Like();
-        testWinProbabilities(sks, validators, 10000);
-    }
-
-    SECTION("Tier 1-like topology with a single unbalanced org")
-    {
-        auto [sks, validators] = slightlyUnbalancedOrgs();
-        testWinProbabilities(sks, validators, 10000);
-    }
-
-    SECTION("Random topology")
-    {
-        for (int i = 0; i < 10; ++i)
-        {
-            auto [sks, validators] = randomTopology(50);
-            testWinProbabilities(sks, validators, 10000);
-        }
-    }
-}
-
-namespace
-{
-// Returns a new `Topology` with the last org in `t` replaced with a new org
-// with 3 validators. Requires that the last org in `t` have 3 validators and be
-// contiguous at the back of the validators vecto.
-Topology
-replaceOneOrg(Topology const& t)
-{
-    Topology t2(t); // Copy the topology
-    auto& [sks, validators] = t2;
-    REQUIRE(sks.size() == validators.size());
-
-    // Give the org a unique name
-    std::string const orgName = "org-replaced";
-
-    // Double check that the new org name is unique
-    for (ValidatorEntry const& v : validators)
-    {
-        REQUIRE(v.mHomeDomain != orgName);
-    }
-
-    // Remove the last org
-    constexpr int validatorsPerOrg = 3;
-    sks.resize(sks.size() - validatorsPerOrg);
-    validators.resize(validators.size() - validatorsPerOrg);
-
-    // Add new org with 3 validators
-    int constexpr numValidators = 3;
-    for (int j = 0; j < numValidators; ++j)
-    {
-        SecretKey const& key =
-            sks.emplace_back(SecretKey::pseudoRandomForTesting());
-        ValidatorEntry& entry = validators.emplace_back();
-        entry.mName = fmt::format("validator-replaced-{}", j);
-        entry.mHomeDomain = orgName;
-        entry.mQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
-        entry.mKey = key.getPublicKey();
-        entry.mHasHistory = false;
-    }
-
-    return {sks, validators};
-}
-
-// Add `orgsToAdd` new orgs to the topology `t`. Each org will have 3
-// validators.
-Topology
-addOrgs(int orgsToAdd, Topology const& t)
-{
-    Topology t2(t); // Copy the topology
-    auto& [sks, validators] = t2;
-    REQUIRE(sks.size() == validators.size());
-
-    // Generate new orgs
-    for (int i = 0; i < orgsToAdd; ++i)
-    {
-        std::string const org = fmt::format("new-org-{}", i);
-        int constexpr numValidators = 3;
-        for (int j = 0; j < numValidators; ++j)
-        {
-            SecretKey const& key =
-                sks.emplace_back(SecretKey::pseudoRandomForTesting());
-            ValidatorEntry& entry = validators.emplace_back();
-            entry.mName = fmt::format("new-validator-{}-{}", i, j);
-            entry.mHomeDomain = org;
-            entry.mQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
-            entry.mKey = key.getPublicKey();
-            entry.mHasHistory = false;
-        }
-    }
-    return t2;
-}
-
-// Returns `true` if the set intersection of `leaders1` and `leaders2` is not
-// empty.
-bool
-leadersIntersect(std::set<NodeID> const& leaders1,
-                 std::set<NodeID> const& leaders2)
-{
-    std::vector<NodeID> intersection;
-    std::set_intersection(leaders1.begin(), leaders1.end(), leaders2.begin(),
-                          leaders2.end(), std::back_inserter(intersection));
-    return !intersection.empty();
-}
-
-// Given two quorum sets consisting of validators in `validators1` and
-// `validators2`, this function returns the probability that the two quorum sets
-// will agree on a leader in the first round of nomination.
-double
-computeExpectedFirstRoundAgreementProbability(
-    std::vector<ValidatorEntry> const& validators1,
-    std::vector<ValidatorEntry> const& validators2)
-{
-    // Gather orgs
-    std::set<std::string> orgs1;
-    std::transform(validators1.begin(), validators1.end(),
-                   std::inserter(orgs1, orgs1.end()),
-                   [](ValidatorEntry const& v) { return v.mHomeDomain; });
-    std::set<std::string> orgs2;
-    std::transform(validators2.begin(), validators2.end(),
-                   std::inserter(orgs2, orgs2.end()),
-                   [](ValidatorEntry const& v) { return v.mHomeDomain; });
-
-    // Compute overlap
-    std::vector<std::string> sharedOrgs;
-    std::set_intersection(orgs1.begin(), orgs1.end(), orgs2.begin(),
-                          orgs2.end(), std::back_inserter(sharedOrgs));
-
-    // Probability of agreement in first round is (orgs overlapping / orgs1) *
-    // (orgs overlapping / orgs2). That's the probability that the two sides
-    // will pick any overlapping org. The algorithm guarantees that if they pick
-    // overlapping validator, they'll pick the same validator.
-    double overlap = static_cast<double>(sharedOrgs.size());
-    return overlap / orgs1.size() * overlap / orgs2.size();
-}
-
-// Test that the nomination algorithm behaves as expected when the two quorum
-// sets `qs1` and `qs2` are not equivalent. This function requires that both
-// quorum sets overlap, and contain only a single quality level of validators.
-// Runs simulation for `numLedgers` slots.
-// NOTE: This test counts any failure to agree on a leader as a timeout. In
-// practice, it's possible that one side of the split is large enough to proceed
-// without the other side. In this case, the larger side might not experience a
-// timeout and "drag" the other side through consensus with it. However, this
-// test aims to analyze the worst case scenario where the two sides are fairly
-// balanced and real-world networking conditions are in place (some nodes
-// lagging, etc), such that disagreement always results in a timeout.
-void
-testAsymmetricTimeouts(Topology const& qs1, Topology const& qs2,
-                       int const numLedgers)
-{
-    auto const& [sks1, validators1] = qs1;
-    auto const& [sks2, validators2] = qs2;
-
-    REQUIRE(sks1.size() == validators1.size());
-    REQUIRE(sks2.size() == validators2.size());
-
-    // Generate configs and nodes representing one validator with each quorum
-    // set
-    std::vector<VirtualClock> clocks(2);
-    std::vector<Application::pointer> apps;
-    for (int i = 0; i < 2; ++i)
-    {
-        Config cfg = getTestConfig(i);
-        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        cfg.generateQuorumSetForTesting(i == 0 ? validators1 : validators2);
-        cfg.NODE_SEED = i == 0 ? sks1.back() : sks2.back();
-
-        auto app = apps.emplace_back(createTestApplication(clocks.at(i), cfg));
-    }
-
-    // Run the nomination algorithm for `numLedgers` slots. Simulate timeouts by
-    // re-running slots that don't agree on a leader until their leader
-    // elections overlap. Record the number of timeouts it takes for the two
-    // quorum sets to agree on a leader in `timeouts`, which is effectively a
-    // mapping from number of timeouts to the number of ledgers that experienced
-    // that many timeouts.
-    std::vector<int> timeouts(std::max(validators1.size(), validators2.size()));
-    for (int i = 0; i < numLedgers; ++i)
-    {
-        Value const v = getRandomValue();
-        SCP& scp1 = dynamic_cast<HerderImpl&>(apps.at(0)->getHerder()).getSCP();
-        SCP& scp2 = dynamic_cast<HerderImpl&>(apps.at(1)->getHerder()).getSCP();
-        auto s1 = std::make_shared<Slot>(i, scp1);
-        auto s2 = std::make_shared<Slot>(i, scp2);
-
-        TestNominationProtocol np1(*s1);
-        TestNominationProtocol np2(*s2);
-
-        for (int j = 0; j < timeouts.size(); ++j)
-        {
-            std::set<NodeID> const& leaders1 =
-                np1.updateRoundLeadersForTesting(v);
-            std::set<NodeID> const& leaders2 =
-                np2.updateRoundLeadersForTesting(v);
-            REQUIRE(leaders1.size() == j + 1);
-            REQUIRE(leaders2.size() == j + 1);
-
-            if (leadersIntersect(leaders1, leaders2))
-            {
-                // Agreed on a leader! Record the number of timeouts resulted.
-                ++timeouts.at(j);
-                break;
-            }
-        }
-
-        // If leaders don't intersect after running through the loop then the
-        // two quorum sets have no overlap and the test is broken.
-        REQUIRE(leadersIntersect(np1.getLeaders(), np2.getLeaders()));
-    }
-
-    // For the first round, we can easily compute the expected agreement
-    // probability. For subsequent rounds, we check only that the success rate
-    // increases over time (modulo some small epsilon).
-    double expectedSuccessRate =
-        computeExpectedFirstRoundAgreementProbability(validators1, validators2);
-
-    // Allow for some small decrease in success rate from the theoretical value.
-    // We're working with probabilistic simulation here so we can't be too
-    // strict or the test will be flaky.
-    double constexpr epsilon = 0.1;
-
-    // There's not enough data in the tail of the distribution to allow us to
-    // assert that the success rate is what's expected. To avoid sporadic test
-    // failures, we cut off `tailCutoffPoint` of the tail of the distribution
-    // for the purposes of asserting test values. However, the test will still
-    // log those success rates for manual examination.
-    double constexpr tailCutoffPoint = 0.05;
-
-    int numLedgersRemaining = numLedgers;
-    for (int i = 0; i < timeouts.size(); ++i)
-    {
-        int const numTimeouts = timeouts.at(i);
-        if (numTimeouts == 0)
-        {
-            // Avoid cluttering output
-            continue;
-        }
-
-        CLOG_INFO(Herder, "Ledgers with {} timeouts: {} ({}%)", i, numTimeouts,
-                  static_cast<double>(numTimeouts) * 100 / numLedgers);
-
-        if (numLedgersRemaining > numLedgers * tailCutoffPoint)
-        {
-            // Check that success rate increases over time. Allow some epsilon
-            // decrease because this is a probabilistic simulation. Also stop
-            // checking when we're at the last `tailCutoffPoint` timeouts as the
-            // data is too sparse to be useful.
-            double successRate =
-                static_cast<double>(timeouts.at(i)) / numLedgersRemaining;
-            REQUIRE(successRate > expectedSuccessRate - epsilon);
-
-            // Take max of success rate and previous success rate to avoid
-            // accidentally accepting a declining success rate due to episilon.
-            expectedSuccessRate = std::max(successRate, expectedSuccessRate);
-            numLedgersRemaining -= numTimeouts;
-        }
-    }
-}
-} // namespace
-
-// Test timeouts with asymmetric quorums. This test serves two purposes:
-// 1. It contains assertions checking for moderate (10%) deviations from the
-//    expected behavior of the nomination algorithm. These should detect any
-//    major issues/regressions with the algorithm.
-// 2. It logs the distributions of timeouts for manual inspection. This is
-//    useful for understanding the behavior of the algorithm and for testing
-//    specific scenarios one might be interested in (e.g., if tier 1 disagrees
-//    on one org's presence in tier 1, what is the impact on nomination
-//    timeouts?).
-// NOTE: This provides a worst-case analysis of timeouts. See the NOTE on
-// `testAsymmetricTimeouts` for more details.
-TEST_CASE("Asymmetric quorum timeouts", "[herder]")
-{
-    // Number of slots to run for
-    int constexpr numLedgers = 20000;
-
-    SECTION("Tier 1-like topology with replaced org")
-    {
-        auto t = tier1Like();
-        testAsymmetricTimeouts(t, replaceOneOrg(t), numLedgers);
-    }
-
-    SECTION("Tier 1-like topology with 1 added org")
-    {
-        auto t = tier1Like();
-        testAsymmetricTimeouts(t, addOrgs(1, t), numLedgers);
-    }
-
-    SECTION("Tier 1-like topology with 3 added orgs")
-    {
-        auto t = tier1Like();
-        testAsymmetricTimeouts(t, addOrgs(3, t), numLedgers);
-    }
-}
-
-// Test that the nomination algorithm behaves as expected when a random
-// `numUnresponsive` set of nodes in `qs` are unresponsive.  Runs simulation for
-// `numLedgers` slots.
-static void
-testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
-                         int const numLedgers)
-{
-    auto const& [sks, validators] = qs;
-    REQUIRE(sks.size() == validators.size());
-    REQUIRE(numUnresponsive < validators.size());
-
-    // extract and shuffle node ids. Choose `numUnresponsive` nodes to be the
-    // unresponsive nodes.
-    std::vector<NodeID> nodeIDs;
-    std::transform(validators.begin(), validators.end(),
-                   std::back_inserter(nodeIDs),
-                   [](ValidatorEntry const& v) { return v.mKey; });
-    stellar::shuffle(nodeIDs.begin(), nodeIDs.end(), getGlobalRandomEngine());
-    std::set<NodeID> unresponsive(nodeIDs.begin(),
-                                  nodeIDs.begin() + numUnresponsive);
-
-    // Collect info about orgs
-    ValidatorQuality maxQuality;
-    std::unordered_map<std::string, ValidatorQuality> orgQualities;
-    std::unordered_map<std::string, int> orgSizes;
-    std::unordered_map<ValidatorQuality, uint64> orgQualityCounts;
-    collectOrgInfo(maxQuality, orgQualities, orgSizes, orgQualityCounts,
-                   validators);
-
-    // Compute total weight of all validators, as well as the total weight of
-    // unresponsive validators
-    double totalWeight = 0.0;
-    double unresponsiveWeight = 0.0;
-    for (ValidatorEntry const& validator : validators)
-    {
-        double normalizedWeight =
-            expectedNormalizedWeight(orgQualityCounts, maxQuality,
-                                     orgQualities.at(validator.mHomeDomain),
-                                     orgSizes.at(validator.mHomeDomain));
-        totalWeight += normalizedWeight;
-        if (unresponsive.count(validator.mKey))
-        {
-            unresponsiveWeight += normalizedWeight;
-        }
-    }
-
-    // Compute the average weight of an unresponsive node
-    double avgUnresponsiveWeight = unresponsiveWeight / numUnresponsive;
-
-    // Compute expected number of ledgers experiencing `n` timeouts where `n` is
-    // the index of the `timeouts` vector. This vector is a mapping from number
-    // of timeouts to expected number of ledgers experiencing that number of
-    // timeouts.
-    std::vector<int> expectedTimeouts(numUnresponsive + 1);
-    double remainingWeight = totalWeight;
-    int remainingUnresponsive = numUnresponsive;
-    int remainingLedgers = numLedgers;
-    for (int i = 0; i < expectedTimeouts.size(); ++i)
-    {
-        double timeoutProb =
-            (avgUnresponsiveWeight * remainingUnresponsive) / remainingWeight;
-        // To get expected number of ledgers experiencing `i` timeouts, we take
-        // the probability a timeout does not occur and multiply it by the
-        // number of remaining ledgers.
-        int expectedLedgers = (1 - timeoutProb) * remainingLedgers;
-        expectedTimeouts.at(i) = expectedLedgers;
-
-        // Remaining ledgers decreases by expected number of ledgers
-        // experiencing `i` timeouts
-        remainingLedgers -= expectedLedgers;
-
-        // For `i+1` timeouts to occur, an unresponsive node must be chosen.
-        // Therefore, deduct the average weight of an unresponsive node from the
-        // total weight left in the network.
-        remainingWeight -= avgUnresponsiveWeight;
-        --remainingUnresponsive;
-    }
-
-    // Generate a config
-    Config cfg = getTestConfig();
-    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-    cfg.generateQuorumSetForTesting(validators);
-    cfg.NODE_SEED = sks.front();
-
-    // Create an application
-    VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
-
-    // Run for `numLedgers` slots, recording the number of times each slot timed
-    // out due to unresponsive nodes before successfully electing a responsive
-    // leader.
-    SCP& scp = dynamic_cast<HerderImpl&>(app->getHerder()).getSCP();
-    std::vector<int> timeouts(numUnresponsive + 1);
-    for (int i = 0; i < numLedgers; ++i)
-    {
-        Value const v = getRandomValue();
-        auto s = std::make_shared<Slot>(i, scp);
-
-        TestNominationProtocol np(*s);
-        for (int i = 0; i < timeouts.size(); ++i)
-        {
-            std::set<NodeID> const& leaders =
-                np.updateRoundLeadersForTesting(v);
-            // If leaders is a subset of unresponsive, then a timeout occurs.
-            if (!std::includes(unresponsive.begin(), unresponsive.end(),
-                               leaders.begin(), leaders.end()))
-            {
-                ++timeouts.at(i);
-                break;
-            }
-        }
-    }
-
-    // Allow for some small multiplicative increase in timeouts from the
-    // theoretical value.  We're working with probabilistic simulation here so
-    // we can't be too strict or the test will be flaky.
-    double constexpr epsilon = 1.1;
-
-    // There's not enough data in the tail of the distribution to allow us to
-    // assert that the timeout values are what's expected. To avoid sporadic
-    // test failures, we cut off `tailCutoffPoint` of the tail of the
-    // distribution for the purposes of asserting test values. However, the test
-    // will still log those values for manual examination.
-    double constexpr tailCutoffPoint = 0.05;
-
-    // Analyze timeouts
-    int numLedgersRemaining = numLedgers;
-    for (int i = 0; i < timeouts.size(); ++i)
-    {
-        int const numTimeouts = timeouts.at(i);
-        int const expectedNumTimeouts = expectedTimeouts.at(i);
-
-        if (numLedgersRemaining > numLedgers * tailCutoffPoint)
-        {
-            // Check that timeouts are less than epsilon times the expected
-            // value. Also stop checking when we're at the last
-            // `tailCutoffPoint` timeouts as the data is too sparse to be
-            // useful.
-            REQUIRE(numTimeouts < expectedNumTimeouts * epsilon);
-        }
-        CLOG_INFO(Herder, "Ledgers with {} timeouts: {} ({}%)", i, numTimeouts,
-                  numTimeouts * 100.0 / numLedgers);
-        numLedgersRemaining -= numTimeouts;
-    }
-}
-
-// Test timeouts for a tier 1-like topology with 1-5 unresponsive nodes. This
-// test serves two purposes:
-// 1. It contains assertions checking for moderate (10%) deviations from the
-//    expected behavior of the nomination algorithm. These should detect any
-//    major issues/regressions with the algorithm.
-// 2. It logs the distributions of timeouts for manual inspection. This is
-//    useful for understanding the behavior of the algorithm and for testing
-//    specific scenarios one might be interested in (e.g., if 3 tier 1 nodes
-//    are heavily lagging, what is the impact on nomination timeouts?).
-TEST_CASE("Unresponsive quorum timeouts", "[herder]")
-{
-    // Number of slots to run for
-    int constexpr numLedgers = 20000;
-
-    auto t = tier1Like();
-    for (int i = 1; i <= 5; ++i)
-    {
-        CLOG_INFO(Herder, "Simulating nomination with {} unresponsive nodes",
-                  i);
-        testUnresponsiveTimeouts(t, i, numLedgers);
-    }
-}
-
-TEST_CASE("nomination timeouts with partial upgrade arming",
-          "[herder][acceptance]")
-{
-    // Configure simulation to use automatic quorum set configuration so that it
-    // runs with the application-specific leader election algorithm, which does
-    // not introduce its own timeouts.
-    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    Simulation::pointer simulation =
-        Topologies::separateAllHighQuality(16, networkID, [&](int i) {
-            return getTestConfig(i, Config::TESTDB_DEFAULT);
-        });
-    simulation->fullyConnectAllPending();
-    simulation->startAllNodes();
-    auto nodes = simulation->getNodes();
-    REQUIRE(nodes.size() == 16);
-
-    // Let the network run for a few ledgers normally first
-    auto const expectedLedgerCloseTime =
-        simulation->getExpectedLedgerCloseTime();
-    simulation->crankUntil(
-        [&]() { return simulation->haveAllExternalized(5, 1); },
-        10 * expectedLedgerCloseTime, false);
-
-    // Create an upgrade to arm on a subset of nodes.
-    Upgrades::UpgradeParameters scheduledUpgrades;
-    auto lclCloseTime =
-        VirtualClock::from_time_t(nodes[0]
-                                      ->getLedgerManager()
-                                      .getLastClosedLedgerHeader()
-                                      .header.scpValue.closeTime);
-
-    // Set upgrade time to now so it's active immediately
-    scheduledUpgrades.mUpgradeTime = lclCloseTime;
-
-    // Upgrade the base fee by a small amount
-    auto const currentFee = nodes[0]->getLedgerManager().getLastTxFee();
-    scheduledUpgrades.mBaseFee = currentFee + 100;
-
-    // Limit max timeouts per slot to 1
-    constexpr uint32_t maxTimeouts = 1;
-    scheduledUpgrades.mNominationTimeoutLimit = maxTimeouts;
-
-    // Reduce upgrade window to 4 minutes
-    constexpr std::chrono::minutes upgradeWindow(4);
-    scheduledUpgrades.mExpirationMinutes = upgradeWindow;
-
-    // Number of ledgers to check timeouts during
-    constexpr int ledgersToRun = 20;
-
-    // Maximum total timeout duration for the test. Worst case is that each slot
-    // experiences 1 timeout, which adds 1 second each.
-    constexpr auto maxTotalTimeoutDuration = std::chrono::seconds(ledgersToRun);
-
-    // Ensure upgrade window is set properly so that the upgrade doesn't expire
-    // during the `ledgersToRun` time period
-    REQUIRE(upgradeWindow >
-            expectedLedgerCloseTime * ledgersToRun + maxTotalTimeoutDuration);
-
-    // Arm upgrades on 10 nodes (just 1 shy of a quorum)
-    for (size_t i = 0; i < 10; ++i)
-    {
-        nodes[i]->getHerder().setUpgrades(scheduledUpgrades);
-    }
-
-    // Track initial ledger number
-    auto const startLedger =
-        nodes[0]->getLedgerManager().getLastClosedLedgerNum();
-
-    // Run for `ledgersToRun` more ledgers with mixed upgrade state
-    auto& herder = dynamic_cast<HerderImpl&>(nodes[0]->getHerder());
-    HerderSCPDriver const& driver = herder.getHerderSCPDriver();
-    for (int i = 1; i <= ledgersToRun; ++i)
-    {
-        uint32_t const ledger = startLedger + i;
-        simulation->crankUntil(
-            [&]() { return simulation->haveAllExternalized(ledger, 1); },
-            expectedLedgerCloseTime * 2, false);
-
-        // Should see at most `maxTimeouts` per slot, depending on the round
-        // leaders.
-        std::optional<int64_t> timeouts = driver.getNominationTimeouts(ledger);
-        REQUIRE(timeouts.has_value());
-        REQUIRE(timeouts.value() <= maxTimeouts);
-    }
-
-    // Helper to check whether upgrade is still active by comparing with
-    // `scheduledUpgrades`
-    std::string const upgradeJson = scheduledUpgrades.toJson();
-    auto const upgradeIsActive = [&]() {
-        return herder.getUpgrades().getParameters().toJson() == upgradeJson;
-    };
-
-    // Verify upgrade is still active
-    REQUIRE(upgradeIsActive());
-
-    // Verify that upgrade expires properly after the window
-    simulation->crankUntil(std::not_fn(upgradeIsActive), upgradeWindow, false);
-
-    // Ensure the changed fields are all reset
-    auto const& upgradeParams = herder.getUpgrades().getParameters();
-    REQUIRE(!upgradeParams.mBaseFee.has_value());
-    REQUIRE(!upgradeParams.mNominationTimeoutLimit.has_value());
-    REQUIRE(!upgradeParams.mExpirationMinutes.has_value());
-
-    // Verify the upgrade did not go through
-    REQUIRE(nodes[0]->getLedgerManager().getLastTxFee() == currentFee);
 }
 
 TEST_CASE("late joining node reaches consensus", "[herder]")
@@ -6100,7 +4843,7 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
         });
 }
 
-// One of four validators nominates a non-canonical empty tx set (a tx set
+// One of four validators proposes a non-canonical empty tx set (a tx set
 // without transactions that isn't encoded as `TxSetXDRFrame::makeEmpty`,
 // which history can't replay) on every ledger. Before the protocol gate the
 // network externalizes it, after the gate it's rejected as invalid.
@@ -6132,8 +4875,7 @@ TEST_CASE("network does not externalize non-canonical empty tx set",
         auto simulation = Topologies::core(
             4, 0.75, sha256(getTestConfig().NETWORK_PASSPHRASE), makeConfig);
         auto nodes = simulation->getNodes();
-        static_cast<HerderImpl&>(nodes[0]->getHerder())
-            .mNominatedTxSetOverride =
+        static_cast<HerderImpl&>(nodes[0]->getHerder()).mProposedTxSetOverride =
             [&](LedgerHeaderHistoryEntry const& lcl) {
                 return makeNonCanonicalEmptyTxSet(lcl.hash);
             };
@@ -6169,8 +4911,11 @@ TEST_CASE("network does not externalize non-canonical empty tx set",
         }
         else
         {
+            // Honest nodes do not vote for the bad proposal. There is no
+            // nomination to carry it into their ballots (where it used to be
+            // replaced with an empty-tx-set value): the round times out and
+            // the next leader's value closes the ledger.
             REQUIRE(externalized == 0);
-            REQUIRE(replaced > 0);
         }
     };
 
@@ -6197,7 +4942,7 @@ TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
         auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
         cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
         cfg.TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds{0};
-        cfg.TESTING_NOMINATE_RANDOM_VALUES = true;
+        cfg.TESTING_PROPOSE_RANDOM_VALUES = true;
         return cfg;
     });
 
@@ -6301,7 +5046,7 @@ TEST_CASE("SCP state restore with missing tx set", "[herder]")
 
     // The restored value's tx set is missing and nothing is fetching it, but
     // the value is still structurally valid
-    REQUIRE(driver.validateValue(slot, value, /*nomination*/ false) ==
+    REQUIRE(driver.validateValue(slot, value, /*proposal*/ false) ==
             SCPDriver::kStructurallyValidValue);
 
     // The peer's view of the slot: it timed out waiting for the missing tx
@@ -6372,11 +5117,10 @@ triggerTimerProtocolSupported()
 }
 
 // Four top-tier validators over TCP on the real clock, with a 1s artificial
-// apply delay and a configurable nomination-emit delay so we can actually see
-// the impact of the two different timers.
+// apply delay.
 static Simulation::pointer
 makeTriggerTimerSimulation(
-    bool forcePrepareStartTimer, std::chrono::milliseconds nominationEmitDelay,
+    bool forcePrepareStartTimer,
     std::chrono::milliseconds driftClockOffset =
         std::chrono::milliseconds::zero(),
     std::optional<uint32_t> startingProtocol = std::nullopt)
@@ -6391,8 +5135,6 @@ makeTriggerTimerSimulation(
                 forcePrepareStartTimer;
             cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                 std::chrono::milliseconds(1000);
-            cfg.ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING =
-                nominationEmitDelay;
             // Remember enough SCP slots that the tests can attribute every
             // externalized value in their measurement windows to its
             // proposer.
@@ -6469,7 +5211,6 @@ TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
         int64_t driftedNodeFallbacks{0};
         int64_t maxOtherNodeFallbacks{0};
         int64_t driftedLedSlots{0};
-        bool sawNominationTimeout{false};
     };
 
     auto fallbackCount = [](Application::pointer const& app) {
@@ -6487,11 +5228,10 @@ TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
 
     auto runSimulation =
         [&](bool forcePrepareStartTimer,
-            std::chrono::milliseconds nominationEmitDelay,
             std::chrono::milliseconds triggerClockOffset =
                 std::chrono::milliseconds::zero()) -> RunResult {
-        auto simulation = makeTriggerTimerSimulation(
-            forcePrepareStartTimer, nominationEmitDelay, triggerClockOffset);
+        auto simulation = makeTriggerTimerSimulation(forcePrepareStartTimer,
+                                                     triggerClockOffset);
         auto nodes = simulation->getNodes();
 
         std::vector<int64_t> fallbackCounts;
@@ -6523,18 +5263,6 @@ TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
             {
                 result.maxOtherNodeFallbacks =
                     std::max(result.maxOtherNodeFallbacks, delta);
-            }
-
-            auto const& driver =
-                dynamic_cast<HerderImpl&>(nodes[i]->getHerder())
-                    .getHerderSCPDriver();
-            for (uint32_t ledger = startLedger + 1; ledger <= targetLedger;
-                 ++ledger)
-            {
-                auto timeouts = driver.getNominationTimeouts(ledger);
-                result.sawNominationTimeout =
-                    result.sawNominationTimeout ||
-                    (timeouts.has_value() && timeouts.value() > 0);
             }
         }
 
@@ -6580,13 +5308,10 @@ TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
         return result;
     };
 
-    // New timer is faster without drift.
+    // Without drift the new timer never falls back. (There is no nomination
+    // phase whose duration would separate the two anchors any more.)
     {
-        auto const nominationDelay = std::chrono::milliseconds(1000);
-        auto const oldTimer = runSimulation(true, nominationDelay);
-        auto const newTimer = runSimulation(false, nominationDelay);
-
-        REQUIRE(newTimer.elapsed < oldTimer.elapsed);
+        auto const newTimer = runSimulation(false);
         REQUIRE(newTimer.totalFallbacks == 0);
     }
 
@@ -6594,8 +5319,7 @@ TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
 
     // One node drifting ahead falls back.
     {
-        auto const nodeAhead = runSimulation(
-            false, std::chrono::milliseconds::zero(), driftOffset);
+        auto const nodeAhead = runSimulation(false, driftOffset);
         REQUIRE(nodeAhead.driftedNodeFallbacks >=
                 LEDGERS_TO_RUN - nodeAhead.driftedLedSlots - FALLBACK_SLACK);
 
@@ -6607,8 +5331,7 @@ TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
 
     // One node drifting behind falls back.
     {
-        auto const nodeBehind = runSimulation(
-            false, std::chrono::milliseconds::zero(), -driftOffset);
+        auto const nodeBehind = runSimulation(false, -driftOffset);
         REQUIRE(nodeBehind.driftedNodeFallbacks >=
                 LEDGERS_TO_RUN - nodeBehind.driftedLedSlots - FALLBACK_SLACK);
 
@@ -6617,122 +5340,11 @@ TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
         REQUIRE(nodeBehind.maxOtherNodeFallbacks <=
                 nodeBehind.driftedLedSlots + FALLBACK_SLACK);
     }
-
-    // Long nomination does not cause timer fallback
-    {
-        auto const nominationDelay = std::chrono::milliseconds(5000);
-        auto const slowNomination = runSimulation(false, nominationDelay);
-        REQUIRE(slowNomination.sawNominationTimeout);
-        REQUIRE(slowNomination.totalFallbacks == 0);
-    }
-}
-
-TEST_CASE("trigger timer switches anchor at protocol 28 upgrade",
-          "[herder][upgrades][!hide]")
-{
-    if (!triggerTimerProtocolSupported())
-    {
-        return;
-    }
-
-    auto const upgradeVersion =
-        static_cast<uint32_t>(CONSENSUS_CLOSE_TIME_TRIGGER_PROTOCOL_VERSION);
-
-    // With a delayed nomination emit, the prepare-start timer paces ledgers
-    // at roughly expectedClose + nominationEmitDelay (nomination happens
-    // before the anchor point), while the consensus-close-time timer absorbs
-    // the nomination delay and paces at expectedClose. This delta helps us
-    // measure the timer change after the upgrade.
-    constexpr uint32_t LEDGERS_TO_MEASURE = 8;
-    auto const nominationEmitDelay = std::chrono::milliseconds(1000);
-
-    struct RunResult
-    {
-        std::chrono::milliseconds preUpgrade;
-        std::chrono::milliseconds postUpgrade;
-    };
-
-    auto runSimulation = [&](bool forcePrepareStartTimer) -> RunResult {
-        // Start the network one protocol before the trigger-timer switch.
-        auto simulation = makeTriggerTimerSimulation(
-            forcePrepareStartTimer, nominationEmitDelay,
-            std::chrono::milliseconds::zero(), upgradeVersion - 1);
-        auto nodes = simulation->getNodes();
-        auto const expectedClose = simulation->getExpectedLedgerCloseTime();
-
-        auto lclVersion = [](Application::pointer const& node) {
-            return node->getLedgerManager()
-                .getLastClosedLedgerHeader()
-                .header.ledgerVersion;
-        };
-
-        // Measure the cadence on the pre-28 protocol.
-        simulation->crankUntil(
-            [&]() { return simulation->haveAllExternalized(3, 1); },
-            10 * expectedClose, false);
-        auto const preUpgrade = closeLedgers(simulation, LEDGERS_TO_MEASURE);
-        for (auto const& node : nodes)
-        {
-            REQUIRE(lclVersion(node) == upgradeVersion - 1);
-        }
-
-        // Upgrade to protocol 28
-        Upgrades::UpgradeParameters scheduledUpgrades;
-        scheduledUpgrades.mUpgradeTime =
-            VirtualClock::from_time_t(nodes[0]
-                                          ->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header.scpValue.closeTime);
-        scheduledUpgrades.mProtocolVersion = upgradeVersion;
-        for (auto const& node : nodes)
-        {
-            node->getHerder().setUpgrades(scheduledUpgrades);
-        }
-
-        // Crank until every node has closed the upgrade ledger, then one
-        // more ledger so the measured window is fully post-upgrade.
-        simulation->crankUntil(
-            [&]() {
-                return std::all_of(nodes.begin(), nodes.end(),
-                                   [&](Application::pointer const& node) {
-                                       return lclVersion(node) ==
-                                              upgradeVersion;
-                                   });
-            },
-            10 * expectedClose, false);
-        closeLedgers(simulation, 1);
-
-        auto const postUpgrade = closeLedgers(simulation, LEDGERS_TO_MEASURE);
-        for (auto const& node : nodes)
-        {
-            REQUIRE(lclVersion(node) == upgradeVersion);
-        }
-
-        return {preUpgrade, postUpgrade};
-    };
-
-    // Expected cadence saving is nominationEmitDelay per ledger; splitting
-    // pass/fail at half of it tolerates scheduling noise in both directions.
-    auto const cadenceMargin = LEDGERS_TO_MEASURE * nominationEmitDelay / 2;
-
-    // Crossing the boundary switches to the consensus-close-time anchor:
-    // post-upgrade ledgers close significantly faster.
-    {
-        auto const result = runSimulation(false);
-        REQUIRE(result.postUpgrade + cadenceMargin < result.preUpgrade);
-    }
-
-    // The override flag keeps the prepare-start anchor after the upgrade, so
-    // the cadence does not improve.
-    {
-        auto const result = runSimulation(true);
-        REQUIRE(result.postUpgrade + cadenceMargin > result.preUpgrade);
-    }
 }
 
 namespace stellar
 {
-class EarlyNominationTestAccess
+class LeaderBuildTestAccess
 {
   public:
     static VirtualClock::time_point
@@ -6843,13 +5455,12 @@ class EarlyNominationTestAccess
                 SecretKey::fromSeed(sha256(fmt::format("absent-peer-{}", i)))
                     .getPublicKey()};
             scp.updateLocalQuorumSet(qset);
-            if (scp.predictNominationLeaders(
-                       lcl.header.ledgerSeq + 1,
-                       xdr::xdr_to_opaque(lcl.header.scpValue), 1)
-                    .count(scp.getLocalNodeID()))
+            herder.mPendingEnvelopes.addSCPQuorumSet(
+                scp.getLocalNode()->getQuorumSetHash(), qset);
+            herder.mPendingEnvelopes.forceRebuildQuorum();
+            if (herder.getHerderSCPDriver().isLocalNodeRoundLeader(
+                    lcl.header.ledgerSeq + 1, 1))
             {
-                herder.mPendingEnvelopes.addSCPQuorumSet(
-                    scp.getLocalNode()->getQuorumSetHash(), qset);
                 return;
             }
         }
@@ -6858,7 +5469,7 @@ class EarlyNominationTestAccess
 };
 }
 
-TEST_CASE("trigger fallback credits elapsed time through nomination",
+TEST_CASE("trigger fallback credits elapsed time up to the first ballot",
           "[herder][trigger-construction]")
 {
     using namespace std::chrono;
@@ -6872,23 +5483,23 @@ TEST_CASE("trigger fallback credits elapsed time through nomination",
         int expectedWaitMs;
         int expectedFallbacks;
     };
-    auto scenario =
-        GENERATE(Scenario{350, 1900, 2100, 0, true, 0, 0},
-                 Scenario{350, 1900, 2100, 4000, true, 1800, 1},
-                 Scenario{350, 1900, 2100, -4000, true, 1800, 1},
-                 Scenario{350, 1900, 4100, 0, true, 0, 1},
-                 Scenario{350, 1900, 2100, 0, false, 1800, 1},
-                 Scenario{350, 1500, 1700, 0, true, 300, 0},
-                 // A slow first round need not execute a timeout callback
-                 // before entering ballot. Its elapsed time is still real.
-                 Scenario{100, 2000, 2250, 0, true, 0, 0},
-                 // Followers need no construction, but still wait on peers.
-                 Scenario{0, 2250, 2450, 0, true, 0, 0},
-                 // Delayed timer callbacks must not hide elapsed time.
-                 Scenario{100, 6500, 6700, 0, true, 0, 0},
-                 // Long nomination does not excuse arbitrary clock drift.
-                 Scenario{100, 6500, 6700, 10000, true, 1800, 1},
-                 Scenario{100, 6500, 6700, -10000, true, 1800, 1});
+    auto scenario = GENERATE(
+        Scenario{350, 1900, 2100, 0, true, 0, 0},
+        Scenario{350, 1900, 2100, 4000, true, 1800, 1},
+        Scenario{350, 1900, 2100, -4000, true, 1800, 1},
+        Scenario{350, 1900, 4100, 0, true, 0, 1},
+        Scenario{350, 1900, 2100, 0, false, 1800, 1},
+        Scenario{350, 1500, 1700, 0, true, 300, 0},
+        // A slow first round need not execute a timeout callback
+        // before entering ballot. Its elapsed time is still real.
+        Scenario{100, 2000, 2250, 0, true, 0, 0},
+        // Followers need no construction, but still wait on peers.
+        Scenario{0, 2250, 2450, 0, true, 0, 0},
+        // Delayed timer callbacks must not hide elapsed time.
+        Scenario{100, 6500, 6700, 0, true, 0, 0},
+        // A long wait for a proposal does not excuse arbitrary clock drift.
+        Scenario{100, 6500, 6700, 10000, true, 1800, 1},
+        Scenario{100, 6500, 6700, -10000, true, 1800, 1});
     CAPTURE(scenario.buildMs, scenario.closeMs, scenario.clockOffsetMs,
             scenario.recordTrigger);
     VirtualClock clock;
@@ -6907,15 +5518,14 @@ TEST_CASE("trigger fallback credits elapsed time through nomination",
     herder.setTrackingSCPState(slot, value, true);
     if (scenario.recordTrigger)
     {
-        driver.recordNominationTrigger(slot);
+        driver.recordTrigger(slot);
     }
     clock.setCurrentVirtualTime(origin + milliseconds(scenario.buildMs));
-    driver.recordSCPEvent(slot, true);
     clock.setCurrentVirtualTime(origin + milliseconds(scenario.ballotMs));
-    driver.recordSCPEvent(slot, false);
+    driver.recordBallotStart(slot);
     clock.setCurrentVirtualTime(origin + milliseconds(scenario.closeMs));
     clock.setSystemTimeOffset(milliseconds(scenario.clockOffsetMs));
-    REQUIRE(driver.getNominationTimeouts(slot).value() == 0);
+    REQUIRE(driver.getLeaderTimeouts(slot).value() == 0);
     REQUIRE(driver.getTriggerToBallotDuration(slot) ==
             milliseconds(scenario.recordTrigger ? scenario.ballotMs : 0));
     REQUIRE(driver.getTriggerToBallotDuration(slot + 1) ==
@@ -6926,7 +5536,7 @@ TEST_CASE("trigger fallback credits elapsed time through nomination",
     auto const before = fallback.count();
     auto deadline = std::max(
         clock.now(),
-        EarlyNominationTestAccess::triggerAnchor(herder, slot) + seconds(2));
+        LeaderBuildTestAccess::triggerAnchor(herder, slot) + seconds(2));
     REQUIRE(duration_cast<milliseconds>(deadline - clock.now()).count() ==
             scenario.expectedWaitMs);
     REQUIRE(fallback.count() - before == scenario.expectedFallbacks);
@@ -6946,7 +5556,7 @@ TEST_CASE("trigger work is recorded by the proposal path",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
-    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
+    LeaderBuildTestAccess::selectLocalFirstLeader(herder);
     auto& driver = herder.getHerderSCPDriver();
     auto const slot = app->getLedgerManager().getLastClosedLedgerNum() + 1;
     herder.mGetTopTransactionsForTesting = [&](size_t) {
@@ -6957,19 +5567,16 @@ TEST_CASE("trigger work is recorded by the proposal path",
         return std::vector<TransactionEnvelope>{};
     };
     herder.triggerNextLedger(slot, true);
-    // Until ballot starts there is no completed interval to credit.
-    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds::zero());
-    clock.setCurrentVirtualTime(clock.now() + milliseconds(100));
-    driver.recordSCPEvent(slot, false);
-    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(500));
+    // The round leader proposes straight into the ballot protocol: the
+    // interval ends when its own build does.
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(400));
     clock.setCurrentVirtualTime(clock.now() + seconds(1));
-    driver.recordNominationTrigger(slot);
-    driver.recordSCPEvent(slot, true);
-    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(500));
+    driver.recordTrigger(slot);
+    REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(400));
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
-TEST_CASE("skipped nomination does not start the trigger interval",
+TEST_CASE("skipped trigger does not start the trigger interval",
           "[herder][trigger-construction]")
 {
     using namespace std::chrono;
@@ -6977,7 +5584,7 @@ TEST_CASE("skipped nomination does not start the trigger interval",
     auto cfg = getTestConfig();
     cfg.HTTP_PORT = 0;
     cfg.MANUAL_CLOSE = true;
-    // A second validator keeps our own nomination from externalizing.
+    // A second validator keeps our own proposal from externalizing.
     cfg.QUORUM_SET.threshold = 2;
     cfg.QUORUM_SET.validators = {
         cfg.NODE_SEED.getPublicKey(),
@@ -6996,7 +5603,7 @@ TEST_CASE("skipped nomination does not start the trigger interval",
     clock.setSystemTimeOffset(-(Herder::MAX_TIME_SLIP_SECONDS + seconds(10)));
 
     // Counts proposal constructions, which happen only for triggers that go
-    // on to nominate.
+    // on to start the slot.
     int builds = 0;
     herder.mGetTopTransactionsForTesting = [&](size_t) {
         ++builds;
@@ -7009,7 +5616,7 @@ TEST_CASE("skipped nomination does not start the trigger interval",
     // Peers move the slot into ballot while we wait. None of that waiting is
     // trigger-to-ballot work.
     clock.setCurrentVirtualTime(clock.now() + milliseconds(700));
-    driver.recordSCPEvent(slot, false);
+    driver.recordBallotStart(slot);
     REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds::zero());
 
     // With the clock back in sync, the same path builds a proposal and its
@@ -7020,7 +5627,7 @@ TEST_CASE("skipped nomination does not start the trigger interval",
     herder.triggerNextLedger(nextSlot, true);
     REQUIRE(builds == 1);
     clock.setCurrentVirtualTime(clock.now() + milliseconds(300));
-    driver.recordSCPEvent(nextSlot, false);
+    driver.recordBallotStart(nextSlot);
     REQUIRE(driver.getTriggerToBallotDuration(nextSlot) == milliseconds(300));
     herder.mGetTopTransactionsForTesting = nullptr;
 }
@@ -7037,16 +5644,14 @@ TEST_CASE("trigger work excludes time after entering ballot",
     auto& driver =
         static_cast<HerderImpl&>(app->getHerder()).getHerderSCPDriver();
     uint64_t const slot = 100;
-    driver.recordNominationTrigger(slot);
+    driver.recordTrigger(slot);
     clock.setCurrentVirtualTime(clock.now() + milliseconds(100));
-    driver.recordSCPEvent(slot, false);
+    driver.recordBallotStart(slot);
     clock.setCurrentVirtualTime(clock.now() + milliseconds(300));
-    driver.recordSCPEvent(slot, true);
     REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(100));
-    driver.recordSCPEvent(slot + 1, false);
+    driver.recordBallotStart(slot + 1);
     clock.setCurrentVirtualTime(clock.now() + milliseconds(100));
-    driver.recordNominationTrigger(slot + 1);
-    driver.recordSCPEvent(slot + 1, true);
+    driver.recordTrigger(slot + 1);
     REQUIRE(driver.getTriggerToBallotDuration(slot + 1) ==
             milliseconds::zero());
 }
@@ -7067,19 +5672,17 @@ TEST_CASE("trigger allowance is independent of timeout callback ordering",
     auto const ct = VirtualClock::to_time_t(clock.system_now()) + 1;
     auto const origin = VirtualClock::from_time_t(ct);
     clock.setCurrentVirtualTime(origin);
-    driver.recordNominationTrigger(slot);
+    driver.recordTrigger(slot);
     clock.setCurrentVirtualTime(origin + milliseconds(100));
-    driver.recordSCPEvent(slot, true);
     bool timerFired = false;
-    driver.setupTimer(slot, Slot::NOMINATION_TIMER, seconds(2),
+    driver.setupTimer(slot, Slot::LEADER_TIMER, seconds(2),
                       [&] { timerFired = true; });
 
-    // Both events become runnable while the main thread is occupied. Entering
-    // ballot before dispatching the expired timer suppresses its timeout count.
+    // Both events become runnable while the main thread is occupied.
     clock.setCurrentVirtualTime(origin + milliseconds(2500));
     if (ballotBeforeTimeout)
     {
-        driver.recordSCPEvent(slot, false);
+        driver.recordBallotStart(slot);
     }
     for (int i = 0; i < 100 && !timerFired; ++i)
     {
@@ -7089,18 +5692,16 @@ TEST_CASE("trigger allowance is independent of timeout callback ordering",
     REQUIRE(clock.system_now() == origin + milliseconds(2500));
     if (!ballotBeforeTimeout)
     {
-        driver.recordSCPEvent(slot, false);
+        driver.recordBallotStart(slot);
     }
-    REQUIRE(driver.getNominationTimeouts(slot) ==
-            (ballotBeforeTimeout ? 0 : 1));
+    REQUIRE(driver.getLeaderTimeouts(slot) == 1);
     REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(2500));
 
     StellarValue value;
     value.closeTime = ct;
     herder.setTrackingSCPState(slot, value, true);
     clock.setCurrentVirtualTime(origin + milliseconds(2700));
-    REQUIRE(EarlyNominationTestAccess::triggerAnchor(herder, slot) +
-                seconds(2) <=
+    REQUIRE(LeaderBuildTestAccess::triggerAnchor(herder, slot) + seconds(2) <=
             clock.now());
 }
 
@@ -7133,10 +5734,9 @@ TEST_CASE("trigger anchor keeps millisecond close times",
     // 600 ms later, so the allowance is exactly 600 ms.
     auto const origin = getConsensusTime(value).toSystemTime();
     clock.setCurrentVirtualTime(origin);
-    driver.recordNominationTrigger(slot);
-    driver.recordSCPEvent(slot, true);
+    driver.recordTrigger(slot);
     clock.setCurrentVirtualTime(origin + milliseconds(600));
-    driver.recordSCPEvent(slot, false);
+    driver.recordBallotStart(slot);
     REQUIRE(driver.getTriggerToBallotDuration(slot) == milliseconds(600));
 
     auto metrics = app->getMetrics().GetAllMetrics();
@@ -7145,10 +5745,9 @@ TEST_CASE("trigger anchor keeps millisecond close times",
     auto const before = fallback.count();
     auto waitAt = [&](milliseconds sinceClose) {
         clock.setCurrentVirtualTime(origin + sinceClose);
-        auto deadline =
-            std::max(clock.now(),
-                     EarlyNominationTestAccess::triggerAnchor(herder, slot) +
-                         seconds(2));
+        auto deadline = std::max(
+            clock.now(),
+            LeaderBuildTestAccess::triggerAnchor(herder, slot) + seconds(2));
         return duration_cast<milliseconds>(deadline - clock.now());
     };
 
@@ -7158,7 +5757,8 @@ TEST_CASE("trigger anchor keeps millisecond close times",
     REQUIRE(fallback.count() == before);
 
     // Elapsed time up to the target plus the allowance is still explained by
-    // nomination; one millisecond more is attributed to clock drift.
+    // the wait for a proposal; one millisecond more is attributed to clock
+    // drift.
     REQUIRE(waitAt(milliseconds(2600)) == milliseconds::zero());
     REQUIRE(fallback.count() == before);
     REQUIRE(waitAt(milliseconds(2601)) == milliseconds::zero());
@@ -7180,27 +5780,31 @@ TEST_CASE("trigger-to-ballot time is recorded at first ballot entry",
         app->getMetrics().NewTimer({"scp", "timing", "trigger-to-ballot"});
     REQUIRE(timer.count() == 0);
 
-    // Construction and nomination both count, up to the first ballot entry.
+    // Construction and the wait for the leader both count, up to the first
+    // ballot entry.
     uint64_t const slot = 100;
-    driver.recordNominationTrigger(slot);
+    driver.recordTrigger(slot);
     clock.setCurrentVirtualTime(clock.now() + milliseconds(400));
-    driver.recordSCPEvent(slot, true);
     clock.setCurrentVirtualTime(clock.now() + milliseconds(100));
-    driver.recordSCPEvent(slot, false);
+    driver.recordBallotStart(slot);
     REQUIRE(timer.count() == 1);
     REQUIRE(timer.max() == Approx(500.0));
 
     // Later ballot events of the same slot are not new intervals.
     clock.setCurrentVirtualTime(clock.now() + milliseconds(50));
-    driver.recordSCPEvent(slot, false);
+    driver.recordBallotStart(slot);
     REQUIRE(timer.count() == 1);
 
-    // No interval without a local trigger, or when ballot started first.
-    driver.recordSCPEvent(slot + 1, false);
-    driver.recordSCPEvent(slot + 2, false);
-    driver.recordNominationTrigger(slot + 2);
-    driver.recordSCPEvent(slot + 2, true);
+    // No interval without a local trigger.
+    driver.recordBallotStart(slot + 1);
     REQUIRE(timer.count() == 1);
+
+    // A trigger that fires after the node already voted for the round
+    // leader's proposal records a zero interval.
+    driver.recordBallotStart(slot + 2);
+    driver.recordTrigger(slot + 2);
+    REQUIRE(timer.count() == 2);
+    REQUIRE(timer.min() == Approx(0.0));
 }
 
 TEST_CASE("trigger lateness and immediate triggers are recorded",
@@ -7255,7 +5859,7 @@ TEST_CASE("trigger lateness and immediate triggers are recorded",
     clock.setCurrentVirtualTime(std::max(overdue, clock.now()) +
                                 milliseconds(500));
     auto const immediateCount = immediate.count();
-    EarlyNominationTestAccess::setupTrigger(herder);
+    LeaderBuildTestAccess::setupTrigger(herder);
     REQUIRE(immediate.count() == immediateCount + 1);
     REQUIRE(herder.getTriggerTimer().expiry_time() == clock.now());
     testutil::crankUntil(
@@ -7263,7 +5867,7 @@ TEST_CASE("trigger lateness and immediate triggers are recorded",
     REQUIRE(lm.getLastClosedLedgerNum() > lcl);
 }
 
-TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
+TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
 {
     auto const soroban = GENERATE(false, true);
     VirtualClock clock;
@@ -7276,7 +5880,7 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
     cfg.GENESIS_TEST_ACCOUNT_COUNT = 10;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
     // Require another node to externalize, so this test can inspect the value
-    // we nominate without immediately closing it and scheduling another slot.
+    // we propose without immediately closing it and scheduling another slot.
     cfg.QUORUM_SET.threshold = 2;
     cfg.QUORUM_SET.validators = {
         cfg.NODE_SEED.getPublicKey(),
@@ -7289,7 +5893,7 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
             config.mLedgerMaxTxCount = 1;
         });
     }
-    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
+    LeaderBuildTestAccess::selectLocalFirstLeader(herder);
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     // The Soroban upgrade helper closes ledgers at its fixed test date. The
     // sub-second offset makes the prepared close time carry milliseconds once
@@ -7298,7 +5902,7 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
         VirtualClock::from_time_t(lcl.header.scpValue.closeTime + 1000) +
         std::chrono::milliseconds(375));
     auto const seq = lcl.header.ledgerSeq + 1;
-    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+    herder.getHerderSCPDriver().recordBallotStart(lcl.header.ledgerSeq);
 
     std::vector<TransactionEnvelope> mempool;
     auto alice = txtest::getGenesisAccount(*app, 0);
@@ -7339,18 +5943,16 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
     REQUIRE(trigger > clock.now());
     testutil::crankUntil(
         app,
-        [&]() {
-            return EarlyNominationTestAccess::prepared(herder) != nullptr;
-        },
+        [&]() { return LeaderBuildTestAccess::prepared(herder) != nullptr; },
         std::chrono::seconds(1));
     REQUIRE(clock.now() < trigger);
     REQUIRE(pulls == 1);
-    auto prepared = EarlyNominationTestAccess::prepared(herder);
-    auto const preparedCloseTime = EarlyNominationTestAccess::closeTime(herder);
+    auto prepared = LeaderBuildTestAccess::prepared(herder);
+    auto const preparedCloseTime = LeaderBuildTestAccess::closeTime(herder);
     REQUIRE(prepared);
     REQUIRE(prepared->sizeTxTotal() == 1);
     REQUIRE(preparedCloseTime == expectedConsensusTime);
-    REQUIRE(herder.getSCP().getNominationLeaders(seq).empty());
+    REQUIRE(herder.getSCP().getLeaderRound(seq) == 0);
     REQUIRE(herder.getSCP().getLatestMessagesSend(seq).empty());
     auto known = herder.getTxSet(prepared->getContentsHash());
     REQUIRE(std::get<TxSetXDRFrameConstPtr>(known) == nullptr);
@@ -7361,13 +5963,10 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
         // used to validate time bounds, not acquire the new wall-clock time.
         clock.setCurrentVirtualTime(trigger + std::chrono::seconds(1));
         testutil::crankUntil(
-            app,
-            [&]() {
-                return !herder.getSCP().getNominationLeaders(seq).empty();
-            },
+            app, [&]() { return herder.getSCP().getLeaderRound(seq) != 0; },
             std::chrono::seconds(1));
         REQUIRE(pulls == 1);
-        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         REQUIRE(std::get<TxSetXDRFrameConstPtr>(
                     herder.getTxSet(prepared->getContentsHash())) == prepared);
         // The value can be checked independently of the production cache.
@@ -7387,10 +5986,12 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
             std::chrono::seconds(1));
         auto messages = herder.getSCP().getLatestMessagesSend(seq);
         REQUIRE(!messages.empty());
-        auto const& votes = messages.front().statement.pledges.nominate().votes;
-        REQUIRE(votes.size() == 1);
+        REQUIRE(messages.front().statement.pledges.type() == SCP_ST_PREPARE);
+        auto const& ballot =
+            messages.front().statement.pledges.prepare().ballot;
+        REQUIRE(ballot.counter == 1);
         StellarValue value;
-        xdr::xdr_from_opaque(votes.front(), value);
+        xdr::xdr_from_opaque(ballot.value, value);
         REQUIRE(value.txSetHash == prepared->getContentsHash());
         REQUIRE(getConsensusTime(value) == preparedCloseTime);
         REQUIRE(pulls == 1);
@@ -7402,7 +6003,7 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
         // claim that our time-bound transaction is valid for that time.
         herder.triggerNextLedger(seq, true);
         REQUIRE(pulls == 2);
-        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         REQUIRE(std::get<TxSetXDRFrameConstPtr>(
                     herder.getTxSet(prepared->getContentsHash())) == nullptr);
     }
@@ -7410,32 +6011,32 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
     {
         herder.externalizeValue(TxSetXDRFrame::makeEmpty(lcl), seq,
                                 preparedCloseTime, {}, cfg.NODE_SEED);
-        REQUIRE(EarlyNominationTestAccess::prepared(herder) != prepared);
+        REQUIRE(LeaderBuildTestAccess::prepared(herder) != prepared);
         auto const pullsAfterClose = pulls;
-        // A stale timer/caller cannot nominate the old slot or pull again.
+        // A stale timer/caller cannot propose for the old slot or pull again.
         herder.triggerNextLedger(seq, true);
         REQUIRE(pulls == pullsAfterClose);
     }
     SECTION("loss of sync discards preparation")
     {
         herder.lostSync();
-        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         herder.triggerNextLedger(seq, true);
         REQUIRE(pulls == 1);
     }
     SECTION("shutdown cancels preparation")
     {
         herder.shutdown();
-        REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+        REQUIRE(!LeaderBuildTestAccess::prepared(herder));
     }
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
-TEST_CASE("only nomination leaders construct local proposals",
-          "[herder][early-nomination]")
+TEST_CASE("only round leaders construct local proposals",
+          "[herder][early-proposal]")
 {
-    // A fixed, unanimous quorum gives all three nodes the same weights and
-    // leader ordering. Exercise each member as the local node, rather than
+    // A fixed, unanimous quorum gives all three nodes the same leader
+    // schedule. Exercise each member as the local node, rather than
     // hoping random peers cover every role for one fixed local priority.
     std::vector<SecretKey> keys;
     SCPQuorumSet qset;
@@ -7443,14 +6044,14 @@ TEST_CASE("only nomination leaders construct local proposals",
     for (int i = 0; i < 3; ++i)
     {
         keys.push_back(SecretKey::fromSeed(
-            sha256(fmt::format("early-nomination-node-{}", i))));
+            sha256(fmt::format("early-proposal-node-{}", i))));
         qset.validators.push_back(keys.back().getPublicKey());
     }
 
     std::set<int> checkedRoles;
-    std::optional<Value> previous;
-    std::optional<std::set<NodeID>> expectedFirst;
-    std::optional<std::set<NodeID>> expectedFirstTwo;
+    std::optional<Hash> previous;
+    std::optional<NodeID> expectedFirst;
+    std::optional<NodeID> expectedSecond;
     for (int i = 0; i < 3; ++i)
     {
         VirtualClock clock;
@@ -7467,36 +6068,38 @@ TEST_CASE("only nomination leaders construct local proposals",
         auto& scp = herder.getSCP();
         auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto const seq = lcl.header.ledgerSeq + 1;
-        auto const value = xdr::xdr_to_opaque(lcl.header.scpValue);
+        // The schedule is seeded by the hash of the last closed ledger.
         if (!previous)
         {
-            previous = value;
+            previous = lcl.hash;
         }
-        REQUIRE(value == *previous);
-        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        REQUIRE(lcl.hash == *previous);
+        auto& driver = herder.getHerderSCPDriver();
+        herder.getHerderSCPDriver().recordBallotStart(lcl.header.ledgerSeq);
         size_t pulls = 0;
         herder.mGetTopTransactionsForTesting = [&](size_t) {
             ++pulls;
             return std::vector<TransactionEnvelope>{};
         };
-        auto first = scp.predictNominationLeaders(seq, value, 1);
-        auto firstTwo = scp.predictNominationLeaders(seq, value, 2);
-        REQUIRE(first.size() == 1);
-        REQUIRE(firstTwo.size() == 2);
+        auto first = driver.getRoundLeader(seq, 1);
+        auto second = driver.getRoundLeader(seq, 2);
+        REQUIRE(first);
+        REQUIRE(second);
+        REQUIRE(*first != *second);
         if (!expectedFirst)
         {
             expectedFirst = first;
-            expectedFirstTwo = firstTwo;
+            expectedSecond = second;
         }
-        REQUIRE(first == *expectedFirst);
-        REQUIRE(firstTwo == *expectedFirstTwo);
-        int role = first.count(scp.getLocalNodeID())      ? 0
-                   : firstTwo.count(scp.getLocalNodeID()) ? 1
-                                                          : 2;
+        REQUIRE(*first == *expectedFirst);
+        REQUIRE(*second == *expectedSecond);
+        int role = *first == scp.getLocalNodeID()    ? 0
+                   : *second == scp.getLocalNodeID() ? 1
+                                                     : 2;
         REQUIRE(checkedRoles.insert(role).second);
         CAPTURE(role);
-        EarlyNominationTestAccess::schedule(herder);
-        REQUIRE(EarlyNominationTestAccess::scheduled(herder) == (role == 0));
+        LeaderBuildTestAccess::schedule(herder);
+        REQUIRE(LeaderBuildTestAccess::scheduled(herder) == (role == 0));
         bool done = false;
         VirtualTimer stop(clock);
         stop.expires_from_now(std::chrono::milliseconds(1));
@@ -7506,42 +6109,42 @@ TEST_CASE("only nomination leaders construct local proposals",
         REQUIRE(done);
         REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
         REQUIRE(pulls == (role == 0 ? 1 : 0));
-        REQUIRE(bool(EarlyNominationTestAccess::prepared(herder)) ==
-                (role == 0));
-        REQUIRE(scp.getNominationLeaders(seq).empty());
+        REQUIRE(bool(LeaderBuildTestAccess::prepared(herder)) == (role == 0));
+        REQUIRE(scp.getLeaderRound(seq) == 0);
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
         auto const trigger = herder.getTriggerTimer().expiry_time();
         clock.setCurrentVirtualTime(trigger);
         auto const triggerSystemTime = clock.system_now();
         testutil::crankUntil(
-            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            app, [&]() { return scp.getLeaderRound(seq) != 0; },
             std::chrono::seconds(1));
-        REQUIRE(scp.getNominationLeaders(seq) == first);
+        REQUIRE(scp.getLeaderRound(seq) == 1);
         // The first leader refreshes its empty early snapshot. Followers
         // pull the mempool once, only to pre-verify signatures; they do not
         // build or publish a set.
         REQUIRE(pulls == (role == 0 ? 2 : 1));
         REQUIRE(scp.getLatestMessagesSend(seq).empty() == (role != 0));
 
-        // With the first leader silent, real nomination timers eventually
+        // With the first leader silent, real leader timers eventually
         // promote each follower. It builds exactly then, using a current close
         // time, and its prepared/validated tx set is available for retrieval.
         testutil::crankUntil(
             app, [&]() { return !scp.getLatestMessagesSend(seq).empty(); },
             std::chrono::seconds(30));
-        REQUIRE(scp.getNominationLeaders(seq).count(scp.getLocalNodeID()));
+        REQUIRE(scp.getLeaderRound(seq) == static_cast<uint32_t>(role + 1));
+        REQUIRE(driver.isLocalNodeRoundLeader(seq, scp.getLeaderRound(seq)));
         REQUIRE(pulls == 2);
         auto messages = scp.getLatestMessagesSend(seq);
-        auto const& votes = messages.front().statement.pledges.nominate().votes;
-        REQUIRE(votes.size() == 1);
+        REQUIRE(messages.front().statement.pledges.type() == SCP_ST_PREPARE);
+        auto const& proposed =
+            messages.front().statement.pledges.prepare().ballot.value;
         StellarValue nominated;
-        xdr::xdr_from_opaque(votes.front(), nominated);
+        xdr::xdr_from_opaque(proposed, nominated);
         auto txSet = std::get<TxSetXDRFrameConstPtr>(
             herder.getTxSet(nominated.txSetHash));
         REQUIRE(txSet);
         REQUIRE(txSet->previousLedgerHash() == lcl.hash);
-        REQUIRE(herder.getHerderSCPDriver().validateValue(seq, votes.front(),
-                                                          true) ==
+        REQUIRE(driver.validateValue(seq, proposed, true) ==
                 SCPDriver::kFullyValidatedValue);
         if (role != 0)
         {
@@ -7559,10 +6162,10 @@ TEST_CASE("only nomination leaders construct local proposals",
 }
 
 TEST_CASE("a follower promoted after losing sync still proposes",
-          "[herder][early-nomination]")
+          "[herder][early-proposal]")
 {
     // Unanimous three-node quorum with silent peers: the slot cannot
-    // externalize, so the local follower eventually loses sync. Nomination
+    // externalize, so the local follower eventually loses sync. Leader
     // timeouts must still let it propose a value of its own once promoted.
     std::vector<SecretKey> keys;
     SCPQuorumSet qset;
@@ -7570,7 +6173,7 @@ TEST_CASE("a follower promoted after losing sync still proposes",
     for (int i = 0; i < 3; ++i)
     {
         keys.push_back(SecretKey::fromSeed(
-            sha256(fmt::format("early-nomination-node-{}", i))));
+            sha256(fmt::format("early-proposal-node-{}", i))));
         qset.validators.push_back(keys.back().getPublicKey());
     }
 
@@ -7591,27 +6194,26 @@ TEST_CASE("a follower promoted after losing sync still proposes",
         auto& scp = herder.getSCP();
         auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto const seq = lcl.header.ledgerSeq + 1;
-        if (scp.predictNominationLeaders(
-                   seq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
-                .count(scp.getLocalNodeID()))
+        auto& driver = herder.getHerderSCPDriver();
+        if (driver.isLocalNodeRoundLeader(seq, 1))
         {
             // The first leader proposes at the trigger; test a follower.
             continue;
         }
         checkedFollower = true;
-        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        herder.getHerderSCPDriver().recordBallotStart(lcl.header.ledgerSeq);
         size_t pulls = 0;
         herder.mGetTopTransactionsForTesting = [&](size_t) {
             ++pulls;
             return std::vector<TransactionEnvelope>{};
         };
 
-        EarlyNominationTestAccess::schedule(herder);
+        LeaderBuildTestAccess::schedule(herder);
         clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
         testutil::crankUntil(
-            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            app, [&]() { return scp.getLeaderRound(seq) != 0; },
             std::chrono::seconds(1));
-        REQUIRE(!scp.getNominationLeaders(seq).empty());
+        REQUIRE(scp.getLeaderRound(seq) != 0);
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
         // Only the signature prewarm pull; no build yet.
         REQUIRE(pulls == 1);
@@ -7623,29 +6225,29 @@ TEST_CASE("a follower promoted after losing sync still proposes",
         testutil::crankUntil(
             app, [&]() { return !scp.getLatestMessagesSend(seq).empty(); },
             std::chrono::seconds(30));
-        REQUIRE(scp.getNominationLeaders(seq).count(scp.getLocalNodeID()));
+        REQUIRE(driver.isLocalNodeRoundLeader(seq, scp.getLeaderRound(seq)));
         REQUIRE(pulls == 2);
         auto messages = scp.getLatestMessagesSend(seq);
         REQUIRE(!messages.empty());
-        auto const& votes = messages.front().statement.pledges.nominate().votes;
-        REQUIRE(votes.size() == 1);
-        REQUIRE(herder.getHerderSCPDriver().validateValue(seq, votes.front(),
-                                                          true) ==
-                SCPDriver::kFullyValidatedValue);
+        REQUIRE(messages.front().statement.pledges.type() == SCP_ST_PREPARE);
+        REQUIRE(driver.validateValue(
+                    seq,
+                    messages.front().statement.pledges.prepare().ballot.value,
+                    true) == SCPDriver::kFullyValidatedValue);
         herder.mGetTopTransactionsForTesting = nullptr;
     }
     REQUIRE(checkedFollower);
 }
 
 TEST_CASE("a leader build that completes a fetch can externalize",
-          "[herder][early-nomination]")
+          "[herder][early-proposal]")
 {
     // The local leader builds the very set a peer's ballot is waiting for (an
     // empty set is the same on every node). Publishing it completes the fetch
-    // inside SCP's nomination value supplier: the peer's CONFIRM is
+    // inside SCP's proposal value supplier: the peer's CONFIRM is
     // reprocessed there and, the peer being v-blocking, externalizes the slot
-    // before the supplier returns. Nomination must then stop cleanly without
-    // voting or emitting.
+    // before the supplier returns. The leader must then stop cleanly without
+    // proposing its own value.
     VirtualClock clock;
     clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
     auto cfg = getTestConfig();
@@ -7661,7 +6263,7 @@ TEST_CASE("a leader build that completes a fetch can externalize",
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
     auto& scp = herder.getSCP();
-    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
+    LeaderBuildTestAccess::selectLocalFirstLeader(herder);
     auto const qset = scp.getLocalQuorumSet();
     auto const qsetHash = scp.getLocalNode()->getQuorumSetHash();
     std::optional<SecretKey> peer;
@@ -7679,7 +6281,7 @@ TEST_CASE("a leader build that completes a fetch can externalize",
 
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     auto const seq = lcl.header.ledgerSeq + 1;
-    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+    herder.getHerderSCPDriver().recordBallotStart(lcl.header.ledgerSeq);
     herder.mGetTopTransactionsForTesting = [](size_t) {
         return std::vector<TransactionEnvelope>{};
     };
@@ -7725,13 +6327,13 @@ TEST_CASE("a leader build that completes a fetch can externalize",
     REQUIRE(closed.header.scpValue == peerValue);
     for (auto const& env : scp.getLatestMessagesSend(seq))
     {
-        REQUIRE(env.statement.pledges.type() != SCP_ST_NOMINATE);
+        REQUIRE(env.statement.pledges.type() == SCP_ST_EXTERNALIZE);
     }
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
 TEST_CASE("followers pre-verify mempool signatures at the trigger",
-          "[herder][early-nomination]")
+          "[herder][early-proposal]")
 {
     // Followers no longer validate their own mempool by building a set, so
     // the leader's set would be validated with a cold signature cache. At the
@@ -7742,7 +6344,7 @@ TEST_CASE("followers pre-verify mempool signatures at the trigger",
     for (int i = 0; i < 3; ++i)
     {
         keys.push_back(SecretKey::fromSeed(
-            sha256(fmt::format("early-nomination-node-{}", i))));
+            sha256(fmt::format("early-proposal-node-{}", i))));
         qset.validators.push_back(keys.back().getPublicKey());
     }
 
@@ -7765,9 +6367,7 @@ TEST_CASE("followers pre-verify mempool signatures at the trigger",
         auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto const seq = lcl.header.ledgerSeq + 1;
         bool const leader =
-            scp.predictNominationLeaders(
-                   seq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
-                .count(scp.getLocalNodeID()) != 0;
+            herder.getHerderSCPDriver().isLocalNodeRoundLeader(seq, 1);
         if (!checkedRoles.insert(leader).second)
         {
             continue;
@@ -7797,7 +6397,7 @@ TEST_CASE("followers pre-verify mempool signatures at the trigger",
         {
             envelopes.push_back(tx->getEnvelope());
         }
-        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        herder.getHerderSCPDriver().recordBallotStart(lcl.header.ledgerSeq);
         herder.mGetTopTransactionsForTesting = [&](size_t) {
             return envelopes;
         };
@@ -7807,12 +6407,12 @@ TEST_CASE("followers pre-verify mempool signatures at the trigger",
         PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
         size_t const signatures =
             txs.size() + 1 /* op source */ + 1 /* fee bump's inner tx */;
-        EarlyNominationTestAccess::schedule(herder);
+        LeaderBuildTestAccess::schedule(herder);
         clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
         testutil::crankUntil(
-            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            app, [&]() { return scp.getLeaderRound(seq) != 0; },
             std::chrono::seconds(1));
-        REQUIRE(!scp.getNominationLeaders(seq).empty());
+        REQUIRE(scp.getLeaderRound(seq) != 0);
 
         if (leader)
         {
@@ -7825,7 +6425,7 @@ TEST_CASE("followers pre-verify mempool signatures at the trigger",
         }
 
         // Background tasks verify every signature once. Wait in real time
-        // without cranking: virtual nomination timeouts would promote this
+        // without cranking: virtual leader timeouts would promote this
         // follower, whose build verifies signatures too.
         uint64_t verified = 0;
         auto const deadline =
@@ -7929,25 +6529,24 @@ TEST_CASE("signature prewarm at the ballot covers the next ledger",
     ballot.counter = 1;
     ballot.value = value;
     herder.getHerderSCPDriver().startedBallotProtocol(slot, ballot);
-    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == 0);
+    REQUIRE(LeaderBuildTestAccess::prewarmLedger(herder) == 0);
     testutil::crankUntil(
         app,
         [&]() {
-            return EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1;
+            return LeaderBuildTestAccess::prewarmLedger(herder) == slot + 1;
         },
         std::chrono::seconds(1));
-    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1);
+    REQUIRE(LeaderBuildTestAccess::prewarmLedger(herder) == slot + 1);
     REQUIRE(requested ==
-            2 * EarlyNominationTestAccess::maxTxSetCandidates(herder) +
-                valueTxs);
-    REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+            2 * LeaderBuildTestAccess::maxTxSetCandidates(herder) + valueTxs);
+    REQUIRE(LeaderBuildTestAccess::waitForPrewarm(herder));
 
     // N externalizes and closes; the prewarm for N + 1 is kept. The overlay
     // drops N's transactions from the mempool.
     herder.externalizeValue(valueSet, slot, closeTime, emptyUpgradeSteps,
                             cfg.NODE_SEED);
     REQUIRE(lm.getLastClosedLedgerNum() == slot);
-    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1);
+    REQUIRE(LeaderBuildTestAccess::prewarmLedger(herder) == slot + 1);
     mempool.erase(mempool.begin(), mempool.begin() + valueTxs);
     auto const nextLcl = lm.getLastClosedLedgerHeader();
     auto const nextCloseTime = makeConsensusTime(app->timeNow() + 2);
@@ -7979,7 +6578,7 @@ TEST_CASE("signature prewarm at the ballot covers the next ledger",
     {
         auto [hits0, misses0] = lookups("build");
         auto txSet =
-            EarlyNominationTestAccess::build(herder, slot + 1, nextCloseTime);
+            LeaderBuildTestAccess::build(herder, slot + 1, nextCloseTime);
         REQUIRE(txSet->sizeTxTotal() == 16);
         checkLookups("build", hits0, misses0, target);
     }
@@ -8005,7 +6604,7 @@ TEST_CASE("signature prewarm at the ballot covers the next ledger",
     }
     // Validation and the build stop the prewarm and record what it did: the
     // 16 transactions of N's value and the next 20, each verified once.
-    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == 0);
+    REQUIRE(LeaderBuildTestAccess::prewarmLedger(herder) == 0);
     REQUIRE(prewarmTxs.count() == txs0 + valueTxs + target);
     REQUIRE(prewarmVerified.count() == verified0 + valueTxs + target);
     REQUIRE(prewarmIncomplete.count() == incomplete0);
@@ -8013,7 +6612,7 @@ TEST_CASE("signature prewarm at the ballot covers the next ledger",
 }
 
 TEST_CASE("early underfilled proposals refresh at the trigger",
-          "[herder][early-nomination]")
+          "[herder][early-proposal]")
 {
     auto const invalidFirst = GENERATE(false, true);
     VirtualClock clock;
@@ -8030,10 +6629,10 @@ TEST_CASE("early underfilled proposals refresh at the trigger",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
-    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
+    LeaderBuildTestAccess::selectLocalFirstLeader(herder);
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     auto const seq = lcl.header.ledgerSeq + 1;
-    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+    herder.getHerderSCPDriver().recordBallotStart(lcl.header.ledgerSeq);
     auto alice = txtest::getGenesisAccount(*app, 0);
     auto bob = txtest::getGenesisAccount(*app, 1);
     auto tx = alice.tx({payment(bob, 100)});
@@ -8051,24 +6650,21 @@ TEST_CASE("early underfilled proposals refresh at the trigger",
         ++pulls;
         return mempool;
     };
-    EarlyNominationTestAccess::schedule(herder);
+    LeaderBuildTestAccess::schedule(herder);
     testutil::crankUntil(
         app,
-        [&]() {
-            return EarlyNominationTestAccess::prepared(herder) != nullptr;
-        },
+        [&]() { return LeaderBuildTestAccess::prepared(herder) != nullptr; },
         std::chrono::seconds(1));
     REQUIRE(pulls == 1);
-    REQUIRE(EarlyNominationTestAccess::prepared(herder)->sizeTxTotal() == 0);
+    REQUIRE(LeaderBuildTestAccess::prepared(herder)->sizeTxTotal() == 0);
     // Transactions arrive while we are waiting for the normal trigger.
     mempool = {tx->getEnvelope(), extra->getEnvelope()};
     clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
     testutil::crankUntil(
-        app,
-        [&]() { return !herder.getSCP().getNominationLeaders(seq).empty(); },
+        app, [&]() { return herder.getSCP().getLeaderRound(seq) != 0; },
         std::chrono::seconds(1));
     REQUIRE(pulls == 2);
-    // Check the actual set cached for nomination, independently of benchmark
+    // Check the actual set cached for the proposal, independently of benchmark
     // instrumentation. Both newly arrived transactions must be present.
     auto expected = makeTxSetFromTransactions(TxFrameList{tx, extra}, *app,
                                               ApplyTimeOffset{})
@@ -8078,12 +6674,12 @@ TEST_CASE("early underfilled proposals refresh at the trigger",
         herder.getTxSet(expected->getContentsHash()));
     REQUIRE(nominated);
     REQUIRE(nominated->sizeTxTotal() == 2);
-    REQUIRE(!EarlyNominationTestAccess::prepared(herder));
+    REQUIRE(!LeaderBuildTestAccess::prepared(herder));
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
 TEST_CASE("early preparation respects manual and immediately due triggers",
-          "[herder][early-nomination]")
+          "[herder][early-proposal]")
 {
     auto const manual = GENERATE(false, true);
     VirtualClock clock;
@@ -8098,7 +6694,7 @@ TEST_CASE("early preparation respects manual and immediately due triggers",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
-    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
+    LeaderBuildTestAccess::selectLocalFirstLeader(herder);
     auto const seq = app->getLedgerManager().getLastClosedLedgerNum() + 1;
     size_t pulls = 0;
     herder.mGetTopTransactionsForTesting = [&](size_t) {
@@ -8107,29 +6703,26 @@ TEST_CASE("early preparation respects manual and immediately due triggers",
     };
     if (manual)
     {
-        REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
+        REQUIRE(!LeaderBuildTestAccess::scheduled(herder));
         REQUIRE(herder.getTriggerTimer().seq() == 0);
         herder.triggerNextLedger(seq, true);
     }
     else
     {
-        EarlyNominationTestAccess::schedule(herder);
+        LeaderBuildTestAccess::schedule(herder);
         // No previous prepare timestamp: the normal fallback triggers now.
         REQUIRE(herder.getTriggerTimer().expiry_time() == clock.now());
         // A due trigger builds itself. Preparing too could build twice: the
         // two timers would fire at the same instant in either order.
-        REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
+        REQUIRE(!LeaderBuildTestAccess::scheduled(herder));
         testutil::crankUntil(
-            app,
-            [&]() {
-                return !herder.getSCP().getNominationLeaders(seq).empty();
-            },
+            app, [&]() { return herder.getSCP().getLeaderRound(seq) != 0; },
             std::chrono::seconds(1));
     }
     REQUIRE(pulls == 1);
-    REQUIRE(!EarlyNominationTestAccess::prepared(herder));
-    REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
-    REQUIRE(!herder.getSCP().getNominationLeaders(seq).empty());
+    REQUIRE(!LeaderBuildTestAccess::prepared(herder));
+    REQUIRE(!LeaderBuildTestAccess::scheduled(herder));
+    REQUIRE(herder.getSCP().getLeaderRound(seq) != 0);
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
@@ -8553,7 +7146,7 @@ TEST_CASE("leader builds validate only the top of the mempool pull",
     };
 
     auto const lcl = lm.getLastClosedLedgerHeader();
-    auto [txSet, invalid] = EarlyNominationTestAccess::buildWithInvalid(
+    auto [txSet, invalid] = LeaderBuildTestAccess::buildWithInvalid(
         herder, lcl.header.ledgerSeq + 1,
         getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion));
     herder.mGetTopTransactionsForTesting = nullptr;
@@ -8693,8 +7286,7 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
             {
                 CALLGRIND_START_INSTRUMENTATION;
             }
-            auto txSet =
-                EarlyNominationTestAccess::build(herder, seq, closeTime);
+            auto txSet = LeaderBuildTestAccess::build(herder, seq, closeTime);
             if (cold)
             {
                 CALLGRIND_STOP_INSTRUMENTATION;
@@ -8724,7 +7316,7 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
             // A follower validating the received set (cold: calibration
             // against perfnet's herder.txset.validate).
             auto const& lastSet =
-                EarlyNominationTestAccess::build(herder, seq, closeTime);
+                LeaderBuildTestAccess::build(herder, seq, closeTime);
             for (uint32_t rep = 0; rep < reps; ++rep)
             {
                 auto received = TxSetXDRFrame::makeFromWire(
@@ -8764,23 +7356,22 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
         auto& buildMisses = metrics.NewMeter(
             {"herder", "txset", "build-sig-cache-miss"}, "lookup");
         auto const lastSet =
-            EarlyNominationTestAccess::build(herder, seq, closeTime);
+            LeaderBuildTestAccess::build(herder, seq, closeTime);
         uint64_t misses = 0;
         uint64_t validateMisses = 0;
         for (uint32_t rep = 0; rep < reps; ++rep)
         {
             PubKeyUtils::clearVerifySigCache();
             auto const durationBefore = prewarmDuration.sum();
-            EarlyNominationTestAccess::prewarm(herder, seq);
-            REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+            LeaderBuildTestAccess::prewarm(herder, seq);
+            REQUIRE(LeaderBuildTestAccess::waitForPrewarm(herder));
             for (auto const& phase : phases)
             {
                 metrics.NewTimer({"herder", "txset", phase}).Clear();
             }
             auto const missesBefore = buildMisses.count();
             // The build stops the (finished) prewarm and records it.
-            auto txSet =
-                EarlyNominationTestAccess::build(herder, seq, closeTime);
+            auto txSet = LeaderBuildTestAccess::build(herder, seq, closeTime);
             REQUIRE(txSet->sizeTxTotal() == std::min(sorobanCap, pull));
             misses = buildMisses.count() - missesBefore;
             samples["prewarm (background, before the build)"].push_back(
@@ -8794,8 +7385,8 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
             auto received = TxSetXDRFrame::makeFromWire(
                 GeneralizedTransactionSet(lastSet->getGeneralizedXDR()));
             PubKeyUtils::clearVerifySigCache();
-            EarlyNominationTestAccess::prewarm(herder, seq);
-            REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+            LeaderBuildTestAccess::prewarm(herder, seq);
+            REQUIRE(LeaderBuildTestAccess::waitForPrewarm(herder));
             uint64_t hits0 = 0, misses0 = 0, hits1 = 0, misses1 = 0;
             PubKeyUtils::getVerifySigCacheCounts(hits0, misses0);
             auto const start = std::chrono::steady_clock::now();

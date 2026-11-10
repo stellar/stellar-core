@@ -999,6 +999,12 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
     mSCPMetrics.mEnvelopeReceive.Mark();
 
+    if (envelope.statement.pledges.type() == SCP_ST_NOMINATE)
+    {
+        // There is no nomination phase (see HerderSCPDriver::getRoundLeader).
+        return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
+
     // **** first perform checks that do NOT require signature verification
     // this allows to fast fail messages that we'd throw away anyways
 
@@ -1691,9 +1697,7 @@ HerderImpl::setupTriggerNextLedger()
         // trigger.
         if (getSCP().isValidator() && !triggerDue)
         {
-            auto leaders = getSCP().predictNominationLeaders(
-                nextIndex, xdr::xdr_to_opaque(lcl.header.scpValue), 1);
-            if (leaders.count(getSCP().getLocalNodeID()))
+            if (mHerderSCPDriver.isLocalNodeRoundLeader(nextIndex, 1))
             {
                 // Validate against the close time we expect at the trigger,
                 // not the earlier wall-clock time at which we start work.
@@ -1865,12 +1869,8 @@ HerderImpl::prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     {
         return;
     }
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     if (!getSCP().isValidator() ||
-        !getSCP()
-             .predictNominationLeaders(
-                 ledgerSeq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
-             .count(getSCP().getLocalNodeID()))
+        !mHerderSCPDriver.isLocalNodeRoundLeader(ledgerSeq, 1))
     {
         return;
     }
@@ -1889,18 +1889,14 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     auto const lcl = mLedgerManager.getLastClosedLedgerHeader();
     releaseAssert(ledgerSeq == lcl.header.ledgerSeq + 1);
     releaseAssert(closeTime > getConsensusTime(lcl.header.scpValue));
-    bool const activeLeader = getSCP().getNominationLeaders(ledgerSeq).count(
-        getSCP().getLocalNodeID());
+    uint32_t const round = getSCP().getLeaderRound(ledgerSeq);
+    bool const activeLeader =
+        round != 0 && mHerderSCPDriver.isLocalNodeRoundLeader(ledgerSeq, round);
     bool const legacyTxSet = buildsLegacyTxSet(lcl.header.ledgerVersion);
-    releaseAssert(activeLeader || legacyTxSet ||
-                  getSCP()
-                      .predictNominationLeaders(
-                          ledgerSeq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
-                      .count(getSCP().getLocalNodeID()));
     CLOG_INFO(Herder, "Building TX set as {} for ledger {}",
-              activeLeader  ? "active nomination leader"
-              : legacyTxSet ? "validator (legacy tx set)"
-                            : "first-round nomination leader",
+              activeLeader  ? fmt::format("round {} leader", round)
+              : legacyTxSet ? std::string("validator (legacy tx set)")
+                            : std::string("first-round leader (early)"),
               ledgerSeq);
     // Apply-time offset: see the comment in triggerNextLedger
     auto const closeTimeOffset =
@@ -2162,29 +2158,30 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (!isCtValid)
     {
         CLOG_WARNING(Herder,
-                     "Invalid close time selected ({}), skipping nomination",
+                     "Invalid close time selected ({}), skipping the slot",
                      nextCloseTime.toString());
         return;
     }
 
     // Start the trigger-to-ballot interval only once this node is going to
-    // nominate. A skipped trigger must not credit the time spent waiting for
+    // take part. A skipped trigger must not credit the time spent waiting for
     // peers to the drift allowance.
-    mHerderSCPDriver.recordNominationTrigger(ledgerSeqToTrigger);
+    mHerderSCPDriver.recordTrigger(ledgerSeqToTrigger);
 
     if (!getSCP().isValidator())
     {
-        CLOG_DEBUG(Herder, "Non-validating node, skipping nomination (SCP).");
+        CLOG_DEBUG(Herder, "Non-validating node, not starting the slot (SCP).");
         return;
     }
 
-    getHerderSCPDriver().recordSCPEvent(ledgerSeqToTrigger, true);
-    mHerderSCPDriver.nominate(
+    // There is no nomination: the leader of each round (a deterministic
+    // schedule seeded by the LCL hash) proposes straight into the ballot
+    // protocol. The value is only built if this node leads a round.
+    mHerderSCPDriver.startSlot(
         ledgerSeqToTrigger,
         [this, ledgerSeqToTrigger]() {
-            return makeNominationValue(ledgerSeqToTrigger);
+            return makeProposalValue(ledgerSeqToTrigger);
         },
-        lcl.header.scpValue,
         /*constructValueNow=*/buildsLegacyTxSet(lcl.header.ledgerVersion));
 
     // A follower validates the leader's set when it arrives, and most of its
@@ -2194,9 +2191,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // so that validation finds them in the cache. Skip it if this node already
     // voted, i.e. validated the leader's value.
     if (!buildsLegacyTxSet(lcl.header.ledgerVersion) &&
-        !getSCP()
-             .getNominationLeaders(ledgerSeqToTrigger)
-             .count(getSCP().getLocalNodeID()) &&
+        !mHerderSCPDriver.isLocalNodeRoundLeader(
+            ledgerSeqToTrigger,
+            std::max<uint32_t>(1,
+                               getSCP().getLeaderRound(ledgerSeqToTrigger))) &&
         getSCP().getLatestMessagesSend(ledgerSeqToTrigger).empty())
     {
         prewarmSignatureCache(ledgerSeqToTrigger, {});
@@ -2444,7 +2442,7 @@ HerderImpl::buildsLegacyTxSet(uint32_t lclLedgerVersion)
 }
 
 ValueWrapperPtr
-HerderImpl::makeNominationValue(uint32_t ledgerSeqToTrigger)
+HerderImpl::makeProposalValue(uint32_t ledgerSeqToTrigger)
 {
     // A follower can be promoted long after the trigger. Recheck the ledger
     // state and select a fresh close time when SCP actually needs our value.
@@ -2522,9 +2520,9 @@ HerderImpl::makeNominationValue(uint32_t ledgerSeqToTrigger)
                                      closeTimeOffset);
 
 #ifdef BUILD_TESTS
-    if (mNominatedTxSetOverride)
+    if (mProposedTxSetOverride)
     {
-        proposedSet = mNominatedTxSetOverride(lcl);
+        proposedSet = mProposedTxSetOverride(lcl);
         CLOG_INFO(Herder, "Nominating overridden tx set {} for slot {}",
                   hexAbbrev(proposedSet->getContentsHash()),
                   lcl.header.ledgerSeq + 1);
@@ -2591,12 +2589,12 @@ HerderImpl::makeNominationValue(uint32_t ledgerSeqToTrigger)
     }
 
 #ifdef BUILD_TESTS
-    if (mApp.getConfig().TESTING_NOMINATE_RANDOM_VALUES &&
+    if (mApp.getConfig().TESTING_PROPOSE_RANDOM_VALUES &&
         getHerderSCPDriver().protocolAllowsEmptyTxSetValues())
     {
         txSetHash = HashUtils::pseudoRandomForTesting();
         CLOG_INFO(Herder,
-                  "TESTING_NOMINATE_RANDOM_VALUES: nominating slot {} "
+                  "TESTING_PROPOSE_RANDOM_VALUES: proposing slot {} "
                   "with random tx-set hash {}",
                   slotIndex, hexAbbrev(txSetHash));
     }
@@ -3623,9 +3621,9 @@ HerderImpl::makeStellarValue(Hash const& txSetHash, ConsensusTime closeTime,
 }
 
 bool
-HerderImpl::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                        SCPStatement const& newSt)
+HerderImpl::isNewerStatement(SCPStatement const& oldSt,
+                             SCPStatement const& newSt)
 {
-    return getSCP().isNewerNominationOrBallotSt(oldSt, newSt);
+    return getSCP().isNewerStatement(oldSt, newSt);
 }
 }
