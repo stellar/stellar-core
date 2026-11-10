@@ -1962,7 +1962,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
-
     // New proposed tx set must be valid, so we explicitly populate tx set
     // validity cache so SCP can reuse the result.
     mHerderSCPDriver.cacheValidTxSet(*applicableProposedSet, lcl,

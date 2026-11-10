@@ -1622,9 +1622,7 @@ async fn handle_inbound_scp_streams(
                                 }
                                 continue;
                             }
-                            stellar_xdr::StellarMessage::ScpMessage(scp_envelope) => {
-                                scp_envelope
-                            }
+                            stellar_xdr::StellarMessage::ScpMessage(scp_envelope) => scp_envelope,
                             other => {
                                 warn!(
                                     "SCP_PARSE_ERR: Dropping unexpected {} on SCP stream from {}",

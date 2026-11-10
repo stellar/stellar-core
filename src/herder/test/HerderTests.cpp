@@ -3998,9 +3998,9 @@ TEST_CASE(
         // Close times increase with the slot. They must be after the LCL's
         // close time and no further than MAX_TIME_SLIP_SECONDS ahead of the
         // clock, which for a virtual clock starts at zero.
-        StellarValue sv = herder.makeStellarValue(
-            txSet->getContentsHash(), makeConsensusTime(now + slot),
-            emptyUpgradeSteps, validator);
+        StellarValue sv = herder.makeStellarValue(txSet->getContentsHash(),
+                                                  makeConsensusTime(now + slot),
+                                                  emptyUpgradeSteps, validator);
         SCPEnvelope envelope;
         envelope.statement.nodeID = validator.getPublicKey();
         envelope.statement.slotIndex = slot;
@@ -6126,9 +6126,8 @@ TEST_CASE("network does not externalize non-canonical empty tx set",
                 .baseFee.activate() = 12345;
             return TxSetXDRFrame::makeFromWire(xdr);
         };
-        auto simulation =
-            Topologies::core(4, 0.75, sha256(getTestConfig().NETWORK_PASSPHRASE),
-                             makeConfig);
+        auto simulation = Topologies::core(
+            4, 0.75, sha256(getTestConfig().NETWORK_PASSPHRASE), makeConfig);
         auto nodes = simulation->getNodes();
         static_cast<HerderImpl&>(nodes[0]->getHerder())
             .mNominatedTxSetOverride =
