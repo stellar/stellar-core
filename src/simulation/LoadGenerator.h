@@ -11,6 +11,7 @@
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "util/NonCopyable.h"
+#include "util/UnorderedMap.h"
 #include "xdr/Stellar-types.h"
 #include <optional>
 #include <unordered_map>
@@ -226,8 +227,12 @@ class LoadGenerator
 
     void stop();
 
-    void cleanupAccounts(uint32_t ledgerSeq,
-                         PerPhaseTransactionList const& perPhaseTxs);
+    void cleanupAccounts(uint32_t ledgerSeq, TxSetXDRFrame const& txSet);
+
+    // The source account of the transaction in `env`, as
+    // TransactionFrameBase::getSourceID reports it for a frame built from
+    // `env`: the unmuxed source, or the inner transaction's for a fee bump.
+    static AccountID getEnvelopeSourceID(TransactionEnvelope const& env);
 
   private:
     struct TxMetrics
@@ -278,10 +283,20 @@ class LoadGenerator
     // Track account IDs that are currently being referenced by the transaction
     // queue (to avoid source account collisions during tx submission)
     std::unordered_set<uint64_t> mAccountsInUse;
+    // In-use accounts keyed by public key, so that cleanupAccounts matches an
+    // externalized transaction set in time proportional to the set rather
+    // than to the number of accounts waiting. Accounts selected since the last
+    // cleanupAccounts call wait in mAccountsInUseToIndex: their keys are only
+    // known once TxGenerator has generated a transaction for them.
+    UnorderedMap<AccountID, uint64_t> mAccountsInUseByKey;
+    std::vector<uint64_t> mAccountsInUseToIndex;
     // Accounts whose transaction externalized in the given ledger; released
     // once that ledger is applied.
     std::unordered_map<uint64_t, uint32_t> mAccountsExternalized;
-    std::unordered_set<uint64_t> mAccountsAvailable;
+    // Accounts enter this pool only when initialized or released from one of
+    // the disjoint in-use/externalized collections. A dense vector allows
+    // uniform random selection and removal without walking the account pool.
+    std::vector<uint64_t> mAccountsAvailable;
     // First ledger at which load generation stalled because every account had
     // a pending transaction.
     std::optional<uint32_t> mNoAccountsAvailableSinceLedger;
