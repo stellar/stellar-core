@@ -29,14 +29,17 @@
 #include "main/PersistentState.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
+#include "overlay/OverlayIPC.h"
 #include "overlay/RustOverlayManager.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "simulation/LoadGenerator.h"
 #include "transactions/MutableTransactionResult.h"
+#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Decoder.h"
 #include "util/LogSlowExecution.h"
@@ -56,11 +59,181 @@
 #include <chrono>
 #include <ctime>
 #include <fmt/format.h>
+#include <mutex>
 #include <unistd.h>
 
 using namespace std;
 namespace stellar
 {
+
+namespace
+{
+// Verifies the signatures in `env` that match the master keys of its source,
+// operation source and fee source accounts. This populates the
+// signature-verification cache that tx-set validation consults with the same
+// (key, signature, hash). Other signers need ledger state; validation verifies
+// them itself. Returns how many signatures it verified (were not cached).
+size_t
+verifyMasterKeySignatures(Hash const& networkID, TransactionEnvelope const& env)
+{
+    // Bound the work per transaction: a signature is only verified against
+    // keys whose hint it matches, but colliding hints could otherwise make a
+    // crafted transaction cost many verifications.
+    size_t budget = 20;
+    size_t verified = 0;
+    auto verify = [&budget, &verified](Hash const& contentsHash,
+                                       auto const& signatures,
+                                       std::vector<AccountID> const& keys) {
+        for (auto const& sig : signatures)
+        {
+            for (auto const& key : keys)
+            {
+                if (!SignatureUtils::doesHintMatch(key.ed25519(), sig.hint))
+                {
+                    continue;
+                }
+                if (budget == 0)
+                {
+                    return;
+                }
+                --budget;
+                auto const res = SignatureUtils::verify(sig, key, contentsHash);
+                if (res.cacheResult ==
+                    PubKeyUtils::VerifySigCacheLookupResult::MISS)
+                {
+                    ++verified;
+                }
+                if (res.valid)
+                {
+                    break;
+                }
+            }
+        }
+    };
+    auto keysOf = [](AccountID const& source, auto const& operations) {
+        std::vector<AccountID> keys{source};
+        for (auto const& op : operations)
+        {
+            if (op.sourceAccount)
+            {
+                auto key = toAccountID(*op.sourceAccount);
+                if (std::find(keys.begin(), keys.end(), key) == keys.end())
+                {
+                    keys.emplace_back(std::move(key));
+                }
+            }
+        }
+        return keys;
+    };
+
+    auto frame = TransactionFrameBase::makeTransactionFromWire(networkID, env);
+    switch (env.type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+        verify(frame->getContentsHash(), env.v0().signatures,
+               keysOf(frame->getSourceID(), env.v0().tx.operations));
+        break;
+    case ENVELOPE_TYPE_TX:
+        verify(frame->getContentsHash(), env.v1().signatures,
+               keysOf(frame->getSourceID(), env.v1().tx.operations));
+        break;
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+    {
+        verify(frame->getContentsHash(), env.feeBump().signatures,
+               {frame->getFeeSourceID()});
+        TransactionEnvelope inner(ENVELOPE_TYPE_TX);
+        inner.v1() = env.feeBump().tx.innerTx.v1();
+        verified += verifyMasterKeySignatures(networkID, inner);
+        break;
+    }
+    default:
+        break;
+    }
+    return verified;
+}
+
+// Whether an envelope's transaction goes into the Soroban phase, as
+// TransactionFrame::isSoroban decides it (by the first operation).
+bool
+isSorobanEnvelope(TransactionEnvelope const& env)
+{
+    auto const* ops = env.type() == ENVELOPE_TYPE_TX_V0
+                          ? &env.v0().tx.operations
+                      : env.type() == ENVELOPE_TYPE_TX ? &env.v1().tx.operations
+                      : env.type() == ENVELOPE_TYPE_TX_FEE_BUMP
+                          ? &env.feeBump().tx.innerTx.v1().tx.operations
+                          : nullptr;
+    if (ops == nullptr || ops->empty())
+    {
+        return false;
+    }
+    switch (ops->front().body.type())
+    {
+    case INVOKE_HOST_FUNCTION:
+    case EXTEND_FOOTPRINT_TTL:
+    case RESTORE_FOOTPRINT:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The first `windows[phase]` envelopes of each phase (classic, then Soroban;
+// a phase without a window is skipped), in mempool order.
+std::vector<TransactionEnvelope>
+selectPrewarmCandidates(std::vector<TransactionEnvelope>&& envelopes,
+                        std::vector<size_t> const& windows)
+{
+    std::vector<TransactionEnvelope> selected;
+    std::vector<size_t> taken(windows.size(), 0);
+    for (auto& env : envelopes)
+    {
+        size_t const phase = isSorobanEnvelope(env) ? 1 : 0;
+        if (phase < windows.size() && taken[phase] < windows[phase])
+        {
+            ++taken[phase];
+            selected.push_back(std::move(env));
+        }
+    }
+    return selected;
+}
+
+// The number of transactions in each phase of a generalized tx set.
+std::vector<size_t>
+txCountPerPhase(TxSetXDRFrame const& txSet)
+{
+    std::vector<size_t> counts;
+    if (!txSet.isGeneralizedTxSet())
+    {
+        return counts;
+    }
+    for (auto const& phase : txSet.getGeneralizedXDR().v1TxSet().phases)
+    {
+        size_t count = 0;
+        if (phase.v() == 0)
+        {
+            for (auto const& component : phase.v0Components())
+            {
+                count += component.txsMaybeDiscountedFee().txs.size();
+            }
+        }
+        else
+        {
+            for (auto const& stage :
+                 phase.parallelTxsComponent().executionStages)
+            {
+                for (auto const& cluster : stage)
+                {
+                    count += cluster.size();
+                }
+            }
+        }
+        counts.push_back(count);
+    }
+    return counts;
+}
+
+} // namespace
 
 // Roughly ~10 minutes of consensus
 constexpr uint32 const CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE = 120;
@@ -306,6 +479,7 @@ void
 HerderImpl::shutdown()
 {
     discardPreparedTxSet();
+    stopSignaturePrewarm();
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
@@ -349,22 +523,16 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     releaseAssert(externalizedSet != nullptr);
 
     // Notify overlay to clear TXs from mempool (for RustOverlayManager)
-    // Extract TX hashes from the externalized set so Rust can remove them
+    // Extract TX hashes from the externalized set so Rust can remove them.
+    // Hash the envelopes in place: building a frame per transaction would
+    // copy every envelope on the main thread only to hash it.
     std::vector<Hash> txHashes;
     if (externalizedSet)
     {
-        auto txFramesList =
-            externalizedSet->createTransactionFrames(mApp.getNetworkID());
-        for (auto const& txPhase : txFramesList)
-        {
-            for (auto const& txFrame : txPhase)
-            {
-                txHashes.push_back(txFrame->getFullHash());
-            }
-        }
+        txHashes = externalizedSet->getTransactionFullHashes();
 #ifdef BUILD_TESTS
         mApp.getLoadGenerator().cleanupAccounts(
-            static_cast<uint32_t>(slotIndex), txFramesList);
+            static_cast<uint32_t>(slotIndex), *externalizedSet);
 #endif
     }
     mApp.getOverlayManager().notifyTxSetExternalized(value.txSetHash, txHashes);
@@ -505,6 +673,12 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
 {
     ZoneScoped;
     int const DUMP_SCP_TIMEOUT_SECONDS = 20;
+    // A prewarm for this slot is done serving; the one for the next ledger
+    // (started when this slot's ballot did) keeps running.
+    if (mSignaturePrewarm && mSignaturePrewarm->ledgerSeq <= slotIndex)
+    {
+        stopSignaturePrewarm();
+    }
 
     recordExternalizeAndCheckCloseTimeDrift(slotIndex, value,
                                             mDriftCTSlidingWindow);
@@ -824,6 +998,12 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 
     mSCPMetrics.mEnvelopeReceive.Mark();
+
+    if (envelope.statement.pledges.type() == SCP_ST_NOMINATE)
+    {
+        // There is no nomination phase (see HerderSCPDriver::getRoundLeader).
+        return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
 
     // **** first perform checks that do NOT require signature verification
     // this allows to fast fail messages that we'd throw away anyways
@@ -1510,11 +1690,14 @@ HerderImpl::setupTriggerNextLedger()
             },
             &VirtualTimer::onFailureNoop);
 
-        if (getSCP().isValidator())
+        // Prepare early only if the trigger is still ahead. A due trigger
+        // fires now and builds itself; both timers would fire at the same
+        // instant in an unspecified order (event sequence numbers are per
+        // timer), so the leader could build once to prepare and again at the
+        // trigger.
+        if (getSCP().isValidator() && !triggerDue)
         {
-            auto leaders = getSCP().predictNominationLeaders(
-                nextIndex, xdr::xdr_to_opaque(lcl.header.scpValue), 2);
-            if (leaders.count(getSCP().getLocalNodeID()))
+            if (mHerderSCPDriver.isLocalNodeRoundLeader(nextIndex, 1))
             {
                 // Validate against the close time we expect at the trigger,
                 // not the earlier wall-clock time at which we start work.
@@ -1686,6 +1869,11 @@ HerderImpl::prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     {
         return;
     }
+    if (!getSCP().isValidator() ||
+        !mHerderSCPDriver.isLocalNodeRoundLeader(ledgerSeq, 1))
+    {
+        return;
+    }
     mPreparedTxSet = buildTxSet(ledgerSeq, closeTime);
     CLOG_INFO(Herder,
               "Prepared TX set for ledger {} before trigger: {} transactions, "
@@ -1701,6 +1889,15 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     auto const lcl = mLedgerManager.getLastClosedLedgerHeader();
     releaseAssert(ledgerSeq == lcl.header.ledgerSeq + 1);
     releaseAssert(closeTime > getConsensusTime(lcl.header.scpValue));
+    uint32_t const round = getSCP().getLeaderRound(ledgerSeq);
+    bool const activeLeader =
+        round != 0 && mHerderSCPDriver.isLocalNodeRoundLeader(ledgerSeq, round);
+    bool const legacyTxSet = buildsLegacyTxSet(lcl.header.ledgerVersion);
+    CLOG_INFO(Herder, "Building TX set as {} for ledger {}",
+              activeLeader  ? fmt::format("round {} leader", round)
+              : legacyTxSet ? std::string("validator (legacy tx set)")
+                            : std::string("first-round leader (early)"),
+              ledgerSeq);
     // Apply-time offset: see the comment in triggerNextLedger
     auto const closeTimeOffset =
         closeTime.toApplyTime() - getApplyTime(lcl.header.scpValue);
@@ -1713,20 +1910,16 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
 
     // Get TXs from Rust overlay
     auto& overlayMgr = mApp.getOverlayManager();
-    auto& lm = mApp.getLedgerManager();
-    size_t maxCandidates = lm.getLastMaxTxSetSizeOps();
-    if (lm.hasLastClosedSorobanNetworkConfig())
-    {
-        maxCandidates +=
-            lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
-    }
-    auto txEnvelopes =
-#ifdef BUILD_TESTS
-        mGetTopTransactionsForTesting
-            ? mGetTopTransactionsForTesting(maxCandidates * 2)
-            :
-#endif
-            overlayMgr.getTopTransactions(maxCandidates * 2);
+    // This build validates every candidate itself.
+    stopSignaturePrewarm();
+    auto& metrics = mApp.getMetrics();
+    auto txEnvelopes = [&]() {
+        auto t =
+            metrics.NewTimer({"herder", "txset", "build-pull"}).TimeScope();
+        return pullTopTransactions(maxTxSetCandidates() * 2);
+    }();
+    auto framesTimer =
+        metrics.NewTimer({"herder", "txset", "build-frames"}).TimeScope();
 
     CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
               txEnvelopes.size());
@@ -1792,11 +1985,39 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
         txPhases.emplace_back(std::move(sorobanTxs));
     }
 
+    // Validate each phase only until it holds enough valid transactions (see
+    // validTxTargets).
+    auto const targets = validTxTargets(lcl.header.ledgerVersion);
+
     PerPhaseTransactionList invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
+    framesTimer.Stop();
 
+    uint64_t sigCacheHits = 0;
+    uint64_t sigCacheMisses = 0;
+    PubKeyUtils::getVerifySigCacheCounts(sigCacheHits, sigCacheMisses);
     std::tie(proposedSet, applicableProposedSet) = makeTxSetFromTransactions(
-        txPhases, mApp, closeTimeOffset, invalidTxPhases);
+        txPhases, mApp, closeTimeOffset, invalidTxPhases
+#ifdef BUILD_TESTS
+        ,
+        false, {}, false
+#endif
+        ,
+        [&](TxSetXDRFrameConstPtr const& txSet) {
+            auto t = metrics.NewTimer({"herder", "txset", "build-handoff"})
+                         .TimeScope();
+            // Hand the final XDR to the overlay before the builder's remaining
+            // validation. Its eager compression runs concurrently in Rust.
+            if (txSet->isGeneralizedTxSet())
+            {
+                // Serialized straight into the IPC message, without copying
+                // the set's XDR first.
+                overlayMgr.cacheTxSet(txSet->getContentsHash(),
+                                      txSet->getGeneralizedXDR(), ledgerSeq);
+            }
+        },
+        targets);
+    markSignatureCacheLookups(mApp, "build", sigCacheHits, sigCacheMisses);
     CLOG_INFO(Herder, "Proposed TX set has {} transactions",
               proposedSet->sizeTxTotal());
 
@@ -1834,6 +2055,11 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     // or small snapshot doesn't prevent collecting transactions during the
     // timer wait. Reuse a snapshot when selection actually excluded valid
     // candidates. Invalid transactions do not establish excess demand.
+    // Candidates past a phase's validated prefix count as valid here. There
+    // are such candidates only when the prefix already held more valid ones
+    // than the phase can include, so they don't change the result (except
+    // in a phase that can include nothing: it validates nothing, and counts
+    // as capacity limited whenever it has candidates).
     size_t validCandidates = 0;
     for (size_t i = 0; i < txPhases.size(); ++i)
     {
@@ -1932,15 +2158,315 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (!isCtValid)
     {
         CLOG_WARNING(Herder,
-                     "Invalid close time selected ({}), skipping nomination",
+                     "Invalid close time selected ({}), skipping the slot",
                      nextCloseTime.toString());
         return;
     }
 
     // Start the trigger-to-ballot interval only once this node is going to
-    // build a proposal and nominate. A skipped trigger must not credit the
-    // time spent waiting for peers to the drift allowance.
-    mHerderSCPDriver.recordNominationTrigger(ledgerSeqToTrigger);
+    // take part. A skipped trigger must not credit the time spent waiting for
+    // peers to the drift allowance.
+    mHerderSCPDriver.recordTrigger(ledgerSeqToTrigger);
+
+    if (!getSCP().isValidator())
+    {
+        CLOG_DEBUG(Herder, "Non-validating node, not starting the slot (SCP).");
+        return;
+    }
+
+    // There is no nomination: the leader of each round (a deterministic
+    // schedule seeded by the LCL hash) proposes straight into the ballot
+    // protocol. The value is only built if this node leads a round.
+    mHerderSCPDriver.startSlot(
+        ledgerSeqToTrigger,
+        [this, ledgerSeqToTrigger]() {
+            return makeProposalValue(ledgerSeqToTrigger);
+        },
+        /*constructValueNow=*/buildsLegacyTxSet(lcl.header.ledgerVersion));
+
+    // A follower validates the leader's set when it arrives, and most of its
+    // transactions are in this node's mempool too. The prewarm started at the
+    // previous slot's ballot verified the candidates known then; verify the
+    // current ones (mostly cached by now) while waiting for the leader's set,
+    // so that validation finds them in the cache. Skip it if this node already
+    // voted, i.e. validated the leader's value.
+    if (!buildsLegacyTxSet(lcl.header.ledgerVersion) &&
+        !mHerderSCPDriver.isLocalNodeRoundLeader(
+            ledgerSeqToTrigger,
+            std::max<uint32_t>(1,
+                               getSCP().getLeaderRound(ledgerSeqToTrigger))) &&
+        getSCP().getLatestMessagesSend(ledgerSeqToTrigger).empty())
+    {
+        prewarmSignatureCache(ledgerSeqToTrigger, {});
+    }
+}
+
+size_t
+HerderImpl::maxTxSetCandidates() const
+{
+    auto& lm = mApp.getLedgerManager();
+    size_t maxCandidates = lm.getLastMaxTxSetSizeOps();
+    if (lm.hasLastClosedSorobanNetworkConfig())
+    {
+        maxCandidates +=
+            lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+    }
+    return maxCandidates;
+}
+
+std::vector<TransactionEnvelope>
+HerderImpl::pullTopTransactions(size_t count)
+{
+#ifdef BUILD_TESTS
+    if (mGetTopTransactionsForTesting)
+    {
+        return mGetTopTransactionsForTesting(count);
+    }
+#endif
+    return mApp.getOverlayManager().getTopTransactions(count);
+}
+
+std::vector<size_t>
+HerderImpl::validTxTargets(uint32_t lclLedgerVersion) const
+{
+    // Selection only uses the best valid candidates up to each phase's
+    // capacity, and validating (mostly: verifying the signatures of) the rest
+    // of the pull is most of the build's cost. A build validates each phase in
+    // mempool order only until it holds 5/4 of its capacity in valid
+    // transactions (more if some are invalid, see
+    // TxSetUtils::trimInvalidPrefix). The slack covers candidates that
+    // selection skips: those that don't fit the remaining resources, and those
+    // the mempool ranks above ones with a higher inclusion fee (it orders by
+    // total fee per operation).
+    auto validationTarget = [](size_t capacity) {
+        return capacity + (capacity + 3) / 4;
+    };
+    std::vector<size_t> targets{
+        validationTarget(mLedgerManager.getLastMaxTxSetSizeOps())};
+    if (protocolVersionStartsFrom(lclLedgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        targets.push_back(validationTarget(
+            mLedgerManager.hasLastClosedSorobanNetworkConfig()
+                ? mLedgerManager.getLastClosedSorobanNetworkConfig()
+                      .ledgerMaxTxCount()
+                : 0));
+    }
+    return targets;
+}
+
+std::vector<uint8_t>
+HerderImpl::pullTopTransactionsPayload(size_t count)
+{
+#ifdef BUILD_TESTS
+    if (mGetTopTransactionsForTesting)
+    {
+        // Encode the test mempool's answer as the overlay does.
+        auto envelopes = mGetTopTransactionsForTesting(count);
+        std::vector<uint8_t> payload(4);
+        uint32_t const n = static_cast<uint32_t>(envelopes.size());
+        std::memcpy(payload.data(), &n, 4);
+        for (auto const& env : envelopes)
+        {
+            auto const bytes = xdr::xdr_to_opaque(env);
+            uint32_t const len = static_cast<uint32_t>(bytes.size());
+            auto const at = payload.size();
+            payload.resize(at + 4);
+            std::memcpy(payload.data() + at, &len, 4);
+            payload.insert(payload.end(), bytes.begin(), bytes.end());
+        }
+        return payload;
+    }
+#endif
+    return mApp.getOverlayManager().getTopTransactionsPayload(count);
+}
+
+void
+HerderImpl::prewarmNextLedgerSignatures(uint64_t slotIndex,
+                                        Hash const& txSetHash)
+{
+    // Once a slot starts balloting, its value is all but decided, and the next
+    // ledger's candidates are the mempool's top minus this value's
+    // transactions (the overlay drops them when the slot externalizes). Every
+    // validator verifies their signatures while the slot finishes balloting,
+    // externalizes and closes: the next leader builds from them, and the
+    // others validate the set it builds.
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (!getSCP().isValidator() || !isTracking() ||
+        slotIndex != lcl.header.ledgerSeq + 1 ||
+        buildsLegacyTxSet(lcl.header.ledgerVersion))
+    {
+        return;
+    }
+    std::vector<size_t> pending;
+    auto txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    if (auto const* frame = std::get_if<TxSetXDRFrameConstPtr>(&txSet);
+        frame && *frame)
+    {
+        pending = txCountPerPhase(**frame);
+    }
+    prewarmSignatureCache(static_cast<uint32_t>(slotIndex + 1), pending);
+}
+
+void
+HerderImpl::prewarmSignatureCache(uint32_t ledgerSeq,
+                                  std::vector<size_t> const& pendingPerPhase)
+{
+    ZoneScoped;
+    stopSignaturePrewarm();
+    // The build for `ledgerSeq` validates the first validTxTargets() of each
+    // phase of its pull (more only if some are invalid), and the leader's set
+    // is selected from them.
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    auto windows = validTxTargets(lcl.header.ledgerVersion);
+    size_t pending = 0;
+    for (size_t i = 0; i < windows.size() && i < pendingPerPhase.size(); ++i)
+    {
+        windows[i] += pendingPerPhase[i];
+        pending += pendingPerPhase[i];
+    }
+    auto& metrics = mApp.getMetrics();
+    // Only the overlay round trip runs on the main thread; the tasks decode.
+    auto payload = [&]() {
+        auto timer =
+            metrics.NewTimer({"herder", "prewarm", "pull"}).TimeScope();
+        return std::make_shared<std::vector<uint8_t> const>(
+            pullTopTransactionsPayload(2 * maxTxSetCandidates() + pending));
+    }();
+    uint32_t count = 0;
+    if (payload->size() >= 4)
+    {
+        std::memcpy(&count, payload->data(), 4);
+    }
+    if (count == 0)
+    {
+        return;
+    }
+    auto prewarm = std::make_shared<SignaturePrewarm>();
+    prewarm->ledgerSeq = ledgerSeq;
+    prewarm->start = std::chrono::steady_clock::now();
+    // The batch executor (validation) is idle until the next build or the
+    // leader's set; use as many background tasks as it would, but leave
+    // worker threads for long background jobs such as bucket merges.
+    size_t const workers = static_cast<size_t>(mApp.getConfig().WORKER_THREADS);
+    size_t const tasks = std::max<size_t>(
+        1, std::min<size_t>(mApp.getBatchExecutor().preferredTaskCount(),
+                            workers > 2 ? workers - 2 : 1));
+    prewarm->runningTasks = tasks;
+    mSignaturePrewarm = prewarm;
+    CLOG_DEBUG(Herder,
+               "Pre-verifying signatures for ledger {}: {} pulled, windows {} "
+               "classic / {} Soroban, {} tasks",
+               ledgerSeq, count, windows[0],
+               windows.size() > 1 ? windows[1] : 0, tasks);
+    for (size_t task = 0; task < tasks; ++task)
+    {
+        mApp.postOnBackgroundThread(
+            [prewarm, payload, windows, networkID = mApp.getNetworkID(), task,
+             tasks]() {
+                ZoneScopedN("signature prewarm");
+                if (!prewarm->stop.load(std::memory_order_relaxed))
+                {
+                    std::call_once(prewarm->selected, [&]() {
+                        prewarm->candidates = selectPrewarmCandidates(
+                            OverlayIPC::parseTopTransactions(*payload),
+                            windows);
+                    });
+                    auto const& candidates = prewarm->candidates;
+                    for (size_t i = task; i < candidates.size(); i += tasks)
+                    {
+                        if (prewarm->stop.load(std::memory_order_relaxed))
+                        {
+                            break;
+                        }
+                        prewarm->verifiedSignatures +=
+                            verifyMasterKeySignatures(networkID, candidates[i]);
+                        ++prewarm->checkedTxs;
+                    }
+                }
+                if (prewarm->runningTasks.fetch_sub(1) == 1)
+                {
+                    // The last task: free the candidates here rather than on
+                    // the main thread when the prewarm is stopped.
+                    std::vector<TransactionEnvelope>().swap(
+                        prewarm->candidates);
+                    prewarm->finishedAfterNs =
+                        std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now() - prewarm->start)
+                            .count();
+                }
+            },
+            "Herder: signature prewarm");
+    }
+}
+
+void
+HerderImpl::stopSignaturePrewarm()
+{
+    if (!mSignaturePrewarm)
+    {
+        return;
+    }
+    auto prewarm = std::move(mSignaturePrewarm);
+    mSignaturePrewarm.reset();
+    prewarm->stop.store(true, std::memory_order_relaxed);
+    // Tasks still running stop after their current transaction; what they
+    // did so far is recorded.
+    auto const finishedAfterNs = prewarm->finishedAfterNs.load();
+    auto& metrics = mApp.getMetrics();
+    metrics.NewTimer({"herder", "prewarm", "duration"})
+        .Update(finishedAfterNs >= 0
+                    ? std::chrono::nanoseconds(finishedAfterNs)
+                    : std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::steady_clock::now() - prewarm->start));
+    metrics.NewMeter({"herder", "prewarm", "txs"}, "transaction")
+        .Mark(prewarm->checkedTxs.load());
+    metrics.NewMeter({"herder", "prewarm", "verified"}, "signature")
+        .Mark(prewarm->verifiedSignatures.load());
+    if (finishedAfterNs < 0)
+    {
+        metrics.NewMeter({"herder", "prewarm", "incomplete"}, "prewarm").Mark();
+    }
+}
+
+bool
+HerderImpl::buildsLegacyTxSet(uint32_t lclLedgerVersion)
+{
+    // Ledgers closing on a pre-Soroban LCL use legacy (non-generalized) tx
+    // sets, which the Rust overlay can neither fetch nor serve: a follower
+    // can only obtain the leader's set by building it. Every validator
+    // therefore constructs its value at the trigger for these ledgers, as
+    // before leader-only construction. With an empty mempool (genesis and
+    // the upgrade-only ledgers up to protocol 20) the set depends only on the
+    // previous ledger, so all validators build the same set as the leader.
+    return protocolVersionIsBefore(lclLedgerVersion, SOROBAN_PROTOCOL_VERSION);
+}
+
+ValueWrapperPtr
+HerderImpl::makeProposalValue(uint32_t ledgerSeqToTrigger)
+{
+    // A follower can be promoted long after the trigger. Recheck the ledger
+    // state and select a fresh close time when SCP actually needs our value.
+    // Herder tracking was checked at the trigger. Do not require it again:
+    // a node that lost sync while the slot stalled (e.g. waiting for a tx set
+    // it cannot fetch) must still propose once promoted, like a value built at
+    // the trigger would have been, or the slot can stall forever.
+    if (!mLedgerManager.isSynced() || mLedgerManager.isApplying())
+    {
+        return nullptr;
+    }
+    auto lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (ledgerSeqToTrigger != lcl.header.ledgerSeq + 1)
+    {
+        return nullptr;
+    }
+    auto nextCloseTime = std::max(
+        ConsensusTime::fromSystemTime(mApp.getClock().system_now(),
+                                      lcl.header.ledgerVersion),
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion));
+    if (ctValidityOffset(nextCloseTime) != std::chrono::milliseconds::zero())
+    {
+        return nullptr;
+    }
 
     // Consume the private snapshot only for the ledger it was built against.
     // Keep its close time: changing it would invalidate time-bound transactions
@@ -1985,7 +2511,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (!applicableProposedSet)
     {
         releaseAssert(!mApp.getConfig().FORCE_SCP);
-        return;
+        return nullptr;
     }
 
     // New proposed tx set must be valid, so we explicitly populate tx set
@@ -1994,12 +2520,19 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                                      closeTimeOffset);
 
 #ifdef BUILD_TESTS
-    if (mNominatedTxSetOverride)
+    if (mProposedTxSetOverride)
     {
-        proposedSet = mNominatedTxSetOverride(lcl);
+        proposedSet = mProposedTxSetOverride(lcl);
         CLOG_INFO(Herder, "Nominating overridden tx set {} for slot {}",
                   hexAbbrev(proposedSet->getContentsHash()),
                   lcl.header.ledgerSeq + 1);
+        // The overlay only cached the set built above; peers fetch this one.
+        if (proposedSet->isGeneralizedTxSet())
+        {
+            mApp.getOverlayManager().cacheTxSet(
+                proposedSet->getContentsHash(),
+                proposedSet->getGeneralizedXDR(), lcl.header.ledgerSeq + 1);
+        }
     }
 #endif
 
@@ -2014,20 +2547,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     mPendingEnvelopes.addTxSet(txSetHash, lcl.header.ledgerSeq + 1,
                                proposedSet);
 
-    // Cache the TX set in Rust overlay so it can serve it to other peers.
-    // When a peer receives an SCP message referencing this TX set hash,
-    // they'll request it via TX set fetching, and Rust needs the XDR.
-    // Note: Rust overlay only supports GeneralizedTransactionSet (protocol >=
-    // 20)
-    if (proposedSet->isGeneralizedTxSet())
-    {
-        GeneralizedTransactionSet xdrTxSet;
-        proposedSet->toXDR(xdrTxSet);
-        auto xdrBytes = xdr::xdr_to_opaque(xdrTxSet);
-        mApp.getOverlayManager().cacheTxSet(txSetHash, xdrBytes,
-                                            lcl.header.ledgerSeq + 1);
-    }
-
     lcl = mLedgerManager.getLastClosedLedgerHeader();
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
@@ -2039,7 +2558,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // applying
     if (ledgerSeqToTrigger != slotIndex || mLedgerManager.isApplying())
     {
-        return;
+        return nullptr;
     }
 
     auto newUpgrades = emptyUpgradeSteps;
@@ -2069,22 +2588,13 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         }
     }
 
-    getHerderSCPDriver().recordSCPEvent(slotIndex, true);
-
-    // If we are not a validating node we stop here and don't start nomination
-    if (!getSCP().isValidator())
-    {
-        CLOG_DEBUG(Herder, "Non-validating node, skipping nomination (SCP).");
-        return;
-    }
-
 #ifdef BUILD_TESTS
-    if (mApp.getConfig().TESTING_NOMINATE_RANDOM_VALUES &&
+    if (mApp.getConfig().TESTING_PROPOSE_RANDOM_VALUES &&
         getHerderSCPDriver().protocolAllowsEmptyTxSetValues())
     {
         txSetHash = HashUtils::pseudoRandomForTesting();
         CLOG_INFO(Herder,
-                  "TESTING_NOMINATE_RANDOM_VALUES: nominating slot {} "
+                  "TESTING_PROPOSE_RANDOM_VALUES: proposing slot {} "
                   "with random tx-set hash {}",
                   slotIndex, hexAbbrev(txSetHash));
     }
@@ -2092,8 +2602,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
     StellarValue newProposedValue = makeStellarValue(
         txSetHash, nextCloseTime, newUpgrades, mApp.getConfig().NODE_SEED);
-    mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
-                              lcl.header.scpValue);
+    return mHerderSCPDriver.wrapStellarValue(newProposedValue);
 }
 
 void
@@ -3112,9 +3621,9 @@ HerderImpl::makeStellarValue(Hash const& txSetHash, ConsensusTime closeTime,
 }
 
 bool
-HerderImpl::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                        SCPStatement const& newSt)
+HerderImpl::isNewerStatement(SCPStatement const& oldSt,
+                             SCPStatement const& newSt)
 {
-    return getSCP().isNewerNominationOrBallotSt(oldSt, newSt);
+    return getSCP().isNewerStatement(oldSt, newSt);
 }
 }

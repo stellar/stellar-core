@@ -34,11 +34,6 @@ class VirtualTimer;
 struct StellarValue;
 struct SCPEnvelope;
 
-// First protocol version supporting the application-specific weight function
-// for SCP leader election.
-ProtocolVersion constexpr APPLICATION_SPECIFIC_NOMINATION_LEADER_ELECTION_PROTOCOL_VERSION =
-    ProtocolVersion::V_22;
-
 class HerderSCPDriver : public SCPDriver
 {
   public:
@@ -57,8 +52,10 @@ class HerderSCPDriver : public SCPDriver
     }
 
     void recordSCPExecutionMetrics(uint64_t slotIndex);
-    void recordNominationTrigger(uint64_t slotIndex);
-    void recordSCPEvent(uint64_t slotIndex, bool isNomination);
+    // The local trigger for slotIndex fired.
+    void recordTrigger(uint64_t slotIndex);
+    // The local node entered the ballot protocol for slotIndex.
+    void recordBallotStart(uint64_t slotIndex);
     void recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
                                    bool forceUpdateSelf);
 
@@ -72,9 +69,7 @@ class HerderSCPDriver : public SCPDriver
     // value validation
     SCPDriver::ValidationLevel validateValue(uint64_t slotIndex,
                                              Value const& value,
-                                             bool nomination) const override;
-    ValueWrapperPtr extractValidValue(uint64_t slotIndex,
-                                      Value const& value) override;
+                                             bool proposal) const override;
 
     // value marshaling
     std::string toShortString(NodeID const& pk) const override;
@@ -106,42 +101,47 @@ class HerderSCPDriver : public SCPDriver
                     std::function<void()> cb) override;
 
     void stopTimer(uint64 slotIndex, int timerID) override;
-    std::chrono::milliseconds computeTimeout(uint32 roundNumber,
-                                             bool isNomination) override;
-#ifdef BUILD_TESTS
-    std::chrono::milliseconds getNominationEmitDelayForTesting() const override;
-#endif
+    std::chrono::milliseconds computeTimeout(uint32 roundNumber) override;
 
     // hashing support
     Hash getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override;
 
     // core SCP
-    ValueWrapperPtr
-    combineCandidates(uint64_t slotIndex,
-                      ValueWrapperPtrSet const& candidates) override;
     void valueExternalized(uint64_t slotIndex, Value const& value) override;
 
-    bool hasUpgrades(Value const& v) override;
-    ValueWrapperPtr stripAllUpgrades(Value const& v) override;
-    uint32_t getUpgradeNominationTimeoutLimit() const override;
+    // Deterministic leader schedule: the leader of `round` for `slotIndex`.
+    // The schedule is a permutation of the transitive quorum seeded by the
+    // hash of the last closed ledger header, so it is only defined for the
+    // next ledger to close (LCL+1).
+    bool isProposalPending(uint64 slotIndex,
+                           NodeID const& leader) const override;
+    std::optional<NodeID> getRoundLeader(uint64 slotIndex,
+                                         uint32 round) override;
+    // The whole schedule for slotIndex (round r is led by entry
+    // (r - 1) % size). Empty when the schedule is not defined for the slot.
+    std::vector<NodeID> const& getLeaderSchedule(uint64_t slotIndex);
+    // True if the local node leads `round` of slotIndex.
+    bool isLocalNodeRoundLeader(uint64_t slotIndex, uint32_t round);
 
     // Update metrics indicating that a value was replaced with an empty-tx-set
     // value for slotIndex.
     void noteEmptyTxSetValueReplaced(uint64_t slotIndex) override;
 
-    // Submit a value to consider for slotIndex
-    // previousValue is the value from slotIndex-1
-    void nominate(uint64_t slotIndex, StellarValue const& value,
-                  TxSetXDRFrameConstPtr proposedSet,
-                  StellarValue const& previousValue);
+    // Start consensus on slotIndex. SCP calls makeValue only when the local
+    // node leads a round and needs its own value, unless constructValueNow
+    // is set: then the value is constructed first (and reused if this node
+    // becomes a leader).
+    void startSlot(uint64_t slotIndex, ProposalValueSupplier makeValue,
+                   bool constructValueNow = false);
 
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     // listeners
     void ballotDidHearFromQuorum(uint64_t slotIndex,
                                  SCPBallot const& ballot) override;
-    void nominatingValue(uint64_t slotIndex, Value const& value) override;
-    void updatedCandidateValue(uint64_t slotIndex, Value const& value) override;
+    void proposedValue(uint64_t slotIndex, uint32 round,
+                       Value const& value) override;
+    void enteredRound(uint64_t slotIndex, uint32 round, bool timedOut) override;
     void startedBallotProtocol(uint64_t slotIndex,
                                SCPBallot const& ballot) override;
     void acceptedBallotPrepared(uint64_t slotIndex,
@@ -196,13 +196,6 @@ class HerderSCPDriver : public SCPDriver
     getTxSetDownloadWaitTime(Value const& v) const override;
     std::chrono::milliseconds getTxSetDownloadTimeout() const override;
 
-    // Application-specific weight function. This function uses the quality
-    // levels from automatic quorum set generation to determine the weight of a
-    // validator. It is designed to ensure that:
-    // 1. Orgs of equal quality have equal chances of winning leader election.
-    // 2. Higher quality orgs win more frequently than lower quality orgs.
-    uint64 getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
-                         bool isLocalNode) const override;
     // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
     // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
     using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
@@ -216,12 +209,14 @@ class HerderSCPDriver : public SCPDriver
                          LedgerHeaderHistoryEntry const& lcl,
                          ApplyTimeOffset closeTimeOffset) const;
 
-    // Get the number of nomination timeouts that occurred for a given slot
-    std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
+    // Get the number of times the local node timed out waiting for a round
+    // leader in a given slot
+    std::optional<int64_t> getLeaderTimeouts(uint64_t slotIndex) const;
 
     // Elapsed local time from the trigger through entry into ballot, measured
-    // on the steady clock. Includes construction and incomplete nomination
-    // rounds. Missing timing history does not establish any allowance.
+    // on the steady clock. Includes construction and rounds whose leader
+    // never showed up. Missing timing history does not establish any
+    // allowance.
     std::chrono::milliseconds
     getTriggerToBallotDuration(uint64_t slotIndex) const;
 
@@ -264,15 +259,12 @@ class HerderSCPDriver : public SCPDriver
         medida::Meter& mValueValid;
         medida::Meter& mValueInvalid;
 
-        // listeners
-        medida::Meter& mCombinedCandidates;
-
-        // Timers for nomination and ballot protocols
-        medida::Timer& mNominateToPrepare;
+        // Timer for the ballot protocol
         medida::Timer& mPrepareToExternalize;
 
-        // Local trigger to first entry into ballot (proposal construction
-        // plus nomination); the drift allowance of the trigger anchor
+        // Local trigger to first entry into ballot (proposal construction, or
+        // waiting for the round leader's proposal); the drift allowance of
+        // the trigger anchor
         medida::Timer& mTriggerToBallot;
 
         // Timers tracking externalize messages
@@ -297,8 +289,10 @@ class HerderSCPDriver : public SCPDriver
 
     SCPMetrics mSCPMetrics;
 
-    // Nomination timeouts per ledger
-    medida::Histogram& mNominateTimeout;
+    // Timeouts waiting for a round leader, per ledger
+    medida::Histogram& mLeaderTimeout;
+    // Round in which the ledger externalized (1 = first leader)
+    medida::Histogram& mLeaderRound;
     // Prepare timeouts per ledger
     medida::Histogram& mPrepareTimeout;
     // Unique values referenced per ledger
@@ -310,11 +304,12 @@ class HerderSCPDriver : public SCPDriver
     struct SCPTiming
     {
         std::optional<VirtualClock::time_point> mTriggerStart;
-        std::optional<VirtualClock::time_point> mNominationStart;
         std::optional<VirtualClock::time_point> mPrepareStart;
 
-        // Nomination timeouts before first prepare
-        int64_t mNominationTimeoutCount{0};
+        // Timeouts waiting for a round leader's proposal
+        int64_t mLeaderTimeoutCount{0};
+        // Highest round the local node entered
+        uint32_t mMaxRound{0};
         // Prepare timeouts before externalize
         int64_t mPrepareTimeoutCount{0};
 
@@ -328,12 +323,24 @@ class HerderSCPDriver : public SCPDriver
     };
 
     // Map of time points for each slot to measure key protocol metrics:
-    // * nomination to first prepare
+    // * trigger to first prepare
     // * first prepare to externalize
     std::map<uint64_t, SCPTiming> mSCPExecutionTimes;
 
-    uint32_t mLedgerSeqNominating;
+    // Slot the local node started, and the value it built for it (if any)
+    uint32_t mLedgerSeqProposing;
     ValueWrapperPtr mCurrentValue;
+
+    // Leader schedule of the next ledger to close
+    struct LeaderScheduleCache
+    {
+        uint64_t mSlotIndex{0};
+        Hash mSeed;
+        size_t mQuorumSize{0};
+        uint64_t mQuorumRebuildCount{0};
+        std::vector<NodeID> mSchedule;
+    };
+    LeaderScheduleCache mLeaderSchedule;
 
     // timers used by SCP
     // indexed by slotIndex, timerID
@@ -351,7 +358,7 @@ class HerderSCPDriver : public SCPDriver
 
     SCPDriver::ValidationLevel
     validateValueAgainstLocalState(uint64_t slotIndex, StellarValue const& sv,
-                                   bool nomination) const;
+                                   bool proposal) const;
 
     SCPDriver::ValidationLevel
     validatePastOrFutureValue(uint64_t slotIndex, StellarValue const& b,
@@ -376,6 +383,6 @@ class HerderSCPDriver : public SCPDriver
     bool deserializeAndValidateStellarValue(uint64_t slotIndex,
                                             Value const& value,
                                             StellarValue& sv) const;
-    void extractValidUpgrades(StellarValue& sv, bool nomination) const;
+    void extractValidUpgrades(StellarValue& sv, bool proposal) const;
 };
 }

@@ -15,6 +15,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
+#include "util/ProtocolVersion.h"
 #include "util/UnorderedSet.h"
 #include <Tracy.hpp>
 #include <xdrpp/marshal.h>
@@ -35,6 +36,7 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mValueSizeCache(TXSET_CACHE_SIZE + QSET_CACHE_SIZE)
     , mRebuildQuorum(true)
     , mQuorumTracker(mApp.getConfig().NODE_SEED.getPublicKey())
+    , mTxSetFetchRetryTimer(app)
     , mProcessedCount(
           app.getMetrics().NewCounter({"scp", "pending", "processed"}))
     , mDiscardedCount(
@@ -43,8 +45,10 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
           app.getMetrics().NewCounter({"scp", "pending", "fetching"}))
     , mReadyCount(app.getMetrics().NewCounter({"scp", "pending", "ready"}))
     , mFetchDuration(app.getMetrics().NewTimer({"scp", "fetch", "envelope"}))
-    , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mFetchTxSetTimer(app.getMetrics().NewTimer({"scp", "fetch", "txset"}))
     , mFetchQsetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "qset"}))
+    , mTxSetFetchRetries(
+          app.getMetrics().NewCounter({"scp", "fetch", "txset-retry"}))
     , mCostPerSlot(app.getMetrics().NewHistogram({"scp", "cost", "per-slot"}))
 {
 }
@@ -265,6 +269,11 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
     CLOG_TRACE(Herder, "Add TxSet {}", hexAbbrev(hash));
 
     putTxSet(hash, lastSeenSlotIndex, txset);
+    // A locally built set can be one we are fetching: a promoted leader can
+    // build the set it was waiting for, and nobody can serve a legacy set over
+    // the Rust overlay. Release its waiting envelopes now. This can reenter
+    // SCP and externalize.
+    completeTxSetFetch(hash, txset, /*deliveredByOverlay=*/false);
 }
 
 bool
@@ -274,29 +283,76 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
     CLOG_INFO(Herder, "Got TxSet {}", hexAbbrev(hash));
 
     // Only accept if we were actually fetching this
-    auto it = mPendingTxSetFetches.find(hash);
-    if (it == mPendingTxSetFetches.end())
+    if (mPendingTxSetFetches.find(hash) == mPendingTxSetFetches.end())
     {
-        CLOG_WARNING(Herder, "TxSet {} not in pending fetches - rejecting",
-                     hexAbbrev(hash));
+        if (hasTxSet(hash))
+        {
+            // E.g. built locally after requesting it from the overlay
+            CLOG_DEBUG(Herder, "TxSet {} already known - ignoring",
+                       hexAbbrev(hash));
+        }
+        else
+        {
+            CLOG_WARNING(Herder, "TxSet {} not in pending fetches - rejecting",
+                         hexAbbrev(hash));
+        }
         return false;
     }
 
-    addTxSet(hash, 0, txset);
+    // The overlay checks the content hash before delivering a set, but the
+    // frame recomputed it: never file a set under another hash.
+    if (txset->getContentsHash() != hash)
+    {
+        CLOG_WARNING(Herder,
+                     "TxSet {} delivered with content hash {} - "
+                     "rejecting",
+                     hexAbbrev(hash), hexAbbrev(txset->getContentsHash()));
+        return false;
+    }
+
+    putTxSet(hash, 0, txset);
+    completeTxSetFetch(hash, txset, /*deliveredByOverlay=*/true);
+    return true;
+}
+
+void
+PendingEnvelopes::completeTxSetFetch(Hash const& hash,
+                                     TxSetXDRFrameConstPtr const& txset,
+                                     bool deliveredByOverlay)
+{
+    auto it = mPendingTxSetFetches.find(hash);
+    if (it == mPendingTxSetFetches.end())
+    {
+        return;
+    }
+    // Detach the waiting envelopes first: reprocessing them reenters SCP and
+    // can start or stop other fetches.
+    auto envelopes = std::move(it->second);
+    mPendingTxSetFetches.erase(it);
+    auto fetchIt = mTxSetFetches.find(hash);
+    if (fetchIt != mTxSetFetches.end())
+    {
+        // scp.fetch.txset times overlay deliveries only, not sets this node
+        // ended up building itself. (overlay.fetch.txset is the overlay's own
+        // per-request fetch time, synced from Rust.)
+        if (deliveredByOverlay)
+        {
+            mFetchTxSetTimer.Update(mApp.getClock().now() -
+                                    fetchIt->second.mStarted);
+        }
+        mTxSetFetches.erase(fetchIt);
+    }
 
     // Update any ValueWrappers that were created before this tx set was
     // available
     mHerder.getHerderSCPDriver().onTxSetReceived(hash, txset);
 
-    for (auto& env : it->second)
+    for (auto const& env : envelopes)
     {
-        CLOG_INFO(Herder, "Re-processing envelope after TxSet {} fetch",
-                  hexAbbrev(hash));
+        CLOG_DEBUG(Herder, "Re-processing envelope after TxSet {} fetch",
+                   hexAbbrev(hash));
         mApp.getHerder().recvSCPEnvelope(env);
     }
-    mPendingTxSetFetches.erase(hash);
-    mTxSetFetchStartTimes.erase(hash);
-    return true;
 }
 
 bool
@@ -706,22 +762,26 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
             // doesn't need fetching): nothing to do
             continue;
         }
+        auto const slot = envelope.statement.slotIndex;
         auto it = mPendingTxSetFetches.find(h2);
         if (it != mPendingTxSetFetches.end())
         {
             // Already fetching - just add envelope to waiting list
             it->second.push_back(envelope);
+            auto& fetch = mTxSetFetches.at(h2);
+            fetch.mSlot = std::max(fetch.mSlot, slot);
         }
         else
         {
-            // Not fetching yet - start fetch
+            // Not fetching yet - start fetch. Repeated only if the overlay
+            // does not deliver it (retryStalledTxSetFetches).
             auto& vec = mPendingTxSetFetches[h2];
             vec.push_back(envelope);
-            mTxSetFetchStartTimes.emplace(h2, mApp.getClock().now());
-            mApp.getOverlayManager().requestTxSet(
-                h2,
-                static_cast<uint32_t>(
-                    envelope.statement.slotIndex)); // Only once!
+            auto const now = mApp.getClock().now();
+            mTxSetFetches[h2] = TxSetFetchState{now, now, slot, 1};
+            mApp.getOverlayManager().requestTxSet(h2,
+                                                  static_cast<uint32_t>(slot));
+            scheduleTxSetFetchRetry();
         }
     }
 
@@ -750,7 +810,7 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
             if (vec.empty())
             {
                 mPendingTxSetFetches.erase(it);
-                mTxSetFetchStartTimes.erase(h2);
+                mTxSetFetches.erase(h2);
             }
         }
     }
@@ -909,8 +969,108 @@ PendingEnvelopes::stopAllOutsideRange(std::optional<uint64> minSlot,
             maybeRecordCost(it);
         }
     }
-    // Clear pending fetches for old slots - no need to track individual slots
-    // since Rust overlay handles timeout/retry logic
+    // Stop fetching tx sets that only purged slots were waiting for, so they
+    // are no longer re-requested.
+    for (auto it = mTxSetFetches.begin(); it != mTxSetFetches.end();)
+    {
+        auto const slot = it->second.mSlot;
+        if (slot != slotToKeep &&
+            ((minSlot && slot < *minSlot) || (maxSlot && slot > *maxSlot)))
+        {
+            mPendingTxSetFetches.erase(it->first);
+            it = mTxSetFetches.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void
+PendingEnvelopes::scheduleTxSetFetchRetry()
+{
+    // Only sets for undecided slots are re-requested (see
+    // retryStalledTxSetFetches).
+    auto const lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+    if (mTxSetFetchRetryScheduled ||
+        std::none_of(
+            mTxSetFetches.begin(), mTxSetFetches.end(),
+            [&](auto const& fetch) { return fetch.second.mSlot > lcl; }))
+    {
+        return;
+    }
+    mTxSetFetchRetryScheduled = true;
+    mTxSetFetchRetryTimer.expires_from_now(TX_SET_FETCH_RETRY_INTERVAL);
+    mTxSetFetchRetryTimer.async_wait(
+        [this]() {
+            mTxSetFetchRetryScheduled = false;
+            retryStalledTxSetFetches();
+        },
+        &VirtualTimer::onFailureNoop);
+}
+
+void
+PendingEnvelopes::retryStalledTxSetFetches()
+{
+    // The overlay neither times out nor retries a request: a peer can be
+    // silent or lack the set (there is no negative response), and nobody can
+    // serve a legacy (pre-protocol 20) set. Repeat requests that have not been
+    // answered; the overlay sends a repeated request to another peer.
+    auto const now = mApp.getClock().now();
+    auto const lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+    bool const legacyLcl =
+        protocolVersionIsBefore(mApp.getLedgerManager()
+                                    .getLastClosedLedgerHeader()
+                                    .header.ledgerVersion,
+                                SOROBAN_PROTOCOL_VERSION);
+    for (auto& [hash, fetch] : mTxSetFetches)
+    {
+        // A set for a slot this node already closed (e.g. kept for the
+        // checkpoint) is not needed for consensus; it was requested once.
+        if (fetch.mSlot <= lcl)
+        {
+            continue;
+        }
+        // Back off (1, 2, 4, then every 8 s): a slow but live transfer of a
+        // large set should not be duplicated to another peer every second.
+        auto const backoff = TX_SET_FETCH_RETRY_INTERVAL *
+                             (1u << std::min<uint32_t>(fetch.mRequests - 1, 3));
+        if (now - fetch.mLastRequested < backoff)
+        {
+            continue;
+        }
+        fetch.mLastRequested = now;
+        ++fetch.mRequests;
+        mTxSetFetchRetries.inc();
+        auto const waited =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - fetch.mStarted);
+        // Warn on every doubling: a set that never arrives stays visible
+        // without flooding the log.
+        if ((fetch.mRequests & (fetch.mRequests - 1)) == 0)
+        {
+            CLOG_WARNING(Herder,
+                         "TxSet {} for slot {} not received after {} ms, "
+                         "requesting it again (request {}){}",
+                         hexAbbrev(hash), fetch.mSlot, waited.count(),
+                         fetch.mRequests,
+                         legacyLcl ? ". The Rust overlay cannot fetch legacy "
+                                     "(pre-protocol 20) tx sets"
+                                   : "");
+        }
+        else
+        {
+            CLOG_DEBUG(Herder,
+                       "TxSet {} for slot {} not received after {} ms, "
+                       "requesting it again (request {})",
+                       hexAbbrev(hash), fetch.mSlot, waited.count(),
+                       fetch.mRequests);
+        }
+        mApp.getOverlayManager().requestTxSet(
+            hash, static_cast<uint32_t>(fetch.mSlot));
+    }
+    scheduleTxSetFetchRetry();
 }
 
 void
@@ -955,13 +1115,13 @@ PendingEnvelopes::getQSet(Hash const& hash)
 std::optional<std::chrono::milliseconds>
 PendingEnvelopes::getTxSetWaitingTime(Hash const& hash) const
 {
-    auto it = mTxSetFetchStartTimes.find(hash);
-    if (it == mTxSetFetchStartTimes.end())
+    auto it = mTxSetFetches.find(hash);
+    if (it == mTxSetFetches.end())
     {
         return std::nullopt;
     }
     return std::chrono::duration_cast<std::chrono::milliseconds>(
-        mApp.getClock().now() - it->second);
+        mApp.getClock().now() - it->second.mStarted);
 }
 
 Json::Value
@@ -1004,6 +1164,7 @@ PendingEnvelopes::rebuildQuorumTrackerState()
 {
     // rebuild quorum information using data sources starting with the
     // freshest source
+    ++mQuorumRebuildCount;
     mQuorumTracker.rebuild([&](NodeID const& id) -> SCPQuorumSetPtr {
         SCPQuorumSetPtr res;
         if (id == mHerder.getSCP().getLocalNodeID())
@@ -1033,6 +1194,32 @@ PendingEnvelopes::rebuildQuorumTrackerState()
         }
         return res;
     });
+}
+
+bool
+PendingEnvelopes::hasPendingEnvelopeFrom(uint64 slotIndex,
+                                         NodeID const& node) const
+{
+    auto it = mEnvelopes.find(slotIndex);
+    if (it == mEnvelopes.end())
+    {
+        return false;
+    }
+    for (auto const& f : it->second.mFetchingEnvelopes)
+    {
+        if (f.first.statement.nodeID == node)
+        {
+            return true;
+        }
+    }
+    for (auto const& r : it->second.mReadyEnvelopes)
+    {
+        if (r->getStatement().nodeID == node)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 QuorumTracker::QuorumMap const&

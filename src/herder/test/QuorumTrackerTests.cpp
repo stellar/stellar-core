@@ -78,21 +78,25 @@ testQuorumTracker()
             herder->recvTxSet(p.mTxSet->getContentsHash(), p.mTxSet);
         }
     };
-    auto recvNom = [&](uint64 slotID, SecretKey const& k,
-                       SCPQuorumSet const& qSet,
-                       std::vector<ValuesTxSet> const& pp) {
+    auto recvPrepare = [&](uint64 slotID, SecretKey const& k,
+                           SCPQuorumSet const& qSet,
+                           std::vector<ValuesTxSet> const& pp) {
+        // A PREPARE that references every value of `pp`: the last one is the
+        // ballot's value, an earlier one (if any) is the prepared value. More
+        // values make a newer statement.
+        releaseAssert(!pp.empty() && pp.size() <= 2);
         SCPEnvelope envelope;
-        envelope.statement.pledges.type(SCP_ST_NOMINATE);
-        auto& nom = envelope.statement.pledges.nominate();
-
-        std::set<Value> values;
-        for (auto& p : pp)
+        envelope.statement.pledges.type(SCP_ST_PREPARE);
+        auto& prep = envelope.statement.pledges.prepare();
+        prep.ballot.counter = static_cast<uint32>(pp.size());
+        prep.ballot.value = pp.back().mSignedV;
+        if (pp.size() > 1)
         {
-            values.insert(p.mSignedV);
+            prep.prepared.activate().counter = 1;
+            prep.prepared->value = pp.front().mSignedV;
         }
-        nom.votes.insert(nom.votes.begin(), values.begin(), values.end());
         auto qSetH = sha256(xdr::xdr_to_opaque(qSet));
-        nom.quorumSetHash = qSetH;
+        prep.quorumSetHash = qSetH;
         recvEnvelope(envelope, slotID, k, qSet, pp);
     };
     auto recvExternalize = [&](uint64 slotID, SecretKey const& k,
@@ -135,17 +139,17 @@ testQuorumTracker()
     SECTION("Receive self")
     {
         checkInQuorum({0, 1});
-        recvNom(3, cfg.NODE_SEED, cfg.QUORUM_SET, {vv});
+        recvPrepare(3, cfg.NODE_SEED, cfg.QUORUM_SET, {vv});
         checkInQuorum({0, 1});
     }
     SECTION("Expand 0")
     {
         checkInQuorum({0, 1});
-        recvNom(3, otherKeys[0], qSet0, {vv});
+        recvPrepare(3, otherKeys[0], qSet0, {vv});
         checkInQuorum({0, 1, 2, 3});
         SECTION("Expand 2")
         {
-            recvNom(3, otherKeys[2], qSet2, {vv});
+            recvPrepare(3, otherKeys[2], qSet2, {vv});
             checkInQuorum({0, 1, 2, 3, 5, 6});
             SECTION("node restart")
             {
@@ -168,13 +172,13 @@ testQuorumTracker()
         SECTION("Update 0's qSet")
         {
             auto vv2 = makeValue(2);
-            recvNom(3, otherKeys[0], qSet0b, {vv, vv2});
+            recvPrepare(3, otherKeys[0], qSet0b, {vv, vv2});
             checkInQuorum({0, 1, 4, 5});
         }
         SECTION("Update 0's qSet in an old slot")
         {
             auto vv2 = makeValue(2);
-            recvNom(2, otherKeys[0], qSet0b, {vv, vv2});
+            recvPrepare(2, otherKeys[0], qSet0b, {vv, vv2});
             // nothing changes (slot 3 has precedence)
             checkInQuorum({0, 1, 2, 3});
         }

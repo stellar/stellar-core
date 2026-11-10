@@ -7,6 +7,7 @@
 #include "herder/TxSetFrame.h"
 #include "util/UnorderedMap.h"
 #include "xdr/Stellar-types.h"
+#include <functional>
 #include <ledger/LedgerHashUtils.h>
 #include <tuple>
 
@@ -62,5 +63,20 @@ class TxSetUtils
                 UnorderedMap<AccountID, int64_t>& accountFeeMap,
                 uint64_t lowerBoundCloseTimeOffset,
                 uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs);
+
+    // Like `trimInvalid`, for candidates in priority order when only the
+    // first `targetValidTxs` valid ones that `countsTowardTarget` accepts are
+    // needed. Validates a prefix of `txs` in at most three passes: the first
+    // `targetValidTxs` candidates, then twice as many more as are still
+    // missing, then all the rest. Returns the valid candidates of that prefix
+    // in order, and its invalid ones in `invalidTxs`. Candidates past the
+    // prefix are neither validated nor returned.
+    static TxFrameList trimInvalidPrefix(
+        TxFrameList const& txs, size_t targetValidTxs,
+        std::function<bool(TransactionFrameBase const&)> const&
+            countsTowardTarget,
+        Application& app, UnorderedMap<AccountID, int64_t>& accountFeeMap,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        TxFrameList& invalidTxs);
 }; // class TxSetUtils
 } // namespace stellar

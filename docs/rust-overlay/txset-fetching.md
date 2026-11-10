@@ -6,15 +6,56 @@ it establishes demand with `RequestTxSet`.
 
 ## Wire formats and routes
 
-Network messages use a four-byte big-endian frame length followed by a
-`StellarMessage`. `GetTxSet` contains the 32-byte hash; `GeneralizedTxSet`
-contains the set XDR. The response hash is computed from the canonical bytes
-after strict decoding, without re-encoding the set.
+Requests use a four-byte big-endian frame length followed by a
+`StellarMessage::GetTxSet` containing the 32-byte hash. Responses require
+`/stellar/txset/zstd/2.0.0` and contain an outer four-byte big-endian frame
+length, a four-byte big-endian original XDR length, and exactly one zstd frame.
+There is no raw encoding or legacy protocol fallback on this experimental branch.
+
+The decoder bounds both encoded and original sizes, requires one complete zstd
+frame and an exact output length, and strict-parses `GeneralizedTransactionSet`.
+The response hash is computed from the recovered canonical XDR without
+re-encoding. The XDR limit remains 16 MiB minus four bytes; the encoded-frame
+limit also permits zstd's worst-case expansion for incompressible input.
 
 Requests share the highest-priority control route with SCP. Responses use the
-next-priority tx-set route. Legacy-only peers use separate request and response
-streams under the old tx-set protocol, while SCP uses its old protocol. All
-routes share QUIC connection limits. See [transport](transport.md).
+next-priority tx-set route. All routes share QUIC connection limits.
+See [transport](transport.md).
+
+## Encoding ownership
+
+Only nomination leaders construct local proposals. Followers start SCP with a
+lazy value supplier and vote for received leader proposals without building a
+private set or compressing it. At the trigger a follower pulls its mempool's top
+transactions once and verifies their master-key signatures on background
+threads, so that validating the leader's set hits the signature cache (cold, it
+costs about six times as much). The prewarm stops when validation of a received
+set or a local build starts. A node promoted by a
+nomination timeout builds only if SCP needs its own value; it rechecks ledger
+state and chooses a current close time then. Subsequent rounds reuse that value.
+First-round leaders may prepare before the trigger; later leaders do no
+speculative preparation. Nomination stops on externalization even for followers
+that never constructed a local value.
+
+Ledgers closing on a pre-protocol-20 LCL are the exception. Their legacy
+`TransactionSet`s cannot be carried by this overlay, so every validator builds
+its own value at the trigger, as before leader-only construction. With an empty
+mempool (genesis and the upgrade-only ledgers before protocol 20) the set depends
+only on the previous ledger, so each validator already holds the leader's set.
+
+Core sends `CacheTxSet` as soon as a locally constructed proposal's final XDR is
+available, before the builder's roundtrip and final validation. Rust eagerly
+compresses it at zstd level 1 on a blocking worker while Core continues those
+checks. App awaits the prepared representation before processing another IPC
+message or application event; the network dispatcher remains independent.
+Repeated local publication of an already cached hash reuses its encoding.
+
+A receiving overlay retains the original encoded allocation while decompressing
+and strict-parsing on a blocking worker. The cache shares an immutable
+`Arc<TxSetData>` containing both original XDR and encoded bytes. Peer responses
+borrow those encoded bytes directly, so relays never recompress received sets.
+Encoding is complete before cache insertion; sending has no lazy initialization
+or compression decision. Core continues receiving uncompressed XDR over IPC.
 
 ## Core requests and network prefetches
 
@@ -49,13 +90,21 @@ the attempt returns without reserving the hash.
 
 A failed write removes only its own reservation. Disconnect cleanup removes
 reservations assigned to that peer. A received response clears its matching
-reservation and records fetch latency and the requested slot. This does not
-provide a timeout or automatic retry for a silent peer.
+reservation and records fetch latency and the requested slot. `LedgerClosed`
+drops reservations older than the retained-slot window (`sequence - 12`).
+
+Rust has no request timer. Core repeats a `RequestTxSet` for a set it has not
+received after one second, then every second, logging a warning on every
+doubling of the request count (and counting `scp.fetch.txset-retry`).
+A request for a hash Core is still waiting for is a retry: it replaces the
+reservation and goes to another connected peer, preferring the SCP source only
+if it was not the previous target, else a random one. Core stops fetching when
+the slots waiting for the set are purged.
 
 ## Cache and externalization
 
 The cache holds up to 100 sets in App. Each entry contains its content hash,
-canonical XDR, and ledger sequence. Capacity eviction uses insertion order;
+canonical XDR, encoded response, and ledger sequence. Capacity eviction uses insertion order;
 updating an existing hash does not move it. `LedgerClosed` evicts entries older
 than `sequence - 12`, using saturating subtraction. Pending Core demand expires
 against the same retained-slot boundary.
@@ -72,6 +121,8 @@ See [mempool](mempool.md).
 
 ## Remaining limitations
 
-- A peer that stays connected but silent can leave a fetch pending indefinitely.
-- A cache miss at the selected peer has no explicit negative response or retry.
+- A cache miss at the selected peer has no explicit negative response; the
+  requester only notices through Core's one-second retry.
 - Selecting one connected peer does not guarantee it has the requested body.
+- Legacy (pre-protocol 20) `TransactionSet`s cannot be fetched at all; see
+  encoding ownership.

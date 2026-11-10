@@ -26,6 +26,7 @@ class Application;
 class TxSetXDRFrame;
 class ApplicableTxSetFrame;
 using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
+using TxSetReadyCallback = std::function<void(TxSetXDRFrameConstPtr const&)>;
 using ApplicableTxSetFrameConstPtr =
     std::unique_ptr<ApplicableTxSetFrame const>;
 
@@ -117,6 +118,12 @@ using PerPhaseTransactionList = std::vector<TxFrameList>;
 // close time.
 // The result is guaranteed to pass `checkValid` check with the same
 // arguments as in this method, so additional validation is not needed.
+// With `validTxTargets` (one entry per phase), the transactions of each phase
+// must be in priority order, and only the prefix of phase `i` that holds
+// `validTxTargets[i]` valid transactions of its generic surge pricing lane is
+// validated and offered to selection (see `TxSetUtils::trimInvalidPrefix`).
+// The transactions past that prefix are left out without being validated, so
+// they appear neither in the result nor in `invalidTxs`.
 //
 // **Note**: the output `ApplicableTxSetFrame` will *not* contain the input
 // transaction pointers.
@@ -152,7 +159,9 @@ makeTxSetFromTransactions(
     txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
     bool disableTxValidationForLegacyScenario = false
 #endif
-);
+    ,
+    TxSetReadyCallback const& onTxSetReady = {},
+    std::vector<size_t> const& validTxTargets = {});
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -197,6 +206,11 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     static TxSetXDRFrameConstPtr makeFromWire(TransactionSet const& xdrTxSet);
     static TxSetXDRFrameConstPtr
     makeFromWire(GeneralizedTransactionSet const& xdrTxSet);
+    // Take ownership of the XDR instead of copying it (a large set has
+    // thousands of nested allocations).
+    static TxSetXDRFrameConstPtr makeFromWire(TransactionSet&& xdrTxSet);
+    static TxSetXDRFrameConstPtr
+    makeFromWire(GeneralizedTransactionSet&& xdrTxSet);
 
     static TxSetXDRFrameConstPtr
     makeFromStoredTxSet(StoredTransactionSet const& storedSet);
@@ -213,6 +227,8 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     void toXDR(TransactionSet& set) const;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const;
     void storeXDR(StoredTransactionSet& txSet) const;
+    // The generalized set's XDR without copying it; the frame is immutable.
+    GeneralizedTransactionSet const& getGeneralizedXDR() const;
 
     ~TxSetXDRFrame() = default;
 
@@ -261,6 +277,16 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     PerPhaseTransactionList
     createTransactionFrames(Hash const& networkID) const;
 
+    // Calls `f` with the envelope of every transaction in the set, in the
+    // order createTransactionFrames returns their frames, without building
+    // any frames (which copies every envelope).
+    void forEachTransactionEnvelope(
+        std::function<void(TransactionEnvelope const&)> const& f) const;
+
+    // Full hashes (`TransactionFrameBase::getFullHash`) of every transaction
+    // in the set, in the same order, hashed directly from the XDR.
+    std::vector<Hash> getTransactionFullHashes() const;
+
 #ifdef BUILD_TESTS
     mutable ApplicableTxSetFrameConstPtr mApplicableTxSetOverride;
 
@@ -270,6 +296,8 @@ class TxSetXDRFrame : public NonMovableOrCopyable
   private:
     TxSetXDRFrame(TransactionSet const& xdrTxSet);
     TxSetXDRFrame(GeneralizedTransactionSet const& xdrTxSet);
+    TxSetXDRFrame(TransactionSet&& xdrTxSet);
+    TxSetXDRFrame(GeneralizedTransactionSet&& xdrTxSet);
 
     std::variant<TransactionSet, GeneralizedTransactionSet> mXDRTxSet;
     size_t mEncodedSize{};
@@ -395,7 +423,9 @@ class TxSetPhaseFrame
         txtest::ParallelSorobanOrder const& parallelSorobanOrder,
         bool disableTxValidationForLegacyScenario
 #endif
-    );
+        ,
+        TxSetReadyCallback const& onTxSetReady,
+        std::vector<size_t> const& validTxTargets);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
@@ -569,7 +599,9 @@ class ApplicableTxSetFrame
         txtest::ParallelSorobanOrder const& parallelSorobanOrder,
         bool disableTxValidationForLegacyScenario
 #endif
-    );
+        ,
+        TxSetReadyCallback const& onTxSetReady,
+        std::vector<size_t> const& validTxTargets);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(

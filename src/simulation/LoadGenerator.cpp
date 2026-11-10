@@ -231,12 +231,33 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
     return txs - static_cast<int64_t>(submittedSoFar);
 }
 
+AccountID
+LoadGenerator::getEnvelopeSourceID(TransactionEnvelope const& env)
+{
+    // Mirrors TransactionFrame::getSourceID and
+    // FeeBumpTransactionFrame::getSourceID (the inner transaction's source).
+    switch (env.type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+    {
+        AccountID res;
+        res.ed25519() = env.v0().tx.sourceAccountEd25519;
+        return res;
+    }
+    case ENVELOPE_TYPE_TX:
+        return toAccountID(env.v1().tx.sourceAccount);
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+        return toAccountID(env.feeBump().tx.innerTx.v1().tx.sourceAccount);
+    default:
+        // TransactionFrameBase::makeTransactionFromWire aborts here too.
+        abort();
+    }
+}
+
 void
-LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
-                               PerPhaseTransactionList const& perPhaseTxs)
+LoadGenerator::cleanupAccounts(uint32_t ledgerSeq, TxSetXDRFrame const& txSet)
 {
     ZoneScoped;
-    auto const& accounts = mTxGenerator.getAccounts();
 
     // An account stays in use until the transaction it submitted has been
     // applied, so that the next transaction generated for it sees the updated
@@ -248,7 +269,7 @@ LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
     {
         if (it->second <= lcl)
         {
-            mAccountsAvailable.insert(it->first);
+            mAccountsAvailable.push_back(it->first);
             it = mAccountsExternalized.erase(it);
         }
         else
@@ -257,33 +278,45 @@ LoadGenerator::cleanupAccounts(uint32_t ledgerSeq,
         }
     }
 
-    // Accounts whose transaction is in the set externalized for `ledgerSeq`
-    // are released once that ledger is applied. Accounts whose transaction is
-    // not in it are still pending in the mempool and remain in use.
-    UnorderedSet<AccountID> externalized;
-    for (auto const& txs : perPhaseTxs)
+    // Index the accounts selected since the last call. A transaction has been
+    // generated for each of them, so TxGenerator has cached the account.
+    if (!mAccountsInUseToIndex.empty())
     {
-        for (auto const& tx : txs)
+        auto const& accounts = mTxGenerator.getAccounts();
+        for (auto id : mAccountsInUseToIndex)
         {
-            externalized.insert(tx->getSourceID());
+            releaseAssert(mAccountsInUse.find(id) != mAccountsInUse.end());
+            auto accIt = accounts.find(id);
+            releaseAssert(accIt != accounts.end());
+            releaseAssert(
+                mAccountsInUseByKey.emplace(accIt->second->getPublicKey(), id)
+                    .second);
         }
+        mAccountsInUseToIndex.clear();
     }
 
-    for (auto it = mAccountsInUse.begin(); it != mAccountsInUse.end();)
+    // No account is waiting for its transaction, e.g. loadgen is idle.
+    if (mAccountsInUseByKey.empty())
     {
-        auto accIt = accounts.find(*it);
-        releaseAssert(accIt != accounts.end());
-        if (externalized.find(accIt->second->getPublicKey()) !=
-            externalized.end())
-        {
-            mAccountsExternalized.emplace(*it, ledgerSeq);
-            it = mAccountsInUse.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
+        return;
     }
+
+    // Accounts whose transaction is in the set externalized for `ledgerSeq`
+    // are released once that ledger is applied. Accounts whose transaction is
+    // not in it are still pending in the mempool and remain in use. The set
+    // holds every node's transactions; looking each source up in the in-use
+    // index keeps this proportional to the set, however large the mempool
+    // backlog grows, and the lookups allocate nothing.
+    txSet.forEachTransactionEnvelope([&](TransactionEnvelope const& env) {
+        auto it = mAccountsInUseByKey.find(getEnvelopeSourceID(env));
+        if (it == mAccountsInUseByKey.end())
+        {
+            return;
+        }
+        mAccountsExternalized.emplace(it->second, ledgerSeq);
+        mAccountsInUse.erase(it->second);
+        mAccountsInUseByKey.erase(it);
+    });
 }
 
 // Reset everything except Soroban persistent state
@@ -293,6 +326,8 @@ LoadGenerator::reset()
 {
     mTxGenerator.reset();
     mAccountsInUse.clear();
+    mAccountsInUseByKey.clear();
+    mAccountsInUseToIndex.clear();
     mAccountsExternalized.clear();
     mAccountsAvailable.clear();
     mNoAccountsAvailableSinceLedger.reset();
@@ -414,12 +449,13 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
 
     if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
     {
+        mAccountsAvailable.reserve(cfg.nAccounts);
         // For upgrade modes, use root account (represented by special ID)
         uint32_t accounts = cfg.nAccounts;
         if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
             cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
         {
-            mAccountsAvailable.insert(TxGenerator::ROOT_ACCOUNT_ID);
+            mAccountsAvailable.push_back(TxGenerator::ROOT_ACCOUNT_ID);
             if (accounts)
             {
                 accounts--;
@@ -429,7 +465,7 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         // Mark all accounts "available" as source accounts
         for (auto i = 0u; i < accounts; i++)
         {
-            mAccountsAvailable.insert(i + cfg.offset);
+            mAccountsAvailable.push_back(i + cfg.offset);
         }
 
         if (cfg.modeInvokes())
@@ -1026,11 +1062,11 @@ LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
 
     auto sourceAccountIdx =
         rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
-    auto it = mAccountsAvailable.begin();
-    std::advance(it, sourceAccountIdx);
-    sourceAccountId = *it;
-    mAccountsAvailable.erase(it);
+    sourceAccountId = mAccountsAvailable[sourceAccountIdx];
+    mAccountsAvailable[sourceAccountIdx] = mAccountsAvailable.back();
+    mAccountsAvailable.pop_back();
     releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
+    mAccountsInUseToIndex.push_back(sourceAccountId);
 
     return sourceAccountId;
 }
@@ -1428,11 +1464,14 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
 
         // The first setup phase has fully applied, so its source accounts are
         // safe to reuse for the instance-creation phase.
-        mAccountsAvailable.insert(mAccountsInUse.begin(), mAccountsInUse.end());
+        mAccountsAvailable.insert(mAccountsAvailable.end(),
+                                  mAccountsInUse.begin(), mAccountsInUse.end());
         mAccountsInUse.clear();
+        mAccountsInUseByKey.clear();
+        mAccountsInUseToIndex.clear();
         for (auto const& kv : mAccountsExternalized)
         {
-            mAccountsAvailable.insert(kv.first);
+            mAccountsAvailable.push_back(kv.first);
         }
         mAccountsExternalized.clear();
 
@@ -1530,7 +1569,15 @@ TxSubmitStatus
 LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
                        TransactionResultCode& code)
 {
-    TxMetrics txm(mApp.getMetrics());
+    // The meters live in the registry for the application's lifetime, so use
+    // the references resolved at construction instead of looking all ten up
+    // again (a locked map search each) for every transaction.
+    auto& txm = mTxMetrics;
+    // Wire size of the TRANSACTION StellarMessage that floods `txf`: the
+    // 4-byte message type discriminant followed by the envelope, sized without
+    // copying the envelope into a new message.
+    uint64_t const msgBytes =
+        sizeof(uint32_t) + xdr::xdr_size(txf->getEnvelope());
 
     // Record tx metrics.
     switch (mode)
@@ -1538,8 +1585,7 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     case LoadGenMode::PAY:
     case LoadGenMode::PAY_PREGENERATED:
         txm.mNativePayment.Mark(txf->getNumOperations());
-        txm.mNativePaymentBytes.Mark(
-            xdr::xdr_argpack_size(*txf->toStellarMessage()));
+        txm.mNativePaymentBytes.Mark(msgBytes);
         break;
     case LoadGenMode::SOROBAN_UPLOAD:
         txm.mSorobanUploadTxs.Mark();
@@ -1561,8 +1607,7 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         {
         case LoadGenMode::PAY:
             txm.mNativePayment.Mark(txf->getNumOperations());
-            txm.mNativePaymentBytes.Mark(
-                xdr::xdr_argpack_size(*txf->toStellarMessage()));
+            txm.mNativePaymentBytes.Mark(msgBytes);
             break;
         case LoadGenMode::SOROBAN_UPLOAD:
             txm.mSorobanUploadTxs.Mark();
@@ -1586,16 +1631,14 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         else
         {
             txm.mNativePayment.Mark(txf->getNumOperations());
-            txm.mNativePaymentBytes.Mark(
-                xdr::xdr_argpack_size(*txf->toStellarMessage()));
+            txm.mNativePaymentBytes.Mark(msgBytes);
         }
         break;
     }
 
     txm.mTxnAttempted.Mark();
 
-    auto msg = txf->toStellarMessage();
-    txm.mTxnBytes.Mark(xdr::xdr_argpack_size(*msg));
+    txm.mTxnBytes.Mark(msgBytes);
 
     // Skip certain checks for pregenerated classic transactions. The synthetic
     // Soroban half of MIXED_PREGEN_* is generated locally, but must still go

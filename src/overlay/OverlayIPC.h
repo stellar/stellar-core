@@ -46,8 +46,9 @@ class OverlayIPC
         std::function<std::vector<SCPEnvelope>(uint32_t ledgerSeq)>;
 
     /// Callback when TX set received from peers (async fetch response)
+    /// (the callee may take ownership of the decoded set)
     using TxSetReceivedCallback = std::function<void(
-        Hash const& hash, GeneralizedTransactionSet const& txSet)>;
+        Hash const& hash, GeneralizedTransactionSet&& txSet)>;
 
     /**
      * Create an OverlayIPC instance.
@@ -124,6 +125,22 @@ class OverlayIPC
     std::vector<TransactionEnvelope> getTopTransactions(size_t count);
 
     /**
+     * The same request, returning the response payload undecoded (empty if
+     * there is no response), for callers that decode it elsewhere with
+     * parseTopTransactions.
+     */
+    std::vector<uint8_t> getTopTransactionsPayload(size_t count);
+
+    /**
+     * Decode a GET_TOP_TXS response payload:
+     * [count:4]([len:4][TransactionEnvelope XDR:len])*. Envelopes are
+     * decoded in place from the payload. Entries that fail to decode are
+     * skipped (with a warning); a truncated payload ends the list.
+     */
+    static std::vector<TransactionEnvelope>
+    parseTopTransactions(std::vector<uint8_t> const& payload);
+
+    /**
      * Submit a transaction to the overlay for flooding.
      *
      * @param tx The transaction envelope
@@ -171,10 +188,10 @@ class OverlayIPC
      * who request it via TX set fetching.
      *
      * @param hash The TX set hash
-     * @param xdr The serialized TX set XDR
+     * @param txSet The TX set, serialized directly into the IPC message
      * @param slotIndex The slot the set is for (stamps the cache entry)
      */
-    void cacheTxSet(Hash const& hash, std::vector<uint8_t> const& xdr,
+    void cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
                     uint32_t slotIndex);
 
     /// Set callback for received SCP envelopes

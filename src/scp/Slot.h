@@ -6,7 +6,6 @@
 
 #include "BallotProtocol.h"
 #include "LocalNode.h"
-#include "NominationProtocol.h"
 #include "lib/json/json-forwards.h"
 #include "scp/SCP.h"
 #include <functional>
@@ -29,7 +28,6 @@ class Slot : public std::enable_shared_from_this<Slot>
     SCP& mSCP;
 
     BallotProtocol mBallotProtocol;
-    NominationProtocol mNominationProtocol;
 
     // keeps track of all statements seen so far for this slot.
     // it is used for debugging purpose
@@ -81,8 +79,6 @@ class Slot : public std::enable_shared_from_this<Slot>
         return mBallotProtocol;
     }
 
-    ValueWrapperPtr const& getLatestCompositeCandidate();
-
     // returns the latest messages the slot emitted
     std::vector<SCPEnvelope> getLatestMessagesSend() const;
 
@@ -99,8 +95,7 @@ class Slot : public std::enable_shared_from_this<Slot>
     SCPEnvelope const* getLatestMessage(NodeID const& id) const;
 
     // Return true if the statement is latest for a node that sent it
-    bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                     SCPStatement const& newSt);
+    bool isNewerStatement(SCPStatement const& oldSt, SCPStatement const& newSt);
 
     // returns messages that helped this slot externalize
     std::vector<SCPEnvelope> getExternalizingState() const;
@@ -115,8 +110,6 @@ class Slot : public std::enable_shared_from_this<Slot>
     SCP::EnvelopeState processEnvelope(SCPEnvelopeWrapperPtr envelope,
                                        bool self);
 
-    bool abandonBallot();
-
     // bumps the ballot based on the local state and the value passed in:
     // in prepare phase, attempts to take value
     // otherwise, no-ops
@@ -124,14 +117,13 @@ class Slot : public std::enable_shared_from_this<Slot>
     // the state if no value was prepared
     bool bumpState(Value const& value, bool force);
 
-    // attempts to nominate a value for consensus
-    bool nominate(ValueWrapperPtr value, Value const& previousValue,
-                  bool timedout);
+    // Starts leader rounds for this slot (the local node is ready to take
+    // part in consensus on it). `makeValue` is invoked only if the local node
+    // becomes the leader of a round and has no value to put forward.
+    bool startLeaderRounds(ProposalValueSupplier const& makeValue);
 
-    void stopNomination();
-
-    // returns the current nomination leaders
-    std::set<NodeID> getNominationLeaders() const;
+    // The round the local node is in (0 if it has not started the slot).
+    uint32 getLeaderRound() const;
 
     bool isFullyValidated() const;
     void setFullyValidated(bool fullyValidated);
@@ -196,14 +188,10 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     enum timerIDs
     {
-        NOMINATION_TIMER = 0,
+        // Runs while the local node waits for the leader of its current round
+        // to put a value forward.
+        LEADER_TIMER = 0,
         BALLOT_PROTOCOL_TIMER = 1,
-#ifdef BUILD_TESTS
-        // Test-only: defers broadcast of a nomination vote by
-        // ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING. Used to simulate
-        // slow nominators without breaking the protocol.
-        NOMINATION_EMIT_TIMER = 2,
-#endif
     };
 
     // The number of times the timer has to expire before we consider the node

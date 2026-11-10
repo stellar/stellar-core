@@ -251,6 +251,244 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
         100 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
+TEST_CASE("synthetic SAC load recycles source accounts in overlay-only mode",
+          "[loadgen]")
+{
+    // perfnet's block_time_check load: MIXED_PREGEN_SAC_PAYMENT with no
+    // classic stream, in overlay-only mode, with more transactions than
+    // source accounts. The soroban stream fails the run as soon as its pool
+    // is empty, so the run completes only if accounts return to the pool once
+    // their transactions' ledgers close. The pool covers twenty seconds of
+    // load, far more than the few one-second ledgers a transaction is in
+    // flight, so a stalled real-time simulation does not drain it.
+    uint32_t const nAccounts = 300;
+    uint32_t const sorobanTxRate = 15;
+    uint32_t const nTxs = nAccounts + 100;
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
+        auto cfg = getTestConfig(i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = nAccounts;
+        return cfg;
+    });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0];
+
+    // Max out Soroban network limits so synthetic footprints pass checkValid
+    // and every submitted transaction fits in the next ledger.
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            auto mx = std::numeric_limits<uint32_t>::max();
+            cfg.mLedgerMaxTxCount = mx;
+            cfg.mLedgerMaxInstructions = mx;
+            cfg.mLedgerMaxTransactionsSizeBytes = mx;
+            cfg.mLedgerMaxDiskReadEntries = mx;
+            cfg.mLedgerMaxDiskReadBytes = mx;
+            cfg.mLedgerMaxWriteLedgerEntries = mx;
+            cfg.mLedgerMaxWriteBytes = mx;
+            cfg.mTxMaxInstructions = mx;
+            cfg.mTxMaxDiskReadEntries = mx;
+            cfg.mTxMaxDiskReadBytes = mx;
+            cfg.mTxMaxWriteLedgerEntries = mx;
+            cfg.mTxMaxWriteBytes = mx;
+            cfg.mTxMaxFootprintEntries = mx;
+            cfg.mTxMaxSizeBytes = mx;
+            cfg.mTxMaxContractEventsSizeBytes = mx;
+        },
+        simulation);
+
+    // MIXED_PREGEN_* modes open a pregenerated classic file even when the
+    // classic stream is off; this run never reads from it.
+    std::string fileName =
+        app.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+    auto cleanup = gsl::finally([&]() { std::remove(fileName.c_str()); });
+    generateTransactions(app, fileName, /* numTransactions */ 1, nAccounts,
+                         /* offset */ 0);
+
+    for (auto& node : nodes)
+    {
+        node->setRunInOverlayOnlyMode(true);
+    }
+
+    auto& completed =
+        app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto& failed =
+        app.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+    auto const completedBefore = completed.count();
+    auto const failedBefore = failed.count();
+
+    // Per-transaction submission metrics.
+    auto& attempted =
+        app.getMetrics().NewMeter({"loadgen", "txn", "attempted"}, "txn");
+    auto& invokes =
+        app.getMetrics().NewMeter({"loadgen", "soroban", "invoke"}, "txn");
+    auto& payments =
+        app.getMetrics().NewMeter({"loadgen", "payment", "submitted"}, "op");
+    auto& bytes = app.getMetrics().NewMeter({"loadgen", "txn", "bytes"}, "txn");
+    auto const attemptedBefore = attempted.count();
+    auto const invokesBefore = invokes.count();
+    auto const paymentsBefore = payments.count();
+    auto const bytesBefore = bytes.count();
+
+    // Every synthetic SAC payment has the same XDR shape, so one reference
+    // transaction gives the wire size of each message loadgen submits.
+    TxGenerator refGen(app);
+    SCAddress refDest(SC_ADDRESS_TYPE_CONTRACT);
+    refDest.contractId() = sha256("reference destination");
+    auto refTx = refGen
+                     .invokeSACPayment(
+                         app.getLedgerManager().getLastClosedLedgerNum() + 1,
+                         /* fromAccountId */ 0, refDest,
+                         makeSyntheticContractInstance("loadgen_sac"),
+                         /* amount */ 100, std::nullopt)
+                     .second;
+    auto const refMsgBytes = xdr::xdr_argpack_size(*refTx->toStellarMessage());
+
+    GeneratedLoadConfig cfg = GeneratedLoadConfig::txLoad(
+        LoadGenMode::MIXED_PREGEN_SAC_PAYMENT, nAccounts, nTxs, sorobanTxRate,
+        /* offset */ 0);
+    cfg.preloadedTransactionsFile = fileName;
+    auto& mix = cfg.getMutMixPregenSorobanConfig();
+    mix.classicTxRate = 0;
+    mix.sorobanTxRate = sorobanTxRate;
+    app.getLoadGenerator().generateLoad(cfg);
+
+    simulation->crankUntil(
+        [&]() {
+            return completed.count() == completedBefore + 1 ||
+                   failed.count() != failedBefore;
+        },
+        60 * simulation->getExpectedLedgerCloseTime(), false);
+    REQUIRE(failed.count() == failedBefore);
+    REQUIRE(completed.count() == completedBefore + 1);
+
+    REQUIRE(attempted.count() - attemptedBefore == nTxs);
+    REQUIRE(invokes.count() - invokesBefore == nTxs);
+    REQUIRE(payments.count() == paymentsBefore);
+    REQUIRE(bytes.count() - bytesBefore == nTxs * refMsgBytes);
+}
+
+TEST_CASE("externalized tx set hashes and sources match transaction frames",
+          "[loadgen][herder][txset]")
+{
+    // Herder hands the overlay getTransactionFullHashes() and loadgen the
+    // envelopes from forEachTransactionEnvelope() instead of building a frame
+    // per transaction. Pin both to what frames built from the same set give:
+    // same order, same full hashes, same source accounts.
+    Hash const networkID = sha256("externalized tx set test network");
+    auto key = [](std::string const& name) {
+        return txtest::getAccount(name).getPublicKey();
+    };
+    uint32_t nextSeq = 1;
+    auto v1Tx = [&](PublicKey const& source,
+                    std::optional<uint64_t> muxId = std::nullopt) {
+        TransactionEnvelope env(ENVELOPE_TYPE_TX);
+        env.v1().tx.sourceAccount = toMuxedAccount(source, muxId);
+        env.v1().tx.fee = 100;
+        env.v1().tx.seqNum = nextSeq++;
+        env.v1().tx.operations.emplace_back(txtest::payment(key("dest"), 1));
+        return env;
+    };
+    auto v0Tx = [&](PublicKey const& source) {
+        TransactionEnvelope env(ENVELOPE_TYPE_TX_V0);
+        env.v0().tx.sourceAccountEd25519 = source.ed25519();
+        env.v0().tx.fee = 100;
+        env.v0().tx.seqNum = nextSeq++;
+        env.v0().tx.operations.emplace_back(txtest::payment(key("dest"), 1));
+        return env;
+    };
+    auto feeBumpTx = [&](PublicKey const& feeSource, PublicKey const& source) {
+        TransactionEnvelope env(ENVELOPE_TYPE_TX_FEE_BUMP);
+        env.feeBump().tx.feeSource = toMuxedAccount(feeSource, 7);
+        env.feeBump().tx.fee = 400;
+        env.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
+        env.feeBump().tx.innerTx.v1() = v1Tx(source).v1();
+        return env;
+    };
+
+    auto checkMatchesFrames = [&](TxSetXDRFrameConstPtr const& txSet,
+                                  size_t expectedTxs) {
+        std::vector<TransactionFrameBasePtr> frames;
+        for (auto const& phase : txSet->createTransactionFrames(networkID))
+        {
+            frames.insert(frames.end(), phase.begin(), phase.end());
+        }
+        std::vector<TransactionEnvelope> envelopes;
+        txSet->forEachTransactionEnvelope(
+            [&](TransactionEnvelope const& env) { envelopes.push_back(env); });
+        auto hashes = txSet->getTransactionFullHashes();
+
+        REQUIRE(frames.size() == expectedTxs);
+        REQUIRE(envelopes.size() == expectedTxs);
+        REQUIRE(hashes.size() == expectedTxs);
+        for (size_t i = 0; i < expectedTxs; ++i)
+        {
+            REQUIRE(envelopes[i] == frames[i]->getEnvelope());
+            REQUIRE(hashes[i] == frames[i]->getFullHash());
+            REQUIRE(LoadGenerator::getEnvelopeSourceID(envelopes[i]) ==
+                    frames[i]->getSourceID());
+        }
+    };
+
+    SECTION("source account of each envelope type")
+    {
+        REQUIRE(LoadGenerator::getEnvelopeSourceID(v0Tx(key("a"))) == key("a"));
+        REQUIRE(LoadGenerator::getEnvelopeSourceID(v1Tx(key("b"))) == key("b"));
+        // Muxed sources resolve to the underlying account.
+        REQUIRE(LoadGenerator::getEnvelopeSourceID(v1Tx(key("c"), 42)) ==
+                key("c"));
+        // A fee bump's source is its inner transaction's, not the fee source.
+        REQUIRE(LoadGenerator::getEnvelopeSourceID(
+                    feeBumpTx(key("fee"), key("inner"))) == key("inner"));
+    }
+    SECTION("legacy tx set")
+    {
+        TransactionSet xdrSet;
+        xdrSet.previousLedgerHash = sha256("previous ledger");
+        xdrSet.txs = {v0Tx(key("a")), v1Tx(key("b")), v1Tx(key("c"), 42),
+                      feeBumpTx(key("fee"), key("inner"))};
+        checkMatchesFrames(TxSetXDRFrame::makeFromWire(xdrSet), 4);
+    }
+    SECTION("generalized tx set with sequential and parallel phases")
+    {
+        GeneralizedTransactionSet xdrSet(1);
+        auto& v1Set = xdrSet.v1TxSet();
+        v1Set.previousLedgerHash = sha256("previous ledger");
+
+        auto& classic = v1Set.phases.emplace_back(0);
+        for (auto const& txs :
+             {std::vector<TransactionEnvelope>{v1Tx(key("a")), v0Tx(key("b"))},
+              std::vector<TransactionEnvelope>{
+                  v1Tx(key("c"), 42), feeBumpTx(key("fee"), key("d"))}})
+        {
+            auto& component = classic.v0Components().emplace_back(
+                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+            component.txsMaybeDiscountedFee().txs.assign(txs.begin(),
+                                                         txs.end());
+        }
+
+        auto& parallel = v1Set.phases.emplace_back(1);
+        auto& stages = parallel.parallelTxsComponent().executionStages;
+        auto& stage0 = stages.emplace_back();
+        stage0.push_back({v1Tx(key("e")), v1Tx(key("f"))});
+        stage0.push_back({feeBumpTx(key("fee"), key("g"))});
+        auto& stage1 = stages.emplace_back();
+        stage1.push_back({v1Tx(key("h"), 9)});
+
+        checkMatchesFrames(TxSetXDRFrame::makeFromWire(xdrSet), 8);
+    }
+}
+
 TEST_CASE("generate load with unique accounts", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -327,6 +565,36 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
             },
             120 * simulation->getExpectedLedgerCloseTime(), false);
         REQUIRE(getSuccessfulTxCount() == nTxs);
+    }
+    SECTION("recycle available accounts across ledgers and runs")
+    {
+        // More submissions than accounts requires returning accounts to the
+        // pool once their transactions have applied. Every transaction must
+        // apply successfully, and a run completes only once each account's
+        // cached sequence number matches the ledger. A second run exercises
+        // resetting the pool.
+        uint32_t const txsPerRun = 2 * nAccounts;
+        auto& completed =
+            app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+        auto& failed =
+            app.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+        for (uint32_t run = 0; run < 2; ++run)
+        {
+            auto before = getSuccessfulTxCount();
+            auto runsBefore = completed.count();
+            auto failedBefore = failed.count();
+            loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                LoadGenMode::PAY, nAccounts, txsPerRun,
+                /* txRate */ 200, /* offset */ nAccounts));
+            simulation->crankUntil(
+                [&]() {
+                    return completed.count() == runsBefore + 1 ||
+                           failed.count() != failedBefore;
+                },
+                120 * simulation->getExpectedLedgerCloseTime(), false);
+            REQUIRE(failed.count() == failedBefore);
+            REQUIRE(getSuccessfulTxCount() - before == txsPerRun);
+        }
     }
     SECTION("invalid loadgen parameters")
     {

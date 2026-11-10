@@ -127,8 +127,13 @@ impl Message {
     }
 }
 
-/// Maximum payload size (16 MB) - sanity check to prevent OOM
-const MAX_PAYLOAD_SIZE: usize = 16 * 1024 * 1024;
+/// Largest payload either side accepts in one message (64 MiB); a larger
+/// length is treated as a corrupt stream and ends the connection. Must equal
+/// `ipc::MAX_PAYLOAD_BYTES` in Core's src/overlay/IPC.h. A mempool pull (up to
+/// 2x the tx-set capacity plus a pending set's transactions, e.g. 22,700 SAC
+/// payments of ~750 bytes) must fit; `CoreSender` never sends a larger payload
+/// and truncates top-transaction responses to this size.
+pub(crate) const MAX_PAYLOAD_SIZE: usize = 64 * 1024 * 1024;
 
 /// Header size: 4 bytes type + 4 bytes length
 const HEADER_SIZE: usize = 8;
@@ -228,7 +233,7 @@ mod tests {
         // Create a message with payload size > MAX_PAYLOAD_SIZE
         let mut buf = Vec::new();
         buf.extend_from_slice(&1u32.to_ne_bytes()); // BroadcastScp
-        buf.extend_from_slice(&(20 * 1024 * 1024u32).to_ne_bytes()); // 20MB > 16MB limit
+        buf.extend_from_slice(&((MAX_PAYLOAD_SIZE + 1) as u32).to_ne_bytes()); // over the limit
 
         let mut cursor = Cursor::new(buf);
         let result = MessageCodec::read(&mut cursor);

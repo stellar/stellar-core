@@ -46,4 +46,12 @@ toQuorumIntersectionMap(QuorumTracker::QuorumMap const& qmap);
 
 QuorumIntersectionChecker::QuorumSetMap
 parseQuorumMapFromJson(std::string const& jsonPath);
+
+class Application;
+// Marks the signature cache lookups made since PubKeyUtils::
+// getVerifySigCacheCounts returned `hits` and `misses` on the meters
+// herder.txset.<prefix>-sig-cache-hit and -miss. Lookups on other threads
+// in the meantime count too.
+void markSignatureCacheLookups(Application& app, std::string const& prefix,
+                               uint64_t hits, uint64_t misses);
 }

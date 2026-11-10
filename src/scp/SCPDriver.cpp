@@ -10,27 +10,10 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "util/GlobalChecks.h"
-#include "util/numeric.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
 {
-
-namespace
-{
-uint64
-computeWeight(uint64 m, uint64 total, uint64 threshold)
-{
-    uint64 res;
-    releaseAssert(threshold <= total);
-    // Since threshold <= total, calculating res=m*threshold/total will always
-    // produce res <= m, and we do not need to handle the possibility of this
-    // call returning false (indicating overflow).
-    bool noOverflow = bigDivideUnsigned(res, m, threshold, total, ROUND_UP);
-    releaseAssert(noOverflow);
-    return res;
-}
-} // namespace
 
 bool
 WrappedValuePtrComparator::operator()(ValueWrapperPtr const& l,
@@ -88,97 +71,6 @@ std::string
 SCPDriver::toShortString(NodeID const& pk) const
 {
     return KeyUtils::toShortString(pk);
-}
-
-// values used to switch hash function between priority and neighborhood checks
-static uint32 const hash_N = 1;
-static uint32 const hash_P = 2;
-static uint32 const hash_K = 3;
-
-uint64
-SCPDriver::hashHelper(
-    uint64 slotIndex, Value const& prev,
-    std::function<void(std::vector<xdr::opaque_vec<>>&)> extra)
-{
-    std::vector<xdr::opaque_vec<>> vals;
-    vals.emplace_back(xdr::xdr_to_opaque(slotIndex));
-    vals.emplace_back(xdr::xdr_to_opaque(prev));
-    extra(vals);
-    Hash t = getHashOf(vals);
-    uint64 res = 0;
-    for (size_t i = 0; i < sizeof(res); i++)
-    {
-        res = (res << 8) | t[i];
-    }
-    return res;
-}
-
-uint64
-SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
-                           int32_t roundNumber, NodeID const& nodeID)
-{
-#ifdef BUILD_TESTS
-    if (mPriorityLookupForTesting)
-    {
-        return isPriority ? mPriorityLookupForTesting(nodeID) : 0;
-    }
-#endif
-    return hashHelper(
-        slotIndex, prev, [&](std::vector<xdr::opaque_vec<>>& vals) {
-            vals.emplace_back(xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));
-            vals.emplace_back(xdr::xdr_to_opaque(roundNumber));
-            vals.emplace_back(xdr::xdr_to_opaque(nodeID));
-        });
-}
-
-uint64
-SCPDriver::computeValueHash(uint64 slotIndex, Value const& prev,
-                            int32_t roundNumber, Value const& value)
-{
-    return hashHelper(slotIndex, prev,
-                      [&](std::vector<xdr::opaque_vec<>>& vals) {
-                          vals.emplace_back(xdr::xdr_to_opaque(hash_K));
-                          vals.emplace_back(xdr::xdr_to_opaque(roundNumber));
-                          vals.emplace_back(xdr::xdr_to_opaque(value));
-                      });
-}
-
-// if a validator is repeated multiple times its weight is only the
-// weight of the first occurrence
-uint64
-SCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
-                         bool isLocalNode) const
-{
-    if (isLocalNode)
-    {
-        // local node is in all quorum sets
-        return UINT64_MAX;
-    }
-
-    uint64 n = qset.threshold;
-    uint64 d = qset.innerSets.size() + qset.validators.size();
-    uint64 res;
-
-    for (auto const& qsetNode : qset.validators)
-    {
-        if (qsetNode == nodeID)
-        {
-            res = computeWeight(UINT64_MAX, d, n);
-            return res;
-        }
-    }
-
-    for (auto const& q : qset.innerSets)
-    {
-        uint64 leafW = SCPDriver::getNodeWeight(nodeID, q, isLocalNode);
-        if (leafW)
-        {
-            res = computeWeight(leafW, d, n);
-            return res;
-        }
-    }
-
-    return 0;
 }
 
 }
