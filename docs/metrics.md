@@ -64,6 +64,23 @@ crypto.verify.tx-valid-hit                | meter     | signature cache hits tha
 crypto.verify.tx-valid-total              | meter     | sum of both hits and misses during transaction validation (outside of background signature validation)
 herder.txset.build                        | timer     | time spent building the tx set proposed at nomination from the transaction queues
 herder.txset.validate                     | timer     | time spent turning a received tx set into an applicable tx set and validating it on a validity-cache miss
+herder.txset.validate-sig-cache-hit       | meter     | signature cache hits while validating a received tx set (herder.txset.validate)
+herder.txset.validate-sig-cache-miss      | meter     | signatures verified (not in the cache) while validating a received tx set
+herder.txset.build-pull                   | timer     | tx set build phase: pulling and decoding the mempool's top transactions
+herder.txset.build-frames                 | timer     | tx set build phase: making transaction frames, splitting them into phases, one per source account
+herder.txset.build-trim                   | timer     | tx set build phase: validating candidates (each phase until it has enough valid ones)
+herder.txset.build-select                 | timer     | tx set build phase: surge pricing and building the parallel Soroban phase
+herder.txset.build-xdr                    | timer     | tx set build phase: building the set's XDR
+herder.txset.build-handoff                | timer     | tx set build phase: handing the built set to the overlay
+herder.txset.build-roundtrip              | timer     | tx set build phase: re-reading the built set from its XDR
+herder.txset.build-final-check            | timer     | tx set build phase: final structural check of the built set
+herder.txset.build-sig-cache-hit          | meter     | signature cache hits while a leader's build validates its candidates
+herder.txset.build-sig-cache-miss         | meter     | signatures verified (not in the cache) while a leader's build validates its candidates
+herder.prewarm.pull                       | timer     | main thread time of a signature prewarm's mempool pull (the overlay round trip; decoding runs in the prewarm's tasks)
+herder.prewarm.duration                   | timer     | time from a signature prewarm's start until its background tasks finished (or it was stopped)
+herder.prewarm.txs                        | meter     | transactions whose signatures a signature prewarm checked
+herder.prewarm.verified                   | meter     | signatures a signature prewarm verified (were not in the cache yet)
+herder.prewarm.incomplete                 | meter     | signature prewarms stopped (by a build, a validation or a newer prewarm) before they finished
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions

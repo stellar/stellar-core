@@ -15,8 +15,11 @@
 #include "util/Timer.h"
 #include "util/UnorderedMap.h"
 #include "util/XDROperators.h"
+#include <atomic>
+#include <chrono>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <vector>
 
@@ -275,15 +278,47 @@ class HerderImpl : public Herder
     static bool buildsLegacyTxSet(uint32_t lclLedgerVersion);
     // Upper bound on the transactions a tx set for the next ledger can hold.
     size_t maxTxSetCandidates() const;
+    // How many valid candidates a build validates per phase (classic, then
+    // Soroban if the protocol supports it): 5/4 of the phase's capacity.
+    std::vector<size_t> validTxTargets(uint32_t lclLedgerVersion) const;
     std::vector<TransactionEnvelope> pullTopTransactions(size_t count);
-    // Verify the signatures of the mempool's top transactions on background
-    // threads, warming the signature cache for validating the leader's set.
-    void prewarmSignatureCache();
-    std::shared_ptr<std::atomic<bool>> mSignaturePrewarmStop;
+    // The same pull as encoded by the overlay (see OverlayIPC), to decode
+    // off the main thread.
+    std::vector<uint8_t> pullTopTransactionsPayload(size_t count);
+
+    // A signature prewarm: background tasks verifying the signatures of the
+    // candidates that the build of `ledgerSeq` validates first (and that the
+    // leader's set for it is selected from), warming the signature cache for
+    // that build and for validating the leader's set.
+    struct SignaturePrewarm
+    {
+        uint32_t ledgerSeq{0};
+        std::chrono::steady_clock::time_point start;
+        std::atomic<bool> stop{false};
+        // Decoded and selected once, by whichever task gets there first.
+        std::once_flag selected;
+        std::vector<TransactionEnvelope> candidates;
+        std::atomic<size_t> checkedTxs{0};
+        std::atomic<size_t> verifiedSignatures{0};
+        std::atomic<size_t> runningTasks{0};
+        // Nanoseconds from `start` until the last task finished, or -1.
+        std::atomic<int64_t> finishedAfterNs{-1};
+    };
+    // Starts a prewarm for ledger `ledgerSeq`, replacing any running one.
+    // `pendingPerPhase` counts the transactions per phase that are still in
+    // the mempool but not candidates for `ledgerSeq` (those of the value being
+    // externalized): the prewarm looks past that many more.
+    void prewarmSignatureCache(uint32_t ledgerSeq,
+                               std::vector<size_t> const& pendingPerPhase);
+    std::shared_ptr<SignaturePrewarm> mSignaturePrewarm;
 
   public:
-    // Stops a running signature prewarm: called when validation or a local
-    // build is about to verify the signatures itself.
+    // Called when slot `slotIndex` starts its ballot protocol with a value
+    // whose tx set is `txSetHash`: prewarms the next ledger's candidates while
+    // this slot finishes balloting, externalizes and closes.
+    void prewarmNextLedgerSignatures(uint64_t slotIndex, Hash const& txSetHash);
+    // Stops a running signature prewarm and records its metrics: called when
+    // validation or a local build is about to verify the signatures itself.
     void stopSignaturePrewarm();
 
   private:

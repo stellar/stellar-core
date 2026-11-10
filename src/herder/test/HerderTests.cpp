@@ -6788,6 +6788,43 @@ class EarlyNominationTestAccess
         return {prepared.txSet, prepared.invalidTxHashes};
     }
 
+    static size_t
+    maxTxSetCandidates(HerderImpl& herder)
+    {
+        return herder.maxTxSetCandidates();
+    }
+
+    // Starts a signature prewarm for `ledgerSeq`'s candidates.
+    static void
+    prewarm(HerderImpl& herder, uint32_t ledgerSeq)
+    {
+        herder.prewarmSignatureCache(ledgerSeq, {});
+    }
+
+    // The ledger the running signature prewarm is for (0 if none).
+    static uint32_t
+    prewarmLedger(HerderImpl& herder)
+    {
+        return herder.mSignaturePrewarm ? herder.mSignaturePrewarm->ledgerSeq
+                                        : 0;
+    }
+
+    // Waits in real time, without cranking, until the running prewarm's
+    // tasks are done. Returns false if there is none or it takes too long.
+    static bool
+    waitForPrewarm(HerderImpl& herder)
+    {
+        auto prewarm = herder.mSignaturePrewarm;
+        auto const deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (prewarm && prewarm->finishedAfterNs.load() < 0 &&
+               std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return prewarm && prewarm->finishedAfterNs.load() >= 0;
+    }
+
     // These fixtures inspect a local proposal while requiring an absent peer
     // to prevent externalization. Pick that peer so the local node is the
     // first leader, independently of the test RNG seed and previous ledger.
@@ -7820,6 +7857,161 @@ TEST_CASE("followers pre-verify mempool signatures at the trigger",
     REQUIRE(checkedRoles == std::set<bool>{false, true});
 }
 
+TEST_CASE("signature prewarm at the ballot covers the next ledger",
+          "[herder][prewarm]")
+{
+    // When slot N starts balloting, a validator pre-verifies the signatures
+    // of ledger N + 1's candidates: the top of its mempool past the
+    // transactions of N's value, which stay there until N externalizes. The
+    // next build validates 20 (5/4 of the classic capacity of 16).
+    uint32_t const valueTxs = 16;
+    uint32_t const nextTxs = 32;
+    uint32_t const target = 20;
+    auto cfg = getTestConfig();
+    cfg.MANUAL_CLOSE = true;
+    cfg.WORKER_THREADS = 4;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = valueTxs + nextTxs + 1;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 16;
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    auto& metrics = app->getMetrics();
+    REQUIRE(lm.getLastMaxTxSetSizeOps() == 16);
+    REQUIRE(herder.isTracking());
+
+    auto dest = getGenesisAccount(*app, valueTxs + nextTxs);
+    TxFrameList valueTxFrames;
+    TxFrameList nextTxFrames;
+    std::vector<TransactionEnvelope> mempool;
+    for (uint32_t i = 0; i < valueTxs + nextTxs; ++i)
+    {
+        auto tx = getGenesisAccount(*app, i).tx({payment(dest, 1)});
+        (i < valueTxs ? valueTxFrames : nextTxFrames).push_back(tx);
+        mempool.push_back(tx->getEnvelope());
+    }
+    size_t requested = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t count) {
+        requested = count;
+        return std::vector<TransactionEnvelope>(
+            mempool.begin(), mempool.begin() + std::min(count, mempool.size()));
+    };
+
+    // Slot N's value holds the top 16.
+    auto const lcl = lm.getLastClosedLedgerHeader();
+    auto const slot = lcl.header.ledgerSeq + 1;
+    auto const closeTime = makeConsensusTime(app->timeNow() + 1);
+    auto valueSet =
+        makeTxSetFromTransactions(PerPhaseTransactionList{valueTxFrames, {}},
+                                  *app, ApplyTimeOffset{})
+            .first;
+    REQUIRE(valueSet->sizeTxTotal() == valueTxs);
+    herder.getPendingEnvelopes().putTxSet(valueSet->getContentsHash(), slot,
+                                          valueSet);
+    auto const value = xdr::xdr_to_opaque(
+        herder.makeStellarValue(valueSet->getContentsHash(), closeTime,
+                                emptyUpgradeSteps, cfg.NODE_SEED));
+
+    PubKeyUtils::clearVerifySigCache();
+    auto& prewarmTxs =
+        metrics.NewMeter({"herder", "prewarm", "txs"}, "transaction");
+    auto& prewarmVerified =
+        metrics.NewMeter({"herder", "prewarm", "verified"}, "signature");
+    auto& prewarmIncomplete =
+        metrics.NewMeter({"herder", "prewarm", "incomplete"}, "prewarm");
+    auto const txs0 = prewarmTxs.count();
+    auto const verified0 = prewarmVerified.count();
+    auto const incomplete0 = prewarmIncomplete.count();
+
+    // The prewarm starts once SCP is done with the step that started the
+    // ballot, pulling past N's value, and verifies in the background.
+    SCPBallot ballot;
+    ballot.counter = 1;
+    ballot.value = value;
+    herder.getHerderSCPDriver().startedBallotProtocol(slot, ballot);
+    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == 0);
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1;
+        },
+        std::chrono::seconds(1));
+    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1);
+    REQUIRE(requested ==
+            2 * EarlyNominationTestAccess::maxTxSetCandidates(herder) +
+                valueTxs);
+    REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+
+    // N externalizes and closes; the prewarm for N + 1 is kept. The overlay
+    // drops N's transactions from the mempool.
+    herder.externalizeValue(valueSet, slot, closeTime, emptyUpgradeSteps,
+                            cfg.NODE_SEED);
+    REQUIRE(lm.getLastClosedLedgerNum() == slot);
+    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1);
+    mempool.erase(mempool.begin(), mempool.begin() + valueTxs);
+    auto const nextLcl = lm.getLastClosedLedgerHeader();
+    auto const nextCloseTime = makeConsensusTime(app->timeNow() + 2);
+
+    // No signature verified, and at least one lookup per transaction (a
+    // payment's operation checks its source's signature again).
+    auto checkLookups = [&](std::string const& prefix, uint64_t hits0,
+                            uint64_t misses0, uint64_t txs) {
+        auto& hits = metrics.NewMeter(
+            {"herder", "txset", prefix + "-sig-cache-hit"}, "lookup");
+        auto& misses = metrics.NewMeter(
+            {"herder", "txset", prefix + "-sig-cache-miss"}, "lookup");
+        REQUIRE(misses.count() == misses0);
+        REQUIRE(hits.count() >= hits0 + txs);
+    };
+    auto lookups = [&](std::string const& prefix) {
+        return std::make_pair(
+            metrics
+                .NewMeter({"herder", "txset", prefix + "-sig-cache-hit"},
+                          "lookup")
+                .count(),
+            metrics
+                .NewMeter({"herder", "txset", prefix + "-sig-cache-miss"},
+                          "lookup")
+                .count());
+    };
+
+    SECTION("the next leader's build finds every signature cached")
+    {
+        auto [hits0, misses0] = lookups("build");
+        auto txSet =
+            EarlyNominationTestAccess::build(herder, slot + 1, nextCloseTime);
+        REQUIRE(txSet->sizeTxTotal() == 16);
+        checkLookups("build", hits0, misses0, target);
+    }
+    SECTION("a follower's validation of the leader's set finds them cached")
+    {
+        // The leader's set, built elsewhere (without verifying anything
+        // here).
+        TxFrameList leaderTxs(nextTxFrames.begin(), nextTxFrames.begin() + 16);
+        auto leaderSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                             {{std::make_pair(std::nullopt, leaderTxs)}, {}},
+                             *app, nextLcl.hash)
+                             .first;
+        herder.getPendingEnvelopes().putTxSet(leaderSet->getContentsHash(),
+                                              slot + 1, leaderSet);
+        auto leaderValue = xdr::xdr_to_opaque(
+            herder.makeStellarValue(leaderSet->getContentsHash(), nextCloseTime,
+                                    emptyUpgradeSteps, cfg.NODE_SEED));
+        auto [hits0, misses0] = lookups("validate");
+        REQUIRE(herder.getHerderSCPDriver().validateValue(slot + 1, leaderValue,
+                                                          false) ==
+                SCPDriver::kFullyValidatedValue);
+        checkLookups("validate", hits0, misses0, 16);
+    }
+    // Validation and the build stop the prewarm and record what it did: the
+    // 16 transactions of N's value and the next 20, each verified once.
+    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == 0);
+    REQUIRE(prewarmTxs.count() == txs0 + valueTxs + target);
+    REQUIRE(prewarmVerified.count() == verified0 + valueTxs + target);
+    REQUIRE(prewarmIncomplete.count() == incomplete0);
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
 TEST_CASE("early underfilled proposals refresh at the trigger",
           "[herder][early-nomination]")
 {
@@ -8428,6 +8620,8 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
     cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 0;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
     cfg.GENESIS_TEST_ACCOUNT_COUNT = candidates + 10;
+    // The signature prewarm leaves 2 worker threads for other jobs.
+    cfg.WORKER_THREADS = static_cast<int>(tasks) + 2;
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -8526,17 +8720,19 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
                     .count());
         }
         REQUIRE(included == std::min(sorobanCap, pull));
-        if (cold)
         {
-            // Calibration against perfnet's herder.txset.validate: a
-            // follower validating the received set with a cold cache.
+            // A follower validating the received set (cold: calibration
+            // against perfnet's herder.txset.validate).
             auto const& lastSet =
                 EarlyNominationTestAccess::build(herder, seq, closeTime);
             for (uint32_t rep = 0; rep < reps; ++rep)
             {
                 auto received = TxSetXDRFrame::makeFromWire(
                     GeneralizedTransactionSet(lastSet->getGeneralizedXDR()));
-                PubKeyUtils::clearVerifySigCache();
+                if (cold)
+                {
+                    PubKeyUtils::clearVerifySigCache();
+                }
                 auto const start = std::chrono::steady_clock::now();
                 auto applicable = received->prepareForApply(*app, lcl.header);
                 REQUIRE(applicable);
@@ -8550,6 +8746,74 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
         std::cout << (cold ? "cold" : "warm")
                   << " signature cache (last build: " << misses
                   << " verifications, " << included << " txs)" << std::endl;
+        for (auto& [phase, v] : samples)
+        {
+            std::sort(v.begin(), v.end());
+            std::cout << "  " << phase << ": median " << v[v.size() / 2]
+                      << " ms (min " << v.front() << ", max " << v.back()
+                      << ", n=" << v.size() << ")" << std::endl;
+        }
+    }
+
+    // A signature prewarm (as from the previous slot's ballot) that finished
+    // before the leader's build, and before a follower validates its set.
+    {
+        std::map<std::string, std::vector<double>> samples;
+        auto& prewarmDuration =
+            metrics.NewTimer({"herder", "prewarm", "duration"});
+        auto& buildMisses = metrics.NewMeter(
+            {"herder", "txset", "build-sig-cache-miss"}, "lookup");
+        auto const lastSet =
+            EarlyNominationTestAccess::build(herder, seq, closeTime);
+        uint64_t misses = 0;
+        uint64_t validateMisses = 0;
+        for (uint32_t rep = 0; rep < reps; ++rep)
+        {
+            PubKeyUtils::clearVerifySigCache();
+            auto const durationBefore = prewarmDuration.sum();
+            EarlyNominationTestAccess::prewarm(herder, seq);
+            REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+            for (auto const& phase : phases)
+            {
+                metrics.NewTimer({"herder", "txset", phase}).Clear();
+            }
+            auto const missesBefore = buildMisses.count();
+            // The build stops the (finished) prewarm and records it.
+            auto txSet =
+                EarlyNominationTestAccess::build(herder, seq, closeTime);
+            REQUIRE(txSet->sizeTxTotal() == std::min(sorobanCap, pull));
+            misses = buildMisses.count() - missesBefore;
+            samples["prewarm (background, before the build)"].push_back(
+                prewarmDuration.sum() - durationBefore);
+            for (auto const& phase : phases)
+            {
+                samples[phase].push_back(
+                    metrics.NewTimer({"herder", "txset", phase}).sum());
+            }
+
+            auto received = TxSetXDRFrame::makeFromWire(
+                GeneralizedTransactionSet(lastSet->getGeneralizedXDR()));
+            PubKeyUtils::clearVerifySigCache();
+            EarlyNominationTestAccess::prewarm(herder, seq);
+            REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+            uint64_t hits0 = 0, misses0 = 0, hits1 = 0, misses1 = 0;
+            PubKeyUtils::getVerifySigCacheCounts(hits0, misses0);
+            auto const start = std::chrono::steady_clock::now();
+            auto applicable = received->prepareForApply(*app, lcl.header);
+            REQUIRE(applicable);
+            REQUIRE(applicable->checkValid(*app, 0, 0));
+            samples["received-set-validate"].push_back(
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - start)
+                    .count());
+            PubKeyUtils::getVerifySigCacheCounts(hits1, misses1);
+            validateMisses = misses1 - misses0;
+            herder.stopSignaturePrewarm();
+        }
+        std::cout << "prewarmed signature cache (last build: " << misses
+                  << " signature cache misses; last received-set "
+                     "validation: "
+                  << validateMisses << ")" << std::endl;
         for (auto& [phase, v] : samples)
         {
             std::sort(v.begin(), v.end());

@@ -1448,6 +1448,17 @@ HerderSCPDriver::startedBallotProtocol(uint64_t slotIndex,
                                        SCPBallot const& ballot)
 {
     recordSCPEvent(slotIndex, false);
+    // Prewarm the next ledger's signatures, after SCP has finished processing
+    // (and emitting) this step: the mempool pull waits for the overlay.
+    StellarValue sv;
+    if (toStellarValue(ballot.value, sv))
+    {
+        mApp.postOnMainThread(
+            [this, slotIndex, txSetHash = sv.txSetHash]() {
+                mHerder.prewarmNextLedgerSignatures(slotIndex, txSetHash);
+            },
+            "Herder: prewarm next ledger signatures");
+    }
 }
 void
 HerderSCPDriver::acceptedBallotPrepared(uint64_t slotIndex,
@@ -1962,6 +1973,9 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
         // Validation verifies the remaining signatures itself, on all cores;
         // a concurrent signature prewarm would only compete with it.
         mHerder.stopSignaturePrewarm();
+        uint64_t sigCacheHits = 0;
+        uint64_t sigCacheMisses = 0;
+        PubKeyUtils::getVerifySigCacheCounts(sigCacheHits, sigCacheMisses);
         auto validationTime = mSCPMetrics.mTxSetValidation.TimeScope();
 
         // The invariant here is that we only validate tx sets nominated
@@ -1988,6 +2002,8 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
             res = applicableTxSet->checkValid(mApp, closeTimeOffset.seconds(),
                                               closeTimeOffset.seconds());
         }
+        markSignatureCacheLookups(mApp, "validate", sigCacheHits,
+                                  sigCacheMisses);
 
         mTxSetValidCache.put(key, res);
         return res;

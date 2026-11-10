@@ -77,6 +77,8 @@ class RustOverlayManager
     // Get top transactions from Rust overlay's mempool for TX set building.
     // Blocks until the overlay responds, shuts down, or disconnects.
     std::vector<TransactionEnvelope> getTopTransactions(size_t count);
+    // The same, undecoded (see OverlayIPC::getTopTransactionsPayload).
+    std::vector<uint8_t> getTopTransactionsPayload(size_t count);
 
     // Metrics and managers
     OverlayMetrics& getOverlayMetrics();

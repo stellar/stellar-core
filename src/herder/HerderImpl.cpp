@@ -29,6 +29,7 @@
 #include "main/PersistentState.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
+#include "overlay/OverlayIPC.h"
 #include "overlay/RustOverlayManager.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
@@ -58,6 +59,7 @@
 #include <chrono>
 #include <ctime>
 #include <fmt/format.h>
+#include <mutex>
 #include <unistd.h>
 
 using namespace std;
@@ -70,16 +72,18 @@ namespace
 // operation source and fee source accounts. This populates the
 // signature-verification cache that tx-set validation consults with the same
 // (key, signature, hash). Other signers need ledger state; validation verifies
-// them itself.
-void
+// them itself. Returns how many signatures it verified (were not cached).
+size_t
 verifyMasterKeySignatures(Hash const& networkID, TransactionEnvelope const& env)
 {
     // Bound the work per transaction: a signature is only verified against
     // keys whose hint it matches, but colliding hints could otherwise make a
     // crafted transaction cost many verifications.
     size_t budget = 20;
-    auto verify = [&budget](Hash const& contentsHash, auto const& signatures,
-                            std::vector<AccountID> const& keys) {
+    size_t verified = 0;
+    auto verify = [&budget, &verified](Hash const& contentsHash,
+                                       auto const& signatures,
+                                       std::vector<AccountID> const& keys) {
         for (auto const& sig : signatures)
         {
             for (auto const& key : keys)
@@ -93,7 +97,13 @@ verifyMasterKeySignatures(Hash const& networkID, TransactionEnvelope const& env)
                     return;
                 }
                 --budget;
-                if (SignatureUtils::verify(sig, key, contentsHash).valid)
+                auto const res = SignatureUtils::verify(sig, key, contentsHash);
+                if (res.cacheResult ==
+                    PubKeyUtils::VerifySigCacheLookupResult::MISS)
+                {
+                    ++verified;
+                }
+                if (res.valid)
                 {
                     break;
                 }
@@ -133,13 +143,96 @@ verifyMasterKeySignatures(Hash const& networkID, TransactionEnvelope const& env)
                {frame->getFeeSourceID()});
         TransactionEnvelope inner(ENVELOPE_TYPE_TX);
         inner.v1() = env.feeBump().tx.innerTx.v1();
-        verifyMasterKeySignatures(networkID, inner);
+        verified += verifyMasterKeySignatures(networkID, inner);
         break;
     }
     default:
         break;
     }
+    return verified;
 }
+
+// Whether an envelope's transaction goes into the Soroban phase, as
+// TransactionFrame::isSoroban decides it (by the first operation).
+bool
+isSorobanEnvelope(TransactionEnvelope const& env)
+{
+    auto const* ops = env.type() == ENVELOPE_TYPE_TX_V0
+                          ? &env.v0().tx.operations
+                      : env.type() == ENVELOPE_TYPE_TX ? &env.v1().tx.operations
+                      : env.type() == ENVELOPE_TYPE_TX_FEE_BUMP
+                          ? &env.feeBump().tx.innerTx.v1().tx.operations
+                          : nullptr;
+    if (ops == nullptr || ops->empty())
+    {
+        return false;
+    }
+    switch (ops->front().body.type())
+    {
+    case INVOKE_HOST_FUNCTION:
+    case EXTEND_FOOTPRINT_TTL:
+    case RESTORE_FOOTPRINT:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The first `windows[phase]` envelopes of each phase (classic, then Soroban;
+// a phase without a window is skipped), in mempool order.
+std::vector<TransactionEnvelope>
+selectPrewarmCandidates(std::vector<TransactionEnvelope>&& envelopes,
+                        std::vector<size_t> const& windows)
+{
+    std::vector<TransactionEnvelope> selected;
+    std::vector<size_t> taken(windows.size(), 0);
+    for (auto& env : envelopes)
+    {
+        size_t const phase = isSorobanEnvelope(env) ? 1 : 0;
+        if (phase < windows.size() && taken[phase] < windows[phase])
+        {
+            ++taken[phase];
+            selected.push_back(std::move(env));
+        }
+    }
+    return selected;
+}
+
+// The number of transactions in each phase of a generalized tx set.
+std::vector<size_t>
+txCountPerPhase(TxSetXDRFrame const& txSet)
+{
+    std::vector<size_t> counts;
+    if (!txSet.isGeneralizedTxSet())
+    {
+        return counts;
+    }
+    for (auto const& phase : txSet.getGeneralizedXDR().v1TxSet().phases)
+    {
+        size_t count = 0;
+        if (phase.v() == 0)
+        {
+            for (auto const& component : phase.v0Components())
+            {
+                count += component.txsMaybeDiscountedFee().txs.size();
+            }
+        }
+        else
+        {
+            for (auto const& stage :
+                 phase.parallelTxsComponent().executionStages)
+            {
+                for (auto const& cluster : stage)
+                {
+                    count += cluster.size();
+                }
+            }
+        }
+        counts.push_back(count);
+    }
+    return counts;
+}
+
 } // namespace
 
 // Roughly ~10 minutes of consensus
@@ -580,8 +673,12 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
 {
     ZoneScoped;
     int const DUMP_SCP_TIMEOUT_SECONDS = 20;
-    // The prewarm only serves validating this slot's values.
-    stopSignaturePrewarm();
+    // A prewarm for this slot is done serving; the one for the next ledger
+    // (started when this slot's ballot did) keeps running.
+    if (mSignaturePrewarm && mSignaturePrewarm->ledgerSeq <= slotIndex)
+    {
+        stopSignaturePrewarm();
+    }
 
     recordExternalizeAndCheckCloseTimeDrift(slotIndex, value,
                                             mDriftCTSlidingWindow);
@@ -1891,32 +1988,17 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
         txPhases.emplace_back(std::move(sorobanTxs));
     }
 
-    // Selection only uses the best valid candidates up to each phase's
-    // capacity, and validating (mostly: verifying the signatures of) the rest
-    // of the pull is most of the build's cost. Validate each phase in mempool
-    // order only until it holds 5/4 of its capacity in valid transactions
-    // (more if some are invalid, see TxSetUtils::trimInvalidPrefix). The slack
-    // covers candidates that selection skips: those that don't fit the
-    // remaining resources, and those the mempool ranks above ones with a
-    // higher inclusion fee (it orders by total fee per operation).
-    auto validationTarget = [](size_t capacity) {
-        return capacity + (capacity + 3) / 4;
-    };
-    std::vector<size_t> validTxTargets{
-        validationTarget(mLedgerManager.getLastMaxTxSetSizeOps())};
-    if (supportsSoroban)
-    {
-        validTxTargets.push_back(validationTarget(
-            mLedgerManager.hasLastClosedSorobanNetworkConfig()
-                ? mLedgerManager.getLastClosedSorobanNetworkConfig()
-                      .ledgerMaxTxCount()
-                : 0));
-    }
+    // Validate each phase only until it holds enough valid transactions (see
+    // validTxTargets).
+    auto const targets = validTxTargets(lcl.header.ledgerVersion);
 
     PerPhaseTransactionList invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
     framesTimer.Stop();
 
+    uint64_t sigCacheHits = 0;
+    uint64_t sigCacheMisses = 0;
+    PubKeyUtils::getVerifySigCacheCounts(sigCacheHits, sigCacheMisses);
     std::tie(proposedSet, applicableProposedSet) = makeTxSetFromTransactions(
         txPhases, mApp, closeTimeOffset, invalidTxPhases
 #ifdef BUILD_TESTS
@@ -1937,7 +2019,8 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
                                       txSet->getGeneralizedXDR(), ledgerSeq);
             }
         },
-        validTxTargets);
+        targets);
+    markSignatureCacheLookups(mApp, "build", sigCacheHits, sigCacheMisses);
     CLOG_INFO(Herder, "Proposed TX set has {} transactions",
               proposedSet->sizeTxTotal());
 
@@ -2104,17 +2187,18 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         /*constructValueNow=*/buildsLegacyTxSet(lcl.header.ledgerVersion));
 
     // A follower validates the leader's set when it arrives, and most of its
-    // transactions are in this node's mempool too. Verify their signatures
-    // meanwhile, as building our own set used to before leader-only
-    // construction, so that validation finds them in the cache. Skip it if
-    // this node already voted, i.e. validated the leader's value.
+    // transactions are in this node's mempool too. The prewarm started at the
+    // previous slot's ballot verified the candidates known then; verify the
+    // current ones (mostly cached by now) while waiting for the leader's set,
+    // so that validation finds them in the cache. Skip it if this node already
+    // voted, i.e. validated the leader's value.
     if (!buildsLegacyTxSet(lcl.header.ledgerVersion) &&
         !getSCP()
              .getNominationLeaders(ledgerSeqToTrigger)
              .count(getSCP().getLocalNodeID()) &&
         getSCP().getLatestMessagesSend(ledgerSeqToTrigger).empty())
     {
-        prewarmSignatureCache();
+        prewarmSignatureCache(ledgerSeqToTrigger, {});
     }
 }
 
@@ -2143,43 +2227,173 @@ HerderImpl::pullTopTransactions(size_t count)
     return mApp.getOverlayManager().getTopTransactions(count);
 }
 
-void
-HerderImpl::prewarmSignatureCache()
+std::vector<size_t>
+HerderImpl::validTxTargets(uint32_t lclLedgerVersion) const
 {
-    ZoneScoped;
-    stopSignaturePrewarm();
-    // The leader's set has at most this many transactions, drawn from the
-    // top of a mempool much like ours.
-    auto envelopes = std::make_shared<std::vector<TransactionEnvelope> const>(
-        pullTopTransactions(maxTxSetCandidates()));
-    if (envelopes->empty())
+    // Selection only uses the best valid candidates up to each phase's
+    // capacity, and validating (mostly: verifying the signatures of) the rest
+    // of the pull is most of the build's cost. A build validates each phase in
+    // mempool order only until it holds 5/4 of its capacity in valid
+    // transactions (more if some are invalid, see
+    // TxSetUtils::trimInvalidPrefix). The slack covers candidates that
+    // selection skips: those that don't fit the remaining resources, and those
+    // the mempool ranks above ones with a higher inclusion fee (it orders by
+    // total fee per operation).
+    auto validationTarget = [](size_t capacity) {
+        return capacity + (capacity + 3) / 4;
+    };
+    std::vector<size_t> targets{
+        validationTarget(mLedgerManager.getLastMaxTxSetSizeOps())};
+    if (protocolVersionStartsFrom(lclLedgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        targets.push_back(validationTarget(
+            mLedgerManager.hasLastClosedSorobanNetworkConfig()
+                ? mLedgerManager.getLastClosedSorobanNetworkConfig()
+                      .ledgerMaxTxCount()
+                : 0));
+    }
+    return targets;
+}
+
+std::vector<uint8_t>
+HerderImpl::pullTopTransactionsPayload(size_t count)
+{
+#ifdef BUILD_TESTS
+    if (mGetTopTransactionsForTesting)
+    {
+        // Encode the test mempool's answer as the overlay does.
+        auto envelopes = mGetTopTransactionsForTesting(count);
+        std::vector<uint8_t> payload(4);
+        uint32_t const n = static_cast<uint32_t>(envelopes.size());
+        std::memcpy(payload.data(), &n, 4);
+        for (auto const& env : envelopes)
+        {
+            auto const bytes = xdr::xdr_to_opaque(env);
+            uint32_t const len = static_cast<uint32_t>(bytes.size());
+            auto const at = payload.size();
+            payload.resize(at + 4);
+            std::memcpy(payload.data() + at, &len, 4);
+            payload.insert(payload.end(), bytes.begin(), bytes.end());
+        }
+        return payload;
+    }
+#endif
+    return mApp.getOverlayManager().getTopTransactionsPayload(count);
+}
+
+void
+HerderImpl::prewarmNextLedgerSignatures(uint64_t slotIndex,
+                                        Hash const& txSetHash)
+{
+    // Once a slot starts balloting, its value is all but decided, and the next
+    // ledger's candidates are the mempool's top minus this value's
+    // transactions (the overlay drops them when the slot externalizes). Every
+    // validator verifies their signatures while the slot finishes balloting,
+    // externalizes and closes: the next leader builds from them, and the
+    // others validate the set it builds.
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (!getSCP().isValidator() || !isTracking() ||
+        slotIndex != lcl.header.ledgerSeq + 1 ||
+        buildsLegacyTxSet(lcl.header.ledgerVersion))
     {
         return;
     }
-    auto stop = std::make_shared<std::atomic<bool>>(false);
-    mSignaturePrewarmStop = stop;
-    // The batch executor (validation) is idle until the leader's set
-    // arrives; use as many background tasks as it would, but leave worker
-    // threads for long background jobs such as bucket merges.
+    std::vector<size_t> pending;
+    auto txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    if (auto const* frame = std::get_if<TxSetXDRFrameConstPtr>(&txSet);
+        frame && *frame)
+    {
+        pending = txCountPerPhase(**frame);
+    }
+    prewarmSignatureCache(static_cast<uint32_t>(slotIndex + 1), pending);
+}
+
+void
+HerderImpl::prewarmSignatureCache(uint32_t ledgerSeq,
+                                  std::vector<size_t> const& pendingPerPhase)
+{
+    ZoneScoped;
+    stopSignaturePrewarm();
+    // The build for `ledgerSeq` validates the first validTxTargets() of each
+    // phase of its pull (more only if some are invalid), and the leader's set
+    // is selected from them.
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    auto windows = validTxTargets(lcl.header.ledgerVersion);
+    size_t pending = 0;
+    for (size_t i = 0; i < windows.size() && i < pendingPerPhase.size(); ++i)
+    {
+        windows[i] += pendingPerPhase[i];
+        pending += pendingPerPhase[i];
+    }
+    auto& metrics = mApp.getMetrics();
+    // Only the overlay round trip runs on the main thread; the tasks decode.
+    auto payload = [&]() {
+        auto timer =
+            metrics.NewTimer({"herder", "prewarm", "pull"}).TimeScope();
+        return std::make_shared<std::vector<uint8_t> const>(
+            pullTopTransactionsPayload(2 * maxTxSetCandidates() + pending));
+    }();
+    uint32_t count = 0;
+    if (payload->size() >= 4)
+    {
+        std::memcpy(&count, payload->data(), 4);
+    }
+    if (count == 0)
+    {
+        return;
+    }
+    auto prewarm = std::make_shared<SignaturePrewarm>();
+    prewarm->ledgerSeq = ledgerSeq;
+    prewarm->start = std::chrono::steady_clock::now();
+    // The batch executor (validation) is idle until the next build or the
+    // leader's set; use as many background tasks as it would, but leave
+    // worker threads for long background jobs such as bucket merges.
     size_t const workers = static_cast<size_t>(mApp.getConfig().WORKER_THREADS);
     size_t const tasks = std::max<size_t>(
         1, std::min<size_t>(mApp.getBatchExecutor().preferredTaskCount(),
                             workers > 2 ? workers - 2 : 1));
+    prewarm->runningTasks = tasks;
+    mSignaturePrewarm = prewarm;
     CLOG_DEBUG(Herder,
-               "Pre-verifying signatures of {} transactions in {} tasks",
-               envelopes->size(), tasks);
+               "Pre-verifying signatures for ledger {}: {} pulled, windows {} "
+               "classic / {} Soroban, {} tasks",
+               ledgerSeq, count, windows[0],
+               windows.size() > 1 ? windows[1] : 0, tasks);
     for (size_t task = 0; task < tasks; ++task)
     {
         mApp.postOnBackgroundThread(
-            [envelopes, stop, networkID = mApp.getNetworkID(), task, tasks]() {
+            [prewarm, payload, windows, networkID = mApp.getNetworkID(), task,
+             tasks]() {
                 ZoneScopedN("signature prewarm");
-                for (size_t i = task; i < envelopes->size(); i += tasks)
+                if (!prewarm->stop.load(std::memory_order_relaxed))
                 {
-                    if (stop->load(std::memory_order_relaxed))
+                    std::call_once(prewarm->selected, [&]() {
+                        prewarm->candidates = selectPrewarmCandidates(
+                            OverlayIPC::parseTopTransactions(*payload),
+                            windows);
+                    });
+                    auto const& candidates = prewarm->candidates;
+                    for (size_t i = task; i < candidates.size(); i += tasks)
                     {
-                        return;
+                        if (prewarm->stop.load(std::memory_order_relaxed))
+                        {
+                            break;
+                        }
+                        prewarm->verifiedSignatures +=
+                            verifyMasterKeySignatures(networkID, candidates[i]);
+                        ++prewarm->checkedTxs;
                     }
-                    verifyMasterKeySignatures(networkID, (*envelopes)[i]);
+                }
+                if (prewarm->runningTasks.fetch_sub(1) == 1)
+                {
+                    // The last task: free the candidates here rather than on
+                    // the main thread when the prewarm is stopped.
+                    std::vector<TransactionEnvelope>().swap(
+                        prewarm->candidates);
+                    prewarm->finishedAfterNs =
+                        std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now() - prewarm->start)
+                            .count();
                 }
             },
             "Herder: signature prewarm");
@@ -2189,10 +2403,29 @@ HerderImpl::prewarmSignatureCache()
 void
 HerderImpl::stopSignaturePrewarm()
 {
-    if (mSignaturePrewarmStop)
+    if (!mSignaturePrewarm)
     {
-        mSignaturePrewarmStop->store(true, std::memory_order_relaxed);
-        mSignaturePrewarmStop.reset();
+        return;
+    }
+    auto prewarm = std::move(mSignaturePrewarm);
+    mSignaturePrewarm.reset();
+    prewarm->stop.store(true, std::memory_order_relaxed);
+    // Tasks still running stop after their current transaction; what they
+    // did so far is recorded.
+    auto const finishedAfterNs = prewarm->finishedAfterNs.load();
+    auto& metrics = mApp.getMetrics();
+    metrics.NewTimer({"herder", "prewarm", "duration"})
+        .Update(finishedAfterNs >= 0
+                    ? std::chrono::nanoseconds(finishedAfterNs)
+                    : std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::steady_clock::now() - prewarm->start));
+    metrics.NewMeter({"herder", "prewarm", "txs"}, "transaction")
+        .Mark(prewarm->checkedTxs.load());
+    metrics.NewMeter({"herder", "prewarm", "verified"}, "signature")
+        .Mark(prewarm->verifiedSignatures.load());
+    if (finishedAfterNs < 0)
+    {
+        metrics.NewMeter({"herder", "prewarm", "incomplete"}, "prewarm").Mark();
     }
 }
 

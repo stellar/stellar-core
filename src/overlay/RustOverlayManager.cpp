@@ -238,6 +238,16 @@ RustOverlayManager::getTopTransactions(size_t count)
     return {};
 }
 
+std::vector<uint8_t>
+RustOverlayManager::getTopTransactionsPayload(size_t count)
+{
+    if (mOverlayIPC && !mShuttingDown)
+    {
+        return mOverlayIPC->getTopTransactionsPayload(count);
+    }
+    return {};
+}
+
 OverlayMetrics&
 RustOverlayManager::getOverlayMetrics()
 {

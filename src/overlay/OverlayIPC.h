@@ -125,6 +125,13 @@ class OverlayIPC
     std::vector<TransactionEnvelope> getTopTransactions(size_t count);
 
     /**
+     * The same request, returning the response payload undecoded (empty if
+     * there is no response), for callers that decode it elsewhere with
+     * parseTopTransactions.
+     */
+    std::vector<uint8_t> getTopTransactionsPayload(size_t count);
+
+    /**
      * Decode a GET_TOP_TXS response payload:
      * [count:4]([len:4][TransactionEnvelope XDR:len])*. Envelopes are
      * decoded in place from the payload. Entries that fail to decode are

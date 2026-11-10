@@ -355,6 +355,19 @@ PubKeyUtils::seedVerifySigCache(unsigned int seed)
 }
 
 void
+PubKeyUtils::getVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
+{
+    hits = 0;
+    misses = 0;
+    for (auto& shard : gVerifySigCacheShards)
+    {
+        LOCK_GUARD(shard.mMutex, guard);
+        hits += shard.mHits;
+        misses += shard.mMisses;
+    }
+}
+
+void
 PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
 {
     hits = 0;

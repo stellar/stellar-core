@@ -555,7 +555,13 @@ OverlayIPC::removeTransactions(std::vector<Hash> const& txHashes)
 std::vector<TransactionEnvelope>
 OverlayIPC::getTopTransactions(size_t count)
 {
-    std::vector<TransactionEnvelope> result;
+    return parseTopTransactions(getTopTransactionsPayload(count));
+}
+
+std::vector<uint8_t>
+OverlayIPC::getTopTransactionsPayload(size_t count)
+{
+    std::vector<uint8_t> result;
 
     if (!mChannel || !mChannel->isConnected())
     {
@@ -608,7 +614,7 @@ OverlayIPC::getTopTransactions(size_t count)
         return result;
     }
 
-    return parseTopTransactions(response.payload);
+    return std::move(response.payload);
 }
 
 std::vector<TransactionEnvelope>
