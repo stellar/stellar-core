@@ -88,13 +88,17 @@ land. Every other request is answered: a repeated one, one that arrives later
 (a peer only asks when it does not hold the set, so it lost or dropped the
 pushed copy), and one from a peer the set was not pushed to. A failed push
 write answers a skipped request after all, and any connection to the peer
-closing drops the record for that peer.
+closing drops the record for that peer. (If a connection closes while a push
+is still being written, that push is no longer recorded: a request that
+crosses it gets a second copy, and if the write then fails, a request that
+was skipped before the close is not answered and falls to Core's retry.)
 
 A leader keeps at most one push in flight per peer (`TXSET_PUSH_BUSY` in the
 log when a peer is left out). A peer that does not read its tx-set stream is
-not sent further sets (it requests them), so it pins at most one set in the
-leader's memory; closing a connection does not release that count, only the
-end of the write does.
+not sent further sets (it requests them), so it pins at most one pushed set
+in the leader's memory; closing a connection does not release that count,
+only the end of the write does. Answers to that peer's requests queue behind
+the stuck write under the send permits that bound all tx-set responses.
 
 A node that did not receive the push (not connected to the leader, connected
 later, or busy with an earlier push) has no cached set and uses the request
@@ -110,8 +114,9 @@ relayed the proposal, which holds the pushed copy.
 Limits on what a peer can make a node decode and keep:
 
 - Rate: every tx-set frame takes a token from a per-peer bucket (burst 8, 4
-  per second). A frame that answers a request of this node returns its token,
-  so only frames nobody asked for use the allowance. With the bucket empty a
+  per second). A frame that delivers a set this node has a request pending
+  for returns its token (to the peer that delivered it, whichever peer was
+  asked), so only frames nobody is waiting for use the allowance. With the bucket empty a
   frame still passes if this node sent that peer a request it has not used up
   (one frame per request, at most 8 saved). Anything else is dropped before
   decompression (`overlay.txset-push.dropped`).
@@ -129,7 +134,10 @@ Limits on what a peer can make a node decode and keep:
   reconnects starts with a full allowance. Many colluding peers can use the
   shared byte budget to push out a large honest set, and a peer that delivers
   the leader's set first and then pushes four more evicts it (the receiver
-  then requests the set).
+  then requests the set). The cache itself still holds 100 sets of any kind,
+  first in, first out: with up to 20 unclaimed sets per peer, five peers can
+  fill it and cycle out sets the node built or already uses (on the base one
+  peer could, through prefetches).
 
 ## Core requests and network prefetches
 
