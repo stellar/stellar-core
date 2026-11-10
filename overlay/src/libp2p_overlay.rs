@@ -470,6 +470,37 @@ pub struct StellarOverlay {
     sends: JoinSet<()>,
 }
 
+/// See `quic_initial_congestion_window`. `None` = quinn's default.
+///
+/// 8 MiB lets a tx set (0.5-0.8 MB compressed at 3,000 TPS) leave in one
+/// flight. quinn paces one window over 0.8 round trips and does not grow the
+/// window while the sender is application limited, so with its default a
+/// 640 KB frame took 1 to 1.3 round trips on top of the one-way delay even on
+/// a warm connection (and 6 to 7 on a cold one); with 8 MiB it arrives about
+/// 20 ms after the one-way delay at a 150 ms round trip. CUBIC still shrinks
+/// the window on loss. A prototype setting for validators on good links.
+const DEFAULT_QUIC_INITIAL_CONGESTION_WINDOW: Option<u64> = Some(8 * 1024 * 1024);
+
+/// Initial QUIC congestion window for every peer connection, in bytes.
+/// `STELLAR_OVERLAY_QUIC_INITIAL_CWND` overrides it (0 = quinn's default of
+/// about ten packets); the override exists for latency experiments.
+fn quic_initial_congestion_window() -> Option<u64> {
+    let Ok(value) = std::env::var("STELLAR_OVERLAY_QUIC_INITIAL_CWND") else {
+        return DEFAULT_QUIC_INITIAL_CONGESTION_WINDOW;
+    };
+    match value.parse::<u64>() {
+        Ok(0) => None,
+        Ok(bytes) => Some(bytes),
+        Err(_) => {
+            warn!(
+                "STELLAR_OVERLAY_QUIC_INITIAL_CWND={:?} is not a byte count, using the default",
+                value
+            );
+            DEFAULT_QUIC_INITIAL_CONGESTION_WINDOW
+        }
+    }
+}
+
 /// Create the overlay and return handle + event receivers
 ///
 /// Returns:
@@ -499,6 +530,11 @@ pub fn create_overlay(
     let mut quic_config = libp2p::quic::Config::new(&keypair);
     quic_config.keep_alive_interval = Duration::from_secs(15);
     quic_config.max_idle_timeout = 60_000; // 60 seconds in ms
+    quic_config.initial_congestion_window = quic_initial_congestion_window();
+    match quic_config.initial_congestion_window {
+        Some(bytes) => info!("QUIC_CWND: initial congestion window {} bytes", bytes),
+        None => info!("QUIC_CWND: initial congestion window: quinn default"),
+    }
 
     let swarm = SwarmBuilder::with_existing_identity(keypair.clone())
         .with_tokio()
@@ -2404,6 +2440,9 @@ fn create_test_overlay(
 
 #[cfg(test)]
 mod dispatch_tests;
+
+#[cfg(test)]
+mod quic_window_experiment;
 
 #[cfg(test)]
 mod tests {

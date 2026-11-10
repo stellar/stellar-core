@@ -1,0 +1,49 @@
+diff --git a/libp2p-quic/src/config.rs b/libp2p-quic/src/config.rs
+index 2456ed3e3..fb8effcc1 100644
+--- a/libp2p-quic/src/config.rs
++++ b/libp2p-quic/src/config.rs
+@@ -69,6 +69,16 @@ pub struct Config {
+ 
+     /// Parameters governing MTU discovery. See [`MtuDiscoveryConfig`] for details.
+     mtu_discovery_config: Option<MtuDiscoveryConfig>,
++
++    /// Initial congestion window in bytes for every connection (CUBIC).
++    /// `None` keeps quinn's default (about ten packets).
++    ///
++    /// quinn paces one congestion window over 0.8 RTT and does not grow the
++    /// window while the sender is application limited, so a connection that
++    /// mostly idles sends a burst of S bytes in about 0.8 * S / window round
++    /// trips. A window several times the largest expected burst lets that
++    /// burst leave in one flight. Loss still shrinks the window as usual.
++    pub initial_congestion_window: Option<u64>,
+ }
+ 
+ impl Config {
+@@ -95,6 +105,7 @@ impl Config {
+             max_stream_data: 10_000_000,
+             keypair: keypair.clone(),
+             mtu_discovery_config: Some(Default::default()),
++            initial_congestion_window: None,
+         }
+     }
+ 
+@@ -135,6 +146,7 @@ impl From<Config> for QuinnConfig {
+             handshake_timeout: _,
+             keypair,
+             mtu_discovery_config,
++            initial_congestion_window,
+         } = config;
+         let mut transport = quinn::TransportConfig::default();
+         // Disable uni-directional streams.
+@@ -148,6 +160,11 @@ impl From<Config> for QuinnConfig {
+         transport.stream_receive_window(max_stream_data.into());
+         transport.receive_window(max_connection_data.into());
+         transport.mtu_discovery_config(mtu_discovery_config);
++        if let Some(window) = initial_congestion_window {
++            let mut cubic = quinn::congestion::CubicConfig::default();
++            cubic.initial_window(window);
++            transport.congestion_controller_factory(Arc::new(cubic));
++        }
+         let transport = Arc::new(transport);
+ 
+         let mut server_config = quinn::ServerConfig::with_crypto(server_tls_config);
