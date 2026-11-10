@@ -1918,7 +1918,8 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     stopSignaturePrewarm();
     auto& metrics = mApp.getMetrics();
     auto txEnvelopes = [&]() {
-        auto t = metrics.NewTimer({"herder", "txset", "build-pull"}).TimeScope();
+        auto t =
+            metrics.NewTimer({"herder", "txset", "build-pull"}).TimeScope();
         return pullTopTransactions(maxTxSetCandidates() * 2);
     }();
     auto framesTimer =

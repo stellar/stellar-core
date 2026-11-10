@@ -917,10 +917,9 @@ makeTxSetFromTransactions(
         else
         {
 #endif
-            auto trimTimer =
-                app.getMetrics()
-                    .NewTimer({"herder", "txset", "build-trim"})
-                    .TimeScope();
+            auto trimTimer = app.getMetrics()
+                                 .NewTimer({"herder", "txset", "build-trim"})
+                                 .TimeScope();
             if (validTxTargets.empty())
             {
                 validatedTxs = TxSetUtils::trimInvalid(

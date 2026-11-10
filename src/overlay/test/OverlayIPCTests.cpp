@@ -550,8 +550,7 @@ makeLargeTxEnvelope(int64_t fee, int64_t seqNum, uint8_t accountByte,
  * IPC reader), and a pull larger than the limit is truncated to the
  * highest-priority transactions that fit instead of breaking the connection.
  */
-TEST_CASE("Rust overlay returns top transactions over 16 MiB",
-          "[overlay-ipc]")
+TEST_CASE("Rust overlay returns top transactions over 16 MiB", "[overlay-ipc]")
 {
     std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_large_top_txs_test");
@@ -581,7 +580,8 @@ TEST_CASE("Rust overlay returns top transactions over 16 MiB",
         REQUIRE(txs.size() == 20);
         for (auto const& tx : txs)
         {
-            REQUIRE(tx.v1().tx.operations[0]
+            REQUIRE(tx.v1()
+                        .tx.operations[0]
                         .body.invokeHostFunctionOp()
                         .hostFunction.wasm()
                         .size() == txBytes);
