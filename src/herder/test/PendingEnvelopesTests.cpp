@@ -222,7 +222,7 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
             REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
             REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
             auto& fetchTimer =
-                app->getMetrics().NewTimer({"overlay", "fetch", "txset"});
+                app->getMetrics().NewTimer({"scp", "fetch", "txset"});
             auto const fetches = fetchTimer.count();
 
             // A promoted leader or a legacy-tx-set validator can build the
@@ -233,7 +233,7 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
             auto m = herder.getSCP().getLatestMessage(pk);
             REQUIRE(m);
             REQUIRE(*m == saneEnvelope);
-            // Not an overlay fetch: overlay.fetch.txset is not updated.
+            // Not an overlay fetch: scp.fetch.txset is not updated.
             REQUIRE(fetchTimer.count() == fetches);
 
             // A later delivery from the overlay is redundant.
@@ -848,7 +848,7 @@ TEST_CASE("PendingEnvelopes re-requests tx sets the overlay does not deliver",
     pendingEnvelopes.addSCPQuorumSet(qSetHash, qSet);
 
     auto& retries =
-        app->getMetrics().NewCounter({"overlay", "fetch", "txset-retry"});
+        app->getMetrics().NewCounter({"scp", "fetch", "txset-retry"});
     auto const initialRetries = retries.count();
     auto const interval = PendingEnvelopes::TX_SET_FETCH_RETRY_INTERVAL;
     // Advance virtual time by exactly `d` (crankFor can jump past it to the
@@ -876,8 +876,13 @@ TEST_CASE("PendingEnvelopes re-requests tx sets the overlay does not deliver",
     SECTION("an undelivered set is requested again until it arrives")
     {
         auto& fetchTimer =
-            app->getMetrics().NewTimer({"overlay", "fetch", "txset"});
+            app->getMetrics().NewTimer({"scp", "fetch", "txset"});
         auto const fetches = fetchTimer.count();
+        // The overlay's own fetch time (synced from Rust) is a separate
+        // metric that Core's fetch tracking doesn't feed.
+        auto& overlayFetchTimer =
+            app->getMetrics().NewTimer({"overlay", "fetch", "txset"});
+        auto const overlayFetches = overlayFetchTimer.count();
         // Requests repeat after 1 s, then back off: 2 s, 4 s, ...
         crankBy(interval); // t = 1.5 s
         REQUIRE(retries.count() == initialRetries + 1);
@@ -893,6 +898,7 @@ TEST_CASE("PendingEnvelopes re-requests tx sets the overlay does not deliver",
         REQUIRE(pendingEnvelopes.recvTxSet(hash, p.second));
         REQUIRE(!pendingEnvelopes.getTxSetWaitingTime(hash));
         REQUIRE(fetchTimer.count() == fetches + 1);
+        REQUIRE(overlayFetchTimer.count() == overlayFetches);
         crankBy(10 * interval);
         REQUIRE(retries.count() == initialRetries + 3);
     }

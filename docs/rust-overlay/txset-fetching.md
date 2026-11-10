@@ -95,7 +95,7 @@ drops reservations older than the retained-slot window (`sequence - 12`).
 
 Rust has no request timer. Core repeats a `RequestTxSet` for a set it has not
 received after one second, then every second, logging a warning on every
-doubling of the request count (and counting `overlay.fetch.txset-retry`).
+doubling of the request count (and counting `scp.fetch.txset-retry`).
 A request for a hash Core is still waiting for is a retry: it replaces the
 reservation and goes to another connected peer, preferring the SCP source only
 if it was not the previous target, else a random one. Core stops fetching when

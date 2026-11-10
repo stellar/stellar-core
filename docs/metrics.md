@@ -130,7 +130,7 @@ overlay.delay.async-write                 | timer     | time between each messag
 overlay.delay.write-queue                 | timer     | time between each message's entry and exit from peer write queue
 overlay.error.read                        | meter     | error while receiving a message
 overlay.error.write                       | meter     | error while sending a message
-overlay.fetch.txset                       | timer     | time to complete fetching of a txset
+overlay.fetch.txset                       | timer     | time the Rust overlay took to fetch a txset from a peer (synced from the overlay as per-batch averages)
 overlay.fetch.qset                        | timer     | time to complete fetching of a qset
 overlay.fetch.unique-recv                 | meter     | number of bytes of fetched messages that have not yet been received
 overlay.fetch.duplicate-recv              | meter     | number of bytes of fetched messages that have already been received
@@ -181,6 +181,8 @@ scp.envelope.receive                      | meter     | SCP message received
 scp.envelope.sign                         | meter     | envelope signed
 scp.envelope.validsig                     | meter     | envelope signature verified
 scp.fetch.envelope                        | timer     | time to complete fetching of an envelope
+scp.fetch.txset                           | timer     | time from requesting a txset an SCP envelope needs to the overlay delivering it (not counting sets this node built itself)
+scp.fetch.txset-retry                     | counter   | txset requests repeated because the set had not arrived
 scp.memory.cumulative-statements          | counter   | number of known SCP statements known
 scp.nomination.combinecandidates          | meter     | number of candidates per call
 scp.pending.discarded                     | counter   | number of discarded envelopes

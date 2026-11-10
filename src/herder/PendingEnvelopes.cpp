@@ -45,10 +45,10 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
           app.getMetrics().NewCounter({"scp", "pending", "fetching"}))
     , mReadyCount(app.getMetrics().NewCounter({"scp", "pending", "ready"}))
     , mFetchDuration(app.getMetrics().NewTimer({"scp", "fetch", "envelope"}))
-    , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mFetchTxSetTimer(app.getMetrics().NewTimer({"scp", "fetch", "txset"}))
     , mFetchQsetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "qset"}))
     , mTxSetFetchRetries(
-          app.getMetrics().NewCounter({"overlay", "fetch", "txset-retry"}))
+          app.getMetrics().NewCounter({"scp", "fetch", "txset-retry"}))
     , mCostPerSlot(app.getMetrics().NewHistogram({"scp", "cost", "per-slot"}))
 {
 }
@@ -332,8 +332,9 @@ PendingEnvelopes::completeTxSetFetch(Hash const& hash,
     auto fetchIt = mTxSetFetches.find(hash);
     if (fetchIt != mTxSetFetches.end())
     {
-        // overlay.fetch.txset times overlay fetches only, not sets this node
-        // ended up building itself.
+        // scp.fetch.txset times overlay deliveries only, not sets this node
+        // ended up building itself. (overlay.fetch.txset is the overlay's own
+        // per-request fetch time, synced from Rust.)
         if (deliveredByOverlay)
         {
             mFetchTxSetTimer.Update(mApp.getClock().now() -
