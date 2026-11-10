@@ -56,18 +56,19 @@ makeMockSCPEnvelope(uint64_t slotIndex, uint32_t nodeId)
 {
     SCPEnvelope env;
     env.statement.slotIndex = slotIndex;
-    env.statement.pledges.type(SCP_ST_NOMINATE);
+    env.statement.pledges.type(SCP_ST_PREPARE);
 
     // Set some mock data
-    auto& nom = env.statement.pledges.nominate();
-    nom.quorumSetHash.fill(static_cast<uint8_t>(nodeId));
+    auto& prep = env.statement.pledges.prepare();
+    prep.quorumSetHash.fill(static_cast<uint8_t>(nodeId));
+    prep.ballot.counter = 1;
 
     // Value is opaque<> (xvector<uint8_t>), not Hash
     Value mockValue;
     mockValue.resize(32);
     std::fill(mockValue.begin(), mockValue.end(),
               static_cast<uint8_t>(slotIndex & 0xFF));
-    nom.votes.push_back(mockValue);
+    prep.ballot.value = mockValue;
 
     return env;
 }
@@ -404,11 +405,11 @@ TEST_CASE("Rust overlay SCP consensus", "[overlay-ipc][.]")
 }
 
 /**
- * Test TX set building and nomination hash request.
+ * Test TX set building and proposal hash request.
  *
  * This test:
  * 1. Creates an OverlayIPC connection to a Rust overlay
- * 2. Requests a nomination hash (which builds a TX set from empty mempool)
+ * 2. Requests a proposal hash (which builds a TX set from empty mempool)
  * 3. Verifies a hash is returned
  */
 TEST_CASE("Rust overlay get top transactions", "[overlay-ipc][.]")
@@ -1008,7 +1009,7 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
  * - 200 tx/ledger (heavy load)
  *
  * For each rate, runs for several ledgers and measures:
- * - scp.timing.nominated (time from nomination to prepare)
+ * - scp.timing.trigger-to-ballot (time from the trigger to the first ballot)
  * - scp.timing.externalized (time from prepare to externalize)
  * - ledger.ledger.close (total ledger close time)
  */
@@ -1034,8 +1035,8 @@ TEST_CASE("Rust overlay SCP latency under TX load",
         std::string label;
         int txSubmitted;
         int txIncluded;
-        double scpNominatedMean;
-        double scpNominatedMax;
+        double scpTriggerToBallotMean;
+        double scpTriggerToBallotMax;
         double scpExternalizedMean;
         double scpExternalizedMax;
         double ledgerCloseMean;
@@ -1095,8 +1096,8 @@ TEST_CASE("Rust overlay SCP latency under TX load",
 
             // Get metrics (they accumulate across ledgers)
             auto& metrics = node0->getMetrics();
-            auto& scpNominated =
-                metrics.NewTimer({"scp", "timing", "nominated"});
+            auto& scpTriggerToBallot =
+                metrics.NewTimer({"scp", "timing", "trigger-to-ballot"});
             auto& scpExternalized =
                 metrics.NewTimer({"scp", "timing", "externalized"});
             auto& ledgerClose = metrics.NewTimer({"ledger", "ledger", "close"});
@@ -1214,8 +1215,8 @@ TEST_CASE("Rust overlay SCP latency under TX load",
             res.label = run.label;
             res.txSubmitted = txSubmitted;
             res.txIncluded = static_cast<int>(txIncluded);
-            res.scpNominatedMean = scpNominated.mean();
-            res.scpNominatedMax = scpNominated.max();
+            res.scpTriggerToBallotMean = scpTriggerToBallot.mean();
+            res.scpTriggerToBallotMax = scpTriggerToBallot.max();
             res.scpExternalizedMean = scpExternalized.mean();
             res.scpExternalizedMax = scpExternalized.max();
             res.ledgerCloseMean = ledgerClose.mean();
@@ -1250,8 +1251,8 @@ TEST_CASE("Rust overlay SCP latency under TX load",
     {
         LOG_INFO(DEFAULT_LOG,
                  "{:<20} {:>10} {:>10} {:>12.2f} {:>12.2f} {:>12.2f} {:>12.2f}",
-                 r.label, r.txSubmitted, r.txIncluded, r.scpNominatedMean,
-                 r.scpNominatedMax, r.scpExternalizedMean,
+                 r.label, r.txSubmitted, r.txIncluded, r.scpTriggerToBallotMean,
+                 r.scpTriggerToBallotMax, r.scpExternalizedMean,
                  r.scpExternalizedMax);
     }
 
@@ -1272,11 +1273,11 @@ TEST_CASE("Rust overlay SCP latency under TX load",
     // Allow 3x degradation from light to heavy load
     if (allResults.size() >= 2)
     {
-        double lightMean = allResults[0].scpNominatedMean;
-        double heavyMean = allResults.back().scpNominatedMean;
+        double lightMean = allResults[0].scpTriggerToBallotMean;
+        double heavyMean = allResults.back().scpTriggerToBallotMean;
 
         LOG_INFO(DEFAULT_LOG,
-                 "SCP nominated latency ratio (heavy/light): {:.2f}x",
+                 "SCP trigger-to-ballot latency ratio (heavy/light): {:.2f}x",
                  heavyMean / lightMean);
 
         // Warn but don't fail if degradation is significant
@@ -1400,7 +1401,8 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test",
 
     // Get metrics from node 0
     auto& metrics = nodes[0]->getMetrics();
-    auto& scpNominated = metrics.NewTimer({"scp", "timing", "nominated"});
+    auto& scpTriggerToBallot =
+        metrics.NewTimer({"scp", "timing", "trigger-to-ballot"});
     auto& scpExternalized = metrics.NewTimer({"scp", "timing", "externalized"});
     auto& ledgerClose = metrics.NewTimer({"ledger", "ledger", "close"});
 
@@ -1470,8 +1472,8 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test",
     LOG_INFO(DEFAULT_LOG, "  Effective TPS: {:.0f}", effectiveTps);
     LOG_INFO(DEFAULT_LOG, "");
     LOG_INFO(DEFAULT_LOG, "SCP Timing (ms):");
-    LOG_INFO(DEFAULT_LOG, "  Nominated:    mean={:.2f}, max={:.2f}",
-             scpNominated.mean(), scpNominated.max());
+    LOG_INFO(DEFAULT_LOG, "  TriggerToBallot: mean={:.2f}, max={:.2f}",
+             scpTriggerToBallot.mean(), scpTriggerToBallot.max());
     LOG_INFO(DEFAULT_LOG, "  Externalized: mean={:.2f}, max={:.2f}",
              scpExternalized.mean(), scpExternalized.max());
     LOG_INFO(DEFAULT_LOG, "");
@@ -1484,10 +1486,10 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test",
 
     // Warn if SCP latency is concerning (but don't fail - this is
     // informational)
-    if (scpNominated.max() > 5000)
+    if (scpTriggerToBallot.max() > 5000)
     {
-        WARN("SCP nomination max latency exceeded 5s: " << scpNominated.max()
-                                                        << "ms");
+        WARN("SCP trigger-to-ballot max latency exceeded 5s: "
+             << scpTriggerToBallot.max() << "ms");
     }
 
     LOG_INFO(DEFAULT_LOG,

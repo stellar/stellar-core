@@ -1050,16 +1050,13 @@ ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
     xdr::xdr_from_opaque(wireBytes, receivedXdr);
     auto receivedTxSet = TxSetXDRFrame::makeFromWire(receivedXdr);
 
-    // Nomination through externalization and apply use production SCP paths.
+    // Proposal through externalization and apply use production SCP paths.
     herder.getPendingEnvelopes().putTxSet(receivedTxSet->getContentsHash(),
                                           ledgerSeq, receivedTxSet);
     auto& driver = herder.getHerderSCPDriver();
-    driver.nominate(
-        ledgerSeq,
-        [&driver, nominatedValue]() {
-            return driver.wrapStellarValue(nominatedValue);
-        },
-        lcl.header.scpValue);
+    driver.startSlot(ledgerSeq, [&driver, nominatedValue]() {
+        return driver.wrapStellarValue(nominatedValue);
+    });
 
     auto const deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(60);

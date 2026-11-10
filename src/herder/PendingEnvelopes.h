@@ -94,6 +94,7 @@ class PendingEnvelopes
     RandomEvictionCache<Hash, size_t> mValueSizeCache;
 
     bool mRebuildQuorum;
+    uint64_t mQuorumRebuildCount{0};
     QuorumTracker mQuorumTracker;
 
     medida::Counter& mProcessedCount;
@@ -256,6 +257,17 @@ class PendingEnvelopes
     bool isNodeDefinitelyInQuorum(NodeID const& node);
 
     void rebuildQuorumTrackerState();
+    // True if an envelope of `node` for `slotIndex` is being fetched (waiting
+    // for its tx set or quorum set) or is ready but not yet processed by SCP.
+    bool hasPendingEnvelopeFrom(uint64 slotIndex, NodeID const& node) const;
+    // Incremented every time the transitive quorum is rebuilt from scratch.
+    // Together with the quorum's size (it only grows between rebuilds) this
+    // identifies its node set.
+    uint64_t
+    getQuorumRebuildCount() const
+    {
+        return mQuorumRebuildCount;
+    }
     QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const;
 
     // updates internal state when an envelope was successfully processed

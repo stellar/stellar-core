@@ -1164,6 +1164,7 @@ PendingEnvelopes::rebuildQuorumTrackerState()
 {
     // rebuild quorum information using data sources starting with the
     // freshest source
+    ++mQuorumRebuildCount;
     mQuorumTracker.rebuild([&](NodeID const& id) -> SCPQuorumSetPtr {
         SCPQuorumSetPtr res;
         if (id == mHerder.getSCP().getLocalNodeID())
@@ -1193,6 +1194,32 @@ PendingEnvelopes::rebuildQuorumTrackerState()
         }
         return res;
     });
+}
+
+bool
+PendingEnvelopes::hasPendingEnvelopeFrom(uint64 slotIndex,
+                                         NodeID const& node) const
+{
+    auto it = mEnvelopes.find(slotIndex);
+    if (it == mEnvelopes.end())
+    {
+        return false;
+    }
+    for (auto const& f : it->second.mFetchingEnvelopes)
+    {
+        if (f.first.statement.nodeID == node)
+        {
+            return true;
+        }
+    }
+    for (auto const& r : it->second.mReadyEnvelopes)
+    {
+        if (r->getStatement().nodeID == node)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 QuorumTracker::QuorumMap const&

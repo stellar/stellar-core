@@ -34,29 +34,17 @@ SCP::receiveEnvelope(SCPEnvelopeWrapperPtr envelope)
 }
 
 bool
-SCP::nominate(uint64 slotIndex, NominationValueSupplier const& makeValue,
-              Value const& previousValue)
+SCP::startSlot(uint64 slotIndex, ProposalValueSupplier const& makeValue)
 {
     dbgAssert(isValidator());
-    return getSlot(slotIndex, true)->nominate(makeValue, previousValue, false);
+    return getSlot(slotIndex, true)->startLeaderRounds(makeValue);
 }
 
-std::set<NodeID>
-SCP::predictNominationLeaders(uint64 slotIndex, Value const& previousValue,
-                              uint32_t rounds)
+uint32
+SCP::getLeaderRound(uint64 slotIndex)
 {
-    Slot preview(slotIndex, *this);
-    return NominationProtocol::predictLeaders(preview, previousValue, rounds);
-}
-
-void
-SCP::stopNomination(uint64 slotIndex)
-{
-    auto s = getSlot(slotIndex, false);
-    if (s)
-    {
-        s->stopNomination();
-    }
+    auto slot = getSlot(slotIndex, false);
+    return slot ? slot->getLeaderRound() : 0;
 }
 
 void
@@ -287,17 +275,6 @@ SCP::getMissingNodes(NodeID const& id, uint64 index)
     return ret;
 }
 
-std::set<NodeID>
-SCP::getNominationLeaders(uint64 slotIndex)
-{
-    auto slot = getSlot(slotIndex, false);
-    if (slot)
-    {
-        return slot->getNominationLeaders();
-    }
-    return {};
-}
-
 bool
 SCP::isValidator()
 {
@@ -433,8 +410,7 @@ SCP::getLatestMessage(NodeID const& id)
 }
 
 bool
-SCP::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                 SCPStatement const& newSt)
+SCP::isNewerStatement(SCPStatement const& oldSt, SCPStatement const& newSt)
 {
     if (oldSt.slotIndex != newSt.slotIndex || !(oldSt.nodeID == newSt.nodeID))
     {
@@ -444,7 +420,7 @@ SCP::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
     auto slot = getSlot(oldSt.slotIndex, false);
     if (slot)
     {
-        return slot->isNewerNominationOrBallotSt(oldSt, newSt);
+        return slot->isNewerStatement(oldSt, newSt);
     }
 
     return false;

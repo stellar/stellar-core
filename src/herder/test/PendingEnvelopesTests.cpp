@@ -100,6 +100,44 @@ makePublicKey(int i)
     auto secretKey = SecretKey::fromSeed(hash);
     return secretKey.getPublicKey();
 }
+
+// The local node votes for the round 1 leader's ballot as soon as SCP sees
+// it, before its own trigger. These tests feed the node a peer's statements
+// and then inspect PendingEnvelopes (reference counts, fetch status), which
+// such a vote would change. So they use a peer that does not lead round 1 of
+// the next slot: the local node then leads it (or a node that never speaks
+// does, once the peer's quorum set is known) and does not vote.
+struct FollowerPeerApp
+{
+    // destroyed last: the application uses the clock
+    std::unique_ptr<VirtualClock> mClock;
+    SecretKey mPeer;
+    Application::pointer mApp;
+};
+
+FollowerPeerApp
+createAppWithFollowerPeer(Config const& baseCfg)
+{
+    for (int i = 0; i < 100; ++i)
+    {
+        FollowerPeerApp res;
+        res.mPeer = SecretKey::pseudoRandomForTesting();
+        Config cfg(baseCfg);
+        cfg.QUORUM_SET.validators.emplace_back(res.mPeer.getPublicKey());
+        res.mClock = std::make_unique<VirtualClock>();
+        res.mApp = createTestApplication(*res.mClock, cfg);
+        auto& herder = static_cast<HerderImpl&>(res.mApp->getHerder());
+        auto const seq =
+            res.mApp->getLedgerManager().getLastClosedLedgerNum() + 1;
+        auto leader = herder.getHerderSCPDriver().getRoundLeader(seq, 1);
+        if (leader && !(*leader == res.mPeer.getPublicKey()))
+        {
+            return res;
+        }
+    }
+    throw std::runtime_error(
+        "could not pick a peer that does not lead round 1");
+}
 } // namespace
 
 TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
@@ -108,12 +146,10 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
     cfg.MANUAL_CLOSE = false;
     cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
 
-    VirtualClock clock;
-
-    auto s = SecretKey::pseudoRandomForTesting();
+    auto fixture = createAppWithFollowerPeer(cfg);
+    auto s = fixture.mPeer;
     auto& pk = s.getPublicKey();
-    cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
-    Application::pointer app = createTestApplication(clock, cfg);
+    Application::pointer app = fixture.mApp;
 
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
@@ -766,12 +802,10 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope without parallel tx set download",
     cfg.MANUAL_CLOSE = false;
     cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
 
-    VirtualClock clock;
-
-    auto s = SecretKey::pseudoRandomForTesting();
+    auto fixture = createAppWithFollowerPeer(cfg);
+    auto s = fixture.mPeer;
     auto& pk = s.getPublicKey();
-    cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
-    Application::pointer app = createTestApplication(clock, cfg);
+    Application::pointer app = fixture.mApp;
 
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
@@ -822,11 +856,11 @@ TEST_CASE("PendingEnvelopes re-requests tx sets the overlay does not deliver",
           "[herder]")
 {
     Config cfg(getTestConfig());
-    VirtualClock clock;
-    auto s = SecretKey::pseudoRandomForTesting();
+    auto fixture = createAppWithFollowerPeer(cfg);
+    auto& clock = *fixture.mClock;
+    auto s = fixture.mPeer;
     auto& pk = s.getPublicKey();
-    cfg.QUORUM_SET.validators.emplace_back(pk);
-    Application::pointer app = createTestApplication(clock, cfg);
+    Application::pointer app = fixture.mApp;
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
     auto& pendingEnvelopes = herder.getPendingEnvelopes();
