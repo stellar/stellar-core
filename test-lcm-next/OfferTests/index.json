@@ -1,6 +1,11 @@
 {
-   "1f16368433da1628" : "liabilities_match_created_offer-protocol_version_28-minimum_limits",
-   "457999c2534447ae" : "liabilities_match_created_offer-protocol_version_28-maximum_limits",
-   "f7a7364752aecebb" : "liabilities_match_created_offer-protocol_version_26-minimum_limits",
-   "fd69a358c98c0b3e" : "liabilities_match_created_offer-protocol_version_26-maximum_limits"
+   "!cfg protocol version" : 31,
+   "!rng seed" : 12345,
+   "!test all versions" : false,
+   "!versions to test" : [ 31 ],
+   "20ae9570487066c8" : "liabilities match created offer|protocol version 31|minimum limits",
+   "4238a00697d241ad" : "liabilities match created offer|protocol version 31|maximum limits",
+   "4666032e40e53378" : "offer crossing with minimal receive cap|protocol version 31|maker offer is adjusted with rounding error",
+   "a944c6b1f7886c70" : "offer crossing with minimal receive cap|protocol version 31|maker offer is fully taken",
+   "dda82e067af6f770" : "offer crossing with minimal receive cap|protocol version 31|taker offer is fully taken"
 }

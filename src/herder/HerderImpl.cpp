@@ -18,6 +18,7 @@
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/ImmutableLedgerView.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/P23HotArchiveBug.h"
@@ -52,6 +53,7 @@
 
 #include "util/GlobalChecks.h"
 #include <algorithm>
+#include <chrono>
 #include <ctime>
 #include <fmt/format.h>
 #include <unistd.h>
@@ -63,7 +65,7 @@ namespace stellar
 // Roughly ~10 minutes of consensus
 constexpr uint32 const CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE = 120;
 // 10 seconds of drift threshold
-constexpr uint32 const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD = 10;
+constexpr std::chrono::seconds const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD{10};
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -85,6 +87,11 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "envelope", "invalidsig"}, "envelope"))
     , mTriggerPrepareStartFallback(app.getMetrics().NewMeter(
           {"scp", "trigger", "prepare-start-fallback"}, "trigger"))
+    , mTxSetBuild(app.getMetrics().NewTimer({"herder", "txset", "build"}))
+    , mTriggerLateness(
+          app.getMetrics().NewTimer({"scp", "trigger", "lateness"}))
+    , mTriggerImmediate(
+          app.getMetrics().NewMeter({"scp", "trigger", "immediate"}, "trigger"))
 {
 }
 
@@ -153,7 +160,7 @@ void
 HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
                                 bool isTrackingNetwork)
 {
-    mTrackingSCP = ConsensusData{index, value.closeTime};
+    mTrackingSCP = ConsensusData{index, getConsensusTime(value)};
     if (isTrackingNetwork)
     {
         setState(Herder::HERDER_TRACKING_NETWORK_STATE);
@@ -183,7 +190,7 @@ HerderImpl::trackingConsensusLedgerIndex() const
     return static_cast<uint32>(mTrackingSCP.mConsensusIndex);
 }
 
-TimePoint
+ConsensusTime
 HerderImpl::trackingConsensusCloseTime() const
 {
     releaseAssert(getState() != Herder::State::HERDER_BOOTING_STATE);
@@ -331,9 +338,9 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     TxSetXDRFrameConstPtr externalizedSet;
     if (std::holds_alternative<EmptyTxSet>(result))
     {
-        auto const& ov = value.ext.proposedValue();
-        externalizedSet = TxSetXDRFrame::makeEmpty(ov.previousLedgerHash,
-                                                   ov.previousLedgerVersion);
+        externalizedSet =
+            TxSetXDRFrame::makeEmpty(getProposedPreviousLedgerHash(value),
+                                     getProposedPreviousLedgerVersion(value));
     }
     else
     {
@@ -384,9 +391,9 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     // reflect upgrades with the ones included in this SCP round
     {
         bool updated;
-        auto newUpgrades = mUpgrades.removeUpgrades(value.upgrades.begin(),
-                                                    value.upgrades.end(),
-                                                    value.closeTime, updated);
+        auto newUpgrades = mUpgrades.removeUpgrades(
+            value.upgrades.begin(), value.upgrades.end(), getApplyTime(value),
+            updated);
         if (updated)
         {
             setUpgrades(newUpgrades);
@@ -454,12 +461,13 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
 static void
 recordExternalizeAndCheckCloseTimeDrift(
     uint64 slotIndex, StellarValue const& value,
-    std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>& ctMap)
+    std::map<uint32_t, std::pair<ConsensusTime, std::optional<ConsensusTime>>>&
+        ctMap)
 {
     auto it = ctMap.find(slotIndex);
     if (it != ctMap.end())
     {
-        it->second.second = value.closeTime;
+        it->second.second = getConsensusTime(value);
     }
 
     if (ctMap.size() >= CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE)
@@ -470,14 +478,21 @@ recordExternalizeAndCheckCloseTimeDrift(
             auto const& [localCT, externalizedCT] = closeTimePair;
             if (externalizedCT)
             {
-                h.Update(*externalizedCT - localCT);
+                h.Update(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        externalizedCT->toSystemTime() - localCT.toSystemTime())
+                        .count());
             }
         }
-        auto drift = static_cast<int>(h.GetSnapshot().get75thPercentile());
-        if (std::abs(drift) > CLOSE_TIME_DRIFT_SECONDS_THRESHOLD)
+        auto driftMs =
+            static_cast<int64_t>(h.GetSnapshot().get75thPercentile());
+        if (std::abs(driftMs) >
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                CLOSE_TIME_DRIFT_SECONDS_THRESHOLD)
+                .count())
         {
             CLOG_WARNING(Herder, POSSIBLY_BAD_LOCAL_CLOCK);
-            CLOG_WARNING(Herder, "Close time local drift is: {}", drift);
+            CLOG_WARNING(Herder, "Close time local drift is: {} ms", driftMs);
         }
 
         ctMap.clear();
@@ -543,7 +558,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // the overhead of externalization in the way we track SCP)
         // Note: this only makes sense in the context of synchronous ledger
         // application on the main thread.
-        if (!mApp.getConfig().parallelLedgerClose())
+        if (!mApp.getConfig().backgroundLedgerApply())
         {
             trackingHeartBeat();
         }
@@ -654,8 +669,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TxSubmitStatus
-HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                            bool force
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
 #ifdef BUILD_TESTS
                             ,
                             bool isLoadgenTx
@@ -686,28 +700,30 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
     using std::placeholders::_1;
     auto const& st = envelope.statement;
 
-    uint64_t ctCutoff = 0;
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
 
+    ConsensusTime ctCutoff;
     if (enforceRecent)
     {
-        auto now = VirtualClock::to_time_t(mApp.getClock().system_now());
-        if (now >= mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT)
+        auto const now = mApp.getClock().system_now();
+        std::chrono::seconds const maxDrift(
+            mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT);
+        if (now.time_since_epoch() >= maxDrift)
         {
-            ctCutoff = now - mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT;
+            ctCutoff = ConsensusTime::fromSystemTime(now - maxDrift,
+                                                     lcl.ledgerVersion);
         }
     }
 
     auto envLedgerIndex = envelope.statement.slotIndex;
     auto& scpD = getHerderSCPDriver();
 
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
     auto lastCloseIndex = lcl.ledgerSeq;
-    auto lastCloseTime = lcl.scpValue.closeTime;
+    auto lastCloseTime = getConsensusTime(lcl.scpValue);
 
     // see if we can get a better estimate of lastCloseTime for validating this
-    // statement using consensus data:
-    // update lastCloseIndex/lastCloseTime to be the highest possible but still
-    // be less than envLedgerIndex
+    // statement using consensus data: update lastCloseIndex/lastCloseTime to
+    // be the highest possible but still be less than envLedgerIndex
     if (getState() != HERDER_BOOTING_STATE)
     {
         auto trackingIndex = trackingConsensusLedgerIndex();
@@ -725,16 +741,16 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
         return std::any_of(values.begin(), values.end(), [&](Value const& e) {
             auto r = toStellarValue(e, sv);
             // sv must be after cutoff
-            r = r && sv.closeTime >= ctCutoff;
+            r = r && getConsensusTime(sv) >= ctCutoff;
             if (r)
             {
                 // statement received after the fact, only keep externalized
                 // value
                 r = (lastCloseIndex == envLedgerIndex &&
-                     lastCloseTime == sv.closeTime);
+                     lastCloseTime == getConsensusTime(sv));
                 // for older messages, just ensure that they occurred before
                 r = r || (lastCloseIndex > envLedgerIndex &&
-                          lastCloseTime > sv.closeTime);
+                          lastCloseTime > getConsensusTime(sv));
                 // for future message, perform the same validity check than
                 // within SCP
                 r = r || scpD.checkCloseTime(envLedgerIndex, lastCloseTime, sv);
@@ -951,7 +967,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 
 void
 HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
-                             uint64_t closeTime,
+                             ConsensusTime closeTime,
                              xdr::xvector<UpgradeType, 6> const& upgrades,
                              std::optional<SecretKey> skToSignValue)
 {
@@ -1198,11 +1214,12 @@ HerderImpl::getUpgrades() const
 #endif
 
 std::chrono::milliseconds
-HerderImpl::ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset)
+HerderImpl::ctValidityOffset(ConsensusTime closeTime,
+                             std::chrono::milliseconds maxCtOffset)
 {
     auto maxCandidateCt = mApp.getClock().system_now() + maxCtOffset +
                           Herder::MAX_TIME_SLIP_SECONDS;
-    auto minCandidateCt = VirtualClock::from_time_t(ct);
+    auto minCandidateCt = closeTime.toSystemTime();
 
     if (minCandidateCt > maxCandidateCt)
     {
@@ -1289,7 +1306,10 @@ HerderImpl::triggerAnchorFromPrepareStart(
 //
 //   To get a better sense of which, we also take into account
 //   nomination time, so the check becomes timeSinceNetworkLedgerStart > target
-//   + nominationBudget, where nomination budget scales with timeouts.
+//   + nominationBudget. The budget is measured on the steady clock from the
+//   local trigger to entry into ballot. This includes proposal construction
+//   and all nomination time, including unfinished rounds and delayed timer
+//   callbacks.
 //
 //   If we think we're drifting ahead after taking nomination into account, we
 //   fall back to prepare-start anchor, which is based on our local clock and
@@ -1326,8 +1346,8 @@ HerderImpl::triggerAnchorFromPrepareStart(
 //    not because our system clock drifted. The goal is to avoid falling back to
 //    a conservative timer and snowballing the real delay.
 //
-//    See scenario 1, but TL;DR we can look at the nomination timeouts and see
-//    if the network is slow vs. the node drifting. If nomination is slow, we
+//    See scenario 1: measured elapsed time accounts for slow nomination
+//    independently of system clock drift. If nomination is slow, we
 //    can't fall back to the prepare-apply timer because it would compound the
 //    delay. If apply is slow, it doesn't matter which timer we use, they both
 //    will result in triggering immediately.
@@ -1342,22 +1362,17 @@ HerderImpl::triggerAnchorFromConsensusCloseTime(
     };
 
     auto consensusCloseTime = trackingConsensusCloseTime();
-    if (consensusCloseTime == 0)
+    if (consensusCloseTime == ConsensusTime{})
     {
         CLOG_WARNING(Herder, "Consensus close time is 0, falling back to "
                              "prepare-start anchor");
         return fallbackToPrepareStart();
     }
 
-    // Compare elapsed time on the externalized closeTime timeline with elapsed
-    // time on our local prepare-start timeline.
-    // Relation, with drift > 0 meaning our clock is ahead of network time:
-    //
-    //   timeSinceNetworkLedgerStart
-    //     = nominationBudget + timeSinceLocalBallotStart + drift
-    //
-    // where nominationBudget is the slow-nomination allowance described above.
-    auto externalizedSystemTime = VirtualClock::from_time_t(consensusCloseTime);
+    // Compare elapsed time since the externalized closeTime with local steady
+    // time. Their difference includes clock drift and how early or late our
+    // trigger fired relative to the proposer's close time.
+    auto externalizedSystemTime = consensusCloseTime.toSystemTime();
     auto currentSystemTime = mApp.getClock().system_now();
     auto timeSinceNetworkLedgerStart =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1369,29 +1384,39 @@ HerderImpl::triggerAnchorFromConsensusCloseTime(
         std::chrono::duration_cast<std::chrono::milliseconds>(now -
                                                               localBallotStart);
 
+    auto nominationBudget =
+        mHerderSCPDriver.getTriggerToBallotDuration(lastIndex);
+    auto logFallback = [&](char const* reason) {
+        auto zero = std::chrono::milliseconds::zero();
+        CLOG_INFO(
+            Herder,
+            "Trigger fallback after ledger {}: {}, network elapsed {} "
+            "ms, trigger-to-ballot {} ms, ballot elapsed {} ms, local "
+            "wait {} ms, network wait {} ms",
+            lastIndex, reason, timeSinceNetworkLedgerStart.count(),
+            nominationBudget.count(), timeSinceLocalBallotStart.count(),
+            std::max(zero, expectedClose - timeSinceLocalBallotStart).count(),
+            std::max(zero, expectedClose - timeSinceNetworkLedgerStart)
+                .count());
+        return fallbackToPrepareStart();
+    };
+
     // Scenario 2: if system time is behind the local prepare-start timer, the
     // network-based anchor can wedge the node, so use the local fallback.
     if (timeSinceLocalBallotStart > timeSinceNetworkLedgerStart)
     {
-        return fallbackToPrepareStart();
+        return logFallback("clock behind");
     }
 
-    // Scenario 1: widen the ahead-drift bound by the slow nomination we can
-    // explain from the previous slot's timeout count.
-    auto nominationTimeouts =
-        mHerderSCPDriver.getNominationTimeouts(lastIndex).value_or(0);
-    auto nominationBudget = std::chrono::milliseconds::zero();
-    for (int64_t round = 1; round <= nominationTimeouts; ++round)
-    {
-        nominationBudget += mHerderSCPDriver.computeTimeout(
-            static_cast<uint32_t>(round), /*isNomination=*/true);
-    }
-
+    // A timeout counts only after its callback runs, and none are counted
+    // after entry into ballot. A slow fetch or busy main thread can therefore
+    // delay nomination without increasing the count. Measure elapsed time
+    // directly instead of approximating it with completed timeout durations.
     // Scenario 1: if elapsed system time exceeds target plus explainable
     // nomination delay, treat it as clock-ahead drift and use the fallback.
     if (timeSinceNetworkLedgerStart > expectedClose + nominationBudget)
     {
-        return fallbackToPrepareStart();
+        return logFallback("clock ahead or slow ballot/apply");
     }
 
     return now - timeSinceNetworkLedgerStart;
@@ -1445,6 +1470,7 @@ HerderImpl::setupTriggerNextLedger()
     // This ensures that next value to nominate is valid
     auto triggerTime = lastLedgerStartingPoint + milliseconds;
 
+    bool const triggerDue = triggerTime <= now;
     if (triggerTime < now)
     {
         triggerTime = now;
@@ -1453,7 +1479,9 @@ HerderImpl::setupTriggerNextLedger()
     auto triggerOffset = std::chrono::duration_cast<std::chrono::milliseconds>(
         triggerTime - now);
 
-    auto minCandidateCt = lcl.header.scpValue.closeTime + 1;
+    // The smallest close time the next nomination may propose
+    auto minCandidateCt =
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion);
     auto ctOffset = ctValidityOffset(minCandidateCt, triggerOffset);
 
     if (ctOffset > std::chrono::milliseconds::zero())
@@ -1469,10 +1497,18 @@ HerderImpl::setupTriggerNextLedger()
 
     if (!mApp.getConfig().MANUAL_CLOSE)
     {
-        mTriggerTimer.async_wait(std::bind(&HerderImpl::triggerNextLedger, this,
-                                           static_cast<uint32_t>(nextIndex),
-                                           true),
-                                 &VirtualTimer::onFailureNoop);
+        if (triggerDue)
+        {
+            mSCPMetrics.mTriggerImmediate.Mark();
+        }
+        mTriggerTimer.async_wait(
+            [this, nextIndex, triggerTime]() {
+                mSCPMetrics.mTriggerLateness.Update(
+                    std::max(VirtualClock::duration::zero(),
+                             mApp.getClock().now() - triggerTime));
+                triggerNextLedger(static_cast<uint32_t>(nextIndex), true);
+            },
+            &VirtualTimer::onFailureNoop);
 
         if (getSCP().isValidator())
         {
@@ -1482,13 +1518,14 @@ HerderImpl::setupTriggerNextLedger()
             {
                 // Validate against the close time we expect at the trigger,
                 // not the earlier wall-clock time at which we start work.
-                auto closeTime = std::max<uint64_t>(
+                auto closeTime = std::max(
                     minCandidateCt,
-                    VirtualClock::to_time_t(
+                    ConsensusTime::fromSystemTime(
                         mApp.getClock().system_now() +
-                        std::chrono::duration_cast<
-                            VirtualClock::system_time_point::duration>(
-                            triggerTime - now)));
+                            std::chrono::duration_cast<
+                                VirtualClock::system_time_point::duration>(
+                                triggerTime - now),
+                        lcl.header.ledgerVersion));
                 // Yield out of ledger close before touching its read view.
                 // This is main-thread work; only its scheduling changes.
                 mPrepareTxSetTimer.expires_at(now);
@@ -1641,7 +1678,7 @@ HerderImpl::discardPreparedTxSet()
 }
 
 void
-HerderImpl::prepareTxSet(uint32_t ledgerSeq, uint64_t closeTime)
+HerderImpl::prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
 {
     if (!isTracking() || !mLedgerManager.isSynced() ||
         mLedgerManager.isApplying() ||
@@ -1653,18 +1690,20 @@ HerderImpl::prepareTxSet(uint32_t ledgerSeq, uint64_t closeTime)
     CLOG_INFO(Herder,
               "Prepared TX set for ledger {} before trigger: {} transactions, "
               "close time {}",
-              ledgerSeq, mPreparedTxSet->txSet->sizeTxTotal(), closeTime);
+              ledgerSeq, mPreparedTxSet->txSet->sizeTxTotal(),
+              closeTime.toString());
 }
 
 HerderImpl::PreparedTxSet
-HerderImpl::buildTxSet(uint32_t ledgerSeq, uint64_t closeTime)
+HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
 {
+    auto const txSetBuildStart = std::chrono::steady_clock::now();
     auto const lcl = mLedgerManager.getLastClosedLedgerHeader();
     releaseAssert(ledgerSeq == lcl.header.ledgerSeq + 1);
-    releaseAssert(closeTime > lcl.header.scpValue.closeTime);
-    auto const lowerBoundCloseTimeOffset =
-        closeTime - lcl.header.scpValue.closeTime;
-    auto const upperBoundCloseTimeOffset = lowerBoundCloseTimeOffset;
+    releaseAssert(closeTime > getConsensusTime(lcl.header.scpValue));
+    // Apply-time offset: see the comment in triggerNextLedger
+    auto const closeTimeOffset =
+        closeTime.toApplyTime() - getApplyTime(lcl.header.scpValue);
     TxSetXDRFrameConstPtr proposedSet;
     ApplicableTxSetFrameConstPtr applicableProposedSet;
 
@@ -1756,9 +1795,8 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, uint64_t closeTime)
     PerPhaseTransactionList invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
 
-    std::tie(proposedSet, applicableProposedSet) =
-        makeTxSetFromTransactions(txPhases, mApp, lowerBoundCloseTimeOffset,
-                                  upperBoundCloseTimeOffset, invalidTxPhases);
+    std::tie(proposedSet, applicableProposedSet) = makeTxSetFromTransactions(
+        txPhases, mApp, closeTimeOffset, invalidTxPhases);
     CLOG_INFO(Herder, "Proposed TX set has {} transactions",
               proposedSet->sizeTxTotal());
 
@@ -1771,12 +1809,12 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, uint64_t closeTime)
     std::vector<Hash> invalidTxHashes;
     if (!invalidTxPhases.empty())
     {
-        CheckValidLedgerViewWrapper ledgerView(mApp);
+        auto ledgerView = mLedgerManager.getLCLView();
         for (auto const& phase : invalidTxPhases)
         {
             for (auto const& tx : phase)
             {
-                auto acc = ledgerView.getAccount(tx->getSourceID());
+                auto acc = ledgerView->getAccount(tx->getSourceID());
                 if (acc &&
                     tx->getSeqNum() > acc.current().data.account().seqNum + 1)
                 {
@@ -1802,6 +1840,9 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, uint64_t closeTime)
         validCandidates += txPhases[i].size() - invalidTxPhases[i].size();
     }
     bool capacityLimited = validCandidates > proposedSet->sizeTxTotal();
+    mSCPMetrics.mTxSetBuild.Update(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - txSetBuildStart));
     return PreparedTxSet{lcl.hash,
                          ledgerSeq,
                          closeTime,
@@ -1833,7 +1874,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (mLedgerManager.isApplying())
     {
         // This can only happen when closing ledgers in parallel
-        releaseAssert(mApp.getConfig().parallelLedgerClose());
+        releaseAssert(mApp.getConfig().backgroundLedgerApply());
         CLOG_DEBUG(Herder, "triggerNextLedger: skipping (applying) : {}",
                    mApp.getStateHuman());
         return;
@@ -1853,8 +1894,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
-    uint64_t nextCloseTime =
-        VirtualClock::to_time_t(mApp.getClock().system_now());
+    auto nextCloseTime = ConsensusTime::fromSystemTime(
+        mApp.getClock().system_now(), lcl.header.ledgerVersion);
     if (ledgerSeqToTrigger == lcl.header.ledgerSeq + 1)
     {
         auto it = mDriftCTSlidingWindow.find(ledgerSeqToTrigger);
@@ -1878,9 +1919,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         }
     }
 
-    if (nextCloseTime <= lcl.header.scpValue.closeTime)
+    auto const lclCloseTime = getConsensusTime(lcl.header.scpValue);
+    if (nextCloseTime <= lclCloseTime)
     {
-        nextCloseTime = lcl.header.scpValue.closeTime + 1;
+        nextCloseTime = lclCloseTime.next(lcl.header.ledgerVersion);
     }
 
     // Ensure we're about to nominate a value with valid close time
@@ -1891,9 +1933,14 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     {
         CLOG_WARNING(Herder,
                      "Invalid close time selected ({}), skipping nomination",
-                     nextCloseTime);
+                     nextCloseTime.toString());
         return;
     }
+
+    // Start the trigger-to-ballot interval only once this node is going to
+    // build a proposal and nominate. A skipped trigger must not credit the
+    // time spent waiting for peers to the drift allowance.
+    mHerderSCPDriver.recordNominationTrigger(ledgerSeqToTrigger);
 
     // Consume the private snapshot only for the ledger it was built against.
     // Keep its close time: changing it would invalidate time-bound transactions
@@ -1915,9 +1962,15 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                   ledgerSeqToTrigger);
     }
     nextCloseTime = prepared->closeTime;
-    auto const upperBoundCloseTimeOffset =
-        nextCloseTime - lcl.header.scpValue.closeTime;
-    auto const& proposedSet = prepared->txSet;
+    // The offset is computed in *apply* time rather than consensus time:
+    // transaction time bounds are whole-second quantities compared against
+    // StellarValue::closeTime, which CAP-0088 leaves at whole seconds. With ms
+    // close times the next ledger may therefore apply in the same second as the
+    // LCL (a zero offset), and a transaction whose time bounds are met at that
+    // second is valid in both ledgers.
+    auto const closeTimeOffset =
+        nextCloseTime.toApplyTime() - getApplyTime(lcl.header.scpValue);
+    auto proposedSet = prepared->txSet;
     auto const& applicableProposedSet = prepared->applicableTxSet;
     Hash txSetHash;
     if (!prepared->invalidTxHashes.empty())
@@ -1935,15 +1988,25 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
+    // New proposed tx set must be valid, so we explicitly populate tx set
+    // validity cache so SCP can reuse the result.
+    mHerderSCPDriver.cacheValidTxSet(*applicableProposedSet, lcl,
+                                     closeTimeOffset);
+
+#ifdef BUILD_TESTS
+    if (mNominatedTxSetOverride)
+    {
+        proposedSet = mNominatedTxSetOverride(lcl);
+        CLOG_INFO(Herder, "Nominating overridden tx set {} for slot {}",
+                  hexAbbrev(proposedSet->getContentsHash()),
+                  lcl.header.ledgerSeq + 1);
+    }
+#endif
+
     txSetHash = proposedSet->getContentsHash();
 
     CLOG_INFO(Herder, "Built TX set: hash={}",
               binToHex(txSetHash).substr(0, 8));
-
-    // New proposed tx set must be valid, so we explicitly populate tx set
-    // validity cache so SCP can reuse the result.
-    mHerderSCPDriver.cacheValidTxSet(*applicableProposedSet, lcl,
-                                     upperBoundCloseTimeOffset);
 
     // Inform the item fetcher so queries from other peers about his txSet
     // can be answered. Note this can trigger SCP callbacks, externalize, etc
@@ -1984,8 +2047,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // see if we need to include some upgrades
     std::vector<LedgerUpgrade> upgrades;
     {
-        CheckValidLedgerViewWrapper ledgerView(mApp);
-        upgrades = mUpgrades.createUpgradesFor(lcl.header, ledgerView,
+        auto ledgerView = mApp.getLedgerManager().getLCLView();
+        upgrades = mUpgrades.createUpgradesFor(lcl.header, *ledgerView,
                                                mApp.getConfig());
     }
     for (auto const& upgrade : upgrades)
@@ -2065,13 +2128,8 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 std::string
 HerderImpl::getUpgradesJson()
 {
-    auto ledgerView = CheckValidLedgerViewWrapper(mApp);
-    return mUpgrades.getParameters().toDebugJson(ledgerView);
-}
-
-void
-HerderImpl::setFilteredAccounts(std::set<AccountID> const& accounts)
-{
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
+    return mUpgrades.getParameters().toDebugJson(*ledgerView);
 }
 
 void
@@ -2799,21 +2857,6 @@ HerderImpl::start()
     startTxSetGCTimer();
     startCheckForDeadNodesInterval();
 
-    auto& bap = mApp.getBannedAccountsPersistor();
-    if (!mApp.getConfig().FILTERED_G_ADDRESSES.empty())
-    {
-        CLOG_WARNING(
-            Herder,
-            "FILTERED_G_ADDRESSES is deprecated and will be removed in a "
-            "future release. The current {} address(es) will be stored in the "
-            "database. You can safely remove FILTERED_G_ADDRESSES from the "
-            "config. Use 'banaccounts'/'unbanaccounts' HTTP commands to manage "
-            "banned accounts going forward.",
-            mApp.getConfig().FILTERED_G_ADDRESSES.size());
-        bap.addBannedAccounts(mApp.getConfig().FILTERED_G_ADDRESSES);
-    }
-
-    setFilteredAccounts(bap.getBannedAccounts());
     // RustOverlayManager is started automatically in OverlayManager::start()
     // which is called by ApplicationImpl::start() before Herder::start()
 }
@@ -3005,49 +3048,66 @@ bool
 HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 {
     ZoneScoped;
-    switch (sv.ext.v())
+    // This function should never be called with an unsigned value
+    releaseAssert(isSignedStellarValue(sv) || isEmptyTxSetStellarValue(sv));
+
+    auto const& signature = getLcValueSignature(sv);
+    auto const& txSetHash =
+        isEmptyTxSetStellarValue(sv) ? getProposedTxSetHash(sv) : sv.txSetHash;
+    if (isMsCloseTimeStellarValue(sv))
     {
-    case STELLAR_VALUE_BASIC:
-        // This function should never be called with an unsigned value
-        releaseAssert(false);
-    case STELLAR_VALUE_SIGNED:
-        return PubKeyUtils::verifySig(sv.ext.lcValueSignature().nodeID,
-                                      sv.ext.lcValueSignature().signature,
-                                      xdr::xdr_to_opaque(mApp.getNetworkID(),
-                                                         ENVELOPE_TYPE_SCPVALUE,
-                                                         sv.txSetHash,
-                                                         sv.closeTime))
-            .valid;
-    case STELLAR_VALUE_EMPTY_TX_SET:
-    {
-        auto const& ov = sv.ext.proposedValue();
         return PubKeyUtils::verifySig(
-                   ov.lcValueSignature.nodeID, ov.lcValueSignature.signature,
-                   xdr::xdr_to_opaque(mApp.getNetworkID(),
-                                      ENVELOPE_TYPE_SCPVALUE, ov.txSetHash,
-                                      sv.closeTime))
+                   signature.nodeID, signature.signature,
+                   xdr::xdr_to_opaque(
+                       mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE, txSetHash,
+                       sv.closeTime, getConsensusTime(sv).milliseconds()))
             .valid;
     }
-    default:
-        releaseAssert(false);
-    }
+
+    return PubKeyUtils::verifySig(signature.nodeID, signature.signature,
+                                  xdr::xdr_to_opaque(mApp.getNetworkID(),
+                                                     ENVELOPE_TYPE_SCPVALUE,
+                                                     txSetHash, sv.closeTime))
+        .valid;
 }
 
 StellarValue
-HerderImpl::makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
+HerderImpl::makeStellarValue(Hash const& txSetHash, ConsensusTime closeTime,
                              xdr::xvector<UpgradeType, 6> const& upgrades,
                              SecretKey const& s)
 {
     ZoneScoped;
+    bool const useMsCloseTime = getHerderSCPDriver().protocolUsesMsCloseTime();
+    // Whole-second value types can only carry whole-second close times
+    releaseAssert(useMsCloseTime || closeTime.isWholeSecond());
+
     StellarValue sv;
-    sv.ext.v(STELLAR_VALUE_SIGNED);
     sv.txSetHash = txSetHash;
-    sv.closeTime = closeTime;
+    // closeTime carries the whole-second apply time in both value formats
+    sv.closeTime = closeTime.toApplyTime().timePoint();
     sv.upgrades = upgrades;
-    sv.ext.lcValueSignature().nodeID = s.getPublicKey();
-    sv.ext.lcValueSignature().signature =
-        s.sign(xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
-                                  sv.txSetHash, sv.closeTime));
+    if (useMsCloseTime)
+    {
+        sv.ext.v(STELLAR_VALUE_SIGNED_MS);
+        sv.ext.signedMsValue().closeTimeMs = closeTime.milliseconds();
+        auto& signature = getLcValueSignature(sv);
+        signature.nodeID = s.getPublicKey();
+        // The signature also covers the full ms close time (CAP-0088). Sign
+        // exactly what verifyStellarValueSignature reads back out of the value.
+        signature.signature = s.sign(xdr::xdr_to_opaque(
+            mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE, sv.txSetHash,
+            sv.closeTime, getConsensusTime(sv).milliseconds()));
+    }
+    else
+    {
+        sv.ext.v(STELLAR_VALUE_SIGNED);
+        auto& signature = getLcValueSignature(sv);
+        signature.nodeID = s.getPublicKey();
+        signature.signature = s.sign(
+            xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
+                               sv.txSetHash, sv.closeTime));
+    }
+    releaseAssert(hasValidCloseTime(sv));
     return sv;
 }
 

@@ -34,6 +34,7 @@
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
 #include "invariant/SponsorshipCountIsValid.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerManagerImpl.h"
@@ -60,6 +61,7 @@
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
+#include "util/TcmallocConfig.h"
 #include "util/Thread.h"
 #include "util/TmpDir.h"
 #include "work/BasicWork.h"
@@ -100,12 +102,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
                                            *mOverlayIOContext)
                                      : nullptr)
-    , mLedgerCloseIOContext(mConfig.parallelLedgerClose()
+    , mLedgerApplyIOContext(mConfig.backgroundLedgerApply()
                                 ? std::make_unique<asio::io_context>(1)
                                 : nullptr)
-    , mLedgerCloseWork(
-          mLedgerCloseIOContext
-              ? std::make_unique<asio::io_context::work>(*mLedgerCloseIOContext)
+    , mLedgerApplyWork(
+          mLedgerApplyIOContext
+              ? std::make_unique<asio::io_context::work>(*mLedgerApplyIOContext)
               : nullptr)
     , mWorkerThreads()
     , mEvictionThread()
@@ -125,7 +127,9 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
     , mPostOnOverlayThreadDelay(
           mMetrics->NewTimer({"app", "post-on-overlay-thread", "delay"}))
-    , mPostOnLedgerCloseThreadDelay(
+    , mPostOnLedgerApplyThreadDelay(
+          // Metric key retains the thread's historical "ledger-close" name;
+          // external dashboards depend on it.
           mMetrics->NewTimer({"app", "post-on-ledger-close-thread", "delay"}))
     , mStartedOn(clock.system_now())
 {
@@ -211,11 +215,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
     }
 
-    if (mConfig.parallelLedgerClose())
+    if (mConfig.backgroundLedgerApply())
     {
-        mLedgerCloseThread = std::make_unique<std::thread>(
-            [this]() { mLedgerCloseIOContext->run(); });
-        mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
+        mLedgerApplyThread = std::make_unique<std::thread>(
+            [this]() { mLedgerApplyIOContext->run(); });
+        mThreadTypes[mLedgerApplyThread->get_id()] = ThreadType::APPLY;
     }
 }
 
@@ -348,10 +352,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // constructor
     mProcessManager = ProcessManager::create(*this);
 
-    // Initialize banned accounts persistence and migrate any deprecated
-    // FILTERED_G_ADDRESSES config entries into the persistent table.
-    mBannedAccountsPersistor = std::make_unique<BannedAccountsPersistor>(*this);
-
     LOG_DEBUG(DEFAULT_LOG, "Application constructed");
 }
 
@@ -481,7 +481,13 @@ ApplicationImpl::getJsonInfo(bool verbose)
     auto const& lcl = lm.getLastClosedLedgerHeader();
     info["ledger"]["num"] = (int)lcl.header.ledgerSeq;
     info["ledger"]["hash"] = binToHex(lcl.hash);
-    info["ledger"]["closeTime"] = (Json::UInt64)lcl.header.scpValue.closeTime;
+    info["ledger"]["closeTime"] =
+        (Json::UInt64)getApplyTime(lcl.header.scpValue).timePoint();
+    if (isMsCloseTimeStellarValue(lcl.header.scpValue))
+    {
+        info["ledger"]["closeTimeMs"] =
+            (Json::UInt64)getConsensusTime(lcl.header.scpValue).milliseconds();
+    }
     info["ledger"]["version"] = lcl.header.ledgerVersion;
     info["ledger"]["baseFee"] = lcl.header.baseFee;
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;
@@ -824,14 +830,6 @@ ApplicationImpl::start()
     // LCL is now loaded; unblock HTTP endpoints that were gated during boot.
     mCommandHandler->setReady();
 
-    // Check if we're already on protocol V_24 or later and enable Rust Dalek
-    auto const& lcl = mLedgerManager->getLastClosedLedgerHeader();
-    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  ProtocolVersion::V_25))
-    {
-        PubKeyUtils::enableRustDalekVerify();
-    }
-
     startServices();
 }
 
@@ -847,11 +845,11 @@ ApplicationImpl::idempotentShutdown(bool forgetBuckets)
     // is still valid, join all worker threads, and finally allow destructors to
     // run once no asynchronous activity remains.
 
-    // Shutdown state-modifying ledger close thread first, while all subsystems
+    // Shutdown state-modifying ledger apply thread first, while all subsystems
     // are live and valid. Note that `joinAllThreads` will also attempt to
-    // shutdown mLedgerCloseThread for completeness, but since this method is
+    // shutdown mLedgerApplyThread for completeness, but since this method is
     // idempotent, the extra call is harmless.
-    shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
+    shutdownThread(mLedgerApplyThread, mLedgerApplyWork, "ledger apply");
 
     if (mCommandHandler)
     {
@@ -955,7 +953,7 @@ ApplicationImpl::joinAllThreads()
 {
     uint32_t joined = 0;
     joined +=
-        shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
+        shutdownThread(mLedgerApplyThread, mLedgerApplyWork, "ledger apply");
     for (auto& w : mWorkerThreads)
     {
         joined += shutdownThread(w, mWork, "worker");
@@ -1029,9 +1027,10 @@ ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 FMT_STRING("Manually closed ledger with sequence "
                            "number {:d} and closeTime {:d}"),
                 targetLedgerSeq,
-                getLedgerManager()
-                    .getLastClosedLedgerHeader()
-                    .header.scpValue.closeTime);
+                getApplyTime(getLedgerManager()
+                                 .getLastClosedLedgerHeader()
+                                 .header.scpValue)
+                    .timePoint());
         }
 
         return fmt::format(
@@ -1114,11 +1113,13 @@ ApplicationImpl::setManualCloseVirtualTime(
         "Documented limit (first second of year 2200 GMT) of manual "
         "close time would allow runtime overflow in Herder");
 
-    TimePoint const lastCloseTime = getLedgerManager()
-                                        .getLastClosedLedgerHeader()
-                                        .header.scpValue.closeTime;
-    uint64_t const now = VirtualClock::to_time_t(getClock().system_now());
-    uint64_t nextCloseTime = std::max(now, lastCloseTime + 1);
+    // Manual close always uses whole second close times
+    TimePoint const lastCloseTime =
+        getApplyTime(
+            getLedgerManager().getLastClosedLedgerHeader().header.scpValue)
+            .timePoint();
+    TimePoint const now = VirtualClock::to_time_t(getClock().system_now());
+    TimePoint nextCloseTime = std::max(now, lastCloseTime + 1);
 
     TimePoint const maxCloseTime = firstSecondOfYear2200GMT;
 
@@ -1138,7 +1139,7 @@ ApplicationImpl::setManualCloseVirtualTime(
         // Without an explicitly-provided closeTime, imitate what
         // HerderImpl::triggerNextLedger() would do in REAL_TIME
         // (unless that would move the virtual clock backwards).
-        uint64_t const defaultNextCloseTime =
+        TimePoint const defaultNextCloseTime =
             VirtualClock::to_time_t(std::chrono::system_clock::now());
         nextCloseTime = std::max(nextCloseTime, defaultNextCloseTime);
     }
@@ -1228,17 +1229,17 @@ ApplicationImpl::applyCfgCommands()
         mCommandHandler->manualCmd(cmd);
     }
 
-    // Warn if COMMANDS contains banaccounts entries (after persisting
-    // those accounts)
     for (auto const& cmd : mConfig.COMMANDS)
     {
         if (cmd.find("banaccounts") != std::string::npos)
         {
-            CLOG_WARNING(Herder,
-                         "COMMANDS entry '{}' is no longer needed: banned "
-                         "accounts are now persisted across restarts. "
-                         "Consider removing this entry.",
-                         cmd);
+            CLOG_WARNING(
+                Herder,
+                "COMMANDS entry '{}' is deprecated and has no effect; "
+                "account banning has been removed. Please remove this entry. "
+                "See CAP-0077 (https://github.com/stellar/stellar-protocol/"
+                "blob/master/core/cap-0077.md) for a more robust alternative.",
+                cmd);
         }
     }
 }
@@ -1377,6 +1378,8 @@ ApplicationImpl::syncOwnMetrics()
 
     mMetrics->NewCounter({"process", "file", "handles"})
         .set_count(fs::getOpenHandleCount());
+    mMetrics->NewCounter({"process", "memory", "malloc-heap"})
+        .set_count(getMallocBytesInUse());
 }
 
 void
@@ -1509,12 +1512,6 @@ ApplicationImpl::getBanManager()
     return *mBanManager;
 }
 
-BannedAccountsPersistor&
-ApplicationImpl::getBannedAccountsPersistor()
-{
-    return *mBannedAccountsPersistor;
-}
-
 StatusManager&
 ApplicationImpl::getStatusManager()
 {
@@ -1542,10 +1539,10 @@ ApplicationImpl::getOverlayIOContext()
 }
 
 asio::io_context&
-ApplicationImpl::getLedgerCloseIOContext()
+ApplicationImpl::getLedgerApplyIOContext()
 {
-    releaseAssert(mLedgerCloseIOContext);
-    return *mLedgerCloseIOContext;
+    releaseAssert(mLedgerApplyIOContext);
+    return *mLedgerApplyIOContext;
 }
 
 BatchExecutor&
@@ -1623,17 +1620,17 @@ ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
 }
 
 void
-ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
+ApplicationImpl::postOnLedgerApplyThread(std::function<void()>&& f,
                                          std::string jobName)
 {
     JITTER_INJECT_DELAY();
-    releaseAssert(mLedgerCloseIOContext);
+    releaseAssert(mLedgerApplyIOContext);
     getClock().newBackgroundWork();
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow]() {
+    asio::post(*mLedgerApplyIOContext, [this, f = std::move(f), isSlow]() {
         JITTER_INJECT_DELAY();
-        mPostOnLedgerCloseThreadDelay.Update(isSlow.checkElapsedTime());
+        mPostOnLedgerApplyThreadDelay.Update(isSlow.checkElapsedTime());
         try
         {
             f();

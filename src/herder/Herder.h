@@ -26,6 +26,7 @@ struct EmptyTxSet
 };
 using TxSetResult = std::variant<TxSetXDRFrameConstPtr, EmptyTxSet>;
 class Application;
+class ConsensusTime;
 class XDROutputFileStream;
 class SorobanTransactionQueue;
 
@@ -151,12 +152,10 @@ class Herder
     // generator, and therefore can skip certain expensive validity checks
     virtual TxSubmitStatus recvTransaction(TransactionFrameBasePtr tx,
                                            bool submittedFromSelf,
-                                           bool force = false,
                                            bool isLoadgenTx = false) = 0;
 #else
     virtual TxSubmitStatus recvTransaction(TransactionFrameBasePtr tx,
-                                           bool submittedFromSelf,
-                                           bool force = false) = 0;
+                                           bool submittedFromSelf) = 0;
 #endif
     virtual TxSetResult getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
@@ -177,7 +176,7 @@ class Herder
 
     virtual void
     externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
-                     uint64_t closeTime,
+                     ConsensusTime closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
 
@@ -221,14 +220,11 @@ class Herder
     // gets the upgrades that are scheduled by this node
     virtual std::string getUpgradesJson() = 0;
 
-    // Override the filtered accounts at runtime using pre-parsed AccountIDs.
-    virtual void setFilteredAccounts(std::set<AccountID> const& accounts) = 0;
-
     virtual void forceSCPStateIntoSyncWithLastClosedLedger() = 0;
 
     // helper function to craft an SCPValue
     virtual StellarValue
-    makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
+    makeStellarValue(Hash const& txSetHash, ConsensusTime closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) = 0;
 

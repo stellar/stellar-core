@@ -57,6 +57,13 @@ class NominationProtocol
 
     void emitNomination();
 
+#ifdef BUILD_TESTS
+    // Fires the deferred emit armed by nominate() when a nomination-emit
+    // delay is configured. Skips the emit if this node already sent a
+    // statement at least as recent in the meantime.
+    void emitDelayedNomination();
+#endif
+
     // returns true if v is in the accepted list from the statement
     static bool acceptPredicate(Value const& v, SCPStatement const& st);
 

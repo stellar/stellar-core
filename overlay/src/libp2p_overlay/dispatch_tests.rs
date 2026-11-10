@@ -233,7 +233,7 @@ async fn scp_state_sends_preserve_slot_order_without_blocking_other_peers() {
 }
 
 fn large_txset() -> ([u8; 32], Vec<u8>) {
-    use stellar_xdr::curr::{
+    use stellar_xdr::{
         GeneralizedTransactionSet, Limits, ReadXdr, TransactionEnvelope, TransactionPhase,
         TxSetComponent, TxSetComponentTxsMaybeDiscountedFee, WriteXdr,
     };

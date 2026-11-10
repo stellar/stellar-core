@@ -22,6 +22,7 @@
 #include <stdexcept>
 #include <xdrpp/xdrpp/printer.h>
 
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -40,14 +41,14 @@ namespace
 {
 CxxLedgerInfo
 getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
-              uint32_t ledgerSeq, uint32_t baseReserve, TimePoint closeTime,
+              uint32_t ledgerSeq, uint32_t baseReserve, ApplyTime applyTime,
               Hash const& networkID)
 {
     CxxLedgerInfo info{};
     info.base_reserve = baseReserve;
     info.protocol_version = ledgerVersion;
     info.sequence_number = ledgerSeq;
-    info.timestamp = closeTime;
+    info.timestamp = applyTime.timePoint();
     info.memory_limit = sorobanConfig.txMemoryLimit();
     info.min_persistent_entry_ttl =
         sorobanConfig.stateArchivalSettings().minPersistentTTL;
@@ -106,7 +107,7 @@ maybePopulateOutputDiagnosticEvents(Config const& cfg,
 // Metrics for host function execution
 struct HostFunctionMetrics
 {
-    SorobanMetrics& mMetrics;
+    SorobanApplyMetrics& mMetrics;
     bool const mDisableMetrics;
 
     uint32_t mReadEntry{0};
@@ -147,7 +148,7 @@ struct HostFunctionMetrics
 
     bool mSuccess{false};
 
-    HostFunctionMetrics(SorobanMetrics& metrics, bool disableMetrics)
+    HostFunctionMetrics(SorobanApplyMetrics& metrics, bool disableMetrics)
         : mMetrics(metrics), mDisableMetrics(disableMetrics)
     {
     }
@@ -159,65 +160,62 @@ struct HostFunctionMetrics
             return;
         }
 
-        mMetrics.accumulateModelledCpuInsns(mCpuInsn, mCpuInsnExclVm,
-                                            mInvokeTimeNsecs);
+        mMetrics.mLedgerInsnsCount += mCpuInsn;
+        mMetrics.mLedgerInsnsExclVmCount += mCpuInsnExclVm;
+        mMetrics.mLedgerHostFnExecTimeNsecs += mInvokeTimeNsecs;
 
-        // Record everything into the calling thread's batch (published once
-        // per ledger) instead of updating ~25 process-wide metrics from
-        // every (possibly concurrent) operation.
-        auto& batch = mMetrics.getApplyThreadBatch();
+        mMetrics.mHostFnOpReadEntry += mReadEntry;
+        mMetrics.mHostFnOpWriteEntry += mWriteEntry;
 
-        batch.mHostFnOpReadEntry += mReadEntry;
-        batch.mHostFnOpWriteEntry += mWriteEntry;
+        mMetrics.mHostFnOpReadKeyByte += mReadKeyByte;
+        mMetrics.mHostFnOpWriteKeyByte += mWriteKeyByte;
 
-        batch.mHostFnOpReadKeyByte += mReadKeyByte;
-        batch.mHostFnOpWriteKeyByte += mWriteKeyByte;
+        mMetrics.mHostFnOpReadLedgerByte += mLedgerReadByte;
+        mMetrics.mHostFnOpReadDataByte += mReadDataByte;
+        mMetrics.mHostFnOpReadCodeByte += mReadCodeByte;
 
-        batch.mHostFnOpReadLedgerByte += mLedgerReadByte;
-        batch.mHostFnOpReadDataByte += mReadDataByte;
-        batch.mHostFnOpReadCodeByte += mReadCodeByte;
+        mMetrics.mHostFnOpWriteLedgerByte += mLedgerWriteByte;
+        mMetrics.mHostFnOpWriteDataByte += mWriteDataByte;
+        mMetrics.mHostFnOpWriteCodeByte += mWriteCodeByte;
 
-        batch.mHostFnOpWriteLedgerByte += mLedgerWriteByte;
-        batch.mHostFnOpWriteDataByte += mWriteDataByte;
-        batch.mHostFnOpWriteCodeByte += mWriteCodeByte;
+        mMetrics.mHostFnOpEmitEvent += mEmitEvent;
+        mMetrics.mHostFnOpEmitEventByte += mEmitEventByte;
 
-        batch.mHostFnOpEmitEvent += mEmitEvent;
-        batch.mHostFnOpEmitEventByte += mEmitEventByte;
-
-        batch.mHostFnOpCpuInsn += mCpuInsn;
-        batch.mHostFnOpMemByte += mMemByte;
-        batch.mHostFnOpInvokeTimeNsecs.push_back(
+        mMetrics.mHostFnOpCpuInsn += mCpuInsn;
+        mMetrics.mHostFnOpMemByte += mMemByte;
+        mMetrics.mHostFnOpInvokeTimeNsecs.push_back(
             static_cast<int64_t>(mInvokeTimeNsecs));
-        batch.mHostFnOpCpuInsnExclVm += mCpuInsnExclVm;
-        batch.mHostFnOpInvokeTimeNsecsExclVm.push_back(
+        mMetrics.mHostFnOpCpuInsnExclVm += mCpuInsnExclVm;
+        mMetrics.mHostFnOpInvokeTimeNsecsExclVm.push_back(
             static_cast<int64_t>(mInvokeTimeNsecsExclVm));
-        batch.mHostFnOpInvokeTimeFsecsCpuInsnRatio.push_back(
+        mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatio.push_back(
             static_cast<int64_t>(mInvokeTimeNsecs * 1000000 /
                                  std::max(mCpuInsn, uint64_t(1))));
-        batch.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.push_back(
+        mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.push_back(
             static_cast<int64_t>(mInvokeTimeNsecsExclVm * 1000000 /
                                  std::max(mCpuInsnExclVm, uint64_t(1))));
-        batch.mHostFnOpDeclaredInsnsUsageRatio.push_back(static_cast<int64_t>(
-            mCpuInsn * 1000000 / std::max(mDeclaredCpuInsn, uint64_t(1))));
+        mMetrics.mHostFnOpDeclaredInsnsUsageRatio.push_back(
+            static_cast<int64_t>(mCpuInsn * 1000000 /
+                                 std::max(mDeclaredCpuInsn, uint64_t(1))));
 
-        batch.mHostFnOpMaxRwKeyByte += mMaxReadWriteKeyByte;
-        batch.mHostFnOpMaxRwDataByte += mMaxReadWriteDataByte;
-        batch.mHostFnOpMaxRwCodeByte += mMaxReadWriteCodeByte;
-        batch.mHostFnOpMaxEmitEventByte += mMaxEmitEventByte;
+        mMetrics.mHostFnOpMaxRwKeyByte += mMaxReadWriteKeyByte;
+        mMetrics.mHostFnOpMaxRwDataByte += mMaxReadWriteDataByte;
+        mMetrics.mHostFnOpMaxRwCodeByte += mMaxReadWriteCodeByte;
+        mMetrics.mHostFnOpMaxEmitEventByte += mMaxEmitEventByte;
 
         if (mExecTimed)
         {
-            batch.mHostFnOpExecNsecs.push_back(
+            mMetrics.mHostFnOpExecNsecs.push_back(
                 static_cast<int64_t>(mExecTimeNsecs));
         }
 
         if (mSuccess)
         {
-            ++batch.mHostFnOpSuccess;
+            ++mMetrics.mHostFnOpSuccess;
         }
         else
         {
-            ++batch.mHostFnOpFailure;
+            ++mMetrics.mHostFnOpFailure;
         }
     }
 
@@ -315,7 +313,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig, ApplyLedgerView applyView,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache,
-        uint32_t protocolVersion)
+        uint32_t protocolVersion, SorobanApplyMetrics& sorobanMetrics)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
@@ -325,7 +323,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mResources(mOpFrame.mParentTx.sorobanResources())
         , mSorobanConfig(sorobanConfig)
         , mAppConfig(app.getConfig())
-        , mMetrics(app.getSorobanMetrics(),
+        , mMetrics(sorobanMetrics,
                    app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
         , mApplyLedgerView(std::move(applyView))
         , mModuleCache(moduleCache)
@@ -765,7 +763,69 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     }
 
     bool
-    recordStorageChanges(InvokeHostFunctionOutput const& out)
+    recordModifiedEntry(RustBuf const& entryBuf, bool allowClassicCreations,
+                        LedgerKey& lk, uint32_t& numCreatedSorobanEntries,
+                        uint32_t& numCreatedTTLEntries)
+    {
+        LedgerEntry le;
+        xdr::xdr_from_opaque(entryBuf.data, le);
+        lk = LedgerEntryKey(le);
+        auto entrySize = static_cast<uint32_t>(entryBuf.data.size());
+        if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
+                                         mAppConfig, mOpFrame.mParentTx,
+                                         mDiagnosticEvents))
+        {
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        // ttlEntry write fees come out of refundableFee, already
+        // accounted for by the host
+        if (lk.type() != TTL)
+        {
+            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
+            mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
+                                    entrySize);
+            if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
+            {
+                mDiagnosticEvents.pushError(
+                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    "operation byte-write resources exceeds amount "
+                    "specified",
+                    {makeU64SCVal(mMetrics.mLedgerWriteByte),
+                     makeU64SCVal(mResources.writeBytes)});
+                mOpFrame.innerResult(mRes).code(
+                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
+        }
+
+        if (upsertLedgerEntry(lk, le))
+        {
+            if (isSorobanEntry(lk))
+            {
+                ++numCreatedSorobanEntries;
+            }
+            else if (lk.type() == TTL)
+            {
+                ++numCreatedTTLEntries;
+            }
+            else if (allowClassicCreations)
+            {
+                releaseAssertOrThrow(lk.type() == ACCOUNT ||
+                                     lk.type() == TRUSTLINE);
+            }
+            else
+            {
+                releaseAssertOrThrow(false);
+            }
+        }
+        return true;
+    }
+
+    bool
+    recordStorageChangesLegacy(InvokeHostFunctionOutput const& out)
     {
         ZoneScoped;
         // Every modified entry is either a newly created entry or an updated
@@ -779,63 +839,14 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             getLedgerVersion(), ProtocolVersion::V_26);
         for (auto const& buf : out.modified_ledger_entries)
         {
-            LedgerEntry le;
-            xdr::xdr_from_opaque(buf.data, le);
-            auto lk = LedgerEntryKey(le);
-            if (!validateContractLedgerEntry(
-                    lk, buf.data.size(), mSorobanConfig, mAppConfig,
-                    mOpFrame.mParentTx, mDiagnosticEvents))
+            LedgerKey lk;
+            if (!recordModifiedEntry(buf, allowClassicCreations, lk,
+                                     numCreatedSorobanEntries,
+                                     numCreatedTTLEntries))
             {
-                mOpFrame.innerResult(mRes).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
-
             createdAndModifiedKeys.insert(lk);
-
-            uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
-
-            // ttlEntry write fees come out of refundableFee, already
-            // accounted for by the host
-            if (lk.type() != TTL)
-            {
-                uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
-                mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
-                                        entrySize);
-                if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
-                {
-                    mDiagnosticEvents.pushError(
-                        SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                        "operation byte-write resources exceeds amount "
-                        "specified",
-                        {makeU64SCVal(mMetrics.mLedgerWriteByte),
-                         makeU64SCVal(mResources.writeBytes)});
-                    mOpFrame.innerResult(mRes).code(
-                        INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-                    return false;
-                }
-            }
-
-            if (upsertLedgerEntry(lk, le))
-            {
-                if (isSorobanEntry(lk))
-                {
-                    ++numCreatedSorobanEntries;
-                }
-                else if (lk.type() == TTL)
-                {
-                    ++numCreatedTTLEntries;
-                }
-                else if (allowClassicCreations)
-                {
-                    releaseAssertOrThrow(lk.type() == ACCOUNT ||
-                                         lk.type() == TRUSTLINE);
-                }
-                else
-                {
-                    releaseAssertOrThrow(false);
-                }
-            }
         }
 
         // Verify that each newly created Soroban entry has a corresponding
@@ -860,6 +871,62 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 }
             }
         }
+        return true;
+    }
+
+    bool
+    recordStorageChanges(InvokeHostFunctionOutput const& out)
+    {
+        ZoneScoped;
+        if (protocolVersionIsBefore(mProtocolVersion,
+                                    INVOKE_HOST_FUNCTION_V2_PROTOCOL_VERSION))
+        {
+            return recordStorageChangesLegacy(out);
+        }
+
+        auto const& rwKeys = mResources.footprint.readWrite;
+        releaseAssertOrThrow(out.modified_ledger_entries.size() >=
+                             rwKeys.size());
+        uint32_t numCreatedSorobanEntries = 0;
+        uint32_t numCreatedTTLEntries = 0;
+        for (size_t i = 0; i < out.modified_ledger_entries.size(); ++i)
+        {
+            auto const& buf = out.modified_ledger_entries[i];
+            // The output format is every RW entry in footprint order, followed
+            // by the updated TTL entries.
+            bool const isRwFootprintEntry = i < rwKeys.size();
+            // Deleted RW entries are represented by an empty buffer and have
+            // no corresponding TTL update.
+            if (isRwFootprintEntry && buf.data.size() == 0)
+            {
+                auto const& lk = rwKeys[i];
+                if (eraseLedgerEntryIfExists(lk))
+                {
+                    releaseAssertOrThrow(isSorobanEntry(lk));
+
+                    // Also delete associated ttlEntry as it won't appear
+                    // in modified_ledger_entries.
+                    auto ttlLK = getTTLKey(lk);
+                    releaseAssertOrThrow(eraseLedgerEntryIfExists(ttlLK));
+                }
+                continue;
+            }
+
+            LedgerKey lk;
+            if (!recordModifiedEntry(buf,
+                                     /* allowClassicCreations */ true, lk,
+                                     numCreatedSorobanEntries,
+                                     numCreatedTTLEntries))
+            {
+                return false;
+            }
+            releaseAssertOrThrow(isRwFootprintEntry ? lk == rwKeys[i]
+                                                    : lk.type() == TTL);
+        }
+
+        // Verify that each newly created Soroban entry has a corresponding
+        // newly created TTL entry (1:1 pairing guaranteed by the host).
+        releaseAssertOrThrow(numCreatedSorobanEntries == numCreatedTTLEntries);
         return true;
     }
 
@@ -1138,7 +1205,7 @@ class InvokeHostFunctionPreV23ApplyHelper
         auto const& lh = hdr.current();
         return stellar::getLedgerInfo(
             mSorobanConfig, lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
-            lh.scpValue.closeTime, mApp.getNetworkID());
+            getApplyTime(lh.scpValue), mApp.getNetworkID());
     }
 
   public:
@@ -1148,11 +1215,12 @@ class InvokeHostFunctionPreV23ApplyHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig,
-        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
+        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache,
+        SorobanApplyMetrics& sorobanMetrics)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
               opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache,
-              ltx.loadHeader().current().ledgerVersion)
+              ltx.loadHeader().current().ledgerVersion, sorobanMetrics)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1322,7 +1390,7 @@ class InvokeHostFunctionParallelApplyHelper
         return stellar::getLedgerInfo(
             mSorobanConfig, mLedgerInfo.getLedgerVersion(),
             mLedgerInfo.getLedgerSeq(), mLedgerInfo.getBaseReserve(),
-            mLedgerInfo.getCloseTime(), mLedgerInfo.getNetworkID());
+            mLedgerInfo.getApplyTime(), mLedgerInfo.getNetworkID());
     }
 
   public:
@@ -1331,12 +1399,13 @@ class InvokeHostFunctionParallelApplyHelper
         ParallelLedgerInfo const& ledgerInfo, Hash const& sorobanBasePrngSeed,
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
+        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
+        SorobanApplyMetrics& sorobanMetrics)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
-              opFrame, threadState.getSorobanConfig(),
+              opFrame, *threadState.getSnapshot().getSorobanNetworkConfig(),
               threadState.getSnapshot(), threadState.getModuleCache(),
-              ledgerInfo.getLedgerVersion())
+              ledgerInfo.getLedgerVersion(), sorobanMetrics)
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
         ZoneScoped;
@@ -1390,7 +1459,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(
     SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+    OperationMetaBuilder& opMeta, SorobanApplyMetrics& sorobanMetrics) const
 {
     ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
     releaseAssertOrThrow(refundableFeeTracker);
@@ -1402,7 +1471,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(
     auto moduleCache = app.getModuleCache();
     InvokeHostFunctionPreV23ApplyHelper helper(
         app, ltx, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta, *this,
-        sorobanConfig, moduleCache);
+        sorobanConfig, moduleCache, sorobanMetrics);
     return helper.apply();
 }
 
@@ -1419,7 +1488,7 @@ std::optional<ParallelTxSuccessVal>
 InvokeHostFunctionOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
-    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+    ParallelLedgerInfo const& ledgerInfo, SorobanApplyMetrics& sorobanMetrics,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
@@ -1432,7 +1501,7 @@ InvokeHostFunctionOpFrame::doParallelApply(
 
     InvokeHostFunctionParallelApplyHelper helper(
         app, threadState, ledgerInfo, txPrngSeed, res, refundableFeeTracker,
-        opMeta, *this);
+        opMeta, *this, sorobanMetrics);
 
     return helper.takeResult(helper.apply());
 }

@@ -23,7 +23,7 @@ class Work;
 class LedgerApplyManagerImpl : public LedgerApplyManager
 {
     // Maximum number of ledgers that can be queued to apply (this only applies
-    // when Config.parallelLedgerClose() == true). If this number if exceeded,
+    // when Config.backgroundLedgerApply() == true). If this number is exceeded,
     // core stops scheduling new ledgers to apply, and goes into catchup mode.
     static uint32_t const MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT;
 
@@ -31,7 +31,7 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     std::shared_ptr<CatchupWork> mCatchupWork;
 
     // key is ledgerSeq
-    // mSyncingLedgers has the following invariants:
+    // mBufferedLedgers has the following invariants:
     // (1) It is empty, or
     // (2) It starts with LCL + 1 (the next ledger to apply), or
     // (3) It contains at most 64 + 1 = 65 ledgers.
@@ -43,13 +43,13 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     // L + 65 (or any ledger after that), we can delete {L, ..., L + 63} as it
     // indicates that the checkpoint containing L + 64 has been published.
     //
-    // There are two methods that modify mSyncingLedgers
-    // (trimSyncingLedgers, tryApplySyncingLedgers) and they both
-    // maintain the invariants above.
-    std::map<uint32_t, LedgerCloseData> mSyncingLedgers;
-    medida::Counter& mSyncingLedgersSize;
+    // There are three methods that modify mBufferedLedgers
+    // (processLedger, trimBufferedLedgers, tryApplyBufferedLedgers) and they
+    // all maintain the invariants above.
+    std::map<uint32_t, LedgerCloseData> mBufferedLedgers;
+    medida::Counter& mBufferedLedgersSize;
 
-    // These state variables track the flow of ledgers through mSyncingLedgers,
+    // These state variables track the flow of ledgers through mBufferedLedgers,
     // they are the variables Q and L in the diagram in LedgerManager.h. See
     // that diagram for details and discussion of the threading model and
     // flow of ledgers between LedgerApplyManager and LedgerManager.
@@ -58,8 +58,8 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
 
     void updateLastQueuedToApply();
     void startOnlineCatchup();
-    void trimSyncingLedgers();
-    void tryApplySyncingLedgers();
+    void trimBufferedLedgers();
+    void tryApplyBufferedLedgers();
     uint32_t getCatchupCount();
     CatchupMetrics mMetrics;
 
@@ -111,7 +111,7 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     std::map<uint32_t, LedgerCloseData> const&
     getBufferedLedgers() const
     {
-        return mSyncingLedgers;
+        return mBufferedLedgers;
     }
 
     std::shared_ptr<CatchupWork>

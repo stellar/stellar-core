@@ -19,7 +19,8 @@ namespace stellar
 
 class LedgerCloseData;
 class Database;
-class SorobanMetrics;
+class SorobanMetricsRegistry;
+struct SorobanApplyMetrics;
 class InMemorySorobanState;
 
 // This diagram provides a schematic of the flow of (logical) ledgers coming in
@@ -58,7 +59,7 @@ class InMemorySorobanState;
 //      m │    │ i │    │  │  (or triggers catchup)    │
 //      e │    │ n │    │  │                           │
 //        │    │   │    │  │ ┌───────────────────┐     │    ┌───┐
-//      p │    │ T │    │  ▼ │  mSyncingLedgers  │─────┼───►│   │
+//      p │    │ T │    │  ▼ │  mBufferedLedgers │─────┼───►│   │
 //      a │    │ h │    │    └───────────────────┘     │    │   │
 //      s │    │ r │    │   H                     Q    │    │   │
 //      s │    │ e │    └──────────────────────────────┘    │   │
@@ -99,12 +100,12 @@ class InMemorySorobanState;
 //
 //     H -- LedgerApplyManagerImpl::mLargestLedgerSeqHeard tracks this, it is
 //          the ledger sequence number of the most recent ledger added to
-//          mSyncingLedgers (whether or not any ledgers are still _in_
-//          mSyncingLedgers, it may have been emptied by the apply thread).
+//          mBufferedLedgers (whether or not any ledgers are still _in_
+//          mBufferedLedgers, it may have been emptied by the apply thread).
 //
 //     Q -- LedgerApplyManagerImpl::mLastQueuedToApply tracks this, it is the
 //          ledger sequence number of the most recent ledger _dequeued_ from
-//          mSyncingLedgers and posted over to the apply thread. This does not
+//          mBufferedLedgers and posted over to the apply thread. This does not
 //          mean it has been applied! Just posted to the apply thread.
 //
 //     A -- The LedgerCloseData::mLedgerSeq of the argument passed to
@@ -157,6 +158,26 @@ class InMemorySorobanState;
 // the actions taken and variables updated by the main thread _after_ apply, and
 // the term "apply" to refer to actions taken and variables updated by the apply
 // thread.
+//
+// Concretely, there are three distinct ledger states in flight at any time,
+// and identifiers are named for which one they refer to:
+//
+//   - "lastClosed" / LCL: the CANONICAL state, owned by the main thread
+//     (mLastClosedLedgerState, guarded by mLastClosedLedgerStateMutex). This
+//     is the only state that consensus, transaction admission, fee/limit
+//     queries, overlay, and HTTP responses may read. A ledger is "closed"
+//     only once the main thread has adopted it as LCL in
+//     completeLedgerClose.
+//
+//   - "apply": the WORKING state of the apply pipeline (mApplyState, the
+//     live bucketlist and DB, ledger A on the ladder above). It may be up to
+//     MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT ledgers ahead of LCL and is mutated
+//     while the main thread runs.
+//
+//   - "applied": the OUTPUT of apply for one ledger (ImmutableLedgerData):
+//     committed and immutable, but not yet adopted as LCL. It is handed off by
+//     value from the apply thread to the main thread, which adopts it in
+//     completeLedgerClose.
 class LedgerManager
 {
 
@@ -230,22 +251,45 @@ class LedgerManager
     virtual LedgerHeaderHistoryEntry const&
     getLastClosedLedgerHeader() const = 0;
 
-    // Create a thread-safe copy of the current canonical ledger state
-    // snapshot. Can be called from any thread (except for apply, which must use
-    // copyApplyLedgerView instead).
-    virtual ImmutableLedgerView copyImmutableLedgerView() const = 0;
+    // Scans the last closed ledger's live BucketList for entries of a given
+    // type. Note this iterates over all BucketEntries, so some may be shadowed
+    // and outdated.
+    virtual void scanLCLForLiveEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(BucketEntry const&)> callback) const = 0;
 
-    // Create a thread-safe copy of the current canonical ledger state
-    // snapshot, typed as an apply-time snapshot. Used by legacy (pre-V23)
-    // code paths that need an ApplyLedgerView but don't have
-    // access to ApplyState.
+#ifdef BUILD_TESTS
+    // Returns the concrete view backing `getLCLView`, which exposes the batch
+    // loading and Hot Archive functionality.
+    // At the moment this should only be necessary for the tests, as the
+    // production code-paths should only care about that functionality at apply
+    // time, which uses the concrete `ApplyLedgerView` implementation.
+    virtual ImmutableLedgerView copyImmutableLedgerView() const = 0;
+#endif
+
+    // Create a copy of the canonical last closed ledger snapshot.
+    // The returned snapshot is *not* thread-safe (albeit being `const`), so
+    // every thread must hold their own instance of the snapshot.
+    // `getLCLView` itself is thread-safe and can be called from multiple
+    // threads, except the apply thread, which must use `copyApplyLedgerView`
+    // instead.
+    virtual std::unique_ptr<AbstractLedgerView const> getLCLView() const = 0;
+
+    // Create a copy of the canonical ledger snapshot at the current moment in
+    // apply flow.
+    // The returned snapshot is *not* thread-safe, so every thread  used during
+    // transaction application must hold their own copy of the snapshot.
+    // `copyApplyLedgerView` is restricted to the ledger apply thread.
+    // Used by legacy (pre-V23) code paths that need an ApplyLedgerView but
+    // don't have access to ApplyState to copy it from.
     // TODO: Refactor such that this doesn't have to be a public function
     virtual ApplyLedgerView copyApplyLedgerView() const = 0;
 
-    // Refresh `ledgerView` if its ledger seq differs from the current canonical
-    // state. No-op otherwise. Can be called from any thread.
-    virtual void
-    maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView) const = 0;
+    // Makes the provided `ledgerView` match the current canonical LCL view.
+    // No-op when views have a matching ledger sequence number.
+    // Can be called from any thread.
+    virtual void syncWithLCLView(
+        std::unique_ptr<ImmutableLedgerView const>& ledgerView) const = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database
@@ -353,11 +397,11 @@ class LedgerManager
     // upgradeApplied should be true if a protocol or network config setting
     // upgrade occurred during the ledger close. If inMemorySnapshotForInvariant
     // is not null, this will kick off a snapshot invariant check.
-    virtual void
-    advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
-                                 LedgerCloseData const& ledgerData,
-                                 ImmutableLedgerDataPtr newLedgerState,
-                                 bool upgradeApplied) = 0;
+    virtual void completeLedgerClose(
+        uint32_t ledgerSeq, bool calledViaExternalize,
+        LedgerCloseData const& ledgerData,
+        ImmutableLedgerDataPtr appliedLedgerState, bool upgradeApplied,
+        std::vector<SorobanApplyMetrics>&& sorobanApplyMetrics) = 0;
 
     virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS
@@ -378,7 +422,7 @@ class LedgerManager
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
 
-    virtual SorobanMetrics& getSorobanMetrics() = 0;
+    virtual SorobanMetricsRegistry& getSorobanMetrics() = 0;
     virtual ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() = 0;
 
     virtual ~LedgerManager()

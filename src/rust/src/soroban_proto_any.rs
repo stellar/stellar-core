@@ -235,16 +235,32 @@ fn encode_diagnostic_events(events: &Vec<DiagnosticEvent>) -> Vec<RustBuf> {
         .collect()
 }
 
+/// Extracts and encodes changed ledger entries from the provided Soroban host
+/// output.
+///
+/// If `aligned_with_footprint` is true, then the output will contain every RW
+/// footprint entry in the same order as the footprint and empty buffers
+/// standing for the deleted entries, followed by densely packed updated TTL
+/// entries (i.e. non-updated or deleted TTL entries are omitted). This flag
+/// both controls the output format and also relies on the input itself being
+/// in the footprint order (which is what Soroban host guarantees for the v2
+/// host function interface, starting from p28).
+///
+/// If `aligned_with_footprint` is false, then the output will only contain
+/// non-removed entries, and the output order can be considered arbitrary.
 fn extract_ledger_effects(
     entry_changes: Vec<LedgerEntryChange>,
+    aligned_with_footprint: bool,
 ) -> Result<Vec<RustBuf>, HostError> {
     let mut modified_entries = vec![];
+    let mut modified_ttl_entries = vec![];
 
     for change in entry_changes {
-        // Extract ContractCode and ContractData entry changes first
         if !change.read_only {
             if let Some(encoded_new_value) = change.encoded_new_value {
                 modified_entries.push(encoded_new_value.into());
+            } else if aligned_with_footprint {
+                modified_entries.push(RustBuf { data: vec![] });
             }
         }
 
@@ -270,10 +286,15 @@ fn extract_ledger_effects(
 
                 let encoded = non_metered_xdr_to_rust_buf(&le)
                     .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?;
-                modified_entries.push(encoded);
+                if aligned_with_footprint {
+                    modified_ttl_entries.push(encoded);
+                } else {
+                    modified_entries.push(encoded);
+                }
             }
         }
     }
+    modified_entries.append(&mut modified_ttl_entries);
 
     Ok(modified_entries)
 }
@@ -427,6 +448,7 @@ fn run_invoke_and_build_output<F>(
     instruction_limit: u32,
     ledger_info: &CxxLedgerInfo,
     rent_fee_configuration: &CxxRentFeeConfiguration,
+    effects_aligned_with_footprint: bool,
     invoke: F,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>>
 where
@@ -509,7 +531,8 @@ where
                     &rent_fee_configuration.into(),
                     ledger_seq_num,
                 );
-                let modified_ledger_entries = extract_ledger_effects(res.ledger_changes)?;
+                let modified_ledger_entries =
+                    extract_ledger_effects(res.ledger_changes, effects_aligned_with_footprint)?;
                 return Ok(InvokeHostFunctionOutput {
                     success: true,
                     is_internal_error: false,
@@ -601,6 +624,7 @@ fn invoke_host_function_or_maybe_panic(
         instruction_limit,
         ledger_info,
         rent_fee_configuration,
+        false,
         |budget, host_ledger_info, diagnostic_events, trace_hook| {
             super::invoke_host_function_with_trace_hook_and_module_cache(
                 budget,
@@ -641,6 +665,7 @@ fn invoke_host_function_v2_or_maybe_panic(
         instruction_limit,
         ledger_info,
         rent_fee_configuration,
+        true,
         |budget, host_ledger_info, diagnostic_events, trace_hook| {
             let ledger_entries = ledger_entries_and_ttls.iter().map(|e| {
                 let entry: Option<&CxxBuf> = if e.entry.data.is_empty() {

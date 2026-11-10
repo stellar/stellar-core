@@ -133,8 +133,8 @@
  * other peers -- will continue advancing beyond INIT. The peer therefore
  * buffers new ledger-close events during catchup, as TIP advances. This set of
  * ledgers -- the segment [INIT, TIP] -- is stored in memory, in the
- * LedgerManager (::mSyncingLedgers) and extended as SCP hears of new closes,
- * until catchup is complete.
+ * LedgerApplyManagerImpl::mBufferedLedgers and extended as SCP hears of new
+ * closes, until catchup is complete.
  *
  * The catchup system then rounds up from INIT to NEXT, which is the next
  * checkpoint after INIT that it can find on a history archive. It will pause

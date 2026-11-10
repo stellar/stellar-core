@@ -5,6 +5,7 @@
 #include "crypto/SHA.h"
 #include "herder/ParallelTxSetBuilder.h"
 #include "herder/TxSetFrame.h"
+#include "herder/TxSetUtils.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -18,10 +19,13 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
+#include "util/numeric.h"
 #include <algorithm>
+#include <limits>
 #include <map>
 namespace stellar
 {
@@ -326,11 +330,21 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
 
         auto prevScenariosSize = scenarios[1].size();
 
+        // A base fee without transactions is only allowed prior to
+        // CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION.
+        bool const baseFeeWithoutTxsValid = protocolVersionIsBefore(
+            cfg.LEDGER_PROTOCOL_VERSION,
+            CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION);
+
         // Valid scenarios
         scenarios[1].emplace_back(parallelPhase({}), true,
                                   "parallel Soroban - no txs");
-        scenarios[1].emplace_back(parallelPhase({}, true, 1000), true,
+        scenarios[1].emplace_back(parallelPhase({}, true, 1000),
+                                  baseFeeWithoutTxsValid,
                                   "parallel Soroban - no txs, fee discount");
+        scenarios[1].emplace_back(
+            parallelPhase({}, true, 0), baseFeeWithoutTxsValid,
+            "parallel Soroban - no txs, zero fee discount");
         scenarios[1].emplace_back(parallelPhase({{10}}), true,
                                   "parallel Soroban - 1 stage, 1 cluster");
         scenarios[1].emplace_back(
@@ -456,10 +470,17 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                 bool valid = classicIsValid && sorobanIsValid;
                 if (valid)
                 {
-                    REQUIRE(txSet->prepareForApply(
-                                *app, app->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header) != nullptr);
+                    auto applicableTxSet = txSet->prepareForApply(
+                        *app, app->getLedgerManager()
+                                  .getLastClosedLedgerHeader()
+                                  .header);
+                    REQUIRE(applicableTxSet != nullptr);
+                    // Every structurally valid tx set must be canonical, i.e.
+                    // the frame we interpret it as is encoded exactly as the
+                    // original tx set.
+                    REQUIRE(applicableTxSet->toWireTxSetFrame()
+                                ->getContentsHash() ==
+                            txSet->getContentsHash());
                 }
                 else
                 {
@@ -906,7 +927,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
 
         {
             INFO("classic only");
-            auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).first;
+            auto txSet =
+                makeTxSetFromTransactions(txs, *app, ApplyTimeOffset{}).first;
             GeneralizedTransactionSet txSetXdr;
             txSet->toXDR(txSetXdr);
             REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
@@ -931,9 +953,10 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 INFO("valid");
                 {
                     INFO("minimum base fee");
-                    auto txSet = makeTxSetFromTransactions(
-                                     {txs, baseSorobanTxs}, *app, 0, 0)
-                                     .first;
+                    auto txSet =
+                        makeTxSetFromTransactions({txs, baseSorobanTxs}, *app,
+                                                  ApplyTimeOffset{})
+                            .first;
                     GeneralizedTransactionSet txSetXdr;
                     txSet->toXDR(txSetXdr);
                     REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
@@ -983,8 +1006,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     sorobanTxs.insert(sorobanTxs.begin(),
                                       higherFeeSorobanTxs.begin(),
                                       higherFeeSorobanTxs.end());
-                    auto txSet = makeTxSetFromTransactions({txs, sorobanTxs},
-                                                           *app, 0, 100)
+                    auto txSet = makeTxSetFromTransactions(
+                                     {txs, sorobanTxs}, *app, ApplyTimeOffset{})
                                      .first;
                     GeneralizedTransactionSet txSetXdr;
                     txSet->toXDR(txSetXdr);
@@ -1031,7 +1054,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 auto sorobanTxs = baseSorobanTxs;
                 sorobanTxs[4] = txs[0];
                 REQUIRE_THROWS_WITH(
-                    makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0),
+                    makeTxSetFromTransactions({txs, sorobanTxs}, *app,
+                                              ApplyTimeOffset{}),
                     "TxSetFrame::makeFromTransactions: phases "
                     "contain txs of wrong type");
             }
@@ -1041,7 +1065,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 classicTxs[4] = baseSorobanTxs[0];
                 REQUIRE_THROWS_WITH(
                     makeTxSetFromTransactions({classicTxs, baseSorobanTxs},
-                                              *app, 0, 0),
+                                              *app, ApplyTimeOffset{}),
                     "TxSetFrame::makeFromTransactions: phases "
                     "contain txs of wrong type");
             }
@@ -1169,8 +1193,8 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
                         1)},
                     2000);
             }
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1330,8 +1354,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             auto tx = sorobanTransactionFrameFromOps(
                 app->getNetworkID(), source, {op}, {}, resources, 2000,
                 100'000'000);
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1652,7 +1676,8 @@ TEST_CASE("generalized tx set with multiple txs per source account",
     auto root = app->getRoot();
     int accountId = 1;
 
-    auto createTx = [&](int opCnt, int fee, bool unique) {
+    auto createTx = [&](int opCnt, int fee, bool unique,
+                        std::optional<SequenceNumber> seqNum = std::nullopt) {
         std::vector<Operation> ops;
         for (int i = 0; i < opCnt; ++i)
         {
@@ -1671,9 +1696,9 @@ TEST_CASE("generalized tx set with multiple txs per source account",
         }
         else
         {
-            return transactionFromOperations(*app, root->getSecretKey(),
-                                             root->nextSequenceNumber(), ops,
-                                             fee);
+            return transactionFromOperations(
+                *app, root->getSecretKey(),
+                seqNum ? *seqNum : root->nextSequenceNumber(), ops, fee);
         }
     };
 
@@ -1693,23 +1718,26 @@ TEST_CASE("generalized tx set with multiple txs per source account",
     SECTION("multiple txs from same source in classic phase")
     {
         auto tx1 = createTx(1, 1000, /* unique */ false);
-        auto tx2 = createTx(3, 1500, /* unique */ false);
+        // Make sure tx2 has a plausible sequence number (one following tx1).
+        auto tx2 = createTx(3, 1500, /* unique */ false, tx1->getSeqNum() + 1);
 
         // tx1 is valid on its own
         {
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(
+                tx1->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
         }
 
         SECTION("build block")
         {
             // When building, only one tx per source should be included
             TxFrameList invalidTxs;
-            auto [_, txSet] =
-                makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, invalidTxs);
+            auto [_, txSet] = makeTxSetFromTransactions(
+                {tx1, tx2}, *app, ApplyTimeOffset{}, invalidTxs);
             // Second tx should be rejected due to duplicate source
             REQUIRE(invalidTxs.size() == 1);
+            REQUIRE(invalidTxs[0]->getFullHash() == tx2->getFullHash());
         }
         SECTION("validate block")
         {
@@ -1730,18 +1758,20 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // Both txs individually are valid
         {
-            CheckValidLedgerViewWrapper ledgerView(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
-            REQUIRE(tx2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
-                        ->isSuccess());
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(
+                tx1->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
+            REQUIRE(
+                tx2->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                    ->isSuccess());
         }
 
         SECTION("build block")
         {
             TxFrameList invalidTxs;
-            auto [_, txSet] =
-                makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, invalidTxs);
+            auto [_, txSet] = makeTxSetFromTransactions(
+                {tx1, tx2}, *app, ApplyTimeOffset{}, invalidTxs);
             REQUIRE(invalidTxs.empty());
             REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
                     TxSetValidationResult::VALID);
@@ -1758,18 +1788,20 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
     SECTION("multiple txs from same source - classic and soroban phases")
     {
+        // Ensure that sequence numbers are plausible (sequential, starting
+        // from the account seq num).
+        auto tx1 = createTx(1, 1000, /* unique */ false);
+        auto tx2 = createTx(3, 1500, /* unique */ false, tx1->getSeqNum() + 1);
         SorobanResources resources;
         resources.instructions = 800'000;
         resources.diskReadBytes = 1000;
         resources.writeBytes = 1000;
         uint32_t inclusionFee = 500;
         int64_t resourceFee = sorobanResourceFee(*app, resources, 5000, 100);
-        auto sorobanTx = createUploadWasmTx(*app, *root, inclusionFee,
-                                            resourceFee, resources);
+        auto sorobanTx = createUploadWasmTx(
+            *app, *root, inclusionFee, resourceFee, resources, std::nullopt, 0,
+            std::nullopt, tx2->getSeqNum() + 1);
         REQUIRE(sorobanTx->getInclusionFee() == inclusionFee);
-
-        auto tx1 = createTx(1, 1000, /* unique */ false);
-        auto tx2 = createTx(3, 1500, /* unique */ false);
 
         // Classic phase has duplicate source accounts
         REQUIRE(
@@ -1779,6 +1811,73 @@ TEST_CASE("generalized tx set with multiple txs per source account",
                  {std::make_pair(
                      500, std::vector<TransactionFrameBasePtr>{sorobanTx})}}) ==
             TxSetValidationResult::MULTIPLE_TXS_PER_SOURCE_ACCOUNT);
+    }
+}
+
+TEST_CASE("tx set fee totals saturate on overflow", "[txset]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+
+    auto minBalance = app->getLedgerManager().getLastMinBalance(0);
+    auto a = root->create("fee-total-a", 2 * minBalance);
+    auto b = root->create("fee-total-b", 2 * minBalance);
+    auto c = root->create("fee-total-c", 2 * minBalance);
+    auto innerA = a.tx({payment(a.getPublicKey(), 1)});
+    auto innerB = b.tx({payment(b.getPublicKey(), 1)});
+    auto innerC = c.tx({payment(c.getPublicKey(), 1)});
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+
+    int64_t constexpr maxClamp = std::numeric_limits<int64_t>::max();
+
+    auto makeSet = [&](std::vector<TransactionFrameBasePtr> const& txs) {
+        testtxset::PhaseComponents classicPhase;
+        classicPhase.emplace_back(std::nullopt, txs);
+        std::vector<testtxset::PhaseComponents> phases;
+        phases.emplace_back(std::move(classicPhase));
+        phases.emplace_back();
+        return testtxset::makeNonValidatedGeneralizedTxSet(phases, *app,
+                                                           lcl.hash);
+    };
+    auto bump = [&](TransactionFrameBaseConstPtr inner, int64_t fee) {
+        return feeBump(*app, *root, inner, fee,
+                       /* useInclusionAsFullFee */ true);
+    };
+
+    SECTION("exact when the total does not overflow")
+    {
+        // 2 * (INT64_MAX / 2) is INT64_MAX - 1, which should not clamp
+        auto [txSet, applicable] =
+            makeSet({bump(innerA, maxClamp / 2), bump(innerB, maxClamp / 2)});
+        REQUIRE(applicable);
+        REQUIRE(applicable->getTotalInclusionFees() == maxClamp - 1);
+        REQUIRE(applicable->getTotalFees(lcl.header) == maxClamp - 1);
+    }
+
+    SECTION("saturates at the overflow boundary")
+    {
+        // Fees total to INT64_MAX + 1, so this should clamp
+        auto [txSet, applicable] = makeSet(
+            {bump(innerA, maxClamp / 2 + 1), bump(innerB, maxClamp / 2 + 1)});
+        REQUIRE(applicable);
+        REQUIRE(applicable->sizeTxTotal() == 2);
+        REQUIRE(applicable->getTotalInclusionFees() == maxClamp);
+        REQUIRE(applicable->getTotalFees(lcl.header) == maxClamp);
+    }
+
+    SECTION("saturates far past the overflow boundary")
+    {
+        // Three INT64_MAX fees should still clamp to INT64_MAX
+        auto [txSet, applicable] =
+            makeSet({bump(innerA, maxClamp), bump(innerB, maxClamp),
+                     bump(innerC, maxClamp)});
+        REQUIRE(applicable);
+        REQUIRE(applicable->sizeTxTotal() == 3);
+        REQUIRE(applicable->getTotalInclusionFees() == maxClamp);
+        REQUIRE(applicable->getTotalFees(lcl.header) == maxClamp);
     }
 }
 
@@ -1832,7 +1931,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
         if (validateTx)
         {
             REQUIRE(tx->checkValid(app->getAppConnector(),
-                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                   *app->getLedgerManager().getLCLView(), 0, 0,
+                                   0)
                         ->isSuccess());
         }
         return tx;
@@ -2039,7 +2139,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             auto feeBumpTx = feeBump(*app, *root, tx, 300);
             REQUIRE(feeBumpTx
                         ->checkValid(app->getAppConnector(),
-                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                     *app->getLedgerManager().getLCLView(), 0,
+                                     0, 0)
                         ->isSuccess());
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -2078,7 +2179,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             auto feeBumpTx = feeBump(*app, *root, tx, 200);
             REQUIRE(feeBumpTx
                         ->checkValid(app->getAppConnector(),
-                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                                     *app->getLedgerManager().getLCLView(), 0,
+                                     0, 0)
                         ->isSuccess());
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -2178,7 +2280,7 @@ TEST_CASE("txset nomination", "[txset]")
             std::vector<std::pair<TestAccount, int64_t>> accounts;
             for (auto const& [key, seqNo] : accountKeys)
             {
-                accounts.emplace_back(TestAccount{*app, key, seqNo}, seqNo + 1);
+                accounts.emplace_back(TestAccount{*app, key}, seqNo + 1);
             }
             auto root = app->getRoot();
 
@@ -2345,8 +2447,8 @@ TEST_CASE("txset nomination", "[txset]")
             PerPhaseTransactionList txPhases = {classicTxs, sorobanTxs};
             PerPhaseTransactionList invalidTxs;
             invalidTxs.resize(txPhases.size());
-            auto [xdrTxSetFrame, applicableTxSet] =
-                makeTxSetFromTransactions(txPhases, *app, 0, 0, invalidTxs);
+            auto [xdrTxSetFrame, applicableTxSet] = makeTxSetFromTransactions(
+                txPhases, *app, ApplyTimeOffset{}, invalidTxs);
             REQUIRE(xdrTxSetFrame);
             REQUIRE(applicableTxSet);
             REQUIRE(invalidTxs[0].empty());
@@ -2578,8 +2680,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         // its resources.
         auto tx = createUploadWasmTx(*app, source, inclusionFee, resourceFee,
                                      resources);
-        CheckValidLedgerViewWrapper ledgerView(*app);
-        REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+        auto ledgerView = app->getLedgerManager().getLCLView();
+        REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
                     ->isSuccess());
 
         return tx;
@@ -2630,7 +2732,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               {4 * i + 2, 4 * i + 3}));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             // We have a single stage with both variable and fixed stage count,
             // but in the former case this case will be large (full
             // instructions limit), and in the latter case it will be
@@ -2656,7 +2759,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               {4 * i + 2, 4 * i + 3}));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             if (variableStageCount)
             {
                 validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
@@ -2677,7 +2781,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               {4 * i + 2, 4 * i + 3}));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             if (variableStageCount)
             {
                 validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT * 5);
@@ -2698,7 +2803,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                     /* inclusionFee*/ (i + 1) * 1000LL));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             if (variableStageCount)
             {
                 validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT * 5);
@@ -2728,8 +2834,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                      /* inclusionFee */ 100 + i));
                     }
                     PerPhaseTransactionList phases = {{}, sorobanTxs};
-                    auto [_, txSet] =
-                        makeTxSetFromTransactions(phases, *app, 0, 0);
+                    auto [_, txSet] = makeTxSetFromTransactions(
+                        phases, *app, ApplyTimeOffset{});
 
                     if (variableStageCount)
                     {
@@ -2756,7 +2862,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               /* readBytes */ 100'000));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             validateShape(*txSet, 1, 1, 10);
             validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
         }
@@ -2779,8 +2886,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                      /* readBytes */ 100'000));
                     }
                     PerPhaseTransactionList phases = {{}, sorobanTxs};
-                    auto [_, txSet] =
-                        makeTxSetFromTransactions(phases, *app, 0, 0);
+                    auto [_, txSet] = makeTxSetFromTransactions(
+                        phases, *app, ApplyTimeOffset{});
 
                     validateShape(*txSet, 1, 1, 10);
                     validateBaseFee(*txSet,
@@ -2799,7 +2906,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               /* writeBytes */ 10'000));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
 
             validateShape(*txSet, 1, 1, 10);
             validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
@@ -2821,8 +2929,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                      /* inclusionFee */ 100 + i));
                     }
                     PerPhaseTransactionList phases = {{}, sorobanTxs};
-                    auto [_, txSet] =
-                        makeTxSetFromTransactions(phases, *app, 0, 0);
+                    auto [_, txSet] = makeTxSetFromTransactions(
+                        phases, *app, ApplyTimeOffset{});
 
                     validateShape(*txSet, 1, 1, 10);
                     validateBaseFee(*txSet,
@@ -2849,8 +2957,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                 },
                 [&]() {
                     PerPhaseTransactionList phases = {{}, sorobanTxs};
-                    auto [_, txSet] =
-                        makeTxSetFromTransactions(phases, *app, 0, 0);
+                    auto [_, txSet] = makeTxSetFromTransactions(
+                        phases, *app, ApplyTimeOffset{});
 
                     validateShape(*txSet, 1, 1, 10);
                     validateBaseFee(*txSet,
@@ -2874,8 +2982,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                     }
 
                     PerPhaseTransactionList phases = {{}, sorobanTxs};
-                    auto [_, txSet] =
-                        makeTxSetFromTransactions(phases, *app, 0, 0);
+                    auto [_, txSet] = makeTxSetFromTransactions(
+                        phases, *app, ApplyTimeOffset{});
 
                     validateShape(*txSet, 1, 1, 5);
                     validateBaseFee(*txSet,
@@ -2897,7 +3005,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               /* inclusionFee */ 100 + i));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             if (variableStageCount)
             {
                 validateShape(*txSet, 1, 1, STAGE_COUNT);
@@ -2919,7 +3028,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               /* inclusionFee */ 100 + i));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             // It's easy to 'break' the chain by allocating transactions to
             // different stages (technically, 2 stages would be sufficient,
             // but the nomination algorithm isn't clever enough to figure that
@@ -2941,7 +3051,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                 }
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             if (variableStageCount)
             {
                 // With variable stage count, we can fit all transactions into
@@ -2969,7 +3080,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                 }
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             if (variableStageCount)
             {
                 // With variable stage count, we can fit all transactions into
@@ -3024,7 +3136,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               /* inclusionFee */ 100 + i));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
 
             if (variableStageCount)
             {
@@ -3055,7 +3168,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                 }
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
 
             validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 10);
             validateBaseFee(*txSet, 100);
@@ -3074,7 +3188,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             }
 
             PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             auto const& phase =
                 txSet->getPhase(TxSetPhase::SOROBAN).getParallelStages();
 
@@ -3152,7 +3267,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             // NB: `makeTxSetFromTransactions` does an XDR roundtrip and
             // validation, so just calling it does a good amount of smoke
             // testing.
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            auto [_, txSet] =
+                makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{});
             auto const& phase =
                 txSet->getPhase(TxSetPhase::SOROBAN).getParallelStages();
             if (variableStageCount)
@@ -3464,5 +3580,80 @@ TEST_CASE("parallel tx set building benchmark",
     runBenchmark(50, 50, 5);
     std::cout << "===" << std::endl;
 }
+
+TEST_CASE("parallel tx set validation matches sequential", "[txset]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+    auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
+    int const maxTxs = 1000;
+
+    std::vector<TestAccount> accounts;
+    for (int i = 0; i < maxTxs; ++i)
+    {
+        accounts.emplace_back(
+            root->create("account" + std::to_string(i), minBalance * 100));
+    }
+
+    auto makeTxs = [&](size_t count, TxFrameList& invalidTxs) {
+        TxFrameList txs;
+        for (size_t i = 0; i < count; ++i)
+        {
+            auto& account = accounts[i];
+            SequenceNumber seq = account.getLastSequenceNumber() + 1;
+            bool valid = true;
+            if (rand_flip())
+            {
+                seq += 1000;
+                valid = false;
+            }
+            auto tx = transactionFromOperations(
+                *app, account.getSecretKey(), seq,
+                {payment(account.getPublicKey(), static_cast<int64_t>(i) + 1)},
+                100);
+            txs.emplace_back(tx);
+            if (!valid)
+            {
+                invalidTxs.push_back(tx);
+            }
+        }
+        return txs;
+    };
+
+    for (size_t txCount : {0, 1, 2, 3, 4, 5, 6, 7, 500, 1000})
+    {
+        INFO("txCount=" << txCount);
+        TxFrameList actualInvalidTxs;
+        auto const txs = makeTxs(txCount, actualInvalidTxs);
+
+        for (size_t taskCount = 1; taskCount <= 8; ++taskCount)
+        {
+            INFO("taskCount=" << taskCount);
+            app->getBatchExecutor().setPreferredTaskCountForTesting(taskCount);
+            UnorderedMap<AccountID, int64_t> accountFeeMap;
+            auto [invalidTxs, validationResult] =
+                TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap,
+                                                       0, 0);
+            if (actualInvalidTxs.empty())
+            {
+                REQUIRE(validationResult == TxSetValidationResult::VALID);
+            }
+            else
+            {
+                REQUIRE(validationResult ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+            REQUIRE(actualInvalidTxs.size() == invalidTxs.size());
+            for (size_t i = 0; i < actualInvalidTxs.size(); ++i)
+            {
+                REQUIRE(actualInvalidTxs[i]->getFullHash() ==
+                        invalidTxs[i]->getFullHash());
+            }
+        }
+    }
+}
+
 } // namespace
 } // namespace stellar

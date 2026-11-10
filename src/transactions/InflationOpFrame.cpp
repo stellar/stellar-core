@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/InflationOpFrame.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -18,7 +19,8 @@ int64_t const INFLATION_RATE_TRILLIONTHS = 190721000LL;
 int64_t const TRILLION = 1000000000000LL;
 int64_t const INFLATION_WIN_MIN_PERCENT = 500000000LL; // .05%
 int const INFLATION_NUM_WINNERS = 2000;
-time_t const INFLATION_START_TIME = (1404172800LL); // 1-jul-2014 (unix epoch)
+stellar::ApplyTime constexpr INFLATION_START_TIME =
+    stellar::ApplyTime::fromTimePoint(1404172800); // 1-jul-2014 (unix epoch)
 
 namespace stellar
 {
@@ -35,10 +37,11 @@ InflationOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
 {
     auto header = ltx.loadHeader();
     auto& lh = header.current();
-    time_t closeTime = lh.scpValue.closeTime;
+    ApplyTime closeTime = getApplyTime(lh.scpValue);
     uint64_t seq = lh.inflationSeq;
 
-    time_t inflationTime = (INFLATION_START_TIME + seq * INFLATION_FREQUENCY);
+    auto const inflationTime = ApplyTime::fromTimePoint(
+        INFLATION_START_TIME.timePoint() + seq * INFLATION_FREQUENCY);
     if (closeTime < inflationTime)
     {
         innerResult(res).code(INFLATION_NOT_TIME);

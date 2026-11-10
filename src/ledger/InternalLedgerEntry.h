@@ -6,6 +6,7 @@
 
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
+#include <optional>
 
 namespace stellar
 {
@@ -36,7 +37,7 @@ struct MaxSeqNumToApplyKey
 class InternalLedgerKey
 {
   private:
-    size_t mutable mHash;
+    std::optional<size_t> mutable mHash;
     InternalLedgerEntryType mType;
     union
     {
@@ -140,6 +141,7 @@ class InternalLedgerEntry
     explicit InternalLedgerEntry(InternalLedgerEntryType t);
 
     InternalLedgerEntry(LedgerEntry const& le);
+    InternalLedgerEntry(LedgerEntry&& le);
     explicit InternalLedgerEntry(SponsorshipEntry const& se);
     explicit InternalLedgerEntry(SponsorshipCounterEntry const& sce);
     explicit InternalLedgerEntry(MaxSeqNumToApplyEntry const& msne);

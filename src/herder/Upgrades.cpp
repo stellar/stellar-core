@@ -176,7 +176,7 @@ namespace stellar
 namespace
 {
 uint32_t
-readMaxSorobanTxSetSize(CheckValidLedgerViewWrapper const& ledgerView)
+readMaxSorobanTxSetSize(AbstractLedgerView const& ledgerView)
 {
     LedgerKey key(LedgerEntryType::CONFIG_SETTING);
     key.configSetting().configSettingID =
@@ -214,7 +214,7 @@ Upgrades::UpgradeParameters::toJson() const
 
 std::string
 Upgrades::UpgradeParameters::toDebugJson(
-    CheckValidLedgerViewWrapper const& ledgerView) const
+    AbstractLedgerView const& ledgerView) const
 {
     Json::Value upgradesJson;
     Json::Reader reader;
@@ -280,11 +280,11 @@ Upgrades::getParameters() const
 
 std::vector<LedgerUpgrade>
 Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
-                            CheckValidLedgerViewWrapper const& ledgerView,
+                            AbstractLedgerView const& ledgerView,
                             Config const& appCfg) const
 {
     auto result = std::vector<LedgerUpgrade>{};
-    if (!timeForUpgrade(lclHeader.scpValue.closeTime))
+    if (!timeForUpgrade(getApplyTime(lclHeader.scpValue)))
     {
         return result;
     }
@@ -370,9 +370,8 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
         break;
     case LEDGER_UPGRADE_CONFIG:
     {
-        CheckValidLedgerViewWrapper ltxState(ltx);
-        auto cfgUpgrade =
-            ConfigUpgradeSetFrame::makeFromKey(ltxState, upgrade.newConfig());
+        auto cfgUpgrade = ConfigUpgradeSetFrame::makeFromKey(
+            ltx.makeView(), upgrade.newConfig());
         if (!cfgUpgrade)
         {
             throw std::runtime_error(
@@ -472,7 +471,7 @@ Upgrades::toString() const
 Upgrades::UpgradeParameters
 Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
                          std::vector<UpgradeType>::const_iterator endUpdates,
-                         uint64_t closeTime, bool& updated)
+                         ApplyTime closeTime, bool& updated)
 {
     updated = false;
     UpgradeParameters res = mParams;
@@ -482,7 +481,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
     // upgrades don't attempt to change the network
     if (res.mUpgradeTime + res.mExpirationMinutes.value_or(
                                DEFAULT_UPGRADE_EXPIRATION_MINUTES) <=
-        VirtualClock::from_time_t(closeTime))
+        VirtualClock::from_time_t(closeTime.timePoint()))
     {
         auto resetParamIfSet = [&](auto& o) {
             if (o)
@@ -570,7 +569,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
 Upgrades::UpgradeValidity
 Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
                           LedgerUpgrade& upgrade, Application& app,
-                          CheckValidLedgerViewWrapper const& ledgerView)
+                          AbstractLedgerView const& ledgerView)
 {
     try
     {
@@ -643,12 +642,11 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
 }
 
 bool
-Upgrades::isValidForNomination(
-    LedgerUpgrade const& upgrade,
-    CheckValidLedgerViewWrapper const& ledgerView) const
+Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
+                               AbstractLedgerView const& ledgerView) const
 {
     if (!timeForUpgrade(
-            ledgerView.getLedgerHeader().current().scpValue.closeTime))
+            getApplyTime(ledgerView.getLedgerHeader().current().scpValue)))
     {
         return false;
     }
@@ -695,13 +693,13 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
                   bool nomination, Application& app) const
 {
     LedgerUpgrade lupgrade;
-    auto ledgerView = CheckValidLedgerViewWrapper(app);
-    bool res = isValidForApply(upgrade, lupgrade, app, ledgerView) ==
+    auto ledgerView = app.getLedgerManager().getLCLView();
+    bool res = isValidForApply(upgrade, lupgrade, app, *ledgerView) ==
                UpgradeValidity::VALID;
 
     if (nomination)
     {
-        res = res && isValidForNomination(lupgrade, ledgerView);
+        res = res && isValidForNomination(lupgrade, *ledgerView);
     }
 
     if (res)
@@ -712,9 +710,9 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
 }
 
 bool
-Upgrades::timeForUpgrade(uint64_t time) const
+Upgrades::timeForUpgrade(ApplyTime time) const
 {
-    return mParams.mUpgradeTime <= VirtualClock::from_time_t(time);
+    return mParams.mUpgradeTime <= VirtualClock::from_time_t(time.timePoint());
 }
 
 void
@@ -870,7 +868,8 @@ updateOffer(
     // liabilities for this offer, so the only applicable limit is the
     // offer amount. We then use adjustOffer to check that it will
     // satisfy thresholds.
-    if (!erase && adjustOffer(offer.price, offer.amount, INT64_MAX) == 0)
+    if (!erase && adjustOffer(header.current().ledgerVersion, offer.price,
+                              offer.amount, INT64_MAX) == 0)
     {
         erase = true;
         res = UpdateOfferResult::AdjustedToZero;
@@ -881,7 +880,8 @@ updateOffer(
         // The same logic for adjustOffer discussed above applies here,
         // except that we now actually update the offer to reflect the
         // adjustment.
-        auto adjAmount = adjustOffer(offer.price, offer.amount, INT64_MAX);
+        auto adjAmount = adjustOffer(header.current().ledgerVersion,
+                                     offer.price, offer.amount, INT64_MAX);
         if (adjAmount != offer.amount)
         {
             offer.amount = adjAmount;
@@ -1251,13 +1251,16 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     }
     if (needUpgradeToVersion(ProtocolVersion::V_25, prevVersion, newVersion))
     {
-        PubKeyUtils::enableRustDalekVerify();
         SorobanNetworkConfig::createCostTypesForV25(ltx, app);
     }
     if (needUpgradeToVersion(ProtocolVersion::V_26, prevVersion, newVersion))
     {
         SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
         SorobanNetworkConfig::createLedgerEntriesForV26(ltx, app);
+    }
+    if (needUpgradeToVersion(ProtocolVersion::V_30, prevVersion, newVersion))
+    {
+        SorobanNetworkConfig::createCostTypesForV30(ltx, app);
     }
 
     if (protocolVersionEquals(prevVersion, ProtocolVersion::V_23) &&
@@ -1298,9 +1301,8 @@ Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
 }
 
 ConfigUpgradeSetFrameConstPtr
-ConfigUpgradeSetFrame::makeFromKey(
-    CheckValidLedgerViewWrapper const& ledgerView,
-    ConfigUpgradeSetKey const& key)
+ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerView const& ledgerView,
+                                   ConfigUpgradeSetKey const& key)
 {
     auto lk = ConfigUpgradeSetFrame::getLedgerKey(key);
     auto ltxe = ledgerView.load(lk);
@@ -1424,8 +1426,7 @@ ConfigUpgradeSetFrame::getLedgerKey(ConfigUpgradeSetKey const& upgradeKey)
 }
 
 bool
-ConfigUpgradeSetFrame::upgradeNeeded(
-    CheckValidLedgerViewWrapper const& ledgerView) const
+ConfigUpgradeSetFrame::upgradeNeeded(AbstractLedgerView const& ledgerView) const
 {
     if (protocolVersionIsBefore(
             ledgerView.getLedgerHeader().current().ledgerVersion,

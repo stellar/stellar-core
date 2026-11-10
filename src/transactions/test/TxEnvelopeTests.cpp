@@ -7,6 +7,8 @@
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
 #include "herder/Herder.h"
+#include "herder/TxSetFrame.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -58,7 +60,8 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     auto tx1 = b1.tx({accountMerge(a1)});
     auto tx2 = a1.tx({a1.op(payment(*root, 112)), a1.op(payment(*root, 101))});
 
-    auto txSet = makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0).second;
+    auto txSet =
+        makeTxSetFromTransactions({tx1, tx2}, *app, ApplyTimeOffset{}).second;
 
     auto txs =
         txSet->getPhasesInApplyOrder()[static_cast<size_t>(TxSetPhase::CLASSIC)]
@@ -100,7 +103,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
         getSignatures(tx).clear();
         getSignatures(tx2).clear();
         setSeqNum(tx, tx->getSeqNum() + 1);
-        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
         SignerKey signerKey;
         signerKey.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
@@ -783,6 +785,37 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                 19},
         };
 
+        auto applyTwo = [&](TransactionTestFramePtr const& mutator,
+                            TransactionTestFramePtr const& tx) {
+            {
+                auto ledgerView = app->getLedgerManager().getLCLView();
+                auto diagnostics = DiagnosticEventManager::createDisabled();
+                REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0,
+                                       0, 0, diagnostics)
+                            ->isSuccess());
+            }
+            auto r = closeLedger(*app, {mutator, tx}, /* strictOrder */ true);
+            checkTx(0, r, txSUCCESS);
+            return r.results.at(1).result;
+        };
+
+        // Consumes `acc`'s sequence number from a transaction sourced by the
+        // root account, so that it can share a ledger with a transaction
+        // sourced by `acc`.
+        auto seqBumper = [&](TestAccount& acc, SequenceNumber bumpTo) {
+            auto tx = root->tx({acc.op(bumpSequence(bumpTo))});
+            tx->addSignature(acc.getSecretKey());
+            return tx;
+        };
+
+        // Same, for changing `acc`'s signers and thresholds.
+        auto optionsSetter = [&](TestAccount& acc,
+                                 SetOptionsArguments const& args) {
+            auto tx = root->tx({acc.op(setOptions(args))});
+            tx->addSignature(acc.getSecretKey());
+            return tx;
+        };
+
         for (auto const& alternative : alternatives)
         {
             auto ledgerVersion = getLclProtocolVersion(*app);
@@ -797,7 +830,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                     auto tx = a1.tx({payment(*root, 1000)});
                     getSignatures(tx).clear();
                     setSeqNum(tx, tx->getSeqNum() + 1);
-                    a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                     SignerKey sk = alternative.createSigner(tx);
                     Signer sk1(sk, 1);
@@ -812,8 +844,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         TransactionTestFramePtr tx;
                         auto setup = [&]() {
                             tx = a1.tx({payment(*root, 1000)});
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
                             getSignatures(tx).clear();
 
                             SignerKey sk = alternative.createSigner(tx);
@@ -825,23 +855,41 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         for_versions(3, 9, *app, [&] {
                             setup();
                             {
-                                LedgerTxn ltx(app->getLedgerTxnRoot());
                                 REQUIRE(!tx->checkValidForTesting(
-                                    app->getAppConnector(), ltx, 0, 0, 0));
+                                    app->getAppConnector(),
+                                    *app->getLedgerManager().getLCLView(), 0, 0,
+                                    0));
                             }
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
+
+                        // From protocol 10 the sequence number can be consumed
+                        // by another transaction in the same ledger, so `tx`
+                        // is valid on its own and only fails during apply.
+                        TransactionTestFramePtr bumper;
+                        auto setupBumped = [&]() {
+                            tx = a1.tx({payment(*root, 1000)});
+                            getSignatures(tx).clear();
+                            setSeqNum(tx, tx->getSeqNum() + 1);
+
+                            SignerKey sk = alternative.createSigner(tx);
+                            Signer sk1(sk, 1);
+                            a1.setOptions(setSigner(sk1));
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                            alternative.sign(tx);
+                            bumper = seqBumper(a1, tx->getSeqNum() + 10);
+                        };
                         for_versions(10, 12, *app, [&] {
-                            setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            setupBumped();
+                            auto res = applyTwo(bumper, tx);
+                            REQUIRE(res.result.code() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
                         for_versions_from(13, *app, [&] {
-                            setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            setupBumped();
+                            auto res = applyTwo(bumper, tx);
+                            REQUIRE(res.result.code() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 0 : 1));
                         });
@@ -854,8 +902,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             tx = a1.tx({payment(*root, 1000)});
                             getSignatures(tx).clear();
                             setSeqNum(tx, tx->getSeqNum() + 1);
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
 
                             SignerKey sk = alternative.createSigner(tx);
                             if (sk.type() == SIGNER_KEY_TYPE_PRE_AUTH_TX)
@@ -891,37 +937,85 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
                     SECTION("too many signatures (signed by owner)")
                     {
-                        TransactionTestFramePtr tx;
+                        TransactionTestFramePtr tx, setOptionsTx;
+                        auto extra = getAccount("extra signer");
+                        // Signed payload signers are the last kind checked, so
+                        // this signature is always examined after the
+                        // alternative one regardless of which alternative is
+                        // in use. They only exist since protocol 19 though, so
+                        // older protocols use a regular ed25519 signer, which
+                        // is still checked after the alternative signer kinds
+                        // available in those protocols (pre-auth tx and
+                        // hash-x).
+                        auto extraPayload = xdr::opaque_vec<64>{'p', 'a', 'y'};
+                        SignerKey extraKey;
+                        auto signWithExtra = [&](TransactionTestFramePtr t) {
+                            if (extraKey.type() ==
+                                SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD)
+                            {
+                                DecoratedSignature sig;
+                                sig.signature = extra.sign(extraPayload);
+                                sig.hint = SignatureUtils::getSignedPayloadHint(
+                                    extraKey.ed25519SignedPayload());
+                                t->addSignature(sig);
+                            }
+                            else
+                            {
+                                t->addSignature(extra);
+                            }
+                        };
                         auto setup = [&]() {
+                            if (protocolVersionStartsFrom(
+                                    getLclProtocolVersion(*app),
+                                    ProtocolVersion::V_19))
+                            {
+                                extraKey = SignerKeyUtils::ed25519PayloadKey(
+                                    extra.getPublicKey().ed25519(),
+                                    extraPayload);
+                            }
+                            else
+                            {
+                                extraKey = makeSigner(extra, 1).key;
+                            }
+                            a1.setOptions(setMedThreshold(2) |
+                                          setSigner(Signer(extraKey, 1)));
+
                             tx = a1.tx({payment(*root, 1000)});
+                            getSignatures(tx).clear();
                             setSeqNum(tx, tx->getSeqNum() + 1);
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
 
                             SignerKey sk = alternative.createSigner(tx);
                             Signer sk1(sk, 1);
                             a1.setOptions(setSigner(sk1));
-                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             alternative.sign(tx);
+                            signWithExtra(tx);
+                            // Both signers are needed to reach the threshold,
+                            // so both signatures are used. Another transaction
+                            // in the same ledger doubles the alternative
+                            // signer's weight, which makes the second
+                            // signature redundant - and so unused - at apply.
+                            setOptionsTx =
+                                optionsSetter(a1, setSigner(Signer(sk, 2)));
                         };
                         for_versions({3, 4, 5, 6, 8, 9}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
-                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txBAD_AUTH_EXTRA);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                         for_versions({7}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
-                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txSUCCESS);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                         for_versions_from(10, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txBAD_AUTH_EXTRA);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
-                                    (alternative.autoRemove ? 0 : 1));
+                                    (alternative.autoRemove ? 1 : 2));
                         });
                     }
 
@@ -932,8 +1026,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             tx = a1.tx({payment(*root, 1000)});
                             getSignatures(tx).clear();
                             setSeqNum(tx, tx->getSeqNum() + 1);
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
 
                             SignerKey sk = alternative.createSigner(tx);
                             Signer sk1(sk, 1);
@@ -966,9 +1058,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         a1.pay(b1, 1000);
 
                         auto runTest = [&](bool txAccountMissing) {
-                            // Create merge tx
-                            auto txMerge = b1.tx({accountMerge(a1)});
-
                             // Create payment tx. Depending on txAccountMissing,
                             // either the transaction source account or the
                             // operation source account will go missing (because
@@ -999,6 +1088,9 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
                             REQUIRE(getAccountSigners(b1, *app).size() == 1);
                             REQUIRE(getAccountSigners(*root, *app).size() == 1);
+
+                            auto txMerge = root->tx({b1.op(accountMerge(a1))});
+                            txMerge->addSignature(b1.getSecretKey());
 
                             // merge b1 into a1 and attempt the payment tx
                             auto r =
@@ -1089,11 +1181,9 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                     {
                         TransactionTestFramePtr tx;
                         auto setup = [&]() {
-                            tx = a1.tx({payment(*root, -1)});
+                            tx = a1.tx({payment(*root, a1.getBalance() * 10)});
                             getSignatures(tx).clear();
                             setSeqNum(tx, tx->getSeqNum() + 1);
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
 
                             SignerKey sk = alternative.createSigner(tx);
                             Signer sk1(sk, 1);
@@ -1106,7 +1196,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == stellar::txFAILED);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
-                                        tx)) == stellar::PAYMENT_MALFORMED);
+                                        tx)) == stellar::PAYMENT_UNDERFUNDED);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
                         for_versions_from(10, *app, [&] {
@@ -1114,7 +1204,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == stellar::txFAILED);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
-                                        tx)) == stellar::PAYMENT_MALFORMED);
+                                        tx)) == stellar::PAYMENT_UNDERFUNDED);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 0 : 1));
                         });
@@ -1132,37 +1222,40 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
                     SECTION("not enough rights (envelope)")
                     {
-                        TransactionTestFramePtr tx;
+                        TransactionTestFramePtr tx, setOptionsTx;
                         auto setup = [&]() {
                             tx = a1.tx({payment(*root, 1000)});
                             getSignatures(tx).clear();
                             setSeqNum(tx, tx->getSeqNum() + 1);
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
 
                             SignerKey sk = alternative.createSigner(tx);
-                            Signer sk1(sk, 5); // below low rights
+                            // enough rights for the payment when built...
+                            Signer sk1(sk, 50);
                             a1.setOptions(setSigner(sk1));
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             alternative.sign(tx);
+                            // ...but another transaction in the same ledger
+                            // raises the threshold above the signer's weight.
+                            setOptionsTx =
+                                optionsSetter(a1, setLowThreshold(51));
                         };
                         for_versions({3, 4, 5, 6, 8, 9, 10, 11, 12}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                         for_versions_from(13, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 1 : 2));
                         });
                         for_versions({7}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                     }
@@ -1170,33 +1263,33 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                     SECTION("not enough rights (envelope). Same pre auth "
                             "signer on both tx and op source account")
                     {
-                        TransactionTestFramePtr tx;
+                        TransactionTestFramePtr tx, setOptionsTx;
                         auto setup = [&]() {
                             tx = a1.tx({root->op(payment(a1, 100))});
                             getSignatures(tx).clear();
                             setSeqNum(tx, tx->getSeqNum() + 1);
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
 
                             SignerKey sk = alternative.createSigner(tx);
-                            Signer sk1(sk, 5); // below low rights
+                            Signer sk1(sk, 10); // exactly low rights
                             a1.setOptions(setSigner(sk1));
                             root->setOptions(setSigner(sk1));
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             REQUIRE(getAccountSigners(*root, *app).size() == 1);
                             alternative.sign(tx);
+                            setOptionsTx =
+                                optionsSetter(a1, setLowThreshold(11));
                         };
                         for_versions({3, 4, 5, 6, 8, 9, 10, 11, 12}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             REQUIRE(getAccountSigners(*root, *app).size() == 1);
                         });
                         for_versions_from(13, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 1 : 2));
                             REQUIRE(getAccountSigners(*root, *app).size() ==
@@ -1204,8 +1297,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         });
                         for_versions({7}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             REQUIRE(getAccountSigners(*root, *app).size() == 1);
                         });
@@ -1214,32 +1307,32 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                     SECTION("Bad seq num. Same pre auth "
                             "signer on both tx and op source account")
                     {
-                        TransactionTestFramePtr tx;
+                        TransactionTestFramePtr tx, bumper;
                         auto setup = [&]() {
                             tx = a1.tx({root->op(payment(a1, 100))});
                             getSignatures(tx).clear();
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
+                            setSeqNum(tx, tx->getSeqNum() + 1);
 
                             SignerKey sk = alternative.createSigner(tx);
-                            Signer sk1(sk, 5); // below low rights
+                            Signer sk1(sk, 10); // exactly low rights
                             a1.setOptions(setSigner(sk1));
                             root->setOptions(setSigner(sk1));
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             REQUIRE(getAccountSigners(*root, *app).size() == 1);
                             alternative.sign(tx);
+                            bumper = seqBumper(a1, tx->getSeqNum() + 10);
                         };
                         for_versions(10, 12, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            auto res = applyTwo(bumper, tx);
+                            REQUIRE(res.result.code() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             REQUIRE(getAccountSigners(*root, *app).size() == 1);
                         });
                         for_versions_from(13, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            auto res = applyTwo(bumper, tx);
+                            REQUIRE(res.result.code() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 1 : 2));
                             REQUIRE(getAccountSigners(*root, *app).size() ==
@@ -1250,36 +1343,43 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                     SECTION("not enough rights (operation)")
                     {
                         // updating thresholds requires high
-                        TransactionTestFramePtr tx;
+                        TransactionTestFramePtr tx, setOptionsTx;
                         auto setup = [&]() {
                             tx = a1.tx({setOptions(th)},
                                        a1.getLastSequenceNumber() + 2);
                             getSignatures(tx).clear();
 
                             SignerKey sk = alternative.createSigner(tx);
-                            Signer sk1(sk, 95); // med rights account
+                            // exactly high rights when the tx is built...
+                            Signer sk1(sk, 100);
                             a1.setOptions(setSigner(sk1));
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             alternative.sign(tx);
+                            // ...but another transaction in the same ledger
+                            // raises high above the signer's weight.
+                            setOptionsTx =
+                                optionsSetter(a1, setHighThreshold(101));
                         };
                         for_versions({3, 4, 5, 6, 8, 9}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txFAILED);
-                            REQUIRE(getFirstResultCode(tx) == opBAD_AUTH);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txFAILED);
+                            REQUIRE(res.result.results()[0].code() ==
+                                    opBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                         for_versions({7}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                         for_versions_from(10, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txFAILED);
-                            REQUIRE(getFirstResultCode(tx) == opBAD_AUTH);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txFAILED);
+                            REQUIRE(res.result.results()[0].code() ==
+                                    opBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 1 : 2));
                         });
@@ -1287,63 +1387,98 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
                     SECTION("not enough rights on first operation")
                     {
-                        TransactionTestFramePtr tx1, tx2;
+                        TransactionTestFramePtr tx, setOptionsTx;
                         auto setup = [&]() {
-                            auto b = root->create("b", 1000000000);
-                            tx1 = b.tx({setOptions(
-                                setMasterWeight(1) | setLowThreshold(1) |
-                                setMedThreshold(2) | setHighThreshold(3))});
-                            tx2 = root->tx(
-                                {b.op(payment(*root, 100)), payment(b, 100)},
-                                root->getLastSequenceNumber() + 2);
+                            auto padding =
+                                root->create("padding", paymentAmount);
+                            tx = a1.tx({payment(*root, 100),
+                                        padding.op(payment(*root, 100))},
+                                       a1.getLastSequenceNumber() + 2);
+                            getSignatures(tx).clear();
+                            tx->addSignature(padding.getSecretKey());
 
-                            SignerKey sk = alternative.createSigner(tx2);
-                            Signer sk1(sk, 100); // high rights account
-                            root->setOptions(setSigner(sk1));
-                            REQUIRE(getAccountSigners(*root, *app).size() == 1);
-                            alternative.sign(tx2);
+                            SignerKey sk = alternative.createSigner(tx);
+
+                            Signer sk1(sk, 50);
+                            a1.setOptions(setSigner(sk1));
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            alternative.sign(tx);
+
+                            setOptionsTx =
+                                optionsSetter(a1, setMedThreshold(51));
                         };
-                        for_versions(3, 9, *app, [&] {
+                        for_versions({3, 4, 5, 6, 8, 9}, *app, [&] {
                             setup();
-                            closeLedgerOn(*app, 1, 1, 2010, {tx1, tx2}, true);
-                            REQUIRE(getAccountSigners(*root, *app).size() == 1);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txFAILED);
+                            REQUIRE(res.result.results()[0].code() ==
+                                    opBAD_AUTH);
+                            REQUIRE(res.result.results()[1].code() == opINNER);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                        });
+                        for_versions({7}, *app, [&] {
+                            setup();
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txSUCCESS);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                         for_versions_from(10, *app, [&] {
                             setup();
-                            closeLedgerOn(*app, 1, 1, 2010, {tx1, tx2}, true);
-                            REQUIRE(getAccountSigners(*root, *app).size() ==
-                                    (alternative.autoRemove ? 0 : 1));
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txFAILED);
+                            REQUIRE(res.result.results()[0].code() ==
+                                    opBAD_AUTH);
+                            REQUIRE(res.result.results()[1].code() == opINNER);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 1 : 2));
                         });
                     }
 
                     SECTION("not enough rights on second operation")
                     {
-                        TransactionTestFramePtr tx1, tx2;
+                        TransactionTestFramePtr tx, setOptionsTx;
                         auto setup = [&]() {
-                            auto b = root->create("b", 1000000000);
-                            tx1 = b.tx({setOptions(
-                                setMasterWeight(1) | setLowThreshold(1) |
-                                setMedThreshold(2) | setHighThreshold(3))});
-                            tx2 = root->tx(
-                                {payment(b, 100), b.op(payment(*root, 100))},
-                                root->getLastSequenceNumber() + 2);
+                            auto padding =
+                                root->create("padding", paymentAmount);
+                            tx = a1.tx({padding.op(payment(*root, 100)),
+                                        payment(*root, 100)},
+                                       a1.getLastSequenceNumber() + 2);
+                            getSignatures(tx).clear();
+                            tx->addSignature(padding.getSecretKey());
 
-                            SignerKey sk = alternative.createSigner(tx2);
-                            Signer sk1(sk, 100); // high rights account
-                            root->setOptions(setSigner(sk1));
-                            REQUIRE(getAccountSigners(*root, *app).size() == 1);
-                            alternative.sign(tx2);
+                            SignerKey sk = alternative.createSigner(tx);
+                            Signer sk1(sk, 50);
+                            a1.setOptions(setSigner(sk1));
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            alternative.sign(tx);
+
+                            setOptionsTx =
+                                optionsSetter(a1, setMedThreshold(51));
                         };
-                        for_versions(3, 9, *app, [&] {
+                        for_versions({3, 4, 5, 6, 8, 9}, *app, [&] {
                             setup();
-                            closeLedgerOn(*app, 1, 1, 2010, {tx1, tx2}, true);
-                            REQUIRE(getAccountSigners(*root, *app).size() == 1);
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txFAILED);
+                            REQUIRE(res.result.results()[0].code() == opINNER);
+                            REQUIRE(res.result.results()[1].code() ==
+                                    opBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                        });
+                        for_versions({7}, *app, [&] {
+                            setup();
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txSUCCESS);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                         for_versions_from(10, *app, [&] {
                             setup();
-                            closeLedgerOn(*app, 1, 1, 2010, {tx1, tx2}, true);
-                            REQUIRE(getAccountSigners(*root, *app).size() ==
-                                    (alternative.autoRemove ? 0 : 1));
+                            auto res = applyTwo(setOptionsTx, tx);
+                            REQUIRE(res.result.code() == txFAILED);
+                            REQUIRE(res.result.results()[0].code() == opINNER);
+                            REQUIRE(res.result.results()[1].code() ==
+                                    opBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 1 : 2));
                         });
                     }
 
@@ -1359,8 +1494,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             // add signer twice.
                             tx->addSignature(s1);
                             tx->addSignature(s1);
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
 
                             SignerKey sk = alternative.createSigner(tx);
                             Signer sk1(sk, 1);
@@ -1370,18 +1503,31 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             REQUIRE(getAccountSigners(*root, *app).size() == 1);
                             alternative.sign(tx);
                         };
+                        // These are esoteric legacy scenarios where invalid
+                        // transaction is applied to the ledger. It's not clear
+                        // if these cover any scenario that have been actually
+                        // observed, so if we can confirm that these haven't
+                        // ever been observed, we could just remove these.
                         for_versions({9}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
+                            auto r = closeLedger(
+                                *app, {tx}, /* strictOrder */ true,
+                                emptyUpgradeSteps,
+                                /* disableTxValidationForLegacyScenario */
+                                true);
+                            checkTx(0, r, txBAD_AUTH_EXTRA);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             REQUIRE(getAccountSigners(*root, *app).size() == 1);
                         });
 
                         for_versions({10}, *app, [&] {
                             setup();
-                            applyCheck(tx, *app);
-                            REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
+                            auto r = closeLedger(
+                                *app, {tx}, /* strictOrder */ true,
+                                emptyUpgradeSteps,
+                                /* disableTxValidationForLegacyScenario */
+                                true);
+                            checkTx(0, r, txBAD_AUTH_EXTRA);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 1 : 2));
                             REQUIRE(getAccountSigners(*root, *app).size() ==
@@ -1429,13 +1575,15 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                  a1.op(endSponsoringFutureReserves())},
                                 {a1});
                             {
+                                REQUIRE(insideSignerTx->checkValidForTesting(
+                                    app->getAppConnector(),
+                                    *app->getLedgerManager().getLCLView(), 0, 0,
+                                    0));
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
                                 TransactionMetaBuilder txm(
                                     true, *insideSignerTx,
                                     ltx.loadHeader().current().ledgerVersion,
                                     app->getAppConnector());
-                                REQUIRE(insideSignerTx->checkValidForTesting(
-                                    app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(insideSignerTx->apply(
                                     app->getAppConnector(), ltx, txm));
                                 REQUIRE(insideSignerTx->getResultCode() ==
@@ -1451,13 +1599,15 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                  a1.op(endSponsoringFutureReserves())},
                                 {a1});
                             {
+                                REQUIRE(outsideSignerTx->checkValidForTesting(
+                                    app->getAppConnector(),
+                                    *app->getLedgerManager().getLCLView(), 0, 0,
+                                    0));
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
                                 TransactionMetaBuilder txm(
                                     true, *outsideSignerTx,
                                     ltx.loadHeader().current().ledgerVersion,
                                     app->getAppConnector());
-                                REQUIRE(outsideSignerTx->checkValidForTesting(
-                                    app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(outsideSignerTx->apply(
                                     app->getAppConnector(), ltx, txm));
                                 REQUIRE(outsideSignerTx->getResultCode() ==
@@ -1530,8 +1680,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             getSignatures(tx).clear();
                             setSeqNum(tx, tx->getSeqNum() + 1);
                             tx->addSignature(s1);
-                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
-                                                 1);
 
                             SignerKey sk = alternative.createSigner(tx);
                             Signer sk1(sk, 5); // below low rights
@@ -1657,7 +1805,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
                 setSeqNum(tx, tx->getSeqNum() + 1);
                 tx->addSignature(s1);
-                a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                 SignerKey sk = SignerKeyUtils::hashXKey(x);
                 Signer sk2(sk, 5); // below low rights
@@ -1684,9 +1831,9 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                 setFullFee(tx, 1000);
 
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
 
                 applyCheck(tx, *app);
@@ -1709,9 +1856,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(!tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
@@ -1723,9 +1871,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1741,9 +1890,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(b1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1767,9 +1917,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(b1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(!tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
 
                         applyCheck(tx, *app);
@@ -1795,9 +1946,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(b1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
 
                         applyCheck(tx, *app);
@@ -1822,9 +1974,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         tx->addSignature(b1);
 
                         {
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
                             REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
+                                app->getAppConnector(),
+                                *app->getLedgerManager().getLCLView(), 0, 0,
+                                0));
                         }
 
                         applyCheck(tx, *app);
@@ -1890,17 +2043,13 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
             {
                 for_all_versions(*app, [&] {
                     setup();
+                    auto baseFee = app->getLedgerManager().getLastTxFee();
                     txFrame =
                         root->tx({payment(a1.getPublicKey(), paymentAmount)});
-                    setFullFee(txFrame,
-                               app->getLedgerManager().getLastTxFee() - 1);
+                    setFullFee(txFrame, baseFee - 1);
 
-                    applyCheck(txFrame, *app);
-
+                    REQUIRE(!applyCheck(txFrame, *app));
                     REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
-                    // during apply, feeCharged is smaller in this case
-                    REQUIRE(txFrame->getResult().feeCharged ==
-                            app->getLedgerManager().getLastTxFee() - 1);
                 });
             }
 
@@ -1909,9 +2058,9 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                 for_versions_to(9, *app, [&] {
                     setup();
                     {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
                         REQUIRE(!txFrame->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     }
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -1945,7 +2094,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMinTime(txFrame, start + 1000);
                         setMaxTime(txFrame, start + 10000);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
 
                         REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
@@ -1960,7 +2110,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         getSignatures(txFrame).clear();
                         txFrame->addSignature(*root);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
                         REQUIRE(txFrame->getResultCode() == txSUCCESS);
                     }
@@ -1972,7 +2123,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMinTime(txFrame, 1000);
                         setMaxTime(txFrame, start);
 
-                        closeLedgerOn(*app, nextLedgerSeq, start + 1);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, start + 1));
                         applyCheck(txFrame, *app);
                         REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                     }
@@ -1985,7 +2137,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         setMaxTime(txFrame, 0);
 
                         TimePoint lastClose = getTestDate(1, 1, 2020);
-                        closeLedgerOn(*app, nextLedgerSeq, lastClose);
+                        closeLedgerOn(*app, nextLedgerSeq,
+                                      withMsCloseTime(*app, lastClose));
 
                         TimePoint const nextOffset = 2;
                         auto const nextClose = lastClose + nextOffset;
@@ -1998,10 +2151,11 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 getSignatures(txFrame).clear();
                                 txFrame->addSignature(*root);
                                 {
-                                    LedgerTxn ltx(app->getLedgerTxnRoot());
                                     REQUIRE(txFrame->checkValidForTesting(
-                                                app->getAppConnector(), ltx, 0,
-                                                lowerBound,
+                                                app->getAppConnector(),
+                                                *app->getLedgerManager()
+                                                     .getLCLView(),
+                                                0, lowerBound,
                                                 0) == expectSuccess);
                                 }
                                 REQUIRE(
@@ -2069,8 +2223,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                     VirtualClock::from_time_t(closeTime + 5));
                             }
 
-                            auto offset =
-                                getUpperBoundCloseTimeOffset(*app, closeTime);
+                            auto offset = getUpperBoundCloseTimeOffset(
+                                *app, ApplyTime::fromTimePoint(closeTime));
                             auto upperBoundCloseTime = closeTime + offset;
 
                             SECTION("success")
@@ -2080,10 +2234,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 txFrame->addSignature(*root);
 
                                 {
-                                    LedgerTxn ltx(app->getLedgerTxnRoot());
                                     REQUIRE(txFrame->checkValidForTesting(
-                                        app->getAppConnector(), ltx, 0, 0,
-                                        offset));
+                                        app->getAppConnector(),
+                                        *app->getLedgerManager().getLCLView(),
+                                        0, 0, offset));
                                 }
 
                                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
@@ -2094,10 +2248,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 setMaxTime(txFrame, upperBoundCloseTime - 1);
 
                                 {
-                                    LedgerTxn ltx(app->getLedgerTxnRoot());
                                     REQUIRE(!txFrame->checkValidForTesting(
-                                        app->getAppConnector(), ltx, 0, 0,
-                                        offset));
+                                        app->getAppConnector(),
+                                        *app->getLedgerManager().getLCLView(),
+                                        0, 0, offset));
                                 }
 
                                 REQUIRE(txFrame->getResultCode() == txTOO_LATE);
@@ -2124,9 +2278,9 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         root->tx({payment(a1.getPublicKey(), paymentAmount)});
                     setSeqNum(txFrame, txFrame->getSeqNum() - 1);
                     {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
                         REQUIRE(!txFrame->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     }
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
@@ -2517,10 +2671,9 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
         SECTION("checkValid accepts ed25519 signed payload signer")
         {
             // Normal checkValid should succeed — the payload signer is valid
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ls = CheckValidLedgerViewWrapper(ltx);
+            auto ls = app->getLedgerManager().getLCLView();
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            auto result = tx->checkValid(app->getAppConnector(), *ls, 0, 0, 0,
                                          diagnostics);
             REQUIRE(result->isSuccess());
         }
@@ -2534,10 +2687,9 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
 
         SECTION("checkValidForOverlay accepts ed25519 signed payload signer")
         {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ls = CheckValidLedgerViewWrapper(ltx);
+            auto ls = app->getLedgerManager().getLCLView();
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            auto result = tx->checkValidForOverlay(app->getAppConnector(), ls,
+            auto result = tx->checkValidForOverlay(app->getAppConnector(), *ls,
                                                    0, 0, 0, diagnostics);
             REQUIRE(result->isSuccess());
         }
@@ -2550,21 +2702,19 @@ TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
 
             SECTION("checkValid accepts fee bump")
             {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ls = CheckValidLedgerViewWrapper(ltx);
+                auto ls = app->getLedgerManager().getLCLView();
                 auto diagnostics = DiagnosticEventManager::createDisabled();
-                auto result = feeBumpTx->checkValid(app->getAppConnector(), ls,
+                auto result = feeBumpTx->checkValid(app->getAppConnector(), *ls,
                                                     0, 0, 0, diagnostics);
                 REQUIRE(result->isSuccess());
             }
 
             SECTION("checkValidForOverlay accepts fee bump")
             {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ls = CheckValidLedgerViewWrapper(ltx);
+                auto ls = app->getLedgerManager().getLCLView();
                 auto diagnostics = DiagnosticEventManager::createDisabled();
                 auto result = feeBumpTx->checkValidForOverlay(
-                    app->getAppConnector(), ls, 0, 0, 0, diagnostics);
+                    app->getAppConnector(), *ls, 0, 0, 0, diagnostics);
                 REQUIRE(result->isSuccess());
             }
         }
@@ -2586,8 +2736,9 @@ TEST_CASE("soroban txs not allowed before protocol upgrade",
     auto tx =
         sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op}, {},
                                        SorobanResources(), 1000, 1'000'000);
-    LedgerTxn ltx(app->getLedgerTxnRoot());
-    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                      *app->getLedgerManager().getLCLView(), 0,
+                                      0, 0));
     REQUIRE(tx->getResultCode() == txMALFORMED);
 }
 TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
@@ -2607,20 +2758,21 @@ TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
         payment.asset.type(ASSET_TYPE_NATIVE);
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), *root,
                                                  {op}, {}, resources, 100, 100);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
         if (protocolVersionStartsFrom(app->getLedgerManager()
                                           .getLastClosedLedgerHeader()
                                           .header.ledgerVersion,
                                       ProtocolVersion::V_21))
         {
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             REQUIRE(tx->getResultCode() == txMALFORMED);
         }
         else
         {
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+            REQUIRE(tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
         }
     });
 }
@@ -2645,9 +2797,10 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                 auto tx = sorobanTransactionFrameFromOps(
                     app->getNetworkID(), *root, {op0}, {}, resources, 100,
                     3'500'000);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                                 0, 0) == valid);
+                REQUIRE(tx->checkValidForTesting(
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0,
+                            0) == valid);
                 if (!valid)
                 {
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
@@ -2658,9 +2811,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
             {
                 auto tx = transactionFrameFromOps(app->getNetworkID(), *root,
                                                   {op0}, {});
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx,
-                                                  0, 0, 0));
+                REQUIRE(!tx->checkValidForTesting(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 REQUIRE(tx->getResultCode() == txMALFORMED);
             }
             SorobanResources resources;
@@ -2740,9 +2893,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         4'000'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("limit exceeded")
                 {
@@ -2751,9 +2904,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         4'000'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
                 }
             }
@@ -2764,9 +2917,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                         app->getNetworkID(), *root, {op0}, {}, resources, 1'000,
                         100'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
                 }
                 SECTION("inclusion fee is too low")
@@ -2774,9 +2927,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                         app->getNetworkID(), *root, {op0}, {}, resources,
                         1'000'099, 1'000'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txINSUFFICIENT_FEE);
                 }
                 SECTION("required resource fee is lower than declared")
@@ -2784,9 +2937,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                         app->getNetworkID(), *root, {op0}, {}, resources,
                         1'000'000, 10);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
                 }
                 SECTION("resource fee is negative")
@@ -2794,9 +2947,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                         app->getNetworkID(), *root, {op0}, {}, resources,
                         1'000'000, std::numeric_limits<int64_t>::min());
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     // Negative resource fee is handled before we get to
                     // Soroban-specific checks.
                     REQUIRE(tx->getResultCode() == txMALFORMED);
@@ -2809,9 +2962,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         static_cast<int64_t>(
                             std::numeric_limits<uint32_t>::max()) +
                             1);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
                 }
                 SECTION("resource fee is max int64")
@@ -2820,9 +2973,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         app->getNetworkID(), *root, {op0}, {}, resources,
                         std::numeric_limits<uint32_t>::max(),
                         std::numeric_limits<int64_t>::max());
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txMALFORMED);
                 }
                 SECTION("total fee is exactly uint32 max")
@@ -2833,9 +2986,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         static_cast<int64_t>(
                             std::numeric_limits<uint32_t>::max()) -
                             100);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("total fee exceeds uint32 after adding base fee")
                 {
@@ -2845,9 +2998,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         static_cast<int64_t>(
                             std::numeric_limits<uint32_t>::max()) -
                             100 + 1);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     // This gets rejected due to insufficient inclusion fee, so
                     // we have the respective error code (even though the fee is
                     // insufficient due to Soroban resource fee).
@@ -2862,9 +3015,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx =
                         feeBump(*app, *root, innerTx, 2 * 100 + resourceFee,
                                 /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("resource fee exceeds uint32 with fee bump")
                 {
@@ -2874,19 +3027,20 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                         std::numeric_limits<uint32_t>::max(), resourceFee);
                     auto tx = feeBump(*app, *root, innerTx, resourceFee + 200,
                                       /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     // This is allowed from protocol 23 - fee bump is sufficient
                     // to cover the inner resource fee.
                     if (protocolVersionStartsFrom(ledgerVersion,
                                                   ProtocolVersion::V_23))
                     {
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
+                        REQUIRE(tx->checkValidForTesting(
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     }
                     else
                     {
                         REQUIRE(!tx->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
+                            app->getAppConnector(),
+                            *app->getLedgerManager().getLCLView(), 0, 0, 0));
                         REQUIRE(tx->getResultCode() == txFEE_BUMP_INNER_FAILED);
                     }
                 }
@@ -2901,9 +3055,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx =
                         feeBump(*app, *root, innerTx, resourceFee + 200 - 1,
                                 /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txINSUFFICIENT_FEE);
                 }
                 SECTION("resource fee is negative with fee bump")
@@ -2914,9 +3068,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = feeBump(*app, *root, innerTx,
                                       std::numeric_limits<int64_t>::max(),
                                       /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txMALFORMED);
                 }
                 SECTION("resource fee is max int64 with fee bump")
@@ -2928,9 +3082,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = feeBump(*app, *root, innerTx,
                                       std::numeric_limits<int64_t>::max(),
                                       /* useInclusionAsFullFee */ true);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                     REQUIRE(tx->getResultCode() == txMALFORMED);
                 }
             }
@@ -2940,9 +3094,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                 auto tx = sorobanTransactionFrameFromOps(
                     app->getNetworkID(), *root, {op0, op0}, {}, resources, 100,
                     100'000);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx,
-                                                  0, 0, 0));
+                REQUIRE(!tx->checkValidForTesting(
+                    app->getAppConnector(),
+                    *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 REQUIRE(tx->getResultCode() == txMALFORMED);
             }
             SECTION("contract size")
@@ -2958,9 +3112,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("over limit")
                 {
@@ -2969,9 +3123,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
             }
 
@@ -3000,9 +3154,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
 
                 auto keyBytes = makeBytes(InitialSorobanNetworkConfig::
@@ -3023,9 +3177,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
                 SECTION("read-write key over size limit")
                 {
@@ -3042,9 +3196,9 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                     auto tx = sorobanTransactionFrameFromOps(
                         app->getNetworkID(), *root, {op}, {}, resources, 100,
                         3'500'000);
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
+                    REQUIRE(!tx->checkValidForTesting(
+                        app->getAppConnector(),
+                        *app->getLedgerManager().getLCLView(), 0, 0, 0));
                 }
             }
         });
@@ -3071,8 +3225,8 @@ TEST_CASE("XDR protocol 22 compatibility validation", "[tx][envelope]")
         auto tx =
             sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op}, {},
                                            SorobanResources(), 1000, 1'000'000);
-        CheckValidLedgerViewWrapper ledgerView(*app);
-        return tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0);
+        auto ledgerView = app->getLedgerManager().getLCLView();
+        return tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0);
     };
     SECTION("not valid in protocol 21")
     {
@@ -3104,7 +3258,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
         op.body.invokeHostFunctionOp().hostFunction.type(
             HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
 
-        CheckValidLedgerViewWrapper ledgerView(*app);
+        auto ledgerView = app->getLedgerManager().getLCLView();
         SECTION("muxed account ScAddress in function args")
         {
             auto& val = op.body.invokeHostFunctionOp()
@@ -3118,7 +3272,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
                 1'000'000);
 
             auto res =
-                tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0);
+                tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0);
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {
@@ -3139,7 +3293,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
                 app->getNetworkID(), *root, {op}, {}, SorobanResources(), 1000,
                 1'000'000);
             auto res =
-                tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0);
+                tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0);
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {
@@ -3162,7 +3316,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
                                                      {ttlOp}, {}, resources,
                                                      1000, 1'000'000);
             auto res =
-                tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0);
+                tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0);
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {
@@ -3178,5 +3332,107 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
     SECTION("valid in protocol 23")
     {
         runTest(ProtocolVersion::V_23, true);
+    }
+}
+
+TEST_CASE("transaction time bounds under sub-second ledgers", "[tx][envelope]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+    auto root = app->getRoot();
+
+    TimePoint const T = 2;
+    auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
+    closeLedgerOn(*app, nextSeq(), T);
+    auto tx = root->tx({payment(*root, 1)});
+
+    SECTION("tx expiring at the current second applies in a same-second "
+            "ledger")
+    {
+        setMaxTime(tx, T);
+        getSignatures(tx).clear();
+        tx->addSignature(root->getSecretKey());
+        auto r =
+            closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400), {tx});
+        checkTx(0, r, txSUCCESS);
+        auto const& lclValue = lm.getLastClosedLedgerHeader().header.scpValue;
+        REQUIRE(getConsensusTime(lclValue).milliseconds() == T * 1000 + 400);
+        REQUIRE(lclValue.closeTime == T);
+    }
+
+    SECTION("tx valid from the next second stays too early in a same-second "
+            "ledger")
+    {
+        setMinTime(tx, T + 1);
+        getSignatures(tx).clear();
+        tx->addSignature(root->getSecretKey());
+        closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 400));
+        REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                          *app->getLedgerManager().getLCLView(),
+                                          0, 0, 0));
+        REQUIRE(tx->getResultCode() == txTOO_EARLY);
+        // The same transaction applies once the next whole second is reached
+        auto txSet = makeTxSetFromTransactions({tx}, *app,
+                                               ApplyTimeOffset::fromSeconds(1))
+                         .first;
+        auto r2 = closeLedgerOn(*app, nextSeq(), T + 1, txSet);
+        checkTx(0, r2, txSUCCESS);
+    }
+}
+
+TEST_CASE("getUpperBoundCloseTimeOffset under sub-second ledgers",
+          "[tx][envelope]")
+{
+    // Overlay v2 has no C++ transaction queue, so instead of exercising
+    // admission through Herder::recvTransaction (as master does), check the
+    // offset itself: it is the expiry buffer used when validating
+    // transactions against the next ledger.
+    auto testWithCloseTimeMs = [](uint32_t closeTimeMs,
+                                  uint64_t expectedBuffer) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = closeTimeMs;
+        auto app = createTestApplication(clock, cfg);
+        auto& lm = app->getLedgerManager();
+
+        // Close a ledger at a known whole second T, then align the clock with
+        // it so the offset's drift term starts at zero
+        TimePoint const T =
+            VirtualClock::to_time_t(app->getClock().system_now()) + 1000;
+        closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, T);
+        auto const lclCloseTime =
+            getApplyTime(lm.getLastClosedLedgerHeader().header.scpValue);
+        REQUIRE(lclCloseTime.timePoint() == T);
+
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(T));
+        REQUIRE(getUpperBoundCloseTimeOffset(*app, lclCloseTime) ==
+                expectedBuffer);
+
+        // Wall-clock time elapsed since the last close is added on top
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(T + 7));
+        REQUIRE(getUpperBoundCloseTimeOffset(*app, lclCloseTime) ==
+                expectedBuffer + 7);
+    };
+
+    SECTION("whole-second close times keep the legacy 2x buffer")
+    {
+        testWithCloseTimeMs(5000, 10);
+    }
+    SECTION("sub-second close times round the buffer up to a whole second")
+    {
+        // 2 * 400ms rounds up to 1s rather than truncating to 0, which would
+        // erase the admission-time expiry buffer entirely
+        testWithCloseTimeMs(400, 1);
+    }
+    SECTION("fractional-second close times round up, not down")
+    {
+        // 2 * 1300ms = 2600ms rounds up to 3s
+        testWithCloseTimeMs(1300, 3);
     }
 }

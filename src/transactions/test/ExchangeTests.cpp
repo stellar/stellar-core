@@ -3,9 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/test/LedgerTestUtils.h"
+#include "main/Config.h"
 #include "test/Catch2.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/numeric128.h"
 
 using namespace stellar;
@@ -518,7 +520,8 @@ TEST_CASE("ExchangeV10", "[exchange]")
         auto checkExchangeV10 = [](Price const& p, int64_t maxWheatSend,
                                    int64_t maxSheepSend, int64_t wheatReceive,
                                    int64_t sheepSend) {
-            auto res = exchangeV10(p, maxWheatSend, INT64_MAX, maxSheepSend,
+            auto res = exchangeV10(Config::CURRENT_LEDGER_PROTOCOL_VERSION, p,
+                                   maxWheatSend, INT64_MAX, maxSheepSend,
                                    INT64_MAX, RoundingType::NORMAL);
             REQUIRE(res.wheatStays ==
                     (maxWheatSend * p.n > maxSheepSend * p.d));
@@ -561,24 +564,27 @@ TEST_CASE("ExchangeV10", "[exchange]")
 
     SECTION("Limited by maxWheatReceive and maxSheepReceive")
     {
-        auto checkExchangeV10 = [](Price const& p, int64_t maxWheatReceive,
-                                   int64_t maxSheepReceive,
-                                   int64_t wheatReceive, int64_t sheepSend) {
-            auto res = exchangeV10(p, INT64_MAX, maxWheatReceive, INT64_MAX,
-                                   maxSheepReceive, RoundingType::NORMAL);
-            REQUIRE(res.wheatStays ==
-                    (maxSheepReceive * p.d > maxWheatReceive * p.n));
-            REQUIRE(res.numWheatReceived == wheatReceive);
-            REQUIRE(res.numSheepSend == sheepSend);
-            if (res.wheatStays)
-            {
-                REQUIRE(sheepSend * p.d >= wheatReceive * p.n);
-            }
-            else
-            {
-                REQUIRE(sheepSend * p.d <= wheatReceive * p.n);
-            }
-        };
+        auto checkExchangeV10 =
+            [](Price const& p, int64_t maxWheatReceive, int64_t maxSheepReceive,
+               int64_t wheatReceive, int64_t sheepSend,
+               ProtocolVersion protocolVersion = static_cast<ProtocolVersion>(
+                   Config::CURRENT_LEDGER_PROTOCOL_VERSION)) {
+                auto res = exchangeV10(static_cast<uint32_t>(protocolVersion),
+                                       p, INT64_MAX, maxWheatReceive, INT64_MAX,
+                                       maxSheepReceive, RoundingType::NORMAL);
+                REQUIRE(res.wheatStays ==
+                        (maxSheepReceive * p.d > maxWheatReceive * p.n));
+                REQUIRE(res.numWheatReceived == wheatReceive);
+                REQUIRE(res.numSheepSend == sheepSend);
+                if (res.wheatStays)
+                {
+                    REQUIRE(sheepSend * p.d >= wheatReceive * p.n);
+                }
+                else
+                {
+                    REQUIRE(sheepSend * p.d <= wheatReceive * p.n);
+                }
+            };
 
         SECTION("price > 1")
         {
@@ -589,7 +595,14 @@ TEST_CASE("ExchangeV10", "[exchange]")
 
             // Boundary between two values
             checkExchangeV10(Price{3, 2}, 2999, 4499, 2999, 4499);
-            checkExchangeV10(Price{3, 2}, 2999, 4498, 2998, 4497);
+
+            // Starting from protocol 29 the taken offer amount is computed
+            // without a rounding error, so we send 1 sheep more than before (
+            // full amount available).
+            checkExchangeV10(Price{3, 2}, 2999, 4498, 2998, 4497,
+                             ProtocolVersion::V_28);
+            checkExchangeV10(Price{3, 2}, 2999, 4498, 2999, 4498,
+                             ProtocolVersion::V_29);
         }
 
         SECTION("price < 1")
@@ -610,7 +623,8 @@ TEST_CASE("ExchangeV10", "[exchange]")
         auto checkExchangeV10 = [](Price const& p, int64_t maxWheatSend,
                                    int64_t maxWheatReceive,
                                    int64_t wheatReceive, int64_t sheepSend) {
-            auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
+            auto res = exchangeV10(Config::CURRENT_LEDGER_PROTOCOL_VERSION, p,
+                                   maxWheatSend, maxWheatReceive, INT64_MAX,
                                    INT64_MAX, RoundingType::NORMAL);
             REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
             REQUIRE(res.numWheatReceived == wheatReceive);
@@ -647,7 +661,8 @@ TEST_CASE("ExchangeV10", "[exchange]")
         auto checkExchangeV10 = [](Price const& p, int64_t maxSheepSend,
                                    int64_t maxSheepReceive,
                                    int64_t wheatReceive, int64_t sheepSend) {
-            auto res = exchangeV10(p, INT64_MAX, INT64_MAX, maxSheepSend,
+            auto res = exchangeV10(Config::CURRENT_LEDGER_PROTOCOL_VERSION, p,
+                                   INT64_MAX, INT64_MAX, maxSheepSend,
                                    maxSheepReceive, RoundingType::NORMAL);
             REQUIRE(res.wheatStays == (maxSheepReceive > maxSheepSend));
             REQUIRE(res.numWheatReceived == wheatReceive);
@@ -684,7 +699,8 @@ TEST_CASE("ExchangeV10", "[exchange]")
         auto checkExchangeV10 = [](Price const& p, int64_t maxWheatSend,
                                    int64_t maxWheatReceive,
                                    int64_t wheatReceive, int64_t sheepSend) {
-            auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
+            auto res = exchangeV10(Config::CURRENT_LEDGER_PROTOCOL_VERSION, p,
+                                   maxWheatSend, maxWheatReceive, INT64_MAX,
                                    INT64_MAX, RoundingType::NORMAL);
             REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
             REQUIRE(res.numWheatReceived == wheatReceive);
@@ -713,7 +729,8 @@ TEST_CASE("ExchangeV10", "[exchange]")
         auto check = [](Price const& p, int64_t maxWheatSend,
                         int64_t maxWheatReceive, RoundingType round,
                         int64_t wheatReceive, int64_t sheepSend) {
-            auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
+            auto res = exchangeV10(Config::CURRENT_LEDGER_PROTOCOL_VERSION, p,
+                                   maxWheatSend, maxWheatReceive, INT64_MAX,
                                    INT64_MAX, round);
             REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
             REQUIRE(res.numWheatReceived == wheatReceive);
@@ -748,8 +765,9 @@ TEST_CASE("ExchangeV10", "[exchange]")
                         int64_t maxWheatReceive, int64_t maxSheepSend,
                         RoundingType round, int64_t wheatReceive,
                         int64_t sheepSend) {
-            auto res = exchangeV10(p, maxWheatSend, maxWheatReceive,
-                                   maxSheepSend, INT64_MAX, round);
+            auto res = exchangeV10(Config::CURRENT_LEDGER_PROTOCOL_VERSION, p,
+                                   maxWheatSend, maxWheatReceive, maxSheepSend,
+                                   INT64_MAX, round);
             // This is not generally true, but it is a simple interface for what
             // we need to test.
             if (maxWheatReceive == INT64_MAX)
@@ -776,7 +794,8 @@ TEST_CASE("ExchangeV10", "[exchange]")
 
         SECTION("transfer can increase if wheat is more valuable")
         {
-            REQUIRE(adjustOffer(Price{3, 2}, 97, INT64_MAX) == 97);
+            REQUIRE(adjustOffer(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                Price{3, 2}, 97, INT64_MAX) == 97);
             check(Price{3, 2}, 97, INT64_MAX, 145, RoundingType::NORMAL, 96,
                   144);
             check(Price{3, 2}, 97, INT64_MAX, 145,
@@ -801,12 +820,16 @@ TEST_CASE("ExchangeV10", "[exchange]")
 
 TEST_CASE("Adjust Offer", "[exchange]")
 {
-    auto checkAdjustOffer = [](Price const& p, int64_t maxWheatSend,
-                               int64_t maxSheepReceive,
-                               int64_t expectedAmount) {
-        int64_t adjAmount = adjustOffer(p, maxWheatSend, maxSheepReceive);
-        REQUIRE(adjAmount == expectedAmount);
-    };
+    auto checkAdjustOffer =
+        [](Price const& p, int64_t maxWheatSend, int64_t maxSheepReceive,
+           int64_t expectedAmount,
+           ProtocolVersion protocolVersion = static_cast<ProtocolVersion>(
+               Config::CURRENT_LEDGER_PROTOCOL_VERSION)) {
+            int64_t adjAmount =
+                adjustOffer(static_cast<uint32_t>(protocolVersion), p,
+                            maxWheatSend, maxSheepReceive);
+            REQUIRE(adjAmount == expectedAmount);
+        };
 
     SECTION("Limits")
     {
@@ -847,13 +870,16 @@ TEST_CASE("Adjust Offer", "[exchange]")
 
     SECTION("Adjusting offer again has no effect")
     {
-        auto checkAdjustOfferTwice = [&](Price const& p, int64_t maxWheatSend,
-                                         int64_t maxSheepReceive,
-                                         int64_t expectedAmount) {
-            checkAdjustOffer(p, maxWheatSend, maxSheepReceive, expectedAmount);
-            checkAdjustOffer(p, expectedAmount, maxSheepReceive,
-                             expectedAmount);
-        };
+        auto checkAdjustOfferTwice =
+            [&](Price const& p, int64_t maxWheatSend, int64_t maxSheepReceive,
+                int64_t expectedAmount,
+                ProtocolVersion protocolVersion = static_cast<ProtocolVersion>(
+                    Config::CURRENT_LEDGER_PROTOCOL_VERSION)) {
+                checkAdjustOffer(p, maxWheatSend, maxSheepReceive,
+                                 expectedAmount, protocolVersion);
+                checkAdjustOffer(p, expectedAmount, maxSheepReceive,
+                                 expectedAmount, protocolVersion);
+            };
 
         SECTION("price > 1")
         {
@@ -867,8 +893,15 @@ TEST_CASE("Adjust Offer", "[exchange]")
             SECTION("limited (or not) by maxSheepReceive")
             {
                 checkAdjustOfferTwice(Price{7, 3}, 428, 999, 428);
-                checkAdjustOfferTwice(Price{7, 3}, 428, 998, 427);
                 checkAdjustOfferTwice(Price{7, 3}, 428, 997, 427);
+
+                // Starting from protocol 29 the taken offer amount is computed
+                // without a rounding error, so we send 1 wheat more than
+                // before (full amount available).
+                checkAdjustOfferTwice(Price{7, 3}, 428, 998, 427,
+                                      ProtocolVersion::V_28);
+                checkAdjustOfferTwice(Price{7, 3}, 428, 998, 428,
+                                      ProtocolVersion::V_29);
             }
         }
 

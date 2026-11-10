@@ -83,13 +83,6 @@ enum class ApplyLoadModelTx
     CUSTOM_TOKEN,
     SOROSWAP
 };
-
-// Which apply-load timing path to use.
-enum class ApplyLoadTimingPhases
-{
-    APPLY_ONLY,
-    TX_SET_VALIDATION_AND_APPLY
-};
 #endif
 
 class Config : public std::enable_shared_from_this<Config>
@@ -255,8 +248,8 @@ class Config : public std::enable_shared_from_this<Config>
     // will make your history archives incompatible with those of anyone else.
     bool ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING;
 
-    // A config parameter to override the close time (in seconds). Do not use
-    // in production as it may render the network unstable.
+    // A config parameter to override the close time (in milliseconds). Do not
+    // use in production as it may render the network unstable.
     uint32 ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING;
 
     // A config parameter that avoids resolving FutureBuckets before writing
@@ -432,10 +425,6 @@ class Config : public std::enable_shared_from_this<Config>
     // If set to true, database writes will count towards TPS calculation.
     // Otherwise, BucketList writes will not be counted.
     bool APPLY_LOAD_TIME_WRITES = true;
-
-    // Which apply-load timing path to use.
-    ApplyLoadTimingPhases APPLY_LOAD_TIMING_PHASES =
-        ApplyLoadTimingPhases::APPLY_ONLY;
 #endif // BUILD_TESTS
 
     // Waits for merges to complete before applying transactions during catchup
@@ -993,11 +982,6 @@ class Config : public std::enable_shared_from_this<Config>
     // contains an operation in this list.
     std::vector<OperationType> EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
 
-    // Any transaction that reaches the TransactionQueue will be rejected if
-    // its source account, any operation source account, or (for Soroban txs)
-    // any ACCOUNT-type write footprint entry matches an address in this list.
-    std::vector<std::string> FILTERED_G_ADDRESSES;
-
     Config();
 
     void load(std::string const& filename);
@@ -1024,7 +1008,11 @@ class Config : public std::enable_shared_from_this<Config>
     bool modeDoesCatchupWithBucketList() const;
     bool allBucketsInMemory() const;
     void logBasicInfo() const;
-    bool parallelLedgerClose() const;
+    // Whether ledgers are applied on the background apply thread rather than
+    // the main thread. NB: can be false even when PARALLEL_LEDGER_APPLY is
+    // set (in-memory SQLite doesn't support it; a warning is logged and the
+    // flag is cleared during config validation).
+    bool backgroundLedgerApply() const;
 
     // Returns true if this node should run the NTP clock-drift check: an NTP
     // server is configured and the node is a validator (clock drift only hurts

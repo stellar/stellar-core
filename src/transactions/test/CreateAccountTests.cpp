@@ -47,19 +47,19 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             auto tx1 = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(createAccount(key.getPublicKey(), 0))}, {});
-            root->loadSequenceNumber();
             auto tx2 = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(createAccount(key.getPublicKey(), 1))}, {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx1->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                               0, 0));
+            REQUIRE(!tx1->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             REQUIRE(getCreateAccountResultCode(tx1, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
 
-            REQUIRE(tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(tx2->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
         });
 
         for_versions_from(14, *app, [&] {
@@ -67,19 +67,19 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             auto tx1 = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(createAccount(key.getPublicKey(), -1))}, {});
-            root->loadSequenceNumber();
             auto tx2 = transactionFrameFromOps(
                 app->getNetworkID(), *root,
                 {root->op(createAccount(key.getPublicKey(), 0))}, {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx1->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                               0, 0));
+            REQUIRE(!tx1->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             REQUIRE(getCreateAccountResultCode(tx1, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
 
-            REQUIRE(tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(tx2->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
         });
     }
 
@@ -90,9 +90,9 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
                 app->getNetworkID(), *root,
                 {root->op(createAccount(*root, -1))}, {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
+            REQUIRE(!tx->checkValidForTesting(
+                app->getAppConnector(), *app->getLedgerManager().getLCLView(),
+                0, 0, 0));
             REQUIRE(getCreateAccountResultCode(tx, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
         });

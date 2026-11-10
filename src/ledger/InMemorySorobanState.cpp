@@ -455,7 +455,8 @@ InMemorySorobanState::initializeStateFromSnapshot(
     auto ledgerVersion = lclHeader.ledgerVersion;
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(applyView);
+        auto const* sorobanConfig = applyView.getSorobanNetworkConfig();
+        releaseAssertOrThrow(sorobanConfig);
         auto contractDataHandler = [this](LedgerEntry const& le,
                                           LedgerKey const&) {
             createContractDataEntry(le);
@@ -465,10 +466,10 @@ InMemorySorobanState::initializeStateFromSnapshot(
             createTTL(le);
         };
 
-        auto contractCodeHandler = [this, &sorobanConfig,
+        auto contractCodeHandler = [this, sorobanConfig,
                                     ledgerVersion](LedgerEntry const& le,
                                                    LedgerKey const&) {
-            createContractCodeEntry(le, sorobanConfig, ledgerVersion);
+            createContractCodeEntry(le, *sorobanConfig, ledgerVersion);
         };
 
         applyView.scanCurrentLiveEntriesOfType(CONTRACT_DATA,
@@ -484,11 +485,10 @@ InMemorySorobanState::initializeStateFromSnapshot(
 
 void
 InMemorySorobanState::updateState(
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    LedgerEntryRefs initEntries, LedgerEntryRefs liveEntries,
+    LedgerKeyRefs deadEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    SorobanMetrics& metrics)
+    SorobanMetricsRegistry& metrics)
 {
     // After initialization, we must apply every ledger in order to the
     // in-memory state with no gaps.
@@ -500,7 +500,7 @@ InMemorySorobanState::updateState(
     {
         releaseAssertOrThrow(sorobanConfig.has_value());
         uint32_t ledgerVersion = lh.ledgerVersion;
-        for (auto const& entry : initEntries)
+        for (LedgerEntry const& entry : initEntries)
         {
             if (entry.data.type() == CONTRACT_DATA)
             {
@@ -516,7 +516,7 @@ InMemorySorobanState::updateState(
             }
         }
 
-        for (auto const& entry : liveEntries)
+        for (LedgerEntry const& entry : liveEntries)
         {
             if (entry.data.type() == CONTRACT_DATA)
             {
@@ -532,7 +532,7 @@ InMemorySorobanState::updateState(
             }
         }
 
-        for (auto const& key : deadEntries)
+        for (LedgerKey const& key : deadEntries)
         {
             if (key.type() == CONTRACT_DATA)
             {
@@ -575,7 +575,7 @@ InMemorySorobanState::getSize() const
 }
 
 void
-InMemorySorobanState::reportMetrics(SorobanMetrics& metrics) const
+InMemorySorobanState::reportMetrics(SorobanMetricsRegistry& metrics) const
 {
     metrics.mContractCodeStateSize.set_count(mContractCodeStateSize);
     metrics.mContractDataStateSize.set_count(mContractDataStateSize);

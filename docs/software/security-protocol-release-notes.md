@@ -59,6 +59,47 @@ It then follows that:
 
 # List of releases
 
+## v29.0.0 (2026-10-05)
+* `Ledger` - security - Improve DEX offer crossing accuracy. Rounding during offer crossing could cause an asset pair to become permanently blocked from trading.
+    * exploited: no
+    * mitigation: code fix
+* `Ledger` - protocol - Liquidity pool hops are no longer counted against the path payment hop limit.
+* `Overlay` - protocol - Lower the maximum overlay message size.
+* `Overlay` - security - Drop messages exceeding the size limit early, before they are fully read and processed.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Fix outbound queue load shedding to prevent unbounded growth of queued messages.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Don't read messages from peers during the authentication handshake.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Remove the hash-of-hash optimization for flood message tracking.
+    * exploited: no
+    * mitigation: code fix
+
+## v28.0.1 (2026-08-14)
+* `Overlay` - security - Deduplicate query messages to prevent peers from inducing excessive resource consumption via repeated requests.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Skip background transaction signature verification for unauthenticated peers.
+    * exploited: no
+    * mitigation: code fix
+* `Herder` - security - Clamp additions in transaction set fee summing functions to prevent integer overflow.
+    * exploited: no
+    * mitigation: code fix
+
+## v28.0.0 (2026-08-13)
+* `Overlay` - security - Strengthen flow control and peer request processing limits to prevent excessive resource consumption.
+    * exploited: no
+    * mitigation: code fix
+* `Ledger` - security - Enforce transaction signature verification limits throughout transaction validation.
+    * exploited: no
+    * mitigation: code fix
+* `Ledger` - security - Ensure consistent validation of transaction XDR across protocol versions.
+    * exploited: no
+    * mitigation: code fix
+
 ## v26.1.0 (2026-05-07)
 * `Ledger` - security - Replace block on transactions using `ed25519SignedPayload` signatures with an overall cap on signature verifications stellar-core will perform per transaction.
     * exploited: no

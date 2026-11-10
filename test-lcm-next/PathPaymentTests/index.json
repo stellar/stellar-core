@@ -1,8 +1,9 @@
 {
-   "0dfe5423d3e1cac7" : "path_payment_uses_all_offers_in_a_loop-protocol_version_28-no_issuers_missing",
-   "4a5fb7ad61be37b1" : "path_payment_uses_all_offers_in_a_loop-protocol_version_26-inside_issuers_missing",
-   "6b8dd7030be55252" : "path_payment_uses_all_offers_in_a_loop-protocol_version_26-no_issuers_missing",
-   "a0d129f4a7f84481" : "path_payment_uses_all_offers_in_a_loop-protocol_version_26-outside_issuers_missing",
-   "a89a28b26308d91a" : "path_payment_uses_all_offers_in_a_loop-protocol_version_28-outside_issuers_missing",
-   "d61f4d7a7dfbf38d" : "path_payment_uses_all_offers_in_a_loop-protocol_version_28-inside_issuers_missing"
+   "!cfg protocol version" : 31,
+   "!rng seed" : 12345,
+   "!test all versions" : false,
+   "!versions to test" : [ 31 ],
+   "30ea939cc4a58515" : "path payment uses all offers in a loop|protocol version 31|outside issuers missing",
+   "83ff8da715be468c" : "path payment uses all offers in a loop|protocol version 31|inside issuers missing",
+   "c2dc64e48dc25d51" : "path payment uses all offers in a loop|protocol version 31|no issuers missing"
 }

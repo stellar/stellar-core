@@ -6,6 +6,7 @@
 
 #include "bucket/LiveBucketList.h"
 #include "ledger/InternalLedgerEntry.h"
+#include "ledger/LedgerEntryRefs.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "util/UnorderedMap.h"
@@ -363,6 +364,8 @@ struct RestoredEntries
 };
 
 class AbstractLedgerTxn;
+class LedgerTxnView;
+class SorobanNetworkConfig;
 
 // LedgerTxnDelta represents the difference between a LedgerTxn and its
 // parent. Used in the Invariants subsystem.
@@ -567,6 +570,13 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     friend class LedgerTxnHeader::Impl;
     virtual void deactivateHeader() = 0;
 
+    // registerView and unregisterView track the read-only views of this
+    // AbstractLedgerTxn. Registering the first view deactivates all the active
+    // LedgerTxnEntry and LedgerTxnHeader objects.
+    friend class LedgerTxnView;
+    virtual void registerView() = 0;
+    virtual void unregisterView() = 0;
+
   public:
     // Automatically rollback the data stored in the AbstractLedgerTxn if it
     // has not already been committed or rolled back.
@@ -647,13 +657,16 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // REITERATED WARNING: do _not_ call these methods from normal online
     // transaction processing code, or any code that is sensitive to the
     // state of the database. These are only here for clobbering it with
-    // new data.
+    // new data, or for callers that precisely track the existence and final
+    // state of every entry they write (e.g. the parallel apply commit).
 
     virtual void createWithoutLoading(InternalLedgerEntry const& entry) = 0;
+    virtual void createWithoutLoading(InternalLedgerEntry&& entry) = 0;
     virtual void updateWithoutLoading(InternalLedgerEntry const& entry) = 0;
+    virtual void updateWithoutLoading(InternalLedgerEntry&& entry) = 0;
     virtual void eraseWithoutLoading(InternalLedgerKey const& key) = 0;
 
-    // getChanges, getDelta, and getAllEntries are used to
+    // getChanges, getDelta, and sealAndBorrowAllEntries are used to
     // extract information about changes contained in the AbstractLedgerTxn
     // in different formats. These functions also cause the AbstractLedgerTxn
     // to enter the sealed state, simultaneously updating last modified if
@@ -666,17 +679,17 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     to the LedgerHeader) in a format convenient for answering queries
     //     about how specific entries and the header have changed. To be used
     //     for invariants.
-    // - getAllEntries
-    //     extracts a list of keys that were created (init), updated (live) or
-    //     deleted (dead) in this AbstractLedgerTxn. All these are to be
-    //     inserted into the BucketList.
+    // - sealAndBorrowAllEntries
+    //     seals the LTX, then returns lists of references to keys that were
+    //     created (init), updated (live) or deleted (dead) in this
+    //     AbstractLedgerTxn. All these are to be inserted into the BucketList.
     //
     // All of these functions throw if the AbstractLedgerTxn has a child.
     virtual LedgerEntryChanges getChanges() = 0;
     virtual LedgerTxnDelta getDelta() = 0;
-    virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
-                               std::vector<LedgerEntry>& liveEntries,
-                               std::vector<LedgerKey>& deadEntries) = 0;
+    virtual void sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                         LedgerEntryRefVec& liveEntries,
+                                         LedgerKeyRefVec& deadEntries) = 0;
 
     // Returns all TTL keys that have been modified (create, update, and
     // delete), but does not cause the AbstractLedgerTxn or update last
@@ -736,6 +749,22 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // SPONSORSHIP_COUNTER entry type. Throws if the AbstractLedgerTxn has a
     // child.
     virtual bool hasSponsorshipEntry() const = 0;
+
+    // Creates a read-only view of this AbstractLedgerTxn. While the view is
+    // alive, any operation that modifies this AbstractLedgerTxn, hands out
+    // mutable entries or header, or creates a child, throws.
+    // This may take an externally provided Soroban config (nullptr before the
+    // Soroban protocol version) instead of loading it from ltx. This capability
+    // only exists as optimization to avoid re-loading the config when many
+    // short-term views are created (e.g. for transaction/operation processing);
+    // most views can just load the config from the LTX.
+    LedgerTxnView makeView(SorobanNetworkConfig const* sorobanConfig = nullptr);
+    // Creates a view that does not prevent all modifications of this
+    // AbstractLedgerTxn.
+    // This is only necessary for the transaction validation in protocols
+    // before 8, where account loading has side effects, and is not allowed in
+    // the later protocols.
+    LedgerTxnView makeMutableViewForLegacyProtocol();
 };
 
 class LedgerTxn : public AbstractLedgerTxn
@@ -747,6 +776,9 @@ class LedgerTxn : public AbstractLedgerTxn
     void deactivate(InternalLedgerKey const& key) override;
 
     void deactivateHeader() override;
+
+    void registerView() override;
+    void unregisterView() override;
 
     std::unique_ptr<Impl> const& getImpl() const;
 
@@ -814,9 +846,9 @@ class LedgerTxn : public AbstractLedgerTxn
     std::vector<InflationWinner>
     queryInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
-    void getAllEntries(std::vector<LedgerEntry>& initEntries,
-                       std::vector<LedgerEntry>& liveEntries,
-                       std::vector<LedgerKey>& deadEntries) override;
+    void sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                 LedgerEntryRefVec& liveEntries,
+                                 LedgerKeyRefVec& deadEntries) override;
     LedgerKeySet getAllKeysWithoutSealing() const override;
 
     UnorderedMap<LedgerKey, LedgerEntry>
@@ -833,7 +865,9 @@ class LedgerTxn : public AbstractLedgerTxn
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
 
     void createWithoutLoading(InternalLedgerEntry const& entry) override;
+    void createWithoutLoading(InternalLedgerEntry&& entry) override;
     void updateWithoutLoading(InternalLedgerEntry const& entry) override;
+    void updateWithoutLoading(InternalLedgerEntry&& entry) override;
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
     std::map<AccountID, std::vector<LedgerTxnEntry>> loadAllOffers() override;

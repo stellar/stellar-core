@@ -18,7 +18,7 @@ class Herder;
 class BanManager;
 struct OverlayMetrics;
 class SorobanNetworkConfig;
-class SorobanMetrics;
+class SorobanMetricsRegistry;
 class SearchableHotArchiveBucketListSnapshot;
 struct LedgerTxnDelta;
 class BatchExecutor;
@@ -48,7 +48,7 @@ class AppConnector
     Hash const& getNetworkID() const;
 
     // Thread-safe methods
-    SorobanMetrics& getSorobanMetrics() const;
+    SorobanMetricsRegistry& getSorobanMetrics() const;
     void postOnMainThread(
         std::function<void()>&& f, std::string&& message,
         Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION);
@@ -71,9 +71,7 @@ class AppConnector
 
     bool isStopping() const;
 
-    ImmutableLedgerView copyImmutableLedgerView();
     ApplyLedgerView copyApplyLedgerView();
-    void maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView);
 
     // Protocol 23 data corruption bug data verifier. This typically is null,
     // unless a path to a CSV file containing the corruption data was provided

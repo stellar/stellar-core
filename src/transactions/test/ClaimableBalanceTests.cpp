@@ -151,6 +151,9 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     auto const& lm = app.getLedgerManager();
     bool const isNative = asset.type() == ASSET_TYPE_NATIVE;
     int64_t const reserve = claimants.size() * lm.getLastReserve();
+    // The sponsorship transactions below have 3 operations each and are all
+    // paid for by the root account.
+    auto const sponsoredTxFee = 3 * lm.getLastTxFee();
 
     auto getAccAssetBalance = [&](TestAccount const& acc) {
         return isNative ? acc.getAvailableBalance()
@@ -174,21 +177,14 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
              createAcc.op(createClaimableBalance(asset, amount, claimants)),
              createAcc.op(endSponsoringFutureReserves())},
             {createAcc});
-
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMetaBuilder txm(true, *tx,
-                                   ltx.loadHeader().current().ledgerVersion,
-                                   app.getAppConnector());
-        REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
-        REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
-        REQUIRE(tx->getResultCode() == txSUCCESS);
+        applyTx(tx, app);
 
         // the create is the second op in the tx
         balanceID = root->getBalanceID(1);
+
+        LedgerTxn ltx(app.getLedgerTxnRoot());
         checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
                          &root->getPublicKey());
-
-        ltx.commit();
     }
     else
     {
@@ -210,8 +206,8 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
     if (createIsSponsored)
     {
-        // fee isn't charged here because we used tx->apply above
-        REQUIRE(rootBalanceBeforeCreate - reserve == rootBalanceAfterCreate);
+        REQUIRE(rootBalanceBeforeCreate - reserve - sponsoredTxFee ==
+                rootBalanceAfterCreate);
         REQUIRE(createAccNativeBeforeCreate - (isNative ? amount : 0) ==
                 createAccNativeAfterCreate);
     }
@@ -235,16 +231,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
              createAcc.op(revokeSponsorship(claimableBalanceKey(balanceID))),
              createAcc.op(endSponsoringFutureReserves())},
             {createAcc});
-
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMetaBuilder txm(true, *tx,
-                                   ltx.loadHeader().current().ledgerVersion,
-                                   app.getAppConnector());
-        REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
-        REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
-        ltx.commit();
-
-        REQUIRE(tx->getResultCode() == txSUCCESS);
+        applyTx(tx, app);
 
         createAcc.merge(*root);
     }
@@ -258,16 +245,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
              claimAcc.op(claimClaimableBalance(balanceID)),
              claimAcc.op(endSponsoringFutureReserves())},
             {claimAcc});
-
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMetaBuilder txm(true, *tx,
-                                   ltx.loadHeader().current().ledgerVersion,
-                                   app.getAppConnector());
-        REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
-        REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
-        ltx.commit();
-
-        REQUIRE(tx->getResultCode() == txSUCCESS);
+        applyTx(tx, app);
     }
     else
     {
@@ -279,22 +257,26 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
         // check that entries are no longer sponsored
         auto createAccNativeAfterClaim = createAcc.getAvailableBalance();
         auto rootBalanceAfterClaim = root->getAvailableBalance();
+        int64_t const claimFeePaidByRoot =
+            claimIsSponsored ? sponsoredTxFee : 0;
 
         if (createIsSponsored)
         {
-            REQUIRE(rootBalanceAfterCreate + reserve == rootBalanceAfterClaim);
+            REQUIRE(rootBalanceAfterCreate + reserve - claimFeePaidByRoot ==
+                    rootBalanceAfterClaim);
             REQUIRE(createAccNativeAfterCreate == createAccNativeAfterClaim);
         }
         else
         {
-            REQUIRE(rootBalanceAfterCreate == rootBalanceAfterClaim);
+            REQUIRE(rootBalanceAfterCreate - claimFeePaidByRoot ==
+                    rootBalanceAfterClaim);
             REQUIRE(createAccNativeAfterCreate + reserve ==
                     createAccNativeAfterClaim);
         }
     }
 
     // The only difference if the claim account is sponsored is that the fee
-    // wasn't charged
+    // wasn't charged to the claim account.
     int64_t fee = (isNative && !claimIsSponsored) ? lm.getLastTxFee() : 0;
 
     auto claimAccBalanceAfterClaim = getAccAssetBalance(claimAcc);
@@ -619,8 +601,9 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                             asset, amount, {makeClaimant(acc2, pred)});
 
                         // move closeTime forward by a day
-                        closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, 2,
-                                      1, 2016);
+                        closeLedgerOn(
+                            *app, lm.getLastClosedLedgerNum() + 1,
+                            withMsCloseTime(*app, getTestDate(2, 1, 2016)));
                         REQUIRE_THROWS_AS(
                             acc2.claimClaimableBalance(balanceID),
                             ex_CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM);
@@ -721,8 +704,9 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                             asset, amount, {makeClaimant(acc2, pred)});
 
                         // move closeTime forward by a day
-                        closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, 2,
-                                      1, 2016);
+                        closeLedgerOn(
+                            *app, lm.getLastClosedLedgerNum() + 1,
+                            withMsCloseTime(*app, getTestDate(2, 1, 2016)));
                         acc2.claimClaimableBalance(balanceID);
                     };
 
@@ -898,8 +882,8 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 
                     if (createAndClaimInSameTx)
                     {
-                        auto id = acc1.getBalanceID(
-                            0, acc1.getLastSequenceNumber() + 1);
+                        auto id =
+                            acc1.getBalanceID(0, acc1.nextSequenceNumber());
                         auto tx =
                             acc1.tx({acc1.op(createClaimableBalance(
                                          asset, amount,
@@ -908,8 +892,10 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 
                         // use closeLedger so we can apply a multi op tx and get
                         // the fee charged
-                        closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, 2,
-                                      1, 2016, {tx});
+                        auto r =
+                            closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1,
+                                          2, 1, 2016, {tx});
+                        checkTx(0, r, txSUCCESS);
                     }
                     else
                     {
@@ -1024,10 +1010,8 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
             auto balanceID2 = acc1.getBalanceID(1);
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto entry1 =
-                stellar::loadClaimableBalance(ltx, acc1.getBalanceID(0));
-            auto entry2 =
-                stellar::loadClaimableBalance(ltx, acc1.getBalanceID(1));
+            auto entry1 = stellar::loadClaimableBalance(ltx, balanceID1);
+            auto entry2 = stellar::loadClaimableBalance(ltx, balanceID2);
 
             REQUIRE((entry1 && entry2));
 
@@ -1112,7 +1096,8 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 
             // Move accA seqnum to accB's
             accA.bumpSequence(accB.getLastSequenceNumber());
-            REQUIRE(accA.loadSequenceNumber() == accB.loadSequenceNumber());
+            REQUIRE(accA.getLastSequenceNumber() ==
+                    accB.getLastSequenceNumber());
 
             // accB and accA have the same seq num. Create a claimable balance
             // with accB twice. Once using accB as the Tx account, and once with
@@ -1167,15 +1152,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                  acc1.op(createClaimableBalance(native, 1, validClaimants)),
                  acc1.op(endSponsoringFutureReserves())},
                 {acc1});
-
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaBuilder txm(true, *tx,
-                                       ltx.loadHeader().current().ledgerVersion,
-                                       app->getAppConnector());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-            REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-            REQUIRE(tx->getResultCode() == txSUCCESS);
+            applyTx(tx, *app);
 
             auto balanceID = root->getBalanceID(1);
 
@@ -1184,20 +1161,8 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                 app->getNetworkID(), *root,
                 {root->op(revokeSponsorship(claimableBalanceKey(balanceID)))},
                 {});
-
-            TransactionMetaBuilder txm2(
-                true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                app->getAppConnector());
-            REQUIRE(tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
-            REQUIRE(tx2->getResultCode() == txFAILED);
-
-            REQUIRE(tx2->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .revokeSponsorshipResult()
-                        .code() == REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE);
+            REQUIRE_THROWS_AS(applyTx(tx2, *app),
+                              ex_REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE);
         }
 
         SECTION("too many sponsoring")
@@ -1250,29 +1215,11 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                              createClaimableBalance(idr, 1, validClaimants)),
                          acc2.op(endSponsoringFutureReserves())},
                         {acc2});
-
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-                    REQUIRE(tx->getResultCode() == txSUCCESS);
-                    ltx.commit();
+                    applyTx(tx, *app);
                 }
 
                 auto claimAccount = isClawback ? issuer : acc2;
-
-                uint32_t lastModifiedLedgerSeq;
-                {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    lastModifiedLedgerSeq =
-                        loadAccount(ltx, claimAccount.getPublicKey(), true)
-                            .current()
-                            .lastModifiedLedgerSeq;
-                }
-
+                uint32_t claimLedgerSeq;
                 {
                     auto balanceID = root->getBalanceID(1);
 
@@ -1282,26 +1229,13 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root, {claimAccount.op(claimOp)},
                         {claimAccount});
-
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
-                    REQUIRE(tx2->getResultCode() == txSUCCESS);
-
-                    // increment ledgerSeq
-                    auto header = ltx.loadHeader();
-                    ++header.current().ledgerSeq;
-
-                    ltx.commit();
+                    applyTx(tx2, *app);
+                    claimLedgerSeq = lm.getLastClosedLedgerNum();
                 }
                 // The op source account was loaded in the last transaction
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(lastModifiedLedgerSeq + 1 ==
+                    REQUIRE(claimLedgerSeq ==
                             loadAccount(ltx, claimAccount.getPublicKey(), true)
                                 .current()
                                 .lastModifiedLedgerSeq);
@@ -1328,4 +1262,53 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
             }
         }
     });
+}
+
+TEST_CASE("claimable balance absBefore under sub-second ledgers",
+          "[tx][claimablebalance]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                MS_CLOSE_TIME_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& lm = app->getLedgerManager();
+    auto root = app->getRoot();
+
+    TimePoint const T = 2;
+    auto nextSeq = [&]() { return lm.getLastClosedLedgerNum() + 1; };
+
+    ClaimPredicate pred;
+    pred.type(CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME);
+    pred.absBefore() = static_cast<int64_t>(T + 1);
+    auto claimant = makeClaimant(*root, pred);
+
+    auto rc = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 100),
+                            {root->tx({createClaimableBalance(
+                                makeNativeAsset(), 100, {claimant})})});
+    checkTx(0, rc, txSUCCESS);
+    REQUIRE(getConsensusTime(lm.getLastClosedLedgerHeader().header.scpValue) ==
+            makeConsensusTime(T, 100));
+    auto balanceID = root->getBalanceID(0);
+
+    SECTION("claim within the same second succeeds")
+    {
+        auto r = closeLedgerOn(*app, nextSeq(), makeConsensusTime(T, 900),
+                               {root->tx({claimClaimableBalance(balanceID)})});
+        checkTx(0, r, txSUCCESS);
+    }
+    SECTION("claim in the next second fails")
+    {
+        auto r = closeLedgerOn(*app, nextSeq(), T + 1,
+                               {root->tx({claimClaimableBalance(balanceID)})},
+                               /*strictOrder=*/true);
+        checkTx(0, r, txFAILED);
+        REQUIRE(r.results[0]
+                    .result.result.results()[0]
+                    .tr()
+                    .claimClaimableBalanceResult()
+                    .code() == CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM);
+    }
 }

@@ -210,26 +210,6 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             int64_t minBalance0 = app.getLedgerManager().getLastMinBalance(0);
             auto root = app.getRoot();
             auto a2 = root->create("cmarseAcc1", minBalance0 + txfee);
-
-            auto tx = transactionFrameFromOps(
-                app.getNetworkID(), *root,
-                {root->op(beginSponsoringFutureReserves(sponsoredAcc)),
-                 sponsoredAcc.op(opCreate),
-                 sponsoredAcc.op(endSponsoringFutureReserves())},
-                {sponsoredAcc.getSecretKey()});
-            auto tx2 = transactionFrameFromOps(app.getNetworkID(), *root,
-                                               {sponsoredAcc.op(opModify1)},
-                                               {sponsoredAcc.getSecretKey()});
-            auto tx3 = transactionFrameFromOps(
-                app.getNetworkID(), *root,
-                {a2.op(beginSponsoringFutureReserves(sponsoredAcc)),
-                 sponsoredAcc.op(opModify2),
-                 sponsoredAcc.op(endSponsoringFutureReserves())},
-                {a2.getSecretKey(), sponsoredAcc.getSecretKey()});
-            auto tx4 = transactionFrameFromOps(app.getNetworkID(), *root,
-                                               {sponsoredAcc.op(opRemove)},
-                                               {sponsoredAcc.getSecretKey()});
-
             auto check = [&](AbstractLedgerTxn& l) {
                 switch (rso.type())
                 {
@@ -250,6 +230,12 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             auto numReserves = getNumReservesRequiredForOperation(opCreate);
 
             {
+                auto tx = transactionFrameFromOps(
+                    app.getNetworkID(), *root,
+                    {root->op(beginSponsoringFutureReserves(sponsoredAcc)),
+                     sponsoredAcc.op(opCreate),
+                     sponsoredAcc.op(endSponsoringFutureReserves())},
+                    {sponsoredAcc.getSecretKey()});
                 auto r = closeLedger(app, {tx});
                 checkTx(0, r, txSUCCESS);
 
@@ -262,6 +248,9 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
 
             // Modify sponsored entry
             {
+                auto tx2 = transactionFrameFromOps(
+                    app.getNetworkID(), *root, {sponsoredAcc.op(opModify1)},
+                    {sponsoredAcc.getSecretKey()});
                 auto r2 = closeLedger(app, {tx2});
                 checkTx(0, r2, txSUCCESS);
 
@@ -274,6 +263,12 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
 
             // Modify sponsored entry while sponsored
             {
+                auto tx3 = transactionFrameFromOps(
+                    app.getNetworkID(), *root,
+                    {a2.op(beginSponsoringFutureReserves(sponsoredAcc)),
+                     sponsoredAcc.op(opModify2),
+                     sponsoredAcc.op(endSponsoringFutureReserves())},
+                    {a2.getSecretKey(), sponsoredAcc.getSecretKey()});
                 auto r3 = closeLedger(app, {tx3});
                 checkTx(0, r3, txSUCCESS);
 
@@ -287,6 +282,9 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
 
             // Remove sponsored entry
             {
+                auto tx4 = transactionFrameFromOps(
+                    app.getNetworkID(), *root, {sponsoredAcc.op(opRemove)},
+                    {sponsoredAcc.getSecretKey()});
                 auto r4 = closeLedger(app, {tx4});
                 checkTx(0, r4, txSUCCESS);
 

@@ -345,6 +345,10 @@ checkStellarCoreMajorVersionProtocolIdentity()
 
 #ifdef USE_TRACY_MEMORY_TRACKING
 
+#ifndef USE_TRACY
+#error "USE_TRACY_MEMORY_TRACKING requires USE_TRACY"
+#endif
+
 #ifdef __has_feature
 #if __has_feature(address_sanitizer)
 #define ASAN_ENABLED

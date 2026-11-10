@@ -128,6 +128,10 @@ template <> class hash<stellar::SCAddress>
             stellar::hashMix(
                 res, std::hash<stellar::uint256>()(addr.liquidityPoolId()));
             break;
+        case stellar::SC_ADDRESS_TYPE_MUXED_CONTRACT:
+            stellar::hashMix(
+                res, stellar::shortHash::xdrComputeHash(addr.muxedContract()));
+            break;
         }
         return res;
     }

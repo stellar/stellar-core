@@ -4,6 +4,7 @@
 
 #include "transactions/CreateClaimableBalanceOpFrame.h"
 #include "crypto/SHA.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -18,16 +19,16 @@ namespace stellar
 {
 
 static int64_t
-relativeToAbsolute(TimePoint closeTime, int64_t relative)
+relativeToAbsolute(ApplyTime closeTime, int64_t relative)
 {
-    return closeTime > static_cast<uint64_t>(INT64_MAX - relative)
+    return closeTime.timePoint() > static_cast<uint64_t>(INT64_MAX - relative)
                ? INT64_MAX
-               : closeTime + relative;
+               : closeTime.timePoint() + relative;
 }
 
 // convert all relative predicates to absolute predicates
 static void
-updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
+updatePredicatesForApply(ClaimPredicate& pred, ApplyTime closeTime)
 {
     switch (pred.type())
     {
@@ -222,7 +223,7 @@ CreateClaimableBalanceOpFrame::doApply(AppConnector& app,
     for (auto& claimant : claimableBalanceEntry.claimants)
     {
         updatePredicatesForApply(claimant.v0().predicate,
-                                 header.current().scpValue.closeTime);
+                                 getApplyTime(header.current().scpValue));
     }
 
     switch (createEntryWithPossibleSponsorship(ltx, header, newClaimableBalance,

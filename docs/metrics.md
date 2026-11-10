@@ -62,6 +62,7 @@ crypto.verify.miss                        | meter     | number of signature cach
 crypto.verify.total                       | meter     | sum of both hits and misses
 crypto.verify.tx-valid-hit                | meter     | signature cache hits that occurred while validating transactions (outside of background signature validation)
 crypto.verify.tx-valid-total              | meter     | sum of both hits and misses during transaction validation (outside of background signature validation)
+herder.txset.build                        | timer     | time spent building the tx set proposed at nomination from the transaction queues
 herder.txset.validate                     | timer     | time spent turning a received tx set into an applicable tx set and validating it on a validity-cache miss
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
@@ -173,6 +174,7 @@ process.action.queue                      | counter   | number of items waiting 
 process.action.overloaded                 | counter   | 0-or-1 value indicating action-queue overloading
 process.file.handles                      | counter   | number of open file handles
 process.memory.handles                    | counter   | number of running processes in process manager
+process.memory.malloc-heap                | counter   | number of bytes used in the malloc heap
 scp.envelope.emit                         | meter     | SCP message sent
 scp.envelope.invalidsig                   | meter     | envelope failed signature verification
 scp.envelope.receive                      | meter     | SCP message received
@@ -195,6 +197,9 @@ scp.timing.externalized                   | timer     | time spent in ballot pro
 scp.timing.first-to-self-externalize-lag  | timer     | delay between first externalize message and local node externalizing
 scp.timing.self-to-others-externalize-lag | timer     | delay between local node externalizing and later externalize messages from other nodes
 scp.timing.ballot-blocked-on-txset        | timer     | time balloting was blocked waiting for a txset download (milliseconds)
+scp.timing.trigger-to-ballot              | timer     | time from the local next-ledger trigger to first entry into the ballot protocol (proposal construction and nomination)
+scp.trigger.immediate                     | meter     | next-ledger trigger was already due when scheduled (the node is behind the target block time)
+scp.trigger.lateness                      | timer     | delay between the scheduled next-ledger trigger time and the trigger callback running
 scp.trigger.prepare-start-fallback        | meter     | trigger timer fell back from the network-close-time anchor to the local prepare-start anchor
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
@@ -278,7 +283,8 @@ soroban.config.bucket-list-target-size-byte  | counter   | soroban config settin
 soroban.module-cache.num-entries             | counter   | current number of entries in module cache
 soroban.module-cache.compilation-time        | timer     | times each contract compilation when adding to module cache
 soroban.module-cache.rebuild-time            | timer     | times each rebuild of module cache (including all compilations)
-soroban.module-cache.rebuild-bytes           | counter   | bytes of WASM bytecode compiled in last rebuild of module cache
+soroban.module-cache.rebuild-wasm-bytes      | counter   | bytes of WASM bytecode compiled in last rebuild of module cache
+soroban.module-cache.rebuild-heap-bytes      | counter   | bytes of heap memory allocated in last rebuild of module cache
 soroban.in-memory-state.contract-code-size   | counter   | size in bytes of non-evicted ContractCode entries according to memory cost model
 soroban.in-memory-state.contract-data-size   | counter   | size in bytes of ContractData entries in memory
 soroban.in-memory-state.contract-code-entries   | counter   | number of ContractCode entries in memory

@@ -50,11 +50,11 @@ sampleDiscrete(std::vector<T> const& values,
 uint64_t
 footprintSize(Application& app, xdr::xvector<stellar::LedgerKey> const& keys)
 {
-    CheckValidLedgerViewWrapper ledgerView(app);
+    auto ledgerView = app.getLedgerManager().getLCLView();
     uint64_t total = 0;
     for (auto const& key : keys)
     {
-        auto entry = ledgerView.load(key);
+        auto entry = ledgerView->load(key);
         if (entry)
         {
             total += xdr::xdr_size(entry.current());
@@ -88,8 +88,8 @@ TxGenerator::updateMinBalance()
 bool
 TxGenerator::isLive(LedgerKey const& lk, uint32_t ledgerNum) const
 {
-    CheckValidLedgerViewWrapper ledgerView(mApp);
-    auto ttlEntryPtr = ledgerView.load(getTTLKey(lk));
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
+    auto ttlEntryPtr = ledgerView->load(getTTLKey(lk));
 
     return ttlEntryPtr && stellar::isLive(ttlEntryPtr.current(), ledgerNum);
 }
@@ -126,11 +126,57 @@ TxGenerator::generateFee(std::optional<uint32_t> maxGeneratedFeeRate,
     return fee;
 }
 
-bool
-TxGenerator::loadAccount(TestAccount& account)
+CachedTestAccount::CachedTestAccount(Application& app, SecretKey sk,
+                                     SequenceNumber sn)
+    : TestAccount(app, std::move(sk)), mSn(sn)
 {
-    CheckValidLedgerViewWrapper ledgerView(mApp);
-    auto const entry = ledgerView.getAccount(account.getPublicKey());
+}
+
+void
+CachedTestAccount::maybeLoadSequenceNumber()
+{
+    if (mSn == 0)
+    {
+        mSn = TestAccount::getLastSequenceNumber();
+    }
+}
+
+SequenceNumber
+CachedTestAccount::getLastSequenceNumber()
+{
+    maybeLoadSequenceNumber();
+    return mSn;
+}
+
+SequenceNumber
+CachedTestAccount::nextSequenceNumber()
+{
+    maybeLoadSequenceNumber();
+    if (mSn == std::numeric_limits<SequenceNumber>::max())
+    {
+        throw std::runtime_error("Sequence number overflow in test account");
+    }
+    return ++mSn;
+}
+
+SequenceNumber
+CachedTestAccount::loadSequenceNumber()
+{
+    mSn = 0;
+    return getLastSequenceNumber();
+}
+
+void
+CachedTestAccount::setSequenceNumber(SequenceNumber sn)
+{
+    mSn = sn;
+}
+
+bool
+TxGenerator::loadAccount(CachedTestAccount& account)
+{
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
+    auto const entry = ledgerView->getAccount(account.getPublicKey());
     if (!entry)
     {
         return false;
@@ -140,7 +186,7 @@ TxGenerator::loadAccount(TestAccount& account)
 }
 
 bool
-TxGenerator::loadAccount(TxGenerator::TestAccountPtr acc)
+TxGenerator::loadAccount(CachedTestAccountPtr acc)
 {
     if (acc)
     {
@@ -150,7 +196,7 @@ TxGenerator::loadAccount(TxGenerator::TestAccountPtr acc)
 }
 
 void
-TxGenerator::maybeLoadAccountSequenceNumber(TestAccountPtr const& account)
+TxGenerator::maybeLoadAccountSequenceNumber(CachedTestAccountPtr const& account)
 {
     if (!mApp.getRunInOverlayOnlyMode())
     {
@@ -158,7 +204,7 @@ TxGenerator::maybeLoadAccountSequenceNumber(TestAccountPtr const& account)
     }
 }
 
-std::pair<TxGenerator::TestAccountPtr, TxGenerator::TestAccountPtr>
+std::pair<CachedTestAccountPtr, CachedTestAccountPtr>
 TxGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
                              uint32_t ledgerNum, uint64_t sourceAccountId)
 {
@@ -170,15 +216,15 @@ TxGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
 
     CLOG_DEBUG(LoadGen, "Generated pair for payment tx - {} and {}",
                sourceAccountId, destAccountId);
-    return std::pair<TxGenerator::TestAccountPtr, TxGenerator::TestAccountPtr>(
-        sourceAccount, destAccount);
+    return std::pair<CachedTestAccountPtr, CachedTestAccountPtr>(sourceAccount,
+                                                                 destAccount);
 }
 
-TxGenerator::TestAccountPtr
+CachedTestAccountPtr
 TxGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
 {
     // Load account and cache it.
-    TxGenerator::TestAccountPtr newAccountPtr;
+    CachedTestAccountPtr newAccountPtr;
 
     auto res = mAccounts.find(accountId);
     if (res == mAccounts.end())
@@ -186,13 +232,14 @@ TxGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
         // Special handling for root account
         if (accountId == TxGenerator::ROOT_ACCOUNT_ID)
         {
-            newAccountPtr = mApp.getRoot();
+            newAccountPtr = std::make_shared<CachedTestAccount>(
+                mApp, mApp.getRoot()->getSecretKey());
         }
         else
         {
             SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
             auto name = "TestAccount-" + std::to_string(accountId);
-            newAccountPtr = std::make_shared<TestAccount>(
+            newAccountPtr = std::make_shared<CachedTestAccount>(
                 mApp, txtest::getAccount(name), sn);
 
             if (!mApp.getRunInOverlayOnlyMode() && !loadAccount(newAccountPtr))
@@ -201,7 +248,7 @@ TxGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
                     "Account {0} must exist in the DB.", accountId));
             }
         }
-        mAccounts.insert(std::pair<uint64_t, TxGenerator::TestAccountPtr>(
+        mAccounts.insert(std::pair<uint64_t, CachedTestAccountPtr>(
             accountId, newAccountPtr));
     }
     else
@@ -222,19 +269,19 @@ TxGenerator::createAccounts(uint64_t start, uint64_t count, uint32_t ledgerNum,
     for (uint64_t i = start; i < start + count; i++)
     {
         auto name = "TestAccount-" + to_string(i);
-        auto account = TestAccount{mApp, txtest::getAccount(name.c_str()), sn};
-        ops.push_back(txtest::createAccount(account.getPublicKey(), balance));
+        auto account = std::make_shared<CachedTestAccount>(
+            mApp, txtest::getAccount(name.c_str()), sn);
+        ops.push_back(txtest::createAccount(account->getPublicKey(), balance));
 
         // Cache newly created account
-        auto acc = make_shared<TestAccount>(account);
-        mAccounts.emplace(i, acc);
+        mAccounts.emplace(i, account);
     }
     return ops;
 }
 
 TransactionFrameBaseConstPtr
 TxGenerator::createTransactionFramePtr(
-    TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
+    CachedTestAccountPtr from, std::vector<Operation> ops,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
     auto txf = transactionFromOperations(
@@ -246,7 +293,7 @@ TxGenerator::createTransactionFramePtr(
 
 TransactionFrameBaseConstPtr
 TxGenerator::createTransactionFramePtr(
-    TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
+    CachedTestAccountPtr from, std::vector<Operation> ops,
     std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<uint32_t> byteCount, std::optional<Memo> memo)
 {
@@ -264,14 +311,14 @@ TxGenerator::createTransactionFramePtr(
     }
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                 uint32_t ledgerNum, uint64_t sourceAccount,
                                 std::optional<uint32_t> byteCount,
                                 std::optional<uint32_t> maxGeneratedFeeRate,
                                 std::optional<Memo> memo)
 {
-    TxGenerator::TestAccountPtr to, from;
+    CachedTestAccountPtr to, from;
     uint64_t amount = 1;
     std::tie(from, to) =
         pickAccountPair(numAccounts, offset, ledgerNum, sourceAccount);
@@ -283,7 +330,7 @@ TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                                           byteCount, memo));
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createUploadWasmTransaction(
     uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
     LedgerKey const& contractCodeLedgerKey,
@@ -320,7 +367,7 @@ TxGenerator::createUploadWasmTransaction(
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createContractTransaction(
     uint32_t ledgerNum, uint64_t accountId, LedgerKey const& codeKey,
     uint64_t contractOverheadBytes, uint256 const& salt,
@@ -343,14 +390,14 @@ TxGenerator::createContractTransaction(
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createSACTransaction(uint32_t ledgerNum,
                                   std::optional<uint64_t> accountId,
                                   Asset const& asset,
                                   std::optional<uint32_t> maxGeneratedFeeRate)
 {
-    auto account =
-        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    auto account = findAccount(
+        accountId ? *accountId : TxGenerator::ROOT_ACCOUNT_ID, ledgerNum);
     SorobanResources createResources{};
     createResources.instructions = 1'000'000;
     createResources.diskReadBytes = 200;
@@ -397,7 +444,7 @@ increaseOpSize(Operation& op, uint32_t increaseUpToBytes)
     op.body.invokeHostFunctionOp().auth = {auth};
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanLoadTransaction(
     uint32_t ledgerNum, uint64_t accountId, ContractInstance const& instance,
     uint64_t contractOverheadBytes, std::optional<uint32_t> maxGeneratedFeeRate)
@@ -559,7 +606,7 @@ TxGenerator::invokeSorobanLoadTransaction(
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanLoadTransactionV2(
     uint32_t ledgerNum, uint64_t accountId, ContractInstance const& instance,
     ApplyLoadTxProfile const& txProfile, uint64_t dataEntryCount,
@@ -753,7 +800,7 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
                               SCAddress const& toAddress,
                               ContractInstance const& instance, uint64_t amount,
@@ -830,7 +877,7 @@ TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
     return std::make_pair(fromAccount, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeTokenTransfer(uint32_t ledgerNum, uint64_t fromAccountId,
                                  uint64_t toAccountId,
                                  ContractInstance const& instance,
@@ -1009,7 +1056,7 @@ makeTrustlineKey(PublicKey const& accountID, Asset const& asset)
     return key;
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSoroswapSwap(uint32_t ledgerNum, uint64_t fromAccountId,
                                 SoroswapState const& state, size_t pairIndex,
                                 bool swapAForB,
@@ -1118,7 +1165,7 @@ TxGenerator::invokeSoroswapSwap(uint32_t ledgerNum, uint64_t fromAccountId,
     return std::make_pair(fromAccount, tx);
 }
 
-std::map<uint64_t, TxGenerator::TestAccountPtr> const&
+std::map<uint64_t, CachedTestAccountPtr> const&
 TxGenerator::getAccounts()
 {
     return mAccounts;
@@ -1142,7 +1189,7 @@ TxGenerator::reset()
     mAccounts.clear();
 }
 
-TxGenerator::TestAccountPtr
+CachedTestAccountPtr
 TxGenerator::getAccount(uint64_t accountId) const
 {
     auto res = mAccounts.find(accountId);
@@ -1154,7 +1201,7 @@ TxGenerator::getAccount(uint64_t accountId) const
 }
 
 void
-TxGenerator::addAccount(uint64_t accountId, TxGenerator::TestAccountPtr account)
+TxGenerator::addAccount(uint64_t accountId, CachedTestAccountPtr account)
 {
     mAccounts.emplace(accountId, account);
 }
@@ -1178,7 +1225,7 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
 {
     xdr::xvector<ConfigSettingEntry> updatedEntries;
 
-    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto ledgerView = mApp.getLedgerManager().getLCLView();
     for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
     {
         auto type = static_cast<ConfigSettingID>(t);
@@ -1217,7 +1264,7 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             continue;
         }
 
-        auto entryPtr = ledgerView.load(configSettingKey(type));
+        auto entryPtr = ledgerView->load(configSettingKey(type));
         // This could happen if we have not yet upgraded
         if ((t == CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0 ||
              t == CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0 ||
@@ -1384,6 +1431,11 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             {
                 setting.contractEvents().txMaxContractEventsSizeBytes =
                     *upgradeCfg.txMaxContractEventsSizeBytes;
+            }
+            if (upgradeCfg.feeContractEvents1KB.has_value())
+            {
+                setting.contractEvents().feeContractEvents1KB =
+                    *upgradeCfg.feeContractEvents1KB;
             }
             break;
         case CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
@@ -1554,7 +1606,7 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
     return xdr::xdr_to_opaque(upgradeSet);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanCreateUpgradeTransaction(
     uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
     LedgerKey const& codeKey, LedgerKey const& instanceKey,
@@ -1611,7 +1663,7 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
                                           uint64_t accountId,
                                           uint32_t inclusionFee)
@@ -1679,7 +1731,7 @@ TxGenerator::sorobanRandomUploadResources()
     return {resources, wasmSize};
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeBatchTransfer(uint32_t ledgerNum, uint64_t sourceAccountId,
                                  ContractInstance const& batchTransferInstance,
                                  ContractInstance const& sacInstance,

@@ -25,6 +25,7 @@ enum StrKeyVersionByte : uint8_t
     STRKEY_HASH_X = 23,                 // 'X'
     STRKEY_MUXED_ACCOUNT_ED25519 = 12,  // 'M'
     STRKEY_CONTRACT = 2,                // 'C'
+    STRKEY_MUXED_CONTRACT = 22,         // 'W'
 };
 
 // Encode a version byte and ByteSlice into StrKey

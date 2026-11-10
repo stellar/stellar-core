@@ -1,0 +1,8 @@
+{
+   "!cfg protocol version" : 30,
+   "!rng seed" : 12345,
+   "!test all versions" : false,
+   "!versions to test" : [ 30 ],
+   "3635a80135f66ca8" : "claimable balance absBefore under sub-second ledgers|claim within the same second succeeds",
+   "67b49513ed2f1609" : "claimable balance absBefore under sub-second ledgers|claim in the next second fails"
+}

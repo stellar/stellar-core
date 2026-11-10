@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
@@ -17,6 +18,7 @@
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/UnorderedSet.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -410,6 +412,19 @@ AbstractLedgerTxn::~AbstractLedgerTxn()
 }
 
 // Implementation of LedgerTxn ----------------------------------------------
+LedgerTxnView
+AbstractLedgerTxn::makeView(SorobanNetworkConfig const* sorobanConfig)
+{
+    return LedgerTxnView(*this, sorobanConfig,
+                         /*isMutableForLegacyProtocol=*/false);
+}
+
+LedgerTxnView
+AbstractLedgerTxn::makeMutableViewForLegacyProtocol()
+{
+    return LedgerTxnView(*this, nullptr, /*isMutableForLegacyProtocol=*/true);
+}
+
 LedgerTxn::LedgerTxn(AbstractLedgerTxnParent& parent,
                      bool shouldUpdateLastModified, TransactionMode mode)
     : mImpl(
@@ -431,6 +446,7 @@ LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
     , mHeader(std::make_unique<LedgerHeader>(mParent.getHeader()))
     , mShouldUpdateLastModified(shouldUpdateLastModified)
     , mIsSealed(false)
+    , mActiveViewCount(0)
     , mConsistency(LedgerTxnConsistency::EXACT)
     , mActiveThreadId(std::this_thread::get_id())
 {
@@ -467,9 +483,15 @@ LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
     abortIfWrongThread("addChild");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     mChild = &child;
+    deactivateAll();
+}
 
+void
+LedgerTxn::Impl::deactivateAll() noexcept
+{
     try
     {
         for (auto const& kv : mActive)
@@ -479,12 +501,12 @@ LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
     }
     catch (std::exception& e)
     {
-        printErrorAndAbort("fatal error during add child to LedgerTxn: ",
+        printErrorAndAbort("fatal error during LedgerTxn deactivation: ",
                            e.what());
     }
     catch (...)
     {
-        printErrorAndAbort("unknown fatal error during add child to LedgerTxn");
+        printErrorAndAbort("unknown fatal error during LedgerTxn deactivation");
     }
 
     // std::set<...>::clear is noexcept
@@ -500,6 +522,15 @@ LedgerTxn::Impl::throwIfChild() const
     if (mChild)
     {
         throw std::runtime_error("LedgerTxn has child");
+    }
+}
+
+void
+LedgerTxn::Impl::throwIfViewActive() const
+{
+    if (mActiveViewCount > 0)
+    {
+        throw std::runtime_error("LedgerTxn has active views");
     }
 }
 
@@ -712,6 +743,7 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
     abortIfWrongThread("create");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto key = entry.toKey();
     if (getNewestVersion(key))
@@ -743,15 +775,22 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
 void
 LedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
 {
-    getImpl()->createWithoutLoading(entry);
+    getImpl()->createWithoutLoading(InternalLedgerEntry(entry));
 }
 
 void
-LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
+LedgerTxn::createWithoutLoading(InternalLedgerEntry&& entry)
+{
+    getImpl()->createWithoutLoading(std::move(entry));
+}
+
+void
+LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry&& entry)
 {
     abortIfWrongThread("createWithoutLoading");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto key = entry.toKey();
     auto iter = mActive.find(key);
@@ -764,24 +803,31 @@ LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
     // after this INIT entry is merged with the DELETED will be a LIVE. This is
     // because the entry would have been a LIVE before the delete. If it were an
     // INIT instead, the key would've been annihilated.
-    updateEntry(
-        key, /* keyHint */ nullptr,
-        LedgerEntryPtr::Init(std::make_shared<InternalLedgerEntry>(entry)),
-        /* effectiveActive */ false);
+    updateEntry(std::move(key), /* keyHint */ nullptr,
+                LedgerEntryPtr::Init(
+                    std::make_shared<InternalLedgerEntry>(std::move(entry))),
+                /* effectiveActive */ false);
 }
 
 void
 LedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
 {
-    getImpl()->updateWithoutLoading(entry);
+    getImpl()->updateWithoutLoading(InternalLedgerEntry(entry));
 }
 
 void
-LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
+LedgerTxn::updateWithoutLoading(InternalLedgerEntry&& entry)
+{
+    getImpl()->updateWithoutLoading(std::move(entry));
+}
+
+void
+LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry&& entry)
 {
     abortIfWrongThread("updateWithoutLoading");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto key = entry.toKey();
     auto iter = mActive.find(key);
@@ -790,10 +836,10 @@ LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
         throw std::runtime_error("Key is already active");
     }
 
-    updateEntry(
-        key, /* keyHint */ nullptr,
-        LedgerEntryPtr::Live(std::make_shared<InternalLedgerEntry>(entry)),
-        /* effectiveActive */ false);
+    updateEntry(std::move(key), /* keyHint */ nullptr,
+                LedgerEntryPtr::Live(
+                    std::make_shared<InternalLedgerEntry>(std::move(entry))),
+                /* effectiveActive */ false);
 }
 
 void
@@ -835,6 +881,38 @@ LedgerTxn::Impl::deactivateHeader()
 }
 
 void
+LedgerTxn::registerView()
+{
+    getImpl()->registerView();
+}
+
+void
+LedgerTxn::Impl::registerView()
+{
+    abortIfWrongThread("registerView");
+    throwIfSealed();
+    throwIfChild();
+    if (mActiveViewCount == 0)
+    {
+        deactivateAll();
+    }
+    ++mActiveViewCount;
+}
+
+void
+LedgerTxn::unregisterView()
+{
+    getImpl()->unregisterView();
+}
+
+void
+LedgerTxn::Impl::unregisterView() noexcept
+{
+    releaseAssert(mActiveViewCount > 0);
+    --mActiveViewCount;
+}
+
+void
 LedgerTxn::erase(InternalLedgerKey const& key)
 {
     getImpl()->erase(key);
@@ -846,6 +924,7 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     abortIfWrongThread("erase");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto newest = getNewestVersionEntryMap(key);
     if (!newest.first)
@@ -883,6 +962,7 @@ LedgerTxn::Impl::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
     abortIfWrongThread("markRestoredFromHotArchive");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     if (!isPersistentEntry(ledgerEntry.data))
     {
@@ -916,6 +996,7 @@ LedgerTxn::Impl::markRestoredFromLiveBucketList(LedgerEntry const& ledgerEntry,
     abortIfWrongThread("markRestoredFromLiveBucketList");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     if (!isPersistentEntry(ledgerEntry.data))
     {
@@ -951,6 +1032,7 @@ LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
     abortIfWrongThread("restoreFromLiveBucketList");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto key = LedgerEntryKey(entry);
     if (!isPersistentEntry(key))
@@ -999,6 +1081,7 @@ LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
     abortIfWrongThread("eraseWithoutLoading");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
     throwIfErasingConfig(key);
 
     auto activeIter = mActive.find(key);
@@ -1616,21 +1699,21 @@ LedgerTxn::Impl::queryInflationWinners(size_t maxWinners, int64_t minVotes)
 }
 
 void
-LedgerTxn::getAllEntries(std::vector<LedgerEntry>& initEntries,
-                         std::vector<LedgerEntry>& liveEntries,
-                         std::vector<LedgerKey>& deadEntries)
+LedgerTxn::sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                   LedgerEntryRefVec& liveEntries,
+                                   LedgerKeyRefVec& deadEntries)
 {
-    getImpl()->getAllEntries(initEntries, liveEntries, deadEntries);
+    getImpl()->sealAndBorrowAllEntries(initEntries, liveEntries, deadEntries);
 }
 
 void
-LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
-                               std::vector<LedgerEntry>& liveEntries,
-                               std::vector<LedgerKey>& deadEntries)
+LedgerTxn::Impl::sealAndBorrowAllEntries(LedgerEntryRefVec& initEntries,
+                                         LedgerEntryRefVec& liveEntries,
+                                         LedgerKeyRefVec& deadEntries)
 {
-    abortIfWrongThread("getAllEntries");
-    std::vector<LedgerEntry> resInit, resLive;
-    std::vector<LedgerKey> resDead;
+    abortIfWrongThread("sealAndBorrowAllEntries");
+    LedgerEntryRefVec resInit, resLive;
+    LedgerKeyRefVec resDead;
     resInit.reserve(mEntry.size());
     resLive.reserve(mEntry.size());
     resDead.reserve(mEntry.size());
@@ -1885,6 +1968,7 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
     abortIfWrongThread("load");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
     if (mActive.find(key) != mActive.end())
     {
         throw std::runtime_error("Key is active");
@@ -1937,6 +2021,7 @@ LedgerTxn::Impl::loadAllOffers(LedgerTxn& self)
     abortIfWrongThread("loadAllOffers");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto previousEntries = mEntry;
     auto previousMultiOrderBook = mMultiOrderBook;
@@ -1976,6 +2061,7 @@ LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
     abortIfWrongThread("loadBestOffer");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto le = getBestOffer(buying, selling);
     auto res = le ? load(self, LedgerEntryKey(*le)) : LedgerTxnEntry();
@@ -2058,6 +2144,7 @@ LedgerTxn::Impl::loadHeader(LedgerTxn& self)
     abortIfWrongThread("loadHeader");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
     if (mActiveHeader)
     {
         throw std::runtime_error("LedgerTxnHeader is active");
@@ -2086,6 +2173,7 @@ LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
     abortIfWrongThread("loadOffersByAccountAndAsset");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto previousEntries = mEntry;
     auto previousMultiOrderBook = mMultiOrderBook;
@@ -2127,6 +2215,7 @@ LedgerTxn::Impl::loadPoolShareTrustLinesByAccountAndAsset(
     abortIfWrongThread("loadPoolShareTrustLinesByAccountAndAsset");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     auto previousEntries = mEntry;
     auto trustLines = getPoolShareTrustLinesByAccountAndAsset(account, asset);
@@ -2314,6 +2403,7 @@ LedgerTxn::Impl::maybeUpdateLastModified() noexcept
     abortIfWrongThread("maybeUpdateLastModified");
     throwIfSealed();
     throwIfChild();
+    throwIfViewActive();
 
     for (auto& kv : mEntry)
     {
@@ -2433,6 +2523,24 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
                              LedgerEntryPtr lePtr,
                              bool effectiveActive) noexcept
 {
+    updateEntryImpl(key, keyHint, std::move(lePtr), effectiveActive);
+}
+
+void
+LedgerTxn::Impl::updateEntry(InternalLedgerKey&& key,
+                             EntryMap::iterator const* keyHint,
+                             LedgerEntryPtr lePtr,
+                             bool effectiveActive) noexcept
+{
+    updateEntryImpl(std::move(key), keyHint, std::move(lePtr), effectiveActive);
+}
+
+template <typename KeyT>
+void
+LedgerTxn::Impl::updateEntryImpl(KeyT&& key, EntryMap::iterator const* keyHint,
+                                 LedgerEntryPtr lePtr,
+                                 bool effectiveActive) noexcept
+{
     abortIfWrongThread("updateEntry");
     auto recordEntry = [&]() {
         // First, try to insert the entry. If the entry doesn't already exist,
@@ -2440,11 +2548,16 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
         // nothing else to do. However, if the key exists, then we either update
         // the old entry using the new entry, or erase the key if the existing
         // entry is a init and the update is a delete.
+        //
+        // NB: unlike emplace, try_emplace doesn't construct (and then discard)
+        // a node when the key already exists, which saves an allocation and a
+        // key copy on that path.
         bool inserted = false;
         EntryMap::iterator localIterDoNotUse;
         if (!keyHint || *keyHint == mEntry.end())
         {
-            std::tie(localIterDoNotUse, inserted) = mEntry.emplace(key, lePtr);
+            std::tie(localIterDoNotUse, inserted) =
+                mEntry.try_emplace(std::forward<KeyT>(key), lePtr);
             keyHint = &localIterDoNotUse;
         }
 
@@ -2821,7 +2934,7 @@ LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 
     if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
-        if (mApp.getConfig().parallelLedgerClose())
+        if (mApp.getConfig().backgroundLedgerApply())
         {
             mSession = std::make_unique<SessionWrapper>(
                 "ledgerClose", mApp.getDatabase().getPool());

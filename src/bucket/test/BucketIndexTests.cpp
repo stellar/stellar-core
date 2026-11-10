@@ -1780,8 +1780,8 @@ TEST_CASE("scanForLiveEntriesOfType loser tree unit tests",
             HistoryArchiveState has;
             has.currentLedger = lcl.header.ledgerSeq;
             auto state = std::make_shared<ImmutableLedgerData>(
-                bl, bm.getHotArchiveBucketList(), lcl, has, std::nullopt,
-                app->getMetrics());
+                bl, bm.getHotArchiveBucketList(), lcl, has,
+                SorobanNetworkConfig::emptyConfig(), app->getMetrics());
             return ImmutableLedgerView{state, app->getMetrics()};
         };
 
