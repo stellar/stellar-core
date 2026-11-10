@@ -999,18 +999,7 @@ impl StellarOverlay {
             .flood_advertised
             .fetch_add(peers.len() as u64, Ordering::Relaxed);
 
-        let inv_entry = InvEntry { hash, fee_per_op };
-
-        // Add to batcher for each peer, send batch immediately when full
-        for peer in &peers {
-            let batch_to_send = {
-                let mut batcher = self.state.inv_batcher.write().await;
-                batcher.add(*peer, inv_entry.clone())
-            };
-            if let Some(batch) = batch_to_send {
-                send_inv_batch(&self.state, *peer, batch).await;
-            }
-        }
+        queue_inv(&self.state, &peers, InvEntry { hash, fee_per_op }).await;
     }
 
     /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it
@@ -1367,13 +1356,30 @@ async fn send_to_peer_stream(
     send_to_peer_stream_parts(state, peer_id, stream_type, &[data]).await
 }
 
-/// All parts form one frame, including across partial writes and retries.
-/// The per-route lock stays held until that entire frame has been written.
+/// Send one frame made of `parts`, without assembling them into one buffer.
 async fn send_to_peer_stream_parts(
     state: &SharedState,
     peer_id: PeerId,
     stream_type: StreamType,
     parts: &[&[u8]],
+) -> io::Result<()> {
+    send_peer_frames(state, peer_id, stream_type, framed_io::Frames::One(parts)).await
+}
+
+/// Write `frames` to the peer's stream for `stream_type`, opening it if
+/// needed. The per-route lock stays held until every frame has been written,
+/// including across partial writes, so frames never interleave mid-frame.
+///
+/// A failed write drops the stream and retries the whole of `frames` on a
+/// reopened one (3 attempts). For a `Frames::Batch` this can deliver complete
+/// frames that reached the peer before the failure a second time; TX
+/// receivers drop such duplicates via `tx_seen`. The peer's reader on the old
+/// stream sees it end, possibly mid-frame, and exits.
+async fn send_peer_frames(
+    state: &SharedState,
+    peer_id: PeerId,
+    stream_type: StreamType,
+    frames: framed_io::Frames<'_>,
 ) -> io::Result<()> {
     // Retry up to 2 times (3 attempts total) for reliability
     const MAX_RETRIES: usize = 2;
@@ -1453,15 +1459,15 @@ async fn send_to_peer_stream_parts(
             // Never send a request to an old SCP reader: it would silently
             // discard it. Keep requests isolated from legacy response writes.
             drop(stream_guard);
-            return Box::pin(send_to_peer_stream_parts(
+            return Box::pin(send_peer_frames(
                 state,
                 peer_id,
                 StreamType::LegacyTxSetRequest,
-                parts,
+                frames,
             ))
             .await;
         }
-        match framed_io::write_frame_parts(&mut stream.stream, parts).await {
+        match frames.write(&mut stream.stream).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 // Clear the broken stream
@@ -1502,6 +1508,26 @@ async fn flush_inv_batch_to_peer(state: &Arc<SharedState>, peer: PeerId) {
     };
 
     if let Some(batch) = batch {
+        send_inv_batch(state, peer, batch).await;
+    }
+}
+
+/// Queue `entry` for every peer in `peers` under one INV batcher lock, rather
+/// than one lock round trip per peer, then send the batches it completed.
+/// `send_inv_batch` only spawns the write, so they still go out at once.
+async fn queue_inv(state: &Arc<SharedState>, peers: &[PeerId], entry: InvEntry) {
+    let full_batches: Vec<(PeerId, InvBatch)> = {
+        let mut batcher = state.inv_batcher.write().await;
+        peers
+            .iter()
+            .filter_map(|peer| {
+                batcher
+                    .add(*peer, entry.clone())
+                    .map(|batch| (*peer, batch))
+            })
+            .collect()
+    };
+    for (peer, batch) in full_batches {
         send_inv_batch(state, peer, batch).await;
     }
 }
@@ -1548,7 +1574,7 @@ async fn send_inv_batch(state: &Arc<SharedState>, peer: PeerId, batch: InvBatch)
 }
 
 /// Read length-prefixed frame from stream
-async fn read_framed(stream: &mut Stream) -> io::Result<Vec<u8>> {
+async fn read_framed<R: futures::AsyncRead + Unpin>(stream: &mut R) -> io::Result<Vec<u8>> {
     let mut len_buf = [0u8; 4];
     stream.read_exact(&mut len_buf).await?;
     let len = u32::from_be_bytes(len_buf) as usize;
@@ -1713,14 +1739,24 @@ async fn handle_inbound_scp_streams(
     }
 }
 
+/// Inbound TX streams carry many small frames, and GETDATA responses arrive
+/// as batches of them. Reading through a buffer copies whatever QUIC has
+/// received in one call, instead of two reads (each taking the connection
+/// lock) per frame. It never waits for more than is available, and larger
+/// frames bypass it once it is empty.
+fn buffered_tx_stream<R: futures::AsyncRead>(stream: R) -> futures::io::BufReader<R> {
+    futures::io::BufReader::with_capacity(TX_RESPONSE_BATCH_BYTES, stream)
+}
+
 /// Handle inbound TX streams from peers
 async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
-    while let Some((peer_id, mut stream)) = incoming.next().await {
+    while let Some((peer_id, stream)) = incoming.next().await {
         info!("TX_STREAM: Accepted inbound TX stream from {}", peer_id);
         state.metrics.inbound_live.fetch_add(1, Ordering::Relaxed);
         let state = state.clone();
 
         tokio::spawn(async move {
+            let mut stream = buffered_tx_stream(stream);
             loop {
                 match read_framed(&mut stream).await {
                     Ok(data) => {
@@ -1730,7 +1766,7 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
                             .byte_read
                             .fetch_add(data.len() as u64, Ordering::Relaxed);
                         // Parse INV/GETDATA message
-                        handle_tx_stream_message(&state, &peer_id, &data, &mut stream).await;
+                        handle_tx_stream_message(&state, &peer_id, &data).await;
                     }
                     Err(e) => {
                         state.metrics.error_read.fetch_add(1, Ordering::Relaxed);
@@ -1745,18 +1781,13 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
 }
 
 /// Handle TX stream message in INV/GETDATA mode
-async fn handle_tx_stream_message(
-    state: &Arc<SharedState>,
-    peer_id: &PeerId,
-    data: &[u8],
-    stream: &mut Stream,
-) {
+async fn handle_tx_stream_message(state: &Arc<SharedState>, peer_id: &PeerId, data: &[u8]) {
     match TxStreamMessage::decode(data) {
         Ok(TxStreamMessage::InvBatch(batch)) => {
             handle_inv_batch(state, peer_id, batch).await;
         }
         Ok(TxStreamMessage::GetData(getdata)) => {
-            handle_getdata(state, peer_id, getdata, stream).await;
+            handle_getdata(state, peer_id, getdata);
         }
         Ok(TxStreamMessage::Tx(tx)) => {
             handle_tx_response(state, peer_id, tx).await;
@@ -1778,29 +1809,29 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         peer_id
     );
 
-    let mut to_request: Vec<[u8; 32]> = Vec::new();
-
-    for entry in batch.entries {
-        // Check if we already have this TX
-        {
-            let seen = state.tx_seen.read().await;
-            if seen.contains(&entry.hash) {
-                // Already have it, just record this peer as a source (for relay tracking)
-                continue;
-            }
-        }
-
-        // Record this peer as a source for round-robin GETDATA
-        let is_first = {
-            let mut tracker = state.inv_tracker.write().await;
-            tracker.record_source(entry.hash, *peer_id)
-        };
-
-        // If this is the first INV for this TX, we should request it
-        if is_first {
-            to_request.push(entry.hash);
-        }
-    }
+    // Each structure is locked once per batch rather than once per entry, and
+    // the two locks are never held together. Entries keep their batch order.
+    // Skip TXs we already have; they are not recorded as sources.
+    let unseen: Vec<[u8; 32]> = {
+        let seen = state.tx_seen.read().await;
+        batch
+            .entries
+            .iter()
+            .map(|entry| entry.hash)
+            .filter(|hash| !seen.contains(hash))
+            .collect()
+    };
+    // Record this peer as a source for round-robin GETDATA retries, and
+    // request only TXs it is the first to advertise.
+    let to_request: Vec<[u8; 32]> = if unseen.is_empty() {
+        Vec::new()
+    } else {
+        let mut tracker = state.inv_tracker.write().await;
+        unseen
+            .into_iter()
+            .filter(|hash| tracker.record_source(*hash, *peer_id))
+            .collect()
+    };
 
     // Send GETDATA for TXs we don't have
     if !to_request.is_empty() {
@@ -1855,67 +1886,156 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
 }
 
 /// Handle GETDATA message - respond with requested TXs
-async fn handle_getdata(
-    state: &Arc<SharedState>,
-    peer_id: &PeerId,
-    getdata: GetData,
-    _stream: &mut Stream,
-) {
+fn handle_getdata(state: &Arc<SharedState>, peer_id: &PeerId, getdata: GetData) {
     debug!(
         "TX_GETDATA_RECV: Peer {} requesting {} TXs",
         peer_id,
         getdata.hashes.len()
     );
 
-    for hash in getdata.hashes {
-        // Look up TX in our buffer
-        let tx = {
+    let state = Arc::clone(state);
+    let peer = *peer_id;
+    tokio::spawn(async move { serve_getdata(&state, peer, getdata.hashes).await });
+}
+
+/// GETDATA responses are written as batches of complete TX frames of at most
+/// this many bytes. Inbound TX streams are read through a buffer of the same
+/// size, so one read can take in a whole batch.
+const TX_RESPONSE_BATCH_BYTES: usize = 64 * 1024;
+
+/// A transaction's length-prefixed `StellarMessage::Transaction` frame size.
+fn tx_frame_len(tx: &ValidatedTx) -> usize {
+    4 + tx
+        .flood_frame_parts()
+        .iter()
+        .map(|part| part.len())
+        .sum::<usize>()
+}
+
+/// Serve one demand in order, as one job that retains only one bounded batch
+/// while a peer is backpressured. Every TX still has its own wire frame.
+/// Batching avoids one task, stream lock and short QUIC write per transaction.
+///
+/// Each batch is looked up under one TX buffer lock, which is released before
+/// its frames are copied (straight from the shared TX bytes) and written.
+/// Lookups are lazy: batch k+1 is looked up after batch k is written, so a
+/// peer backpressured for longer than the buffer's retention gets misses for
+/// the rest rather than late responses; it re-demands after its timeout.
+///
+/// The job stops at the first write that fails after `send_peer_frames`'
+/// retries, usually because the peer disconnected. If the connection is in
+/// fact still up (a reset stream that also failed to reopen), the requester
+/// re-demands the rest after its response timeout.
+async fn serve_getdata(state: &SharedState, peer: PeerId, hashes: Vec<[u8; 32]>) {
+    let mut hashes = hashes.into_iter();
+    // A hit that did not fit the previous batch; it starts the next one.
+    let mut carried: Option<Arc<ValidatedTx>> = None;
+    let mut txs: Vec<Arc<ValidatedTx>> = Vec::new();
+    let mut batch = Vec::new();
+    loop {
+        txs.clear();
+        let mut bytes = 0;
+        if let Some(tx) = carried.take() {
+            bytes += tx_frame_len(&tx);
+            txs.push(tx);
+        }
+        if bytes < TX_RESPONSE_BATCH_BYTES {
             let mut buffer = state.tx_buffer.write().await;
-            buffer.get(&hash)
-        };
-
-        if let Some(tx) = tx {
-            state
-                .metrics
-                .flood_fulfilled
-                .fetch_add(1, Ordering::Relaxed);
-            // Send TX response. Buffered bytes were validated on entry, so
-            // framing them (concat) yields valid wire XDR by construction.
-            let encoded = tx.to_flood_frame();
-
-            let state_clone = Arc::clone(state);
-            let peer_clone = *peer_id;
-            tokio::spawn(async move {
-                if let Err(e) =
-                    send_to_peer_stream(&state_clone, peer_clone, StreamType::Tx, &encoded).await
-                {
-                    state_clone
+            for hash in hashes.by_ref() {
+                let Some(tx) = buffer.get(&hash) else {
+                    state
                         .metrics
-                        .error_write
+                        .flood_unfulfilled_unknown
                         .fetch_add(1, Ordering::Relaxed);
-                    warn!("Failed to send TX to {}: {}", peer_clone, e);
-                } else {
-                    state_clone
-                        .metrics
-                        .message_write
-                        .fetch_add(1, Ordering::Relaxed);
-                    state_clone
-                        .metrics
-                        .byte_write
-                        .fetch_add(encoded.len() as u64, Ordering::Relaxed);
-                    debug!("TX_SEND: Sent TX {:02x?}... to {}", &hash[..4], peer_clone);
+                    trace!(
+                        "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
+                        &hash[..4],
+                        peer
+                    );
+                    continue;
+                };
+                let len = tx_frame_len(&tx);
+                if !txs.is_empty() && bytes + len > TX_RESPONSE_BATCH_BYTES {
+                    carried = Some(tx);
+                    break;
                 }
-            });
+                bytes += len;
+                txs.push(tx);
+                if bytes >= TX_RESPONSE_BATCH_BYTES {
+                    break;
+                }
+            }
+        }
+        let Some(first) = txs.first() else {
+            return;
+        };
+        state
+            .metrics
+            .flood_fulfilled
+            .fetch_add(txs.len() as u64, Ordering::Relaxed);
+        let written = if bytes > TX_RESPONSE_BATCH_BYTES {
+            // Only a lone transaction can exceed the budget. Write it as the
+            // existing segmented frame, straight from the shared TX bytes.
+            let parts = first.flood_frame_parts();
+            let result = send_to_peer_stream_parts(state, peer, StreamType::Tx, &parts).await;
+            record_tx_response_write(state, peer, result, 1, bytes - 4)
         } else {
+            batch.clear();
+            batch.reserve_exact(bytes);
+            for tx in &txs {
+                let parts = tx.flood_frame_parts();
+                // Within the batch budget, so the length fits the u32 prefix.
+                let payload = parts.iter().map(|part| part.len()).sum::<usize>();
+                batch.extend_from_slice(&(payload as u32).to_be_bytes());
+                for part in parts {
+                    batch.extend_from_slice(part);
+                }
+            }
+            let frames = framed_io::Frames::Batch(&batch);
+            let result = send_peer_frames(state, peer, StreamType::Tx, frames).await;
+            record_tx_response_write(state, peer, result, txs.len(), bytes - 4 * txs.len())
+        };
+        if !written {
+            let remaining = hashes.len() + usize::from(carried.is_some());
+            if remaining > 0 {
+                debug!(
+                    "TX_GETDATA_ABANDON: Not serving {} more requested hashes to {} after a failed write",
+                    remaining, peer
+                );
+            }
+            return;
+        }
+    }
+}
+
+/// Returns whether the write succeeded.
+fn record_tx_response_write(
+    state: &SharedState,
+    peer: PeerId,
+    result: io::Result<()>,
+    messages: usize,
+    bytes: usize,
+) -> bool {
+    match result {
+        Ok(()) => {
             state
                 .metrics
-                .flood_unfulfilled_unknown
-                .fetch_add(1, Ordering::Relaxed);
-            trace!(
-                "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
-                &hash[..4],
-                peer_id
-            );
+                .message_write
+                .fetch_add(messages as u64, Ordering::Relaxed);
+            state
+                .metrics
+                .byte_write
+                .fetch_add(bytes as u64, Ordering::Relaxed);
+            debug!("TX_SEND: Sent {} TXs to {}", messages, peer);
+            true
+        }
+        Err(e) => {
+            state
+                .metrics
+                .error_write
+                .fetch_add(messages as u64, Ordering::Relaxed);
+            warn!("Failed to send {} TXs to {}: {}", messages, peer, e);
+            false
         }
     }
 }
@@ -2018,18 +2138,7 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
             peers_to_announce.len()
         );
 
-        let inv_entry = InvEntry { hash, fee_per_op };
-
-        // Add to batcher for each peer, send batch immediately when full
-        for peer in &peers_to_announce {
-            let batch_to_send = {
-                let mut batcher = state.inv_batcher.write().await;
-                batcher.add(*peer, inv_entry.clone())
-            };
-            if let Some(batch) = batch_to_send {
-                send_inv_batch(state, *peer, batch).await;
-            }
-        }
+        queue_inv(state, &peers_to_announce, InvEntry { hash, fee_per_op }).await;
     }
 
     // Record recv-transaction timing
