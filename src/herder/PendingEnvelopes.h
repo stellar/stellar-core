@@ -9,6 +9,7 @@
 #include "herder/QuorumTracker.h"
 #include "lib/json/json.h"
 #include "util/RandomEvictionCache.h"
+#include "util/Timer.h"
 #include <autocheck/function.hpp>
 #include <chrono>
 #include <map>
@@ -64,9 +65,20 @@ class PendingEnvelopes
     // hashes of txsets/qsets we're currently fetching
     std::map<Hash, std::vector<SCPEnvelope>> mPendingTxSetFetches;
     std::map<Hash, std::vector<SCPEnvelope>> mPendingQSetFetches;
-    // when each pending tx set fetch was started, used to report how long
-    // we've been waiting for a tx set (see getTxSetWaitingTime)
-    std::map<Hash, VirtualClock::time_point> mTxSetFetchStartTimes;
+    // State of each pending tx set fetch: when it started (see
+    // getTxSetWaitingTime), the newest slot waiting for it, and its overlay
+    // requests. The overlay has no request timeout of its own; Core
+    // re-requests sets it has not delivered (retryStalledTxSetFetches).
+    struct TxSetFetchState
+    {
+        VirtualClock::time_point mStarted;
+        VirtualClock::time_point mLastRequested;
+        uint64 mSlot;
+        uint32_t mRequests;
+    };
+    std::map<Hash, TxSetFetchState> mTxSetFetches;
+    VirtualTimer mTxSetFetchRetryTimer;
+    bool mTxSetFetchRetryScheduled{false};
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetXDRFrameConstPtr>;
     // recent txsets
@@ -91,12 +103,20 @@ class PendingEnvelopes
     medida::Timer& mFetchDuration;
     medida::Timer& mFetchTxSetTimer;
     medida::Timer& mFetchQsetTimer;
+    medida::Counter& mTxSetFetchRetries;
     // Tracked cost per slot
     medida::Histogram& mCostPerSlot;
 
     // discards all SCP envelopes that use QSet with a given hash,
     // as it is not sane QSet
     void discardSCPEnvelopesWithQSet(Hash const& hash);
+
+    // Hands a newly known tx set to the envelopes waiting to fetch it.
+    void completeTxSetFetch(Hash const& hash,
+                            TxSetXDRFrameConstPtr const& txset,
+                            bool deliveredByOverlay);
+    void scheduleTxSetFetchRetry();
+    void retryStalledTxSetFetches();
 
     void updateMetrics();
 
@@ -131,6 +151,11 @@ class PendingEnvelopes
                              std::optional<uint64> maxSlot, uint64 slotToKeep);
 
   public:
+    // How long a tx set request may stay unanswered before it is first
+    // repeated; later repeats back off up to 8 times this.
+    static constexpr std::chrono::milliseconds TX_SET_FETCH_RETRY_INTERVAL{
+        1000};
+
     PendingEnvelopes(Application& app, HerderImpl& herder);
     ~PendingEnvelopes();
 
@@ -163,10 +188,10 @@ class PendingEnvelopes
     bool recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset);
 
     /**
-     * Add @p txset identified by @p hash to local cache. Notifies
-     * @see ItemFetcher about that event - it may cause calls to Herder's
-     * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
-     * in PendingEnvelopes.
+     * Add @p txset identified by @p hash to local cache. If it was being
+     * fetched, completes the fetch: the envelopes waiting for it are passed
+     * to Herder's recvSCPEnvelope, which in turn may call @see
+     * recvSCPEnvelope in PendingEnvelopes, reenter SCP and externalize.
      */
     void addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                   TxSetXDRFrameConstPtr txset);
@@ -181,8 +206,8 @@ class PendingEnvelopes
 
     /**
      * Check if @p txset identified by @p hash was requested before from peers.
-     * If not, ignores that @p txset. If it was requested, calls
-     * @see addTxSet.
+     * If not, ignores that @p txset. If it was requested, caches it and
+     * completes the fetch like @see addTxSet.
      *
      * Return true if TxSet useful (was asked for).
      */

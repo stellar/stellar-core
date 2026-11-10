@@ -1253,7 +1253,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
             logQuorumInformationAndUpdateMetrics(slotIndex - 2);
         }
 
-        if (mCurrentValue)
+        if (mLedgerSeqNominating != 0)
         {
             // stop nomination
             // this may or may not be the ledger that is currently externalizing
@@ -1262,6 +1262,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
             // or we're going to trigger catchup from history
             mSCP.stopNomination(mLedgerSeqNominating);
             mCurrentValue.reset();
+            mLedgerSeqNominating = 0;
         }
 
         if (!mHerder.isTracking())
@@ -1337,24 +1338,51 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 }
 
 void
-HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
-                          TxSetXDRFrameConstPtr proposedSet,
-                          StellarValue const& previousValue)
+HerderSCPDriver::nominate(uint64_t slotIndex, NominationValueSupplier makeValue,
+                          StellarValue const& previousValue,
+                          bool constructValueNow)
 {
     ZoneScoped;
-    mCurrentValue = wrapStellarValue(value);
+    if (mLedgerSeqNominating != slotIndex)
+    {
+        mCurrentValue.reset();
+    }
     mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
-
-    auto valueHash = xdrSha256(mCurrentValue->getValue());
-    CLOG_DEBUG(Herder,
-               "HerderSCPDriver::triggerNextLedger txSet.size: {} "
-               "previousLedgerHash: {} value: {} slot: {}",
-               proposedSet->sizeTxTotal(),
-               hexAbbrev(proposedSet->previousLedgerHash()),
-               hexAbbrev(valueHash), slotIndex);
-
+    if (constructValueNow && !mCurrentValue)
+    {
+        auto value = makeValue();
+        // Publishing the tx set may externalize this slot, which stops its
+        // nomination. Do not restart it.
+        if (mLedgerSeqNominating != slotIndex)
+        {
+            return;
+        }
+        // A null value is retried by the supplier below if this node becomes
+        // a leader.
+        mCurrentValue = std::move(value);
+    }
     auto prevValue = xdr::xdr_to_opaque(previousValue);
-    mSCP.nominate(slotIndex, mCurrentValue, prevValue);
+    mSCP.nominate(
+        slotIndex,
+        [this, slotIndex,
+         makeValue = std::move(makeValue)]() -> ValueWrapperPtr {
+            if (mLedgerSeqNominating != slotIndex)
+            {
+                return nullptr;
+            }
+            if (!mCurrentValue)
+            {
+                auto value = makeValue();
+                // Publishing the tx set may externalize a pending value.
+                if (mLedgerSeqNominating != slotIndex)
+                {
+                    return nullptr;
+                }
+                mCurrentValue = std::move(value);
+            }
+            return mCurrentValue;
+        },
+        prevValue);
 }
 
 SCPQuorumSetPtr
@@ -1420,6 +1448,17 @@ HerderSCPDriver::startedBallotProtocol(uint64_t slotIndex,
                                        SCPBallot const& ballot)
 {
     recordSCPEvent(slotIndex, false);
+    // Prewarm the next ledger's signatures, after SCP has finished processing
+    // (and emitting) this step: the mempool pull waits for the overlay.
+    StellarValue sv;
+    if (toStellarValue(ballot.value, sv))
+    {
+        mApp.postOnMainThread(
+            [this, slotIndex, txSetHash = sv.txSetHash]() {
+                mHerder.prewarmNextLedgerSignatures(slotIndex, txSetHash);
+            },
+            "Herder: prewarm next ledger signatures");
+    }
 }
 void
 HerderSCPDriver::acceptedBallotPrepared(uint64_t slotIndex,
@@ -1931,6 +1970,12 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
     if (pRes == nullptr)
     {
         ZoneNamedN(txSetValidityMissZone, "txset validity cache miss", true);
+        // Validation verifies the remaining signatures itself, on all cores;
+        // a concurrent signature prewarm would only compete with it.
+        mHerder.stopSignaturePrewarm();
+        uint64_t sigCacheHits = 0;
+        uint64_t sigCacheMisses = 0;
+        PubKeyUtils::getVerifySigCacheCounts(sigCacheHits, sigCacheMisses);
         auto validationTime = mSCPMetrics.mTxSetValidation.TimeScope();
 
         // The invariant here is that we only validate tx sets nominated
@@ -1957,6 +2002,8 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
             res = applicableTxSet->checkValid(mApp, closeTimeOffset.seconds(),
                                               closeTimeOffset.seconds());
         }
+        markSignatureCacheLookups(mApp, "validate", sigCacheHits,
+                                  sigCacheMisses);
 
         mTxSetValidCache.put(key, res);
         return res;

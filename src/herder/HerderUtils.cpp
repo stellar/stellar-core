@@ -5,11 +5,15 @@
 #include "herder/HerderUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
+#include "crypto/SecretKey.h"
 #include "lib/json/json.h"
+#include "main/Application.h"
 #include "main/Config.h"
+#include "medida/meter.h"
 #include "rust/RustVecXdrMarshal.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "util/MetricsRegistry.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/types.h"
@@ -172,4 +176,24 @@ parseQuorumMapFromJson(std::string const& jsonPath)
     return qmap;
 }
 
+void
+markSignatureCacheLookups(Application& app, std::string const& prefix,
+                          uint64_t hits, uint64_t misses)
+{
+    uint64_t hitsNow = 0;
+    uint64_t missesNow = 0;
+    PubKeyUtils::getVerifySigCacheCounts(hitsNow, missesNow);
+    // A flush in between (the app's metrics sync, on the main thread like
+    // the callers) would have reset them.
+    if (hitsNow >= hits && missesNow >= misses)
+    {
+        auto& metrics = app.getMetrics();
+        metrics
+            .NewMeter({"herder", "txset", prefix + "-sig-cache-hit"}, "lookup")
+            .Mark(hitsNow - hits);
+        metrics
+            .NewMeter({"herder", "txset", prefix + "-sig-cache-miss"}, "lookup")
+            .Mark(missesNow - misses);
+    }
+}
 }

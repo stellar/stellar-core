@@ -165,6 +165,8 @@ VerifySigResult verifySig(PublicKey const& key, Signature const& signature,
 void clearVerifySigCache();
 void seedVerifySigCache(unsigned int seed);
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
+// The lookup counts since the last flush, without resetting them.
+void getVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
 
 PublicKey random();
 #ifdef BUILD_TESTS

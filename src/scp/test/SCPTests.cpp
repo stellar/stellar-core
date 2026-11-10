@@ -189,7 +189,8 @@ class TestSCP : public SCPDriver
     nominate(uint64 slotIndex, Value const& value, bool timedout)
     {
         auto wv = wrapValue(value);
-        return mSCP.getSlot(slotIndex, true)->nominate(wv, value, timedout);
+        return mSCP.getSlot(slotIndex, true)
+            ->nominate([wv]() { return wv; }, value, timedout);
     }
 
     // only used by nomination protocol

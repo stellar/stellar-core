@@ -201,6 +201,48 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
                     Herder::ENVELOPE_STATUS_PROCESSED);
         }
 
+        SECTION("reject a delivered set whose content hash differs")
+        {
+            REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
+            auto other = TxSetXDRFrame::makeEmpty(
+                sha256("another previous ledger"), lcl.header.ledgerVersion);
+            REQUIRE(other->getContentsHash() != p.second->getContentsHash());
+            REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
+                                                other));
+            REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
+            REQUIRE(pendingEnvelopes.getTxSetWaitingTime(
+                p.second->getContentsHash()));
+            REQUIRE(pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
+                                               p.second));
+            REQUIRE(herder.getSCP().getLatestMessage(pk));
+        }
+
+        SECTION("process when the tx set being fetched is built locally")
+        {
+            REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
+            REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
+            auto& fetchTimer =
+                app->getMetrics().NewTimer({"scp", "fetch", "txset"});
+            auto const fetches = fetchTimer.count();
+
+            // A promoted leader or a legacy-tx-set validator can build the
+            // set it is fetching. No overlay delivery may ever follow, so
+            // adding it completes the fetch and processes the envelope.
+            pendingEnvelopes.addTxSet(p.second->getContentsHash(),
+                                      lcl.header.ledgerSeq + 1, p.second);
+            auto m = herder.getSCP().getLatestMessage(pk);
+            REQUIRE(m);
+            REQUIRE(*m == saneEnvelope);
+            // Not an overlay fetch: scp.fetch.txset is not updated.
+            REQUIRE(fetchTimer.count() == fetches);
+
+            // A later delivery from the overlay is redundant.
+            REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
+                                                p.second));
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
+                    Herder::ENVELOPE_STATUS_PROCESSED);
+        }
+
         SECTION("process when all data came (tx set first)")
         {
             REQUIRE(pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
@@ -773,5 +815,115 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope without parallel tx set download",
         REQUIRE(
             pendingEnvelopes.recvTxSet(p.second->getContentsHash(), p.second));
         REQUIRE(herder.getSCP().getLatestMessage(pk) != nullptr);
+    }
+}
+
+TEST_CASE("PendingEnvelopes re-requests tx sets the overlay does not deliver",
+          "[herder]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    auto s = SecretKey::pseudoRandomForTesting();
+    auto& pk = s.getPublicKey();
+    cfg.QUORUM_SET.validators.emplace_back(pk);
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& pendingEnvelopes = herder.getPendingEnvelopes();
+
+    auto root = app->getRoot();
+    std::vector<TestAccount> accs;
+    for (size_t i = 0; i < 2; i++)
+    {
+        accs.push_back(TestAccount{*app, getAccount("A" + std::to_string(i))});
+    }
+    auto qSet = SCPQuorumSet{};
+    qSet.threshold = 1;
+    qSet.validators.push_back(pk);
+    auto qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+    auto p = makeTxPair(herder, s, makeTransactions(*app, accs, *root, 2), 10);
+    auto const hash = p.second->getContentsHash();
+    auto const slot = lcl.header.ledgerSeq + 1;
+    auto envelope = makeEnvelope(herder, s, p, qSetHash, slot);
+    pendingEnvelopes.addSCPQuorumSet(qSetHash, qSet);
+
+    auto& retries =
+        app->getMetrics().NewCounter({"scp", "fetch", "txset-retry"});
+    auto const initialRetries = retries.count();
+    auto const interval = PendingEnvelopes::TX_SET_FETCH_RETRY_INTERVAL;
+    // Advance virtual time by exactly `d` (crankFor can jump past it to the
+    // next timer).
+    auto crankBy = [&](VirtualClock::duration d) {
+        bool reached = false;
+        VirtualTimer sentinel(clock);
+        sentinel.expires_from_now(d);
+        sentinel.async_wait([&]() { reached = true; },
+                            &VirtualTimer::onFailureNoop);
+        while (!reached && clock.crank(false) > 0)
+        {
+        }
+        REQUIRE(reached);
+    };
+
+    REQUIRE(pendingEnvelopes.recvSCPEnvelope(envelope) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(pendingEnvelopes.getTxSetWaitingTime(hash));
+
+    // Nothing is repeated before the retry interval.
+    crankBy(interval / 2);
+    REQUIRE(retries.count() == initialRetries);
+
+    SECTION("an undelivered set is requested again until it arrives")
+    {
+        auto& fetchTimer =
+            app->getMetrics().NewTimer({"scp", "fetch", "txset"});
+        auto const fetches = fetchTimer.count();
+        // The overlay's own fetch time (synced from Rust) is a separate
+        // metric that Core's fetch tracking doesn't feed.
+        auto& overlayFetchTimer =
+            app->getMetrics().NewTimer({"overlay", "fetch", "txset"});
+        auto const overlayFetches = overlayFetchTimer.count();
+        // Requests repeat after 1 s, then back off: 2 s, 4 s, ...
+        crankBy(interval); // t = 1.5 s
+        REQUIRE(retries.count() == initialRetries + 1);
+        crankBy(interval); // t = 2.5 s
+        REQUIRE(retries.count() == initialRetries + 1);
+        crankBy(interval); // t = 3.5 s
+        REQUIRE(retries.count() == initialRetries + 2);
+        crankBy(3 * interval); // t = 6.5 s
+        REQUIRE(retries.count() == initialRetries + 2);
+        crankBy(interval); // t = 7.5 s
+        REQUIRE(retries.count() == initialRetries + 3);
+
+        REQUIRE(pendingEnvelopes.recvTxSet(hash, p.second));
+        REQUIRE(!pendingEnvelopes.getTxSetWaitingTime(hash));
+        REQUIRE(fetchTimer.count() == fetches + 1);
+        REQUIRE(overlayFetchTimer.count() == overlayFetches);
+        crankBy(10 * interval);
+        REQUIRE(retries.count() == initialRetries + 3);
+    }
+
+    SECTION("a set for a closed slot is not requested again")
+    {
+        auto oldEnvelope =
+            makeEnvelope(herder, s, p, qSetHash, lcl.header.ledgerSeq);
+        // Purge the undecided slot's fetch; only the old slot's remains.
+        pendingEnvelopes.eraseOutsideRange(std::nullopt, slot - 1, 0);
+        REQUIRE(!pendingEnvelopes.getTxSetWaitingTime(hash));
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(oldEnvelope) ==
+                Herder::ENVELOPE_STATUS_FETCHING);
+        REQUIRE(pendingEnvelopes.getTxSetWaitingTime(hash));
+        crankBy(10 * interval);
+        REQUIRE(retries.count() == initialRetries);
+    }
+
+    SECTION("purging the waiting slot stops the fetch")
+    {
+        pendingEnvelopes.eraseOutsideRange(slot + 1, std::nullopt, 0);
+        REQUIRE(!pendingEnvelopes.getTxSetWaitingTime(hash));
+        crankBy(3 * interval);
+        REQUIRE(retries.count() == initialRetries);
+        // The envelope is gone with its slot, so a late delivery is unused.
+        REQUIRE(!pendingEnvelopes.recvTxSet(hash, p.second));
     }
 }

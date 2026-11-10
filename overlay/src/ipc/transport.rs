@@ -6,9 +6,9 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
-use super::messages::{Message, MessageCodec, MessageType};
+use super::messages::{Message, MessageCodec, MessageType, MAX_PAYLOAD_SIZE};
 
 /// Error type for IPC operations
 #[derive(Debug)]
@@ -16,6 +16,9 @@ pub enum IpcError {
     Io(std::io::Error),
     ConnectionClosed,
     ChannelClosed,
+    /// A payload over `MAX_PAYLOAD_SIZE`: Core would reject the message and
+    /// drop the connection, so it isn't sent.
+    PayloadTooLarge(usize),
 }
 
 impl std::fmt::Display for IpcError {
@@ -24,6 +27,11 @@ impl std::fmt::Display for IpcError {
             IpcError::Io(e) => write!(f, "IPC I/O error: {}", e),
             IpcError::ConnectionClosed => write!(f, "IPC connection closed"),
             IpcError::ChannelClosed => write!(f, "IPC channel closed"),
+            IpcError::PayloadTooLarge(n) => write!(
+                f,
+                "IPC payload of {} bytes is over the {} byte limit; not sent",
+                n, MAX_PAYLOAD_SIZE
+            ),
         }
     }
 }
@@ -47,6 +55,33 @@ impl From<std::io::Error> for IpcError {
     }
 }
 
+/// Encode a top transactions response, [count:4] then [len:4][tx:len] per
+/// transaction, from the longest prefix of `txs` whose encoding fits in
+/// `max_payload` bytes. Returns the payload and how many transactions it
+/// holds.
+fn encode_top_txs_payload(txs: &[&[u8]], max_payload: usize) -> (Vec<u8>, usize) {
+    let mut size = 4;
+    let mut included = 0;
+    for tx in txs {
+        if size + 4 + tx.len() > max_payload {
+            break;
+        }
+        size += 4 + tx.len();
+        included += 1;
+    }
+    let mut payload = Vec::with_capacity(size);
+
+    // Count
+    payload.extend_from_slice(&(included as u32).to_le_bytes());
+
+    // Each TX: [len:4][data:len]
+    for tx in &txs[..included] {
+        payload.extend_from_slice(&(tx.len() as u32).to_le_bytes());
+        payload.extend_from_slice(tx);
+    }
+    (payload, included)
+}
+
 /// Handle for sending messages to Core.
 #[derive(Clone)]
 pub struct CoreSender {
@@ -54,8 +89,13 @@ pub struct CoreSender {
 }
 
 impl CoreSender {
-    /// Send a message to Core. Never blocks.
+    /// Send a message to Core. Never blocks. A payload over
+    /// `MAX_PAYLOAD_SIZE` is refused rather than sent: Core would treat it as
+    /// a corrupt stream and close the connection.
     pub fn send(&self, msg: Message) -> Result<(), IpcError> {
+        if msg.payload.len() > MAX_PAYLOAD_SIZE {
+            return Err(IpcError::PayloadTooLarge(msg.payload.len()));
+        }
         self.tx.send(msg).map_err(|_| IpcError::ChannelClosed)
     }
 
@@ -66,19 +106,18 @@ impl CoreSender {
 
     /// Convenience: send top transactions response
     /// Payload: [count:4][len1:4][tx1:len1][len2:4][tx2:len2]...
+    /// The response holds the longest prefix of `txs` that fits in
+    /// `MAX_PAYLOAD_SIZE` (the highest-priority transactions come first).
     pub fn send_top_txs_response(&self, txs: &[&[u8]]) -> Result<(), IpcError> {
-        let total_size: usize = 4 + txs.iter().map(|tx| 4 + tx.len()).sum::<usize>();
-        let mut payload = Vec::with_capacity(total_size);
-
-        // Count
-        payload.extend_from_slice(&(txs.len() as u32).to_le_bytes());
-
-        // Each TX: [len:4][data:len]
-        for tx in txs {
-            payload.extend_from_slice(&(tx.len() as u32).to_le_bytes());
-            payload.extend_from_slice(tx);
+        let (payload, included) = encode_top_txs_payload(txs, MAX_PAYLOAD_SIZE);
+        if included < txs.len() {
+            warn!(
+                "Top transactions response truncated to {} of {} transactions ({} bytes) to fit the IPC payload limit",
+                included,
+                txs.len(),
+                payload.len()
+            );
         }
-
         self.send(Message::new(MessageType::TopTxsResponse, payload))
     }
 
@@ -734,5 +773,47 @@ mod tests {
         assert_eq!(received.payload.len(), 17);
         let count = u32::from_le_bytes(received.payload[0..4].try_into().unwrap());
         assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_encode_top_txs_payload_truncates_to_limit() {
+        let tx1 = vec![0x11; 10];
+        let tx2 = vec![0x22; 10];
+        let tx3 = vec![0x33; 10];
+        let txs: Vec<&[u8]> = vec![&tx1, &tx2, &tx3];
+
+        // Everything fits: 4 + 3 * (4 + 10) = 46 bytes.
+        let (payload, included) = encode_top_txs_payload(&txs, 46);
+        assert_eq!(included, 3);
+        assert_eq!(payload.len(), 46);
+        assert_eq!(u32::from_le_bytes(payload[0..4].try_into().unwrap()), 3);
+
+        // One byte short: only the first two fit, and the count says so.
+        let (payload, included) = encode_top_txs_payload(&txs, 45);
+        assert_eq!(included, 2);
+        assert_eq!(payload.len(), 32);
+        assert_eq!(u32::from_le_bytes(payload[0..4].try_into().unwrap()), 2);
+        assert_eq!(&payload[8..18], &tx1[..]);
+        assert_eq!(&payload[22..32], &tx2[..]);
+
+        // Nothing fits but the count.
+        let (payload, included) = encode_top_txs_payload(&txs, 17);
+        assert_eq!(included, 0);
+        assert_eq!(payload, 0u32.to_le_bytes().to_vec());
+    }
+
+    #[tokio::test]
+    async fn test_send_refuses_payload_over_limit() {
+        let (overlay_side, _core_side) = StdUnixStream::pair().unwrap();
+        let ipc = CoreIpc::from_stream(overlay_side).unwrap();
+
+        let msg = Message::new(MessageType::ScpReceived, vec![0u8; MAX_PAYLOAD_SIZE + 1]);
+        match ipc.sender.send(msg) {
+            Err(IpcError::PayloadTooLarge(n)) => assert_eq!(n, MAX_PAYLOAD_SIZE + 1),
+            other => panic!("expected PayloadTooLarge, got {:?}", other.map(|_| ())),
+        }
+        // A normal payload is still sent.
+        let msg = Message::new(MessageType::ScpReceived, vec![1, 2, 3]);
+        assert!(ipc.sender.send(msg).is_ok());
     }
 }

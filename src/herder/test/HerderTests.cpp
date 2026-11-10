@@ -11,11 +11,13 @@
 #include "scp/LocalNode.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
+#include "simulation/ApplyLoad.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/BatchExecutor.h"
 #include "util/JitterInjection.h"
 
 #include "history/HistoryArchiveManager.h"
@@ -33,6 +35,7 @@
 #include "lib/json/json.h"
 #include "main/CommandHandler.h"
 #include "main/PersistentState.h"
+#include "overlay/OverlayIPC.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/RustOverlayManager.h"
 #include "test/Catch2.h"
@@ -6768,6 +6771,90 @@ class EarlyNominationTestAccess
     {
         herder.setupTriggerNextLedger();
     }
+
+    // The leader's full build (mempool pull through final checks).
+    static TxSetXDRFrameConstPtr
+    build(HerderImpl& herder, uint32_t ledgerSeq, ConsensusTime closeTime)
+    {
+        return herder.buildTxSet(ledgerSeq, closeTime).txSet;
+    }
+
+    // The same, with the hashes of the invalid candidates it found.
+    static std::pair<TxSetXDRFrameConstPtr, std::vector<Hash>>
+    buildWithInvalid(HerderImpl& herder, uint32_t ledgerSeq,
+                     ConsensusTime closeTime)
+    {
+        auto prepared = herder.buildTxSet(ledgerSeq, closeTime);
+        return {prepared.txSet, prepared.invalidTxHashes};
+    }
+
+    static size_t
+    maxTxSetCandidates(HerderImpl& herder)
+    {
+        return herder.maxTxSetCandidates();
+    }
+
+    // Starts a signature prewarm for `ledgerSeq`'s candidates.
+    static void
+    prewarm(HerderImpl& herder, uint32_t ledgerSeq)
+    {
+        herder.prewarmSignatureCache(ledgerSeq, {});
+    }
+
+    // The ledger the running signature prewarm is for (0 if none).
+    static uint32_t
+    prewarmLedger(HerderImpl& herder)
+    {
+        return herder.mSignaturePrewarm ? herder.mSignaturePrewarm->ledgerSeq
+                                        : 0;
+    }
+
+    // Waits in real time, without cranking, until the running prewarm's
+    // tasks are done. Returns false if there is none or it takes too long.
+    static bool
+    waitForPrewarm(HerderImpl& herder)
+    {
+        auto prewarm = herder.mSignaturePrewarm;
+        auto const deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (prewarm && prewarm->finishedAfterNs.load() < 0 &&
+               std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return prewarm && prewarm->finishedAfterNs.load() >= 0;
+    }
+
+    // These fixtures inspect a local proposal while requiring an absent peer
+    // to prevent externalization. Pick that peer so the local node is the
+    // first leader, independently of the test RNG seed and previous ledger.
+    static void
+    selectLocalFirstLeader(HerderImpl& herder)
+    {
+        auto& scp = herder.getSCP();
+        auto const& lcl =
+            herder.mApp.getLedgerManager().getLastClosedLedgerHeader();
+        auto qset = scp.getLocalQuorumSet();
+        REQUIRE(qset.validators.size() == 2);
+        for (int i = 0; i < 100; ++i)
+        {
+            qset.validators = {
+                scp.getLocalNodeID(),
+                SecretKey::fromSeed(sha256(fmt::format("absent-peer-{}", i)))
+                    .getPublicKey()};
+            scp.updateLocalQuorumSet(qset);
+            if (scp.predictNominationLeaders(
+                       lcl.header.ledgerSeq + 1,
+                       xdr::xdr_to_opaque(lcl.header.scpValue), 1)
+                    .count(scp.getLocalNodeID()))
+            {
+                herder.mPendingEnvelopes.addSCPQuorumSet(
+                    scp.getLocalNode()->getQuorumSetHash(), qset);
+                return;
+            }
+        }
+        FAIL("Could not select a first-round local leader");
+    }
 };
 }
 
@@ -6859,6 +6946,7 @@ TEST_CASE("trigger work is recorded by the proposal path",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
     auto& driver = herder.getHerderSCPDriver();
     auto const slot = app->getLedgerManager().getLastClosedLedgerNum() + 1;
     herder.mGetTopTransactionsForTesting = [&](size_t) {
@@ -7201,6 +7289,7 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
             config.mLedgerMaxTxCount = 1;
         });
     }
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     // The Soroban upgrade helper closes ledgers at its fixed test date. The
     // sub-second offset makes the prepared close time carry milliseconds once
@@ -7342,7 +7431,7 @@ TEST_CASE("prepare nomination before trigger", "[herder][early-nomination]")
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
-TEST_CASE("only the first two nomination leaders prepare early",
+TEST_CASE("only nomination leaders construct local proposals",
           "[herder][early-nomination]")
 {
     // A fixed, unanimous quorum gives all three nodes the same weights and
@@ -7407,7 +7496,7 @@ TEST_CASE("only the first two nomination leaders prepare early",
         REQUIRE(checkedRoles.insert(role).second);
         CAPTURE(role);
         EarlyNominationTestAccess::schedule(herder);
-        REQUIRE(EarlyNominationTestAccess::scheduled(herder) == (role < 2));
+        REQUIRE(EarlyNominationTestAccess::scheduled(herder) == (role == 0));
         bool done = false;
         VirtualTimer stop(clock);
         stop.expires_from_now(std::chrono::milliseconds(1));
@@ -7416,14 +7505,511 @@ TEST_CASE("only the first two nomination leaders prepare early",
             app, [&]() { return done; }, std::chrono::seconds(1));
         REQUIRE(done);
         REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
-        REQUIRE(pulls == (role < 2 ? 1 : 0));
+        REQUIRE(pulls == (role == 0 ? 1 : 0));
         REQUIRE(bool(EarlyNominationTestAccess::prepared(herder)) ==
-                (role < 2));
+                (role == 0));
         REQUIRE(scp.getNominationLeaders(seq).empty());
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
+        auto const trigger = herder.getTriggerTimer().expiry_time();
+        clock.setCurrentVirtualTime(trigger);
+        auto const triggerSystemTime = clock.system_now();
+        testutil::crankUntil(
+            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            std::chrono::seconds(1));
+        REQUIRE(scp.getNominationLeaders(seq) == first);
+        // The first leader refreshes its empty early snapshot. Followers
+        // pull the mempool once, only to pre-verify signatures; they do not
+        // build or publish a set.
+        REQUIRE(pulls == (role == 0 ? 2 : 1));
+        REQUIRE(scp.getLatestMessagesSend(seq).empty() == (role != 0));
+
+        // With the first leader silent, real nomination timers eventually
+        // promote each follower. It builds exactly then, using a current close
+        // time, and its prepared/validated tx set is available for retrieval.
+        testutil::crankUntil(
+            app, [&]() { return !scp.getLatestMessagesSend(seq).empty(); },
+            std::chrono::seconds(30));
+        REQUIRE(scp.getNominationLeaders(seq).count(scp.getLocalNodeID()));
+        REQUIRE(pulls == 2);
+        auto messages = scp.getLatestMessagesSend(seq);
+        auto const& votes = messages.front().statement.pledges.nominate().votes;
+        REQUIRE(votes.size() == 1);
+        StellarValue nominated;
+        xdr::xdr_from_opaque(votes.front(), nominated);
+        auto txSet = std::get<TxSetXDRFrameConstPtr>(
+            herder.getTxSet(nominated.txSetHash));
+        REQUIRE(txSet);
+        REQUIRE(txSet->previousLedgerHash() == lcl.hash);
+        REQUIRE(herder.getHerderSCPDriver().validateValue(seq, votes.front(),
+                                                          true) ==
+                SCPDriver::kFullyValidatedValue);
+        if (role != 0)
+        {
+            REQUIRE(getConsensusTime(nominated) >
+                    ConsensusTime::fromSystemTime(triggerSystemTime,
+                                                  lcl.header.ledgerVersion));
+        }
+        auto const pullsAfterVote = pulls;
+        // Reentering the trigger for this slot cannot build a second proposal.
+        herder.triggerNextLedger(seq, true);
+        REQUIRE(pulls == pullsAfterVote);
         herder.mGetTopTransactionsForTesting = nullptr;
     }
     REQUIRE(checkedRoles == std::set<int>{0, 1, 2});
+}
+
+TEST_CASE("a follower promoted after losing sync still proposes",
+          "[herder][early-nomination]")
+{
+    // Unanimous three-node quorum with silent peers: the slot cannot
+    // externalize, so the local follower eventually loses sync. Nomination
+    // timeouts must still let it propose a value of its own once promoted.
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qset;
+    qset.threshold = 3;
+    for (int i = 0; i < 3; ++i)
+    {
+        keys.push_back(SecretKey::fromSeed(
+            sha256(fmt::format("early-nomination-node-{}", i))));
+        qset.validators.push_back(keys.back().getPublicKey());
+    }
+
+    bool checkedFollower = false;
+    for (int i = 0; i < 3 && !checkedFollower; ++i)
+    {
+        VirtualClock clock;
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+        auto cfg = getTestConfig(i);
+        cfg.HTTP_PORT = 0;
+        cfg.MANUAL_CLOSE = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+        cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+        cfg.NODE_SEED = keys[i];
+        cfg.QUORUM_SET = qset;
+        auto app = createTestApplication(clock, cfg);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getSCP();
+        auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const seq = lcl.header.ledgerSeq + 1;
+        if (scp.predictNominationLeaders(
+                   seq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
+                .count(scp.getLocalNodeID()))
+        {
+            // The first leader proposes at the trigger; test a follower.
+            continue;
+        }
+        checkedFollower = true;
+        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        size_t pulls = 0;
+        herder.mGetTopTransactionsForTesting = [&](size_t) {
+            ++pulls;
+            return std::vector<TransactionEnvelope>{};
+        };
+
+        EarlyNominationTestAccess::schedule(herder);
+        clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
+        testutil::crankUntil(
+            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            std::chrono::seconds(1));
+        REQUIRE(!scp.getNominationLeaders(seq).empty());
+        REQUIRE(scp.getLatestMessagesSend(seq).empty());
+        // Only the signature prewarm pull; no build yet.
+        REQUIRE(pulls == 1);
+
+        // The stalled slot costs the node its sync before it is promoted.
+        herder.lostSync();
+        REQUIRE(!herder.isTracking());
+
+        testutil::crankUntil(
+            app, [&]() { return !scp.getLatestMessagesSend(seq).empty(); },
+            std::chrono::seconds(30));
+        REQUIRE(scp.getNominationLeaders(seq).count(scp.getLocalNodeID()));
+        REQUIRE(pulls == 2);
+        auto messages = scp.getLatestMessagesSend(seq);
+        REQUIRE(!messages.empty());
+        auto const& votes = messages.front().statement.pledges.nominate().votes;
+        REQUIRE(votes.size() == 1);
+        REQUIRE(herder.getHerderSCPDriver().validateValue(seq, votes.front(),
+                                                          true) ==
+                SCPDriver::kFullyValidatedValue);
+        herder.mGetTopTransactionsForTesting = nullptr;
+    }
+    REQUIRE(checkedFollower);
+}
+
+TEST_CASE("a leader build that completes a fetch can externalize",
+          "[herder][early-nomination]")
+{
+    // The local leader builds the very set a peer's ballot is waiting for (an
+    // empty set is the same on every node). Publishing it completes the fetch
+    // inside SCP's nomination value supplier: the peer's CONFIRM is
+    // reprocessed there and, the peer being v-blocking, externalizes the slot
+    // before the supplier returns. Nomination must then stop cleanly without
+    // voting or emitting.
+    VirtualClock clock;
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+    auto cfg = getTestConfig();
+    cfg.HTTP_PORT = 0;
+    // Herder discards network envelopes under MANUAL_CLOSE.
+    cfg.MANUAL_CLOSE = false;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators = {
+        cfg.NODE_SEED.getPublicKey(),
+        SecretKey::pseudoRandomForTesting().getPublicKey()};
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& scp = herder.getSCP();
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
+    auto const qset = scp.getLocalQuorumSet();
+    auto const qsetHash = scp.getLocalNode()->getQuorumSetHash();
+    std::optional<SecretKey> peer;
+    for (int i = 0; i < 100 && !peer; ++i)
+    {
+        auto key =
+            SecretKey::fromSeed(sha256(fmt::format("absent-peer-{}", i)));
+        if (std::find(qset.validators.begin(), qset.validators.end(),
+                      key.getPublicKey()) != qset.validators.end())
+        {
+            peer = key;
+        }
+    }
+    REQUIRE(peer);
+
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const seq = lcl.header.ledgerSeq + 1;
+    herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+    herder.mGetTopTransactionsForTesting = [](size_t) {
+        return std::vector<TransactionEnvelope>{};
+    };
+    // The set the local leader is about to build.
+    PerPhaseTransactionList phases(2);
+    auto const expected =
+        makeTxSetFromTransactions(phases, *app, ApplyTimeOffset{}).first;
+    REQUIRE(
+        !herder.getPendingEnvelopes().hasTxSet(expected->getContentsHash()));
+
+    auto const peerValue = herder.makeStellarValue(
+        expected->getContentsHash(),
+        makeConsensusTime(lcl.header.scpValue.closeTime + 1), emptyUpgradeSteps,
+        *peer);
+    SCPEnvelope confirm;
+    confirm.statement.nodeID = peer->getPublicKey();
+    confirm.statement.slotIndex = seq;
+    confirm.statement.pledges.type(SCP_ST_CONFIRM);
+    auto& conf = confirm.statement.pledges.confirm();
+    conf.ballot.counter = 1;
+    conf.ballot.value = xdr::xdr_to_opaque(peerValue);
+    conf.nPrepared = 1;
+    conf.nCommit = 1;
+    conf.nH = 1;
+    conf.quorumSetHash = qsetHash;
+    herder.signEnvelope(*peer, confirm);
+    REQUIRE(herder.recvSCPEnvelope(confirm) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(scp.getLatestMessage(peer->getPublicKey()) == nullptr);
+
+    herder.triggerNextLedger(seq, true);
+
+    // Processed and externalized during the leader's own build.
+    REQUIRE(scp.getLatestMessage(peer->getPublicKey()));
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return app->getLedgerManager().getLastClosedLedgerNum() == seq;
+        },
+        std::chrono::seconds(10));
+    auto const closed = app->getLedgerManager().getLastClosedLedgerHeader();
+    REQUIRE(closed.header.ledgerSeq == seq);
+    REQUIRE(closed.header.scpValue == peerValue);
+    for (auto const& env : scp.getLatestMessagesSend(seq))
+    {
+        REQUIRE(env.statement.pledges.type() != SCP_ST_NOMINATE);
+    }
+    herder.mGetTopTransactionsForTesting = nullptr;
+}
+
+TEST_CASE("followers pre-verify mempool signatures at the trigger",
+          "[herder][early-nomination]")
+{
+    // Followers no longer validate their own mempool by building a set, so
+    // the leader's set would be validated with a cold signature cache. At the
+    // trigger they pre-verify their top transactions' signatures instead.
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qset;
+    qset.threshold = 3;
+    for (int i = 0; i < 3; ++i)
+    {
+        keys.push_back(SecretKey::fromSeed(
+            sha256(fmt::format("early-nomination-node-{}", i))));
+        qset.validators.push_back(keys.back().getPublicKey());
+    }
+
+    std::set<bool> checkedRoles;
+    for (int i = 0; i < 3 && checkedRoles.size() < 2; ++i)
+    {
+        VirtualClock clock;
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+        auto cfg = getTestConfig(i);
+        cfg.HTTP_PORT = 0;
+        cfg.MANUAL_CLOSE = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+        cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+        cfg.NODE_SEED = keys[i];
+        cfg.QUORUM_SET = qset;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 41;
+        auto app = createTestApplication(clock, cfg);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getSCP();
+        auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const seq = lcl.header.ledgerSeq + 1;
+        bool const leader =
+            scp.predictNominationLeaders(
+                   seq, xdr::xdr_to_opaque(lcl.header.scpValue), 1)
+                .count(scp.getLocalNodeID()) != 0;
+        if (!checkedRoles.insert(leader).second)
+        {
+            continue;
+        }
+        CAPTURE(leader);
+
+        // Payments signed by their sources' master keys, one by an operation
+        // source too, and a fee bump.
+        auto dest = getGenesisAccount(*app, 40);
+        std::vector<TransactionTestFramePtr> txs;
+        for (uint32_t a = 0; a < 30; ++a)
+        {
+            auto source = getGenesisAccount(*app, a);
+            txs.push_back(source.tx({payment(dest, 1)}));
+        }
+        auto opSource = getGenesisAccount(*app, 30);
+        auto withOpSource =
+            getGenesisAccount(*app, 31).tx({opSource.op(payment(dest, 1))});
+        withOpSource->addSignature(opSource.getSecretKey());
+        txs.push_back(withOpSource);
+        auto feeSource = getGenesisAccount(*app, 32);
+        auto inner = getGenesisAccount(*app, 33);
+        txs.push_back(
+            feeBump(*app, feeSource, inner.tx({payment(dest, 1)}), 1000));
+        std::vector<TransactionEnvelope> envelopes;
+        for (auto const& tx : txs)
+        {
+            envelopes.push_back(tx->getEnvelope());
+        }
+        herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
+        herder.mGetTopTransactionsForTesting = [&](size_t) {
+            return envelopes;
+        };
+
+        PubKeyUtils::clearVerifySigCache();
+        uint64_t hits = 0, misses = 0;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        size_t const signatures =
+            txs.size() + 1 /* op source */ + 1 /* fee bump's inner tx */;
+        EarlyNominationTestAccess::schedule(herder);
+        clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
+        testutil::crankUntil(
+            app, [&]() { return !scp.getNominationLeaders(seq).empty(); },
+            std::chrono::seconds(1));
+        REQUIRE(!scp.getNominationLeaders(seq).empty());
+
+        if (leader)
+        {
+            // The leader validates its own candidates while building, so it
+            // does not pre-verify. Its build verified every signature.
+            PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+            REQUIRE(misses >= signatures);
+            herder.mGetTopTransactionsForTesting = nullptr;
+            continue;
+        }
+
+        // Background tasks verify every signature once. Wait in real time
+        // without cranking: virtual nomination timeouts would promote this
+        // follower, whose build verifies signatures too.
+        uint64_t verified = 0;
+        auto const deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (verified < signatures &&
+               std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+            verified += misses;
+        }
+        // The counters are process-global and other code flushes them too, so
+        // they only bound the wait; the cache check below is the assertion.
+        INFO("verified " << verified << " of " << signatures);
+        REQUIRE(scp.getLatestMessagesSend(seq).empty());
+
+        // Validating these transactions now finds every signature cached.
+        for (auto const& tx : txs)
+        {
+            auto ledgerView = app->getLedgerManager().getLCLView();
+            REQUIRE(tx->checkValid(app->getAppConnector(), *ledgerView, 0, 0, 0)
+                        ->isSuccess());
+        }
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(misses == 0);
+        REQUIRE(hits >= signatures);
+        herder.mGetTopTransactionsForTesting = nullptr;
+    }
+    REQUIRE(checkedRoles == std::set<bool>{false, true});
+}
+
+TEST_CASE("signature prewarm at the ballot covers the next ledger",
+          "[herder][prewarm]")
+{
+    // When slot N starts balloting, a validator pre-verifies the signatures
+    // of ledger N + 1's candidates: the top of its mempool past the
+    // transactions of N's value, which stay there until N externalizes. The
+    // next build validates 20 (5/4 of the classic capacity of 16).
+    uint32_t const valueTxs = 16;
+    uint32_t const nextTxs = 32;
+    uint32_t const target = 20;
+    auto cfg = getTestConfig();
+    cfg.MANUAL_CLOSE = true;
+    cfg.WORKER_THREADS = 4;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = valueTxs + nextTxs + 1;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 16;
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    auto& metrics = app->getMetrics();
+    REQUIRE(lm.getLastMaxTxSetSizeOps() == 16);
+    REQUIRE(herder.isTracking());
+
+    auto dest = getGenesisAccount(*app, valueTxs + nextTxs);
+    TxFrameList valueTxFrames;
+    TxFrameList nextTxFrames;
+    std::vector<TransactionEnvelope> mempool;
+    for (uint32_t i = 0; i < valueTxs + nextTxs; ++i)
+    {
+        auto tx = getGenesisAccount(*app, i).tx({payment(dest, 1)});
+        (i < valueTxs ? valueTxFrames : nextTxFrames).push_back(tx);
+        mempool.push_back(tx->getEnvelope());
+    }
+    size_t requested = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t count) {
+        requested = count;
+        return std::vector<TransactionEnvelope>(
+            mempool.begin(), mempool.begin() + std::min(count, mempool.size()));
+    };
+
+    // Slot N's value holds the top 16.
+    auto const lcl = lm.getLastClosedLedgerHeader();
+    auto const slot = lcl.header.ledgerSeq + 1;
+    auto const closeTime = makeConsensusTime(app->timeNow() + 1);
+    auto valueSet =
+        makeTxSetFromTransactions(PerPhaseTransactionList{valueTxFrames, {}},
+                                  *app, ApplyTimeOffset{})
+            .first;
+    REQUIRE(valueSet->sizeTxTotal() == valueTxs);
+    herder.getPendingEnvelopes().putTxSet(valueSet->getContentsHash(), slot,
+                                          valueSet);
+    auto const value = xdr::xdr_to_opaque(
+        herder.makeStellarValue(valueSet->getContentsHash(), closeTime,
+                                emptyUpgradeSteps, cfg.NODE_SEED));
+
+    PubKeyUtils::clearVerifySigCache();
+    auto& prewarmTxs =
+        metrics.NewMeter({"herder", "prewarm", "txs"}, "transaction");
+    auto& prewarmVerified =
+        metrics.NewMeter({"herder", "prewarm", "verified"}, "signature");
+    auto& prewarmIncomplete =
+        metrics.NewMeter({"herder", "prewarm", "incomplete"}, "prewarm");
+    auto const txs0 = prewarmTxs.count();
+    auto const verified0 = prewarmVerified.count();
+    auto const incomplete0 = prewarmIncomplete.count();
+
+    // The prewarm starts once SCP is done with the step that started the
+    // ballot, pulling past N's value, and verifies in the background.
+    SCPBallot ballot;
+    ballot.counter = 1;
+    ballot.value = value;
+    herder.getHerderSCPDriver().startedBallotProtocol(slot, ballot);
+    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == 0);
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1;
+        },
+        std::chrono::seconds(1));
+    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1);
+    REQUIRE(requested ==
+            2 * EarlyNominationTestAccess::maxTxSetCandidates(herder) +
+                valueTxs);
+    REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+
+    // N externalizes and closes; the prewarm for N + 1 is kept. The overlay
+    // drops N's transactions from the mempool.
+    herder.externalizeValue(valueSet, slot, closeTime, emptyUpgradeSteps,
+                            cfg.NODE_SEED);
+    REQUIRE(lm.getLastClosedLedgerNum() == slot);
+    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == slot + 1);
+    mempool.erase(mempool.begin(), mempool.begin() + valueTxs);
+    auto const nextLcl = lm.getLastClosedLedgerHeader();
+    auto const nextCloseTime = makeConsensusTime(app->timeNow() + 2);
+
+    // No signature verified, and at least one lookup per transaction (a
+    // payment's operation checks its source's signature again).
+    auto checkLookups = [&](std::string const& prefix, uint64_t hits0,
+                            uint64_t misses0, uint64_t txs) {
+        auto& hits = metrics.NewMeter(
+            {"herder", "txset", prefix + "-sig-cache-hit"}, "lookup");
+        auto& misses = metrics.NewMeter(
+            {"herder", "txset", prefix + "-sig-cache-miss"}, "lookup");
+        REQUIRE(misses.count() == misses0);
+        REQUIRE(hits.count() >= hits0 + txs);
+    };
+    auto lookups = [&](std::string const& prefix) {
+        return std::make_pair(
+            metrics
+                .NewMeter({"herder", "txset", prefix + "-sig-cache-hit"},
+                          "lookup")
+                .count(),
+            metrics
+                .NewMeter({"herder", "txset", prefix + "-sig-cache-miss"},
+                          "lookup")
+                .count());
+    };
+
+    SECTION("the next leader's build finds every signature cached")
+    {
+        auto [hits0, misses0] = lookups("build");
+        auto txSet =
+            EarlyNominationTestAccess::build(herder, slot + 1, nextCloseTime);
+        REQUIRE(txSet->sizeTxTotal() == 16);
+        checkLookups("build", hits0, misses0, target);
+    }
+    SECTION("a follower's validation of the leader's set finds them cached")
+    {
+        // The leader's set, built elsewhere (without verifying anything
+        // here).
+        TxFrameList leaderTxs(nextTxFrames.begin(), nextTxFrames.begin() + 16);
+        auto leaderSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                             {{std::make_pair(std::nullopt, leaderTxs)}, {}},
+                             *app, nextLcl.hash)
+                             .first;
+        herder.getPendingEnvelopes().putTxSet(leaderSet->getContentsHash(),
+                                              slot + 1, leaderSet);
+        auto leaderValue = xdr::xdr_to_opaque(
+            herder.makeStellarValue(leaderSet->getContentsHash(), nextCloseTime,
+                                    emptyUpgradeSteps, cfg.NODE_SEED));
+        auto [hits0, misses0] = lookups("validate");
+        REQUIRE(herder.getHerderSCPDriver().validateValue(slot + 1, leaderValue,
+                                                          false) ==
+                SCPDriver::kFullyValidatedValue);
+        checkLookups("validate", hits0, misses0, 16);
+    }
+    // Validation and the build stop the prewarm and record what it did: the
+    // 16 transactions of N's value and the next 20, each verified once.
+    REQUIRE(EarlyNominationTestAccess::prewarmLedger(herder) == 0);
+    REQUIRE(prewarmTxs.count() == txs0 + valueTxs + target);
+    REQUIRE(prewarmVerified.count() == verified0 + valueTxs + target);
+    REQUIRE(prewarmIncomplete.count() == incomplete0);
+    herder.mGetTopTransactionsForTesting = nullptr;
 }
 
 TEST_CASE("early underfilled proposals refresh at the trigger",
@@ -7444,6 +8030,7 @@ TEST_CASE("early underfilled proposals refresh at the trigger",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     auto const seq = lcl.header.ledgerSeq + 1;
     herder.getHerderSCPDriver().recordSCPEvent(lcl.header.ledgerSeq, false);
@@ -7511,6 +8098,7 @@ TEST_CASE("early preparation respects manual and immediately due triggers",
         SecretKey::pseudoRandomForTesting().getPublicKey()};
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    EarlyNominationTestAccess::selectLocalFirstLeader(herder);
     auto const seq = app->getLedgerManager().getLastClosedLedgerNum() + 1;
     size_t pulls = 0;
     herder.mGetTopTransactionsForTesting = [&](size_t) {
@@ -7525,8 +8113,12 @@ TEST_CASE("early preparation respects manual and immediately due triggers",
     }
     else
     {
+        EarlyNominationTestAccess::schedule(herder);
         // No previous prepare timestamp: the normal fallback triggers now.
         REQUIRE(herder.getTriggerTimer().expiry_time() == clock.now());
+        // A due trigger builds itself. Preparing too could build twice: the
+        // two timers would fire at the same instant in either order.
+        REQUIRE(!EarlyNominationTestAccess::scheduled(herder));
         testutil::crankUntil(
             app,
             [&]() {
@@ -7919,4 +8511,316 @@ TEST_CASE("upgrade scheduling under sub-second ledgers", "[upgrades]")
     auto notDue = Upgrades{makeUpgradeCfg(VirtualClock::from_time_t(T + 1))}
                       .createUpgradesFor(header, *ledgerView, app->getConfig());
     REQUIRE(notDue.empty());
+}
+
+TEST_CASE("leader builds validate only the top of the mempool pull",
+          "[herder][txset]")
+{
+    // Classic capacity 10: the herder validates classic candidates until 13
+    // are valid. The mempool holds 60 payments bidding 1000 - i, so its order
+    // is i. The top 5 and #40 have a stale sequence number (the account's
+    // current one), so the herder drops them from the mempool once it finds
+    // them invalid.
+    uint32_t const candidates = 60;
+    auto cfg = getTestConfig();
+    cfg.MANUAL_CLOSE = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = candidates + 1;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10;
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    REQUIRE(lm.getLastMaxTxSetSizeOps() == 10);
+    auto dest = getGenesisAccount(*app, candidates);
+    std::vector<TransactionEnvelope> mempool;
+    std::vector<Hash> hashes;
+    for (uint32_t i = 0; i < candidates; ++i)
+    {
+        auto source = getGenesisAccount(*app, i);
+        bool const badSeq = i < 5 || i == 40;
+        auto tx = transactionFromOperations(
+            *app, source.getSecretKey(),
+            source.getLastSequenceNumber() + (badSeq ? 0 : 1),
+            {payment(dest.getPublicKey(), 1)}, 1000 - i);
+        mempool.push_back(tx->getEnvelope());
+        hashes.push_back(tx->getFullHash());
+    }
+    size_t requested = 0;
+    herder.mGetTopTransactionsForTesting = [&](size_t count) {
+        requested = count;
+        return std::vector<TransactionEnvelope>(
+            mempool.begin(), mempool.begin() + std::min(count, mempool.size()));
+    };
+
+    auto const lcl = lm.getLastClosedLedgerHeader();
+    auto [txSet, invalid] = EarlyNominationTestAccess::buildWithInvalid(
+        herder, lcl.header.ledgerSeq + 1,
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion));
+    herder.mGetTopTransactionsForTesting = nullptr;
+
+    // The pull is unchanged: twice the capacity of both phases.
+    REQUIRE(
+        requested ==
+        2 * (10 + lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount()));
+    // The invalid top candidates were replaced: the set is full, with the
+    // best valid ones.
+    auto applicable = txSet->prepareForApply(*app, lcl.header);
+    REQUIRE(applicable);
+    std::set<Hash> included;
+    for (auto const& tx : applicable->getPhase(TxSetPhase::CLASSIC))
+    {
+        included.insert(tx->getFullHash());
+    }
+    REQUIRE(included ==
+            std::set<Hash>(hashes.begin() + 5, hashes.begin() + 15));
+    // #40 is past the validated candidates (0-22): it stays in the mempool
+    // until it reaches them.
+    REQUIRE(std::set<Hash>(invalid.begin(), invalid.end()) ==
+            std::set<Hash>(hashes.begin(), hashes.begin() + 5));
+}
+
+#if __has_include(<valgrind/callgrind.h>)
+#include <valgrind/callgrind.h>
+#else
+#define CALLGRIND_START_INSTRUMENTATION
+#define CALLGRIND_STOP_INSTRUMENTATION
+#endif
+
+// A leader's tx-set build at perfnet's 3k SAC TPS scale: the mempool hands
+// over twice the cap of SAC payments (15,000 here vs perfnet's 15,200), all
+// valid, never validated by Core before (the Rust overlay admitted them), and
+// the builder keeps 7,500 in a parallel Soroban phase. Times each phase of
+// HerderImpl::buildTxSet with a cold and with a warm signature cache.
+// Env: BENCH_REPS (default 5), BENCH_TASKS (validation tasks, default 4 =
+// c5d.2xlarge physical cores), BENCH_WARM=0 to skip the warm runs. Under
+// valgrind --tool=callgrind --instr-atstart=no only the cold builds are
+// instrumented.
+TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
+{
+    auto envInt = [](char const* name, uint32_t dflt) {
+        auto v = std::getenv(name);
+        return v ? static_cast<uint32_t>(std::stoul(v)) : dflt;
+    };
+    uint32_t const sorobanCap = 7500;
+    uint32_t const candidates = 2 * sorobanCap;
+    uint32_t const reps = envInt("BENCH_REPS", 5);
+    uint32_t const tasks = envInt("BENCH_TASKS", 4);
+    bool const warmRuns = envInt("BENCH_WARM", 1) != 0;
+
+    auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
+    cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = sorobanCap;
+    cfg.APPLY_LOAD_BATCH_SAC_COUNT = 1;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 0;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = candidates + 10;
+    // The signature prewarm leaves 2 worker threads for other jobs.
+    cfg.WORKER_THREADS = static_cast<int>(tasks) + 2;
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    std::vector<TransactionEnvelope> envelopes;
+    {
+        ApplyLoad al(*app);
+        envelopes = al.generateSacPaymentEnvelopesForTesting(candidates);
+    }
+    REQUIRE(envelopes.size() == candidates);
+    app->getBatchExecutor().setPreferredTaskCountForTesting(tasks);
+
+    // BENCH_PULL: hand over only the first N candidates (a smaller pull).
+    uint32_t const count = static_cast<uint32_t>(envelopes.size());
+    uint32_t const pull = std::min(envInt("BENCH_PULL", count), count);
+    // The Rust overlay's GetTopTxs response for the pull, decoded as
+    // OverlayIPC::getTopTransactions does: [count:4]([len:4][xdr])*
+    std::vector<uint8_t> payload(4);
+    std::memcpy(payload.data(), &pull, 4);
+    for (uint32_t i = 0; i < pull; ++i)
+    {
+        auto bytes = xdr::xdr_to_opaque(envelopes[i]);
+        uint32_t const len = static_cast<uint32_t>(bytes.size());
+        auto const at = payload.size();
+        payload.resize(at + 4 + len);
+        std::memcpy(payload.data() + at, &len, 4);
+        std::memcpy(payload.data() + at + 4, bytes.data(), len);
+    }
+    herder.mGetTopTransactionsForTesting = [&](size_t) {
+        return OverlayIPC::parseTopTransactions(payload);
+    };
+
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const seq = lcl.header.ledgerSeq + 1;
+    auto const closeTime =
+        getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion);
+    std::vector<std::string> const phases = {
+        "build-pull",      "build-frames",      "build-trim",
+        "build-select",    "build-xdr",         "build-handoff",
+        "build-roundtrip", "build-final-check", "build"};
+    auto& metrics = app->getMetrics();
+
+    std::cout << "=== leader tx set build: " << pull << " of " << candidates
+              << " SAC candidates, cap " << sorobanCap << ", " << tasks
+              << " validation tasks, IPC payload " << payload.size()
+              << " bytes ===" << std::endl;
+    for (bool cold : {true, false})
+    {
+        if (!cold && !warmRuns)
+        {
+            continue;
+        }
+        std::map<std::string, std::vector<double>> samples;
+        size_t included = 0;
+        uint64_t misses = 0;
+        for (uint32_t rep = 0; rep < reps; ++rep)
+        {
+            if (cold)
+            {
+                PubKeyUtils::clearVerifySigCache();
+            }
+            uint64_t h = 0, m = 0;
+            PubKeyUtils::flushVerifySigCacheCounts(h, m);
+            for (auto const& phase : phases)
+            {
+                metrics.NewTimer({"herder", "txset", phase}).Clear();
+            }
+            if (cold)
+            {
+                CALLGRIND_START_INSTRUMENTATION;
+            }
+            auto txSet =
+                EarlyNominationTestAccess::build(herder, seq, closeTime);
+            if (cold)
+            {
+                CALLGRIND_STOP_INSTRUMENTATION;
+            }
+            PubKeyUtils::flushVerifySigCacheCounts(h, m);
+            misses = m;
+            included = txSet->sizeTxTotal();
+            for (auto const& phase : phases)
+            {
+                samples[phase].push_back(
+                    metrics.NewTimer({"herder", "txset", phase}).sum());
+            }
+            // The overlay handoff's serialization into the IPC message (the
+            // test app has no overlay process, so time it here).
+            auto const start = std::chrono::steady_clock::now();
+            auto const& xdrSet = txSet->getGeneralizedXDR();
+            std::vector<uint8_t> msg(36 + xdr::xdr_argpack_size(xdrSet));
+            xdr::xdr_put put(msg.data() + 36, msg.data() + msg.size());
+            xdr::xdr_argpack_archive(put, xdrSet);
+            samples["handoff-serialize"].push_back(
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - start)
+                    .count());
+        }
+        REQUIRE(included == std::min(sorobanCap, pull));
+        {
+            // A follower validating the received set (cold: calibration
+            // against perfnet's herder.txset.validate).
+            auto const& lastSet =
+                EarlyNominationTestAccess::build(herder, seq, closeTime);
+            for (uint32_t rep = 0; rep < reps; ++rep)
+            {
+                auto received = TxSetXDRFrame::makeFromWire(
+                    GeneralizedTransactionSet(lastSet->getGeneralizedXDR()));
+                if (cold)
+                {
+                    PubKeyUtils::clearVerifySigCache();
+                }
+                auto const start = std::chrono::steady_clock::now();
+                auto applicable = received->prepareForApply(*app, lcl.header);
+                REQUIRE(applicable);
+                REQUIRE(applicable->checkValid(*app, 0, 0));
+                samples["received-set-validate"].push_back(
+                    std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() - start)
+                        .count());
+            }
+        }
+        std::cout << (cold ? "cold" : "warm")
+                  << " signature cache (last build: " << misses
+                  << " verifications, " << included << " txs)" << std::endl;
+        for (auto& [phase, v] : samples)
+        {
+            std::sort(v.begin(), v.end());
+            std::cout << "  " << phase << ": median " << v[v.size() / 2]
+                      << " ms (min " << v.front() << ", max " << v.back()
+                      << ", n=" << v.size() << ")" << std::endl;
+        }
+    }
+
+    // A signature prewarm (as from the previous slot's ballot) that finished
+    // before the leader's build, and before a follower validates its set.
+    {
+        std::map<std::string, std::vector<double>> samples;
+        auto& prewarmDuration =
+            metrics.NewTimer({"herder", "prewarm", "duration"});
+        auto& buildMisses = metrics.NewMeter(
+            {"herder", "txset", "build-sig-cache-miss"}, "lookup");
+        auto const lastSet =
+            EarlyNominationTestAccess::build(herder, seq, closeTime);
+        uint64_t misses = 0;
+        uint64_t validateMisses = 0;
+        for (uint32_t rep = 0; rep < reps; ++rep)
+        {
+            PubKeyUtils::clearVerifySigCache();
+            auto const durationBefore = prewarmDuration.sum();
+            EarlyNominationTestAccess::prewarm(herder, seq);
+            REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+            for (auto const& phase : phases)
+            {
+                metrics.NewTimer({"herder", "txset", phase}).Clear();
+            }
+            auto const missesBefore = buildMisses.count();
+            // The build stops the (finished) prewarm and records it.
+            auto txSet =
+                EarlyNominationTestAccess::build(herder, seq, closeTime);
+            REQUIRE(txSet->sizeTxTotal() == std::min(sorobanCap, pull));
+            misses = buildMisses.count() - missesBefore;
+            samples["prewarm (background, before the build)"].push_back(
+                prewarmDuration.sum() - durationBefore);
+            for (auto const& phase : phases)
+            {
+                samples[phase].push_back(
+                    metrics.NewTimer({"herder", "txset", phase}).sum());
+            }
+
+            auto received = TxSetXDRFrame::makeFromWire(
+                GeneralizedTransactionSet(lastSet->getGeneralizedXDR()));
+            PubKeyUtils::clearVerifySigCache();
+            EarlyNominationTestAccess::prewarm(herder, seq);
+            REQUIRE(EarlyNominationTestAccess::waitForPrewarm(herder));
+            uint64_t hits0 = 0, misses0 = 0, hits1 = 0, misses1 = 0;
+            PubKeyUtils::getVerifySigCacheCounts(hits0, misses0);
+            auto const start = std::chrono::steady_clock::now();
+            auto applicable = received->prepareForApply(*app, lcl.header);
+            REQUIRE(applicable);
+            REQUIRE(applicable->checkValid(*app, 0, 0));
+            samples["received-set-validate"].push_back(
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - start)
+                    .count());
+            PubKeyUtils::getVerifySigCacheCounts(hits1, misses1);
+            validateMisses = misses1 - misses0;
+            herder.stopSignaturePrewarm();
+        }
+        std::cout << "prewarmed signature cache (last build: " << misses
+                  << " signature cache misses; last received-set "
+                     "validation: "
+                  << validateMisses << ")" << std::endl;
+        for (auto& [phase, v] : samples)
+        {
+            std::sort(v.begin(), v.end());
+            std::cout << "  " << phase << ": median " << v[v.size() / 2]
+                      << " ms (min " << v.front() << ", max " << v.back()
+                      << ", n=" << v.size() << ")" << std::endl;
+        }
+    }
+    herder.mGetTopTransactionsForTesting = nullptr;
 }

@@ -784,6 +784,40 @@ TxSetXDRFrame::TxSetXDRFrame(GeneralizedTransactionSet const& xdrTxSet)
 {
 }
 
+TxSetXDRFrame::TxSetXDRFrame(TransactionSet&& xdrTxSet)
+    : mXDRTxSet(std::move(xdrTxSet))
+    , mEncodedSize(xdr::xdr_argpack_size(std::get<TransactionSet>(mXDRTxSet)))
+    , mHash(computeNonGeneralizedTxSetContentsHash(
+          std::get<TransactionSet>(mXDRTxSet)))
+{
+}
+
+TxSetXDRFrame::TxSetXDRFrame(GeneralizedTransactionSet&& xdrTxSet)
+    : mXDRTxSet(std::move(xdrTxSet))
+    , mEncodedSize(
+          xdr::xdr_argpack_size(std::get<GeneralizedTransactionSet>(mXDRTxSet)))
+    , mHash(xdrSha256(std::get<GeneralizedTransactionSet>(mXDRTxSet)))
+{
+}
+
+TxSetXDRFrameConstPtr
+TxSetXDRFrame::makeFromWire(TransactionSet&& xdrTxSet)
+{
+    ZoneScoped;
+    std::shared_ptr<TxSetXDRFrame> txSet(
+        new TxSetXDRFrame(std::move(xdrTxSet)));
+    return txSet;
+}
+
+TxSetXDRFrameConstPtr
+TxSetXDRFrame::makeFromWire(GeneralizedTransactionSet&& xdrTxSet)
+{
+    ZoneScoped;
+    std::shared_ptr<TxSetXDRFrame> txSet(
+        new TxSetXDRFrame(std::move(xdrTxSet)));
+    return txSet;
+}
+
 TxSetXDRFrameConstPtr
 TxSetXDRFrame::makeFromWire(TransactionSet const& xdrTxSet)
 {
@@ -843,11 +877,15 @@ makeTxSetFromTransactions(
     txtest::ParallelSorobanOrder const& parallelSorobanOrder,
     bool disableTxValidationForLegacyScenario
 #endif
-)
+    ,
+    TxSetReadyCallback const& onTxSetReady,
+    std::vector<size_t> const& validTxTargets)
 {
     releaseAssert(threadIsMain());
     releaseAssert(!app.getLedgerManager().isApplying());
     releaseAssert(txPhases.size() == invalidTxs.size());
+    releaseAssert(validTxTargets.empty() ||
+                  validTxTargets.size() == txPhases.size());
     releaseAssert(txPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 
@@ -879,9 +917,30 @@ makeTxSetFromTransactions(
         else
         {
 #endif
-            validatedTxs = TxSetUtils::trimInvalid(
-                phaseTxs, app, accountFeeMap, closeTimeOffset.seconds(),
-                closeTimeOffset.seconds(), invalid);
+            auto trimTimer = app.getMetrics()
+                                 .NewTimer({"herder", "txset", "build-trim"})
+                                 .TimeScope();
+            if (validTxTargets.empty())
+            {
+                validatedTxs = TxSetUtils::trimInvalid(
+                    phaseTxs, app, accountFeeMap, closeTimeOffset.seconds(),
+                    closeTimeOffset.seconds(), invalid);
+            }
+            else
+            {
+                // Transactions of limited lanes (DEX) can't fill the phase,
+                // so only generic lane ones count toward the target.
+                auto laneConfig = createSurgePricingLangeConfig(
+                    static_cast<TxSetPhase>(i), app);
+                validatedTxs = TxSetUtils::trimInvalidPrefix(
+                    phaseTxs, validTxTargets[i],
+                    [&laneConfig](TransactionFrameBase const& tx) {
+                        return laneConfig->getLane(tx) ==
+                               SurgePricingPriorityQueue::GENERIC_LANE;
+                    },
+                    app, accountFeeMap, closeTimeOffset.seconds(),
+                    closeTimeOffset.seconds(), invalid);
+            }
 #ifdef BUILD_TESTS
             // In tests we shouldn't be really trying to close ledgers with
             // invalid transactions trimmed (which is unfortunately a very
@@ -901,6 +960,9 @@ makeTxSetFromTransactions(
         }
 #endif
         auto phaseType = static_cast<TxSetPhase>(i);
+        auto selectTimer = app.getMetrics()
+                               .NewTimer({"herder", "txset", "build-select"})
+                               .TimeScope();
         auto [includedTxs, inclusionFeeMapBinding] =
             applySurgePricing(phaseType, validatedTxs, app
 #ifdef BUILD_TESTS
@@ -935,6 +997,8 @@ makeTxSetFromTransactions(
     }
 
     auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
+    auto xdrTimer =
+        app.getMetrics().NewTimer({"herder", "txset", "build-xdr"}).TimeScope();
     // Preliminary applicable frame - we don't know the contents hash yet, but
     // we also don't return this.
     std::unique_ptr<ApplicableTxSetFrame> preliminaryApplicableTxSet(
@@ -956,8 +1020,21 @@ makeTxSetFromTransactions(
     }
 #endif
 
+    xdrTimer.Stop();
+    // The final XDR is available now. Start proposal encoding while the
+    // roundtrip and final validity checks below run; only the local builder
+    // supplies this callback. The callback must not nominate the set.
+    if (onTxSetReady)
+    {
+        onTxSetReady(outputTxSet);
+    }
+
+    auto roundtripTimer = app.getMetrics()
+                              .NewTimer({"herder", "txset", "build-roundtrip"})
+                              .TimeScope();
     ApplicableTxSetFrameConstPtr outputApplicableTxSet =
         outputTxSet->prepareForApply(app, lclHeader.header);
+    roundtripTimer.Stop();
 
     if (!outputApplicableTxSet)
     {
@@ -986,8 +1063,12 @@ makeTxSetFromTransactions(
     }
     // We already trimmed invalid transactions in an earlier call to
     // `trimInvalid`, so skip transaction validation here
+    auto finalTimer = app.getMetrics()
+                          .NewTimer({"herder", "txset", "build-final-check"})
+                          .TimeScope();
     auto validationResult = outputApplicableTxSet->checkValidInternalWithResult(
         app, closeTimeOffset.seconds(), closeTimeOffset.seconds(), true);
+    finalTimer.Stop();
     if (validationResult != TxSetValidationResult::VALID)
     {
         throw std::runtime_error(fmt::format(
@@ -1015,11 +1096,11 @@ TxSetXDRFrame::makeEmpty(Hash const& previousLedgerHash,
         GeneralizedTransactionSet txSet;
         transactionsToGeneralizedTransactionSetXDR(emptyPhases,
                                                    previousLedgerHash, txSet);
-        return TxSetXDRFrame::makeFromWire(txSet);
+        return TxSetXDRFrame::makeFromWire(std::move(txSet));
     }
     TransactionSet txSet;
     transactionsToTransactionSetXDR({}, previousLedgerHash, txSet);
-    return TxSetXDRFrame::makeFromWire(txSet);
+    return TxSetXDRFrame::makeFromWire(std::move(txSet));
 }
 
 TxSetXDRFrameConstPtr
@@ -1034,7 +1115,7 @@ TxSetXDRFrame::makeFromHistoryTransactions(Hash const& previousLedgerHash,
 {
     TransactionSet txSet;
     transactionsToTransactionSetXDR(txs, previousLedgerHash, txSet);
-    return TxSetXDRFrame::makeFromWire(txSet);
+    return TxSetXDRFrame::makeFromWire(std::move(txSet));
 }
 
 #ifdef BUILD_TESTS
@@ -1447,6 +1528,13 @@ TxSetXDRFrame::toXDR(GeneralizedTransactionSet& txSet) const
 {
     releaseAssert(isGeneralizedTxSet());
     txSet = std::get<GeneralizedTransactionSet>(mXDRTxSet);
+}
+
+GeneralizedTransactionSet const&
+TxSetXDRFrame::getGeneralizedXDR() const
+{
+    releaseAssert(isGeneralizedTxSet());
+    return std::get<GeneralizedTransactionSet>(mXDRTxSet);
 }
 
 void
@@ -2497,13 +2585,13 @@ ApplicableTxSetFrame::toWireTxSetFrame() const
     {
         GeneralizedTransactionSet xdrTxSet;
         toXDR(xdrTxSet);
-        outputTxSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
+        outputTxSet = TxSetXDRFrame::makeFromWire(std::move(xdrTxSet));
     }
     else
     {
         TransactionSet xdrTxSet;
         toXDR(xdrTxSet);
-        outputTxSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
+        outputTxSet = TxSetXDRFrame::makeFromWire(std::move(xdrTxSet));
     }
     return outputTxSet;
 }
