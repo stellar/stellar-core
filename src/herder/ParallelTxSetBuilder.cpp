@@ -718,15 +718,24 @@ buildSurgePricedParallelSorobanPhase(
     // Simplify the transactions to the minimum necessary amount of data.
     auto builderTxs = prepareBuilderTxs(txFrames);
 
-    // Sort transactions in decreasing inclusion fee order.
+    // Sort transactions in decreasing inclusion fee order. Look up each
+    // transaction's fee bid and operation count once, not per comparison.
     TxFeeComparator txComparator(
         /* isGreater */ true,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+    std::vector<std::pair<int64_t, uint32_t>> feeBids;
+    feeBids.reserve(txFrames.size());
+    for (auto const& tx : txFrames)
+    {
+        feeBids.emplace_back(tx->getInclusionFee(), tx->getNumOperations());
+    }
     std::vector<size_t> sortedTxOrder(txFrames.size());
     std::iota(sortedTxOrder.begin(), sortedTxOrder.end(), 0);
     std::sort(sortedTxOrder.begin(), sortedTxOrder.end(),
-              [&txFrames, &txComparator](size_t a, size_t b) {
-                  return txComparator(txFrames[a], txFrames[b]);
+              [&txFrames, &feeBids, &txComparator](size_t a, size_t b) {
+                  return txComparator(txFrames[a], feeBids[a].first,
+                                      feeBids[a].second, txFrames[b],
+                                      feeBids[b].first, feeBids[b].second);
               });
 
     // Precompute per-transaction resources to avoid repeated virtual calls

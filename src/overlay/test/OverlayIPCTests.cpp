@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/TxSetFrame.h"
+#include "herder/Upgrades.h"
+#include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "overlay/OverlayIPC.h"
 #include "rust/RustBridge.h"
@@ -14,6 +17,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstring>
+#include <map>
+#include <optional>
 #include <thread>
 
 using namespace stellar;
@@ -50,23 +56,85 @@ makeMockSCPEnvelope(uint64_t slotIndex, uint32_t nodeId)
 {
     SCPEnvelope env;
     env.statement.slotIndex = slotIndex;
-    env.statement.pledges.type(SCP_ST_NOMINATE);
+    env.statement.pledges.type(SCP_ST_PREPARE);
 
     // Set some mock data
-    auto& nom = env.statement.pledges.nominate();
-    nom.quorumSetHash.fill(static_cast<uint8_t>(nodeId));
+    auto& prep = env.statement.pledges.prepare();
+    prep.quorumSetHash.fill(static_cast<uint8_t>(nodeId));
+    prep.ballot.counter = 1;
 
     // Value is opaque<> (xvector<uint8_t>), not Hash
     Value mockValue;
     mockValue.resize(32);
     std::fill(mockValue.begin(), mockValue.end(),
               static_cast<uint8_t>(slotIndex & 0xFF));
-    nom.votes.push_back(mockValue);
+    prep.ballot.value = mockValue;
 
     return env;
 }
 
 } // anonymous namespace
+
+TEST_CASE("OverlayIPC decodes top transactions in place", "[overlay-ipc]")
+{
+    // Envelopes of different lengths (memo text is padded to 4 bytes).
+    std::vector<TransactionEnvelope> envs;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        TransactionEnvelope env(ENVELOPE_TYPE_TX);
+        env.v1().tx.fee = 100 + i;
+        env.v1().tx.seqNum = i + 1;
+        env.v1().tx.memo.type(MEMO_TEXT);
+        env.v1().tx.memo.text() = std::string(3 * i + 1, 'x');
+        envs.push_back(env);
+    }
+    auto payloadOf = [](uint32_t count,
+                        std::vector<std::vector<uint8_t>> const& entries) {
+        std::vector<uint8_t> payload(4);
+        std::memcpy(payload.data(), &count, 4);
+        for (auto const& entry : entries)
+        {
+            uint32_t const len = static_cast<uint32_t>(entry.size());
+            auto const at = payload.size();
+            payload.resize(at + 4);
+            std::memcpy(payload.data() + at, &len, 4);
+            payload.insert(payload.end(), entry.begin(), entry.end());
+        }
+        return payload;
+    };
+    std::vector<std::vector<uint8_t>> xdrs;
+    for (auto const& env : envs)
+    {
+        xdrs.push_back(xdr::xdr_to_opaque(env));
+    }
+
+    SECTION("well formed")
+    {
+        REQUIRE(OverlayIPC::parseTopTransactions(payloadOf(3, xdrs)) == envs);
+    }
+    SECTION("malformed entries are skipped")
+    {
+        // A 5-byte entry fails to decode and leaves the next ones unaligned,
+        // decoded from a copy, until a 3-byte one (which fails too) aligns
+        // them again. An aligned entry with an invalid envelope type fails
+        // to decode in place.
+        std::vector<uint8_t> const badType(xdrs[0].size(), 0xff);
+        auto payload = payloadOf(
+            6,
+            {xdrs[0], {1, 2, 3, 4, 5}, xdrs[1], {1, 2, 3}, badType, xdrs[2]});
+        REQUIRE(OverlayIPC::parseTopTransactions(payload) == envs);
+    }
+    SECTION("truncated payload")
+    {
+        auto payload = payloadOf(3, xdrs);
+        payload.resize(payload.size() - 1);
+        REQUIRE(OverlayIPC::parseTopTransactions(payload) ==
+                std::vector<TransactionEnvelope>{envs[0], envs[1]});
+        // More entries announced than present.
+        REQUIRE(OverlayIPC::parseTopTransactions(payloadOf(5, xdrs)) == envs);
+        REQUIRE(OverlayIPC::parseTopTransactions({1, 0}).empty());
+    }
+}
 
 TEST_CASE("OverlayIPC connects to Rust overlay", "[overlay-ipc]")
 {
@@ -337,11 +405,11 @@ TEST_CASE("Rust overlay SCP consensus", "[overlay-ipc][.]")
 }
 
 /**
- * Test TX set building and nomination hash request.
+ * Test TX set building and proposal hash request.
  *
  * This test:
  * 1. Creates an OverlayIPC connection to a Rust overlay
- * 2. Requests a nomination hash (which builds a TX set from empty mempool)
+ * 2. Requests a proposal hash (which builds a TX set from empty mempool)
  * 3. Verifies a hash is returned
  */
 TEST_CASE("Rust overlay get top transactions", "[overlay-ipc][.]")
@@ -447,6 +515,95 @@ makeTxEnvelope(int64_t fee, int64_t seqNum, uint8_t accountByte,
         tx.operations[i].body.bumpSequenceOp().bumpTo = seqNum + 1;
     }
     return txEnv;
+}
+
+/**
+ * A transaction envelope of roughly `wasmBytes` bytes: one
+ * uploadContractWasm operation carrying a filler "wasm". The overlay takes
+ * Core's submissions without decoding them, so this only needs to be valid
+ * XDR.
+ */
+static TransactionEnvelope
+makeLargeTxEnvelope(int64_t fee, int64_t seqNum, uint8_t accountByte,
+                    size_t wasmBytes)
+{
+    TransactionEnvelope txEnv;
+    txEnv.type(ENVELOPE_TYPE_TX);
+    auto& tx = txEnv.v1().tx;
+    tx.sourceAccount.type(KEY_TYPE_ED25519);
+    std::fill(tx.sourceAccount.ed25519().begin(),
+              tx.sourceAccount.ed25519().end(), accountByte);
+    tx.fee = static_cast<uint32_t>(fee);
+    tx.seqNum = seqNum;
+    tx.cond.type(PRECOND_NONE);
+    tx.operations.resize(1);
+    tx.operations[0].body.type(INVOKE_HOST_FUNCTION);
+    auto& hostFn = tx.operations[0].body.invokeHostFunctionOp().hostFunction;
+    hostFn.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    hostFn.wasm().resize(wasmBytes);
+    std::fill(hostFn.wasm().begin(), hostFn.wasm().end(), accountByte);
+    return txEnv;
+}
+
+/**
+ * Top transactions responses larger than the old 16 MiB IPC limit reach Core
+ * (a signature prewarm's pull on perfnet was about 17.2 MB and ended Core's
+ * IPC reader), and a pull larger than the limit is truncated to the
+ * highest-priority transactions that fit instead of breaking the connection.
+ */
+TEST_CASE("Rust overlay returns top transactions over 16 MiB", "[overlay-ipc]")
+{
+    std::string overlayBinary = requireOverlayBinary();
+    TmpDir tmpDir("overlay_ipc_large_top_txs_test");
+    std::string socketPath = tmpDir.getName() + "/overlay.sock";
+    uint16_t peerPort = getTestConfig(7).PEER_PORT;
+
+    auto ipc =
+        std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
+    REQUIRE(ipc->start());
+
+    size_t const txBytes = 1024 * 1024;
+    auto submit = [&](size_t count, uint8_t firstAccount) {
+        for (size_t i = 0; i < count; ++i)
+        {
+            int64_t fee = 1000 + 100 * static_cast<int64_t>(i);
+            auto account = static_cast<uint8_t>(firstAccount + i);
+            ipc->submitTransaction(
+                makeLargeTxEnvelope(fee, 1, account, txBytes), fee, 1);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    };
+
+    SECTION("a 20 MiB response arrives whole")
+    {
+        submit(20, 0);
+        auto txs = ipc->getTopTransactions(20);
+        REQUIRE(txs.size() == 20);
+        for (auto const& tx : txs)
+        {
+            REQUIRE(tx.v1()
+                        .tx.operations[0]
+                        .body.invokeHostFunctionOp()
+                        .hostFunction.wasm()
+                        .size() == txBytes);
+        }
+        // Highest fee first.
+        REQUIRE(txs.front().v1().tx.fee == 1000 + 100 * 19);
+    }
+
+    SECTION("a response over the limit is truncated and the IPC survives")
+    {
+        submit(80, 0);
+        auto txs = ipc->getTopTransactions(80);
+        // 64 MiB holds 63 of these (each about 1 MiB plus framing).
+        REQUIRE(txs.size() > 16);
+        REQUIRE(txs.size() < 80);
+        REQUIRE(txs.front().v1().tx.fee == 1000 + 100 * 79);
+        // The connection still works.
+        REQUIRE(ipc->getTopTransactions(3).size() == 3);
+    }
+
+    ipc->shutdown();
 }
 
 /**
@@ -852,7 +1009,7 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
  * - 200 tx/ledger (heavy load)
  *
  * For each rate, runs for several ledgers and measures:
- * - scp.timing.nominated (time from nomination to prepare)
+ * - scp.timing.trigger-to-ballot (time from the trigger to the first ballot)
  * - scp.timing.externalized (time from prepare to externalize)
  * - ledger.ledger.close (total ledger close time)
  */
@@ -878,8 +1035,8 @@ TEST_CASE("Rust overlay SCP latency under TX load",
         std::string label;
         int txSubmitted;
         int txIncluded;
-        double scpNominatedMean;
-        double scpNominatedMax;
+        double scpTriggerToBallotMean;
+        double scpTriggerToBallotMax;
         double scpExternalizedMean;
         double scpExternalizedMax;
         double ledgerCloseMean;
@@ -939,8 +1096,8 @@ TEST_CASE("Rust overlay SCP latency under TX load",
 
             // Get metrics (they accumulate across ledgers)
             auto& metrics = node0->getMetrics();
-            auto& scpNominated =
-                metrics.NewTimer({"scp", "timing", "nominated"});
+            auto& scpTriggerToBallot =
+                metrics.NewTimer({"scp", "timing", "trigger-to-ballot"});
             auto& scpExternalized =
                 metrics.NewTimer({"scp", "timing", "externalized"});
             auto& ledgerClose = metrics.NewTimer({"ledger", "ledger", "close"});
@@ -1058,8 +1215,8 @@ TEST_CASE("Rust overlay SCP latency under TX load",
             res.label = run.label;
             res.txSubmitted = txSubmitted;
             res.txIncluded = static_cast<int>(txIncluded);
-            res.scpNominatedMean = scpNominated.mean();
-            res.scpNominatedMax = scpNominated.max();
+            res.scpTriggerToBallotMean = scpTriggerToBallot.mean();
+            res.scpTriggerToBallotMax = scpTriggerToBallot.max();
             res.scpExternalizedMean = scpExternalized.mean();
             res.scpExternalizedMax = scpExternalized.max();
             res.ledgerCloseMean = ledgerClose.mean();
@@ -1094,8 +1251,8 @@ TEST_CASE("Rust overlay SCP latency under TX load",
     {
         LOG_INFO(DEFAULT_LOG,
                  "{:<20} {:>10} {:>10} {:>12.2f} {:>12.2f} {:>12.2f} {:>12.2f}",
-                 r.label, r.txSubmitted, r.txIncluded, r.scpNominatedMean,
-                 r.scpNominatedMax, r.scpExternalizedMean,
+                 r.label, r.txSubmitted, r.txIncluded, r.scpTriggerToBallotMean,
+                 r.scpTriggerToBallotMax, r.scpExternalizedMean,
                  r.scpExternalizedMax);
     }
 
@@ -1116,11 +1273,11 @@ TEST_CASE("Rust overlay SCP latency under TX load",
     // Allow 3x degradation from light to heavy load
     if (allResults.size() >= 2)
     {
-        double lightMean = allResults[0].scpNominatedMean;
-        double heavyMean = allResults.back().scpNominatedMean;
+        double lightMean = allResults[0].scpTriggerToBallotMean;
+        double heavyMean = allResults.back().scpTriggerToBallotMean;
 
         LOG_INFO(DEFAULT_LOG,
-                 "SCP nominated latency ratio (heavy/light): {:.2f}x",
+                 "SCP trigger-to-ballot latency ratio (heavy/light): {:.2f}x",
                  heavyMean / lightMean);
 
         // Warn but don't fail if degradation is significant
@@ -1244,7 +1401,8 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test",
 
     // Get metrics from node 0
     auto& metrics = nodes[0]->getMetrics();
-    auto& scpNominated = metrics.NewTimer({"scp", "timing", "nominated"});
+    auto& scpTriggerToBallot =
+        metrics.NewTimer({"scp", "timing", "trigger-to-ballot"});
     auto& scpExternalized = metrics.NewTimer({"scp", "timing", "externalized"});
     auto& ledgerClose = metrics.NewTimer({"ledger", "ledger", "close"});
 
@@ -1314,8 +1472,8 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test",
     LOG_INFO(DEFAULT_LOG, "  Effective TPS: {:.0f}", effectiveTps);
     LOG_INFO(DEFAULT_LOG, "");
     LOG_INFO(DEFAULT_LOG, "SCP Timing (ms):");
-    LOG_INFO(DEFAULT_LOG, "  Nominated:    mean={:.2f}, max={:.2f}",
-             scpNominated.mean(), scpNominated.max());
+    LOG_INFO(DEFAULT_LOG, "  TriggerToBallot: mean={:.2f}, max={:.2f}",
+             scpTriggerToBallot.mean(), scpTriggerToBallot.max());
     LOG_INFO(DEFAULT_LOG, "  Externalized: mean={:.2f}, max={:.2f}",
              scpExternalized.mean(), scpExternalized.max());
     LOG_INFO(DEFAULT_LOG, "");
@@ -1328,10 +1486,10 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test",
 
     // Warn if SCP latency is concerning (but don't fail - this is
     // informational)
-    if (scpNominated.max() > 5000)
+    if (scpTriggerToBallot.max() > 5000)
     {
-        WARN("SCP nomination max latency exceeded 5s: " << scpNominated.max()
-                                                        << "ms");
+        WARN("SCP trigger-to-ballot max latency exceeded 5s: "
+             << scpTriggerToBallot.max() << "ms");
     }
 
     LOG_INFO(DEFAULT_LOG,
@@ -1599,4 +1757,158 @@ TEST_CASE("Rust overlay applies Soroban TX count upgrade", "[overlay-ipc]")
     }
 
     LOG_INFO(DEFAULT_LOG, "✓ Soroban TX count upgrade works with Rust overlay");
+}
+
+/**
+ * A network created at the genesis protocol must reach the latest protocol
+ * over the Rust overlay. Before generalized tx sets (protocol 20), proposals
+ * carry legacy `TransactionSet`s, which the Rust overlay cannot fetch or serve.
+ * Every validator therefore has to obtain the leader's legacy set locally:
+ * with an empty mempool, it builds the identical deterministic set itself.
+ *
+ * This reproduces the stall seen on perfnet with leader-only tx-set
+ * construction: followers that never built their own value could not obtain
+ * the leader's legacy set, so only nodes promoted to leader by nomination
+ * timeouts could externalize, one slow round at a time.
+ */
+TEST_CASE("Rust overlay upgrades from genesis through legacy tx sets",
+          "[overlay-ipc][upgrades]")
+{
+    requireOverlayBinary();
+
+    Hash networkID = sha256("Test network passphrase for genesis upgrades");
+    auto simulation = std::make_shared<Simulation>(networkID);
+
+    constexpr size_t NUM_NODES = 4;
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qSet;
+    qSet.threshold = 3;
+    for (size_t i = 0; i < NUM_NODES; ++i)
+    {
+        keys.push_back(
+            SecretKey::fromSeed(sha256(fmt::format("GENESIS_UPGRADE_{}", i))));
+        qSet.validators.push_back(keys.back().getPublicKey());
+    }
+
+    auto cfgs = makeFullMeshConfigs(*simulation, NUM_NODES);
+    for (size_t i = 0; i < NUM_NODES; ++i)
+    {
+        auto& cfg = cfgs[i];
+        // Start at the genesis protocol, like a fresh perfnet network.
+        cfg.USE_CONFIG_FOR_GENESIS = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        simulation->addNode(keys[i], qSet, &cfg);
+    }
+    simulation->startAllNodes();
+
+    auto nodes = simulation->getNodes();
+    auto const expectedClose = simulation->getExpectedLedgerCloseTime();
+    auto lclHeader = [](Application::pointer const& node) {
+        return node->getLedgerManager().getLastClosedLedgerHeader();
+    };
+    auto logLedgers = [&]() {
+        for (auto const& node : nodes)
+        {
+            auto const lcl = lclHeader(node);
+            UNSCOPED_INFO(fmt::format(
+                "node {}: ledger {} protocol {}", node->getConfig().PEER_PORT,
+                lcl.header.ledgerSeq, lcl.header.ledgerVersion));
+        }
+    };
+    // Simulation::crankUntil throws on timeout; report per-node state instead.
+    auto closesWithin = [&](std::function<bool()> const& done,
+                            std::chrono::milliseconds budget) {
+        try
+        {
+            simulation->crankUntil(done, budget, false);
+            return true;
+        }
+        catch (std::runtime_error const&)
+        {
+            logLedgers();
+            return false;
+        }
+    };
+    // Every node must have externalized a real, signed value (not an
+    // empty-tx-set replacement) whose tx set it holds, in the expected format.
+    auto requireRealTxSets = [&](std::optional<bool> generalized) {
+        for (auto const& node : nodes)
+        {
+            auto const lcl = lclHeader(node);
+            CAPTURE(node->getConfig().PEER_PORT, lcl.header.ledgerSeq);
+            REQUIRE(isSignedStellarValue(lcl.header.scpValue));
+            auto txSet =
+                node->getHerder().getTxSet(lcl.header.scpValue.txSetHash);
+            REQUIRE(std::holds_alternative<TxSetXDRFrameConstPtr>(txSet));
+            auto const& frame = std::get<TxSetXDRFrameConstPtr>(txSet);
+            REQUIRE(frame);
+            if (generalized)
+            {
+                REQUIRE(frame->isGeneralizedTxSet() == *generalized);
+            }
+        }
+    };
+
+    // Let the overlay connect and the network close its first ledger.
+    REQUIRE(
+        closesWithin([&]() { return simulation->haveAllExternalized(2, 1); },
+                     30 * expectedClose));
+    for (auto const& node : nodes)
+    {
+        REQUIRE(lclHeader(node).header.ledgerVersion ==
+                LedgerManager::GENESIS_LEDGER_VERSION);
+    }
+
+    // Legacy tx-set ledgers must close at the normal cadence. Without a
+    // locally available leader set, each one waits for nomination timeouts
+    // (1 s, 2 s, ...) to promote enough followers to leaders.
+    auto const firstLegacy = lclHeader(nodes[0]).header.ledgerSeq;
+    constexpr uint32_t LEGACY_LEDGERS = 4;
+    REQUIRE(closesWithin(
+        [&]() {
+            return simulation->haveAllExternalized(firstLegacy + LEGACY_LEDGERS,
+                                                   1);
+        },
+        LEGACY_LEDGERS * 5 * expectedClose / 2));
+    requireRealTxSets(false);
+
+    // Upgrade straight to the latest protocol. The upgrade ledger itself still
+    // uses a legacy tx set; the next one is the first generalized set.
+    Upgrades::UpgradeParameters scheduledUpgrades;
+    scheduledUpgrades.mUpgradeTime = VirtualClock::from_time_t(
+        lclHeader(nodes[0]).header.scpValue.closeTime);
+    scheduledUpgrades.mProtocolVersion =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    for (auto const& node : nodes)
+    {
+        node->getHerder().setUpgrades(scheduledUpgrades);
+    }
+    REQUIRE(closesWithin(
+        [&]() {
+            return std::all_of(
+                nodes.begin(), nodes.end(), [&](auto const& node) {
+                    return lclHeader(node).header.ledgerVersion ==
+                           Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+                });
+        },
+        10 * expectedClose));
+    // A node may already have closed the first generalized-set ledger.
+    requireRealTxSets(std::nullopt);
+
+    // Leader-only construction resumes at the latest protocol, where
+    // followers fetch the leader's generalized set through the overlay.
+    auto const firstLatest = lclHeader(nodes[0]).header.ledgerSeq;
+    REQUIRE(closesWithin(
+        [&]() { return simulation->haveAllExternalized(firstLatest + 3, 1); },
+        10 * expectedClose));
+    requireRealTxSets(true);
+
+    // Nodes that closed the same ledger agree on it.
+    std::map<uint32_t, Hash> hashBySeq;
+    for (auto const& node : nodes)
+    {
+        auto const lcl = lclHeader(node);
+        auto [it, inserted] = hashBySeq.emplace(lcl.header.ledgerSeq, lcl.hash);
+        REQUIRE((inserted || it->second == lcl.hash));
+    }
 }

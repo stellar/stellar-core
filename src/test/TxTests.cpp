@@ -80,7 +80,7 @@ captureLastClosedLedgerLcm(Application& app)
         // Configs whose ledger content depends on thread scheduling or on
         // randomized nomination cannot produce reproducible golden data.
         if (app.getConfig().EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD ||
-            app.getConfig().TESTING_NOMINATE_RANDOM_VALUES)
+            app.getConfig().TESTING_PROPOSE_RANDOM_VALUES)
         {
             disableLcmCapture();
         }

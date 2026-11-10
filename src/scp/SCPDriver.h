@@ -44,6 +44,11 @@ class ValueWrapper : public NonMovableOrCopyable
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 typedef std::shared_ptr<ValueWrapper> ValueWrapperPtr;
 
+// Called only when the local node is the leader of a round and needs to build
+// its own value. May return nullptr if the application can no longer propose
+// for the slot. The callback must remain valid for the lifetime of the slot.
+using ProposalValueSupplier = std::function<ValueWrapperPtr()>;
+
 class WrappedValuePtrComparator
 {
   public:
@@ -150,7 +155,10 @@ class SCPDriver
     // be validated due to parallel downloading (e.g. it's for LCL+1 but the
     // node is still downloading the tx set), then kStructurallyValidValue
     // should be used.
-    // validation can be *more* restrictive during nomination as needed
+    // validation is *more* restrictive when `proposal` is set: that mode is
+    // used before the local node adopts (votes for) a round leader's value,
+    // and for the leader's own value. It is where the application enforces
+    // what it is willing to propose (e.g. only upgrades it has armed).
     // NB: validation levels are ordered
     enum ValidationLevel
     {
@@ -167,20 +175,9 @@ class SCPDriver
         kFullyValidatedValue = 3
     };
     virtual ValidationLevel
-    validateValue(uint64 slotIndex, Value const& value, bool nomination) const
+    validateValue(uint64 slotIndex, Value const& value, bool proposal) const
     {
         return kMaybeValidNotCurrentValue;
-    }
-
-    // `extractValidValue` transforms the value, if possible to a different
-    // value that the local node would agree to (fully validated).
-    // This is used during nomination when encountering an invalid value (ie
-    // validateValue did not return `kFullyValidatedValue` for this value).
-    // returning nullptr means no valid value could be extracted
-    virtual ValueWrapperPtr
-    extractValidValue(uint64 slotIndex, Value const& value)
-    {
-        return nullptr;
     }
 
     // Helper function to craft an empty-tx-set value from a Value.
@@ -210,33 +207,23 @@ class SCPDriver
     virtual Hash
     getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const = 0;
 
-    // `computeHashNode` is used by the nomination protocol to
-    // randomize the order of messages between nodes.
-    virtual uint64 computeHashNode(uint64 slotIndex, Value const& prev,
-                                   bool isPriority, int32_t roundNumber,
-                                   NodeID const& nodeID);
+    // `getRoundLeader` returns the leader of round `round` (1-based, a round
+    // is a ballot counter) for `slotIndex`. Every node that takes part in
+    // consensus on the slot must compute the same answer. Returns nullopt when
+    // the schedule is not known for that slot (e.g. the slot is not the next
+    // one to close), in which case the local node neither proposes nor adopts.
+    virtual std::optional<NodeID> getRoundLeader(uint64 slotIndex,
+                                                 uint32 round) = 0;
 
-    // `computeValueHash` is used by the nomination protocol to
-    // randomize the relative order between values.
-    virtual uint64 computeValueHash(uint64 slotIndex, Value const& prev,
-                                    int32_t roundNumber, Value const& value);
-
-    // `combineCandidates` computes the composite value based off a list
-    // of candidate values.
-    virtual ValueWrapperPtr
-    combineCandidates(uint64 slotIndex,
-                      ValueWrapperPtrSet const& candidates) = 0;
-
-    // Checks whether `v` contains upgrades
-    virtual bool hasUpgrades(Value const& v) = 0;
-
-    // `stripAllUpgrades` returns a new value with all upgrades removed
-    virtual ValueWrapperPtr stripAllUpgrades(Value const& v) = 0;
-
-    // Returns the maximum number of nomination timeouts permitted per slot for
-    // the currently set upgrade. Defaults to the maximum uint32_t value
-    // (effectively unlimited) if the upgrade does not specify a limit.
-    virtual uint32_t getUpgradeNominationTimeoutLimit() const = 0;
+    // `isProposalPending` returns true if the application holds a statement
+    // of `leader` for `slotIndex` that it has not handed to SCP yet (e.g. it
+    // is still fetching the transaction set of its value). SCP then gives a
+    // round leader one more timeout before moving to the next round.
+    virtual bool
+    isProposalPending(uint64 slotIndex, NodeID const& leader) const
+    {
+        return false;
+    }
 
     // `setupTimer`: requests to trigger 'cb' after timeout
     // if cb is nullptr, the timer is cancelled
@@ -248,22 +235,7 @@ class SCPDriver
     // `computeTimeout` computes a timeout given a round number
     // it should be sufficiently large such that nodes in a
     // quorum can exchange 4 messages
-    virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber,
-                                                     bool isNomination) = 0;
-
-#ifdef BUILD_TESTS
-    virtual std::chrono::milliseconds
-    getNominationEmitDelayForTesting() const
-    {
-        return std::chrono::milliseconds::zero();
-    }
-#endif
-
-    // returns the weight of the node within the qset normalized between
-    // 0-UINT64_MAX. If `nodeID` is the local node, then set `isLocalNode` to
-    // `true`.
-    virtual uint64 getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
-                                 bool isLocalNode) const;
+    virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber) = 0;
 
     // Inform about events happening within the consensus algorithm.
 
@@ -279,21 +251,20 @@ class SCPDriver
     {
     }
 
-    // ``nominatingValue`` is called every time the local instance nominates
-    // a new value.
-    virtual void
-    nominatingValue(uint64 slotIndex, Value const& value)
-    {
-    }
-
     // the following methods are used for monitoring of the SCP subsystem
     // most implementation don't really need to do anything with these
 
-    // `updatedCandidateValue` is called every time a new candidate value
-    // is included in the candidate set, the value passed in is
-    // a composite value
+    // `proposedValue` is called when the local node, as the leader of
+    // `round`, puts `value` forward.
     virtual void
-    updatedCandidateValue(uint64 slotIndex, Value const& value)
+    proposedValue(uint64 slotIndex, uint32 round, Value const& value)
+    {
+    }
+
+    // `enteredRound` is called when the local node moves to `round` for
+    // `slotIndex`. `timedOut` is true when a timer expiry caused the move.
+    virtual void
+    enteredRound(uint64 slotIndex, uint32 round, bool timedOut)
     {
     }
 
@@ -342,19 +313,5 @@ class SCPDriver
     measureAndRecordBallotBlockedOnTxSet(uint64 slotIndex, Value const& value)
     {
     }
-
-#ifdef BUILD_TESTS
-    std::function<uint64(NodeID const&)> mPriorityLookupForTesting;
-    void
-    setPriorityLookup(std::function<uint64(NodeID const&)> const& f)
-    {
-        mPriorityLookupForTesting = f;
-    }
-#endif
-
-  private:
-    uint64
-    hashHelper(uint64 slotIndex, Value const& prev,
-               std::function<void(std::vector<xdr::opaque_vec<>>&)> extra);
 };
 }

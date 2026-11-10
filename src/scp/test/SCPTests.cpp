@@ -17,6 +17,10 @@
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include <fmt/format.h>
+#include <numeric>
+#include <optional>
+#include <queue>
+#include <tuple>
 
 // General convention in this file is that numbers in parenthesis
 // refer to the rule number in the related protocol from the white paper
@@ -41,18 +45,15 @@ class TestSCP : public SCPDriver
     SCP mSCP;
     uint32_t mInitialBallotTimeoutMS = 1000;
     uint32_t mIncrementBallotTimeoutMS = 1000;
-    uint32_t mInitialNominationTimeoutMS = 1000;
-    uint32_t mIncrementNominationTimeoutMS = 1000;
 
     TestSCP(NodeID const& nodeID, SCPQuorumSet const& qSetLocal,
             bool isValidator = true)
         : mSCP(*this, nodeID, isValidator, qSetLocal)
     {
-        mPriorityLookup = [&](NodeID const& n) {
-            return (n == mSCP.getLocalNodeID()) ? 1000 : 1;
-        };
-
-        mHashValueCalculator = [&](Value const& v) { return 0; };
+        // By default the local node leads every round: a ballot timeout then
+        // bumps the counter with the value the node already votes for, like
+        // the plain ballot protocol.
+        mRoundLeader = [&](uint64, uint32) { return mSCP.getLocalNodeID(); };
 
         auto localQSet =
             std::make_shared<SCPQuorumSet>(mSCP.getLocalQuorumSet());
@@ -73,11 +74,11 @@ class TestSCP : public SCPDriver
 
     SCPDriver::ValidationLevel
     validateValue(uint64 slotIndex, Value const& value,
-                  bool nomination) const override
+                  bool proposal) const override
     {
         if (mValidateValueOverride)
         {
-            return mValidateValueOverride(slotIndex, value, nomination);
+            return mValidateValueOverride(slotIndex, value, proposal);
         }
         // If we're tracking download wait time for this value, it's awaiting
         // download
@@ -178,61 +179,55 @@ class TestSCP : public SCPDriver
         mEnvs.push_back(envelope);
     }
 
-    // used to test BallotProtocol and bypass nomination
+    // used to test BallotProtocol directly, without a round leader
     bool
     bumpState(uint64 slotIndex, Value const& v)
     {
         return mSCP.getSlot(slotIndex, true)->bumpState(v, true);
     }
 
+    // starts the slot the way the application does at its trigger; `value`
+    // is what the local node proposes if it leads a round
     bool
-    nominate(uint64 slotIndex, Value const& value, bool timedout)
+    startSlot(uint64 slotIndex, Value const& value)
     {
         auto wv = wrapValue(value);
-        return mSCP.getSlot(slotIndex, true)->nominate(wv, value, timedout);
+        return mSCP.startSlot(slotIndex, [this, wv]() {
+            ++mValuesBuilt;
+            return mMakeValueOverride ? mMakeValueOverride() : wv;
+        });
     }
 
-    // only used by nomination protocol
-    ValueWrapperPtr
-    combineCandidates(uint64 slotIndex,
-                      ValueWrapperPtrSet const& candidates) override
+    std::optional<NodeID>
+    getRoundLeader(uint64 slotIndex, uint32 round) override
     {
-        REQUIRE(candidates.size() == mExpectedCandidates.size());
-        auto it1 = candidates.begin();
-        auto it2 = mExpectedCandidates.end();
-        for (; it1 != candidates.end() && it2 != mExpectedCandidates.end();
-             it1++, it2++)
-        {
-            REQUIRE((*it1)->getValue() == *it2);
-        }
+        return mRoundLeader(slotIndex, round);
+    }
 
-        REQUIRE(!mCompositeValue.empty());
+    void
+    proposedValue(uint64 slotIndex, uint32 round, Value const& value) override
+    {
+        mProposedValues.emplace_back(round, value);
+    }
 
-        return wrapValue(mCompositeValue);
+    void
+    enteredRound(uint64 slotIndex, uint32 round, bool timedOut) override
+    {
+        mEnteredRounds.emplace_back(round, timedOut);
     }
 
     bool
-    hasUpgrades(Value const& v) override
+    isProposalPending(uint64, NodeID const&) const override
     {
-        // Not implemented
-        releaseAssert(false);
+        return mProposalPending;
     }
 
-    ValueWrapperPtr
-    stripAllUpgrades(Value const& v) override
-    {
-        // Not implemented
-        releaseAssert(false);
-    }
-
-    uint32_t
-    getUpgradeNominationTimeoutLimit() const override
-    {
-        return std::numeric_limits<uint32_t>::max();
-    }
-
-    std::set<Value> mExpectedCandidates;
-    Value mCompositeValue;
+    std::function<std::optional<NodeID>(uint64, uint32)> mRoundLeader;
+    bool mProposalPending{false};
+    std::function<ValueWrapperPtr()> mMakeValueOverride;
+    int mValuesBuilt{0};
+    std::vector<std::pair<uint32, Value>> mProposedValues;
+    std::vector<std::pair<uint32, bool>> mEnteredRounds;
 
     Hash
     getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override
@@ -245,34 +240,6 @@ class TestSCP : public SCPDriver
         return hasher.finish();
     }
 
-    // override the internal hashing scheme in order to make tests
-    // more predictable.
-    uint64
-    computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
-                    int32_t roundNumber, NodeID const& nodeID) override
-    {
-        uint64 res;
-        if (isPriority)
-        {
-            res = mPriorityLookup(nodeID);
-        }
-        else
-        {
-            res = 0;
-        }
-        return res;
-    }
-
-    // override the value hashing, to make tests more predictable.
-    uint64
-    computeValueHash(uint64 slotIndex, Value const& prev, int32_t roundNumber,
-                     Value const& value) override
-    {
-        return mHashValueCalculator(value);
-    }
-
-    std::function<uint64(NodeID const&)> mPriorityLookup;
-    std::function<uint64(Value const&)> mHashValueCalculator;
     std::function<SCPDriver::ValidationLevel(uint64, Value const&, bool)>
         mValidateValueOverride;
 
@@ -291,15 +258,6 @@ class TestSCP : public SCPDriver
     };
     std::map<int, TimerData> mTimers;
     std::chrono::milliseconds mCurrentTimerOffset{0};
-
-    // Defers this node's nomination emits, like
-    // ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING does for Herder.
-    std::chrono::milliseconds mNominationEmitDelay{0};
-    std::chrono::milliseconds
-    getNominationEmitDelayForTesting() const override
-    {
-        return mNominationEmitDelay;
-    }
 
     void
     setupTimer(uint64 slotIndex, int timerID, std::chrono::milliseconds timeout,
@@ -332,6 +290,34 @@ class TestSCP : public SCPDriver
         return mCurrentTimerOffset;
     }
 
+    TimerData
+    getLeaderTimer()
+    {
+        return mTimers[Slot::LEADER_TIMER];
+    }
+
+    bool
+    hasLeaderTimer()
+    {
+        return !!getLeaderTimer().mCallback;
+    }
+
+    // fires a timer the way a real (one-shot) timer does
+    void
+    fireTimer(int timerID)
+    {
+        auto cb = mTimers[timerID].mCallback;
+        REQUIRE(cb);
+        mTimers[timerID].mCallback = nullptr;
+        cb();
+    }
+
+    uint32
+    getLeaderRound(uint64 slotIndex)
+    {
+        return mSCP.getLeaderRound(slotIndex);
+    }
+
     // returns true if a ballot protocol timer exists (in the past or future)
     bool
     hasBallotTimer()
@@ -348,14 +334,6 @@ class TestSCP : public SCPDriver
         // timer must be scheduled in the past or future
         REQUIRE(hasBallotTimer());
         return mCurrentTimerOffset < getBallotProtocolTimer().mAbsoluteTimeout;
-    }
-
-    Value const&
-    getLatestCompositeCandidate(uint64 slotIndex)
-    {
-        return mSCP.getSlot(slotIndex, true)
-            ->getLatestCompositeCandidate()
-            ->getValue();
     }
 
     SCP::EnvelopeState
@@ -392,12 +370,6 @@ class TestSCP : public SCPDriver
         throw std::runtime_error("not found");
     }
 
-    std::set<NodeID>
-    getNominationLeaders(uint64 slotIndex)
-    {
-        return mSCP.getSlot(slotIndex, false)->getNominationLeaders();
-    }
-
     // Helper methods for empty-tx-set value testing
     void
     startDownload(Value const& v, std::chrono::milliseconds waitTime)
@@ -415,21 +387,10 @@ class TestSCP : public SCPDriver
     static uint32_t const MAX_TIMEOUT_MS = (30 * 60) * 1000;
 
     std::chrono::milliseconds
-    computeTimeout(uint32 roundNumber, bool isNomination) override
+    computeTimeout(uint32 roundNumber) override
     {
-        int initialTimeoutMS;
-        int incrementMS;
-
-        if (isNomination)
-        {
-            initialTimeoutMS = mInitialNominationTimeoutMS;
-            incrementMS = mIncrementNominationTimeoutMS;
-        }
-        else
-        {
-            initialTimeoutMS = mInitialBallotTimeoutMS;
-            incrementMS = mIncrementBallotTimeoutMS;
-        }
+        int initialTimeoutMS = mInitialBallotTimeoutMS;
+        int incrementMS = mIncrementBallotTimeoutMS;
 
         int timeoutMS = initialTimeoutMS + (roundNumber - 1) * incrementMS;
         if (timeoutMS > MAX_TIMEOUT_MS)
@@ -595,15 +556,6 @@ verifyExternalize(SCPEnvelope const& actual, SecretKey const& secretKey,
                   SCPBallot const& commit, uint32 nH)
 {
     auto exp = makeExternalize(secretKey, qSetHash, slotIndex, commit, nH);
-    REQUIRE(exp.statement == actual.statement);
-}
-
-void
-verifyNominate(SCPEnvelope const& actual, SecretKey const& secretKey,
-               Hash const& qSetHash, uint64 slotIndex, std::vector<Value> votes,
-               std::vector<Value> accepted)
-{
-    auto exp = makeNominate(secretKey, qSetHash, slotIndex, votes, accepted);
     REQUIRE(exp.statement == actual.statement);
 }
 
@@ -802,12 +754,8 @@ testTimeouts(TestSCP& scp, std::function<void(TestSCP&)> f)
 {
     SECTION("minimum values")
     {
-        scp.mInitialNominationTimeoutMS = MinimumSorobanNetworkConfig::
-            NOMINATION_TIMEOUT_INITIAL_MILLISECONDS;
         scp.mInitialBallotTimeoutMS =
             MinimumSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS;
-        scp.mIncrementNominationTimeoutMS = MinimumSorobanNetworkConfig::
-            NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS;
         scp.mIncrementBallotTimeoutMS =
             MinimumSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         f(scp);
@@ -815,12 +763,8 @@ testTimeouts(TestSCP& scp, std::function<void(TestSCP&)> f)
 
     SECTION("initial values")
     {
-        scp.mInitialNominationTimeoutMS = InitialSorobanNetworkConfig::
-            NOMINATION_TIMEOUT_INITIAL_MILLISECONDS;
         scp.mInitialBallotTimeoutMS =
             InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS;
-        scp.mIncrementNominationTimeoutMS = InitialSorobanNetworkConfig::
-            NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS;
         scp.mIncrementBallotTimeoutMS =
             InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         f(scp);
@@ -828,12 +772,8 @@ testTimeouts(TestSCP& scp, std::function<void(TestSCP&)> f)
 
     SECTION("maximum values")
     {
-        scp.mInitialNominationTimeoutMS = MaximumSorobanNetworkConfig::
-            NOMINATION_TIMEOUT_INITIAL_MILLISECONDS;
         scp.mInitialBallotTimeoutMS =
             MaximumSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS;
-        scp.mIncrementNominationTimeoutMS = MaximumSorobanNetworkConfig::
-            NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS;
         scp.mIncrementBallotTimeoutMS =
             MaximumSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         f(scp);
@@ -2899,715 +2839,6 @@ TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
     testTimeouts(scp, test);
 }
 
-TEST_CASE("delayed nomination emit after an immediate emit",
-          "[scp][nominationprotocol]")
-{
-    setupValues();
-    SIMULATION_CREATE_NODE(0);
-    SIMULATION_CREATE_NODE(1);
-    SIMULATION_CREATE_NODE(2);
-    SIMULATION_CREATE_NODE(3);
-    SIMULATION_CREATE_NODE(4);
-
-    // v-blocking set size 2, quorum threshold 4
-    SCPQuorumSet qSet;
-    qSet.threshold = 4;
-    qSet.validators.push_back(v0NodeID);
-    qSet.validators.push_back(v1NodeID);
-    qSet.validators.push_back(v2NodeID);
-    qSet.validators.push_back(v3NodeID);
-    qSet.validators.push_back(v4NodeID);
-    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
-
-    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
-    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
-    scp.mNominationEmitDelay = std::chrono::milliseconds(1000);
-
-    // v0 leads the round and votes for x, but its emit is deferred
-    REQUIRE(scp.nominate(0, xValue, false));
-    REQUIRE(scp.mEnvs.empty());
-    REQUIRE(scp.mTimers.count(Slot::NOMINATION_EMIT_TIMER) == 1);
-    auto delayedEmit = scp.mTimers[Slot::NOMINATION_EMIT_TIMER].mCallback;
-    REQUIRE(delayedEmit);
-
-    std::vector<Value> votes{xValue};
-
-    SECTION("nothing emitted meanwhile: the delayed emit sends the vote")
-    {
-        delayedEmit();
-        REQUIRE(scp.mEnvs.size() == 1);
-        verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes, {});
-    }
-
-    SECTION("an immediate emit meanwhile: the delayed emit is not repeated")
-    {
-        // A v-blocking set accepting x makes v0 accept it, and processEnvelope
-        // emits the new state at once while the delayed emit is still armed.
-        std::vector<Value> accepted{xValue};
-        scp.receiveEnvelope(
-            makeNominate(v1SecretKey, qSetHash, 0, votes, accepted));
-        REQUIRE(scp.mEnvs.empty());
-        scp.receiveEnvelope(
-            makeNominate(v2SecretKey, qSetHash, 0, votes, accepted));
-        REQUIRE(scp.mEnvs.size() == 1);
-        verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes,
-                       accepted);
-
-        // Nothing changed since: re-emitting the same statement used to be
-        // rejected by our own processEnvelope ("moved to a bad state").
-        REQUIRE_NOTHROW(delayedEmit());
-        REQUIRE(scp.mEnvs.size() == 1);
-    }
-}
-
-TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
-{
-    setupValues();
-    SIMULATION_CREATE_NODE(0);
-    SIMULATION_CREATE_NODE(1);
-    SIMULATION_CREATE_NODE(2);
-    SIMULATION_CREATE_NODE(3);
-    SIMULATION_CREATE_NODE(4);
-
-    // we need 5 nodes to avoid sharing various thresholds:
-    // v-blocking set size: 2
-    // threshold: 4 = 3 + self or 4 others
-    SCPQuorumSet qSet;
-    qSet.threshold = 4;
-    qSet.validators.push_back(v0NodeID);
-    qSet.validators.push_back(v1NodeID);
-    qSet.validators.push_back(v2NodeID);
-    qSet.validators.push_back(v3NodeID);
-    qSet.validators.push_back(v4NodeID);
-
-    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
-
-    REQUIRE(xValue < yValue);
-    REQUIRE(yValue < zValue);
-
-    auto checkLeaders = [&](TestSCP& scp, std::set<NodeID> expectedLeaders) {
-        auto l = scp.getNominationLeaders(0);
-        REQUIRE(std::equal(l.begin(), l.end(), expectedLeaders.begin(),
-                           expectedLeaders.end()));
-    };
-
-    SECTION("nomination - v0 is top")
-    {
-        TestSCP scp(v0SecretKey.getPublicKey(), qSet);
-
-        auto test = [&](TestSCP& scp) {
-            uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
-            scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-
-            SECTION("v0 starts to nominates xValue")
-            {
-                REQUIRE(scp.nominate(0, xValue, false));
-
-                checkLeaders(scp, {v0SecretKey.getPublicKey()});
-
-                SECTION("others nominate what v0 says (x) -> prepare x")
-                {
-                    std::vector<Value> votes, accepted;
-                    votes.emplace_back(xValue);
-
-                    REQUIRE(scp.mEnvs.size() == 1);
-                    verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                   votes, accepted);
-
-                    SCPEnvelope nom1 =
-                        makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope nom2 =
-                        makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope nom3 =
-                        makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope nom4 =
-                        makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
-
-                    // nothing happens yet
-                    scp.receiveEnvelope(nom1);
-                    scp.receiveEnvelope(nom2);
-                    REQUIRE(scp.mEnvs.size() == 1);
-
-                    // this causes 'x' to be accepted (quorum)
-                    scp.receiveEnvelope(nom3);
-                    REQUIRE(scp.mEnvs.size() == 2);
-
-                    scp.mExpectedCandidates.emplace(xValue);
-                    scp.mCompositeValue = xValue;
-
-                    accepted.emplace_back(xValue);
-                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                                   votes, accepted);
-
-                    // extra message doesn't do anything
-                    scp.receiveEnvelope(nom4);
-                    REQUIRE(scp.mEnvs.size() == 2);
-
-                    SCPEnvelope acc1 =
-                        makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope acc2 =
-                        makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope acc3 =
-                        makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope acc4 =
-                        makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
-
-                    // nothing happens yet
-                    scp.receiveEnvelope(acc1);
-                    scp.receiveEnvelope(acc2);
-                    REQUIRE(scp.mEnvs.size() == 2);
-
-                    scp.mCompositeValue = xValue;
-                    // this causes the node to send a prepare message (quorum)
-                    scp.receiveEnvelope(acc3);
-                    REQUIRE(scp.mEnvs.size() == 3);
-
-                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0,
-                                  SCPBallot(1, xValue));
-
-                    scp.receiveEnvelope(acc4);
-                    REQUIRE(scp.mEnvs.size() == 3);
-
-                    std::vector<Value> votes2 = votes;
-                    votes2.emplace_back(yValue);
-
-                    SECTION("nominate x -> accept x -> prepare (x) ; others "
-                            "accepted y "
-                            "-> update latest to (z=x+y)")
-                    {
-                        SCPEnvelope acc1_2 = makeNominate(v1SecretKey, qSetHash,
-                                                          0, votes2, votes2);
-                        SCPEnvelope acc2_2 = makeNominate(v2SecretKey, qSetHash,
-                                                          0, votes2, votes2);
-                        SCPEnvelope acc3_2 = makeNominate(v3SecretKey, qSetHash,
-                                                          0, votes2, votes2);
-                        SCPEnvelope acc4_2 = makeNominate(v4SecretKey, qSetHash,
-                                                          0, votes2, votes2);
-
-                        scp.receiveEnvelope(acc1_2);
-                        REQUIRE(scp.mEnvs.size() == 3);
-
-                        // v-blocking
-                        scp.receiveEnvelope(acc2_2);
-                        REQUIRE(scp.mEnvs.size() == 4);
-                        verifyNominate(scp.mEnvs[3], v0SecretKey, qSetHash0, 0,
-                                       votes2, votes2);
-
-                        scp.mExpectedCandidates.insert(yValue);
-                        scp.mCompositeValue = kValue;
-                        // this updates the composite value to use next time
-                        // but does not prepare it
-                        scp.receiveEnvelope(acc3_2);
-                        REQUIRE(scp.mEnvs.size() == 4);
-
-                        REQUIRE(scp.getLatestCompositeCandidate(0) == kValue);
-
-                        scp.receiveEnvelope(acc4_2);
-                        REQUIRE(scp.mEnvs.size() == 4);
-                    }
-                    SECTION("nomination - restored state")
-                    {
-                        TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
-                        scp2.storeQuorumSet(
-                            std::make_shared<SCPQuorumSet>(qSet));
-
-                        // at this point
-                        // votes = { x }
-                        // accepted = { x }
-
-                        // tests if nomination proceeds like normal
-                        // nominates x
-                        auto nominationRestore = [&]() {
-                            // restores from the previous state
-                            scp2.mSCP.setStateFromEnvelope(
-                                0, scp2.wrapEnvelope(
-                                       makeNominate(v0SecretKey, qSetHash0, 0,
-                                                    votes, accepted)));
-                            // tries to start nomination with yValue, but picks
-                            // xValue since it was already in the votes
-                            REQUIRE(!scp2.nominate(0, yValue, false));
-
-                            checkLeaders(scp2, {v0SecretKey.getPublicKey()});
-
-                            REQUIRE(scp2.mEnvs.size() == 0);
-
-                            // other nodes vote for 'x'
-                            scp2.receiveEnvelope(nom1);
-                            scp2.receiveEnvelope(nom2);
-                            REQUIRE(scp2.mEnvs.size() == 0);
-                            // 'x' is accepted (quorum)
-                            // but because the restored state already included
-                            // 'x' in the accepted set, no new message is
-                            // emitted
-                            scp2.receiveEnvelope(nom3);
-
-                            scp2.mExpectedCandidates.emplace(xValue);
-                            scp2.mCompositeValue = xValue;
-
-                            // other nodes not emit 'x' as accepted
-                            scp2.receiveEnvelope(acc1);
-                            scp2.receiveEnvelope(acc2);
-                            REQUIRE(scp2.mEnvs.size() == 0);
-
-                            scp2.mCompositeValue = xValue;
-                            // this causes the node to update its composite
-                            // value to
-                            // x
-                            scp2.receiveEnvelope(acc3);
-                        };
-
-                        SECTION("ballot protocol not started")
-                        {
-                            nominationRestore();
-                            // nomination ended up starting the ballot protocol
-                            REQUIRE(scp2.mEnvs.size() == 1);
-
-                            verifyPrepare(scp2.mEnvs[0], v0SecretKey, qSetHash0,
-                                          0, SCPBallot(1, xValue));
-                        }
-                        SECTION("ballot protocol started (on value k)")
-                        {
-                            scp2.mSCP.setStateFromEnvelope(
-                                0, scp2.wrapEnvelope(
-                                       makePrepare(v0SecretKey, qSetHash0, 0,
-                                                   SCPBallot(1, kValue))));
-                            nominationRestore();
-                            // nomination didn't do anything (already working on
-                            // k)
-                            REQUIRE(scp2.mEnvs.size() == 0);
-                        }
-                    }
-                }
-                SECTION("receive more messages, then v0 switches to a "
-                        "different leader")
-                {
-                    SCPEnvelope nom1 =
-                        makeNominate(v1SecretKey, qSetHash, 0, {kValue}, {});
-                    SCPEnvelope nom2 =
-                        makeNominate(v2SecretKey, qSetHash, 0, {yValue}, {});
-
-                    // nothing more happens
-                    scp.receiveEnvelope(nom1);
-                    scp.receiveEnvelope(nom2);
-                    REQUIRE(scp.mEnvs.size() == 1);
-
-                    // switch leader to v1
-                    scp.mPriorityLookup = [&](NodeID const& n) {
-                        return (n == v1NodeID) ? 1000 : 1;
-                    };
-                    REQUIRE(scp.nominate(0, xValue, true));
-                    REQUIRE(scp.mEnvs.size() == 2);
-
-                    std::vector<Value> votesXK;
-                    votesXK.emplace_back(xValue);
-                    votesXK.emplace_back(kValue);
-                    std::sort(votesXK.begin(), votesXK.end());
-
-                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                                   votesXK, {});
-                }
-                SECTION("select accepted value from leader")
-                {
-                    REQUIRE(xValue < yValue);
-                    REQUIRE(yValue < zValue);
-                    REQUIRE(scp.mEnvs.size() == 1);
-
-                    // Update round leader to v1
-                    scp.mPriorityLookup = [&](NodeID const& n) {
-                        return (n == v1NodeID) ? 1000 : 1;
-                    };
-
-                    SCPEnvelope nom1 = makeNominate(v1SecretKey, qSetHash, 0,
-                                                    {yValue, zValue}, {yValue});
-
-                    SECTION("receive accepted before timeout")
-                    {
-                        // nothing more happens, v0 is leader
-                        scp.receiveEnvelope(nom1);
-                        REQUIRE(scp.mEnvs.size() == 1);
-
-                        // Update round leaders, vote for accepted value (y)
-                        REQUIRE(scp.nominate(0, xValue, true));
-                        REQUIRE(scp.mEnvs.size() == 2);
-                    }
-                    SECTION("receive accepted after timeout")
-                    {
-                        REQUIRE(!scp.nominate(0, xValue, true));
-                        REQUIRE(scp.mEnvs.size() == 1);
-
-                        // Vote for accepted value (y)
-                        scp.receiveEnvelope(nom1);
-                        REQUIRE(scp.mEnvs.size() == 2);
-                    }
-
-                    std::vector<Value> votesXY;
-                    votesXY.emplace_back(xValue);
-                    votesXY.emplace_back(yValue);
-
-                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                                   votesXY, {});
-
-                    SCPEnvelope nom2 =
-                        makeNominate(v1SecretKey, qSetHash, 0,
-                                     {yValue, zValue, zzValue}, {yValue});
-                    scp.receiveEnvelope(nom2);
-                    // Nothing happens, as v0 already voted for the accepted
-                    // value (y)
-                    REQUIRE(scp.mEnvs.size() == 2);
-                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                                   votesXY, {});
-                }
-            }
-            SECTION("self nominates 'x', others nominate y -> prepare y")
-            {
-                std::vector<Value> myVotes, accepted;
-                myVotes.emplace_back(xValue);
-
-                scp.mExpectedCandidates.emplace(xValue);
-                scp.mCompositeValue = xValue;
-                REQUIRE(scp.nominate(0, xValue, false));
-
-                REQUIRE(scp.mEnvs.size() == 1);
-                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, myVotes,
-                               accepted);
-
-                std::vector<Value> votes;
-                votes.emplace_back(yValue);
-
-                std::vector<Value> acceptedY = accepted;
-
-                acceptedY.emplace_back(yValue);
-
-                SECTION("others only vote for y")
-                {
-                    SCPEnvelope nom1 =
-                        makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope nom2 =
-                        makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope nom3 =
-                        makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
-                    SCPEnvelope nom4 =
-                        makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
-
-                    // nothing happens yet
-                    scp.receiveEnvelope(nom1);
-                    scp.receiveEnvelope(nom2);
-                    scp.receiveEnvelope(nom3);
-                    REQUIRE(scp.mEnvs.size() == 1);
-
-                    // 'y' is accepted (quorum)
-                    scp.receiveEnvelope(nom4);
-                    REQUIRE(scp.mEnvs.size() == 2);
-                    myVotes.emplace_back(yValue);
-                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                                   myVotes, acceptedY);
-                }
-                SECTION("others accepted y")
-                {
-                    SCPEnvelope acc1 = makeNominate(v1SecretKey, qSetHash, 0,
-                                                    votes, acceptedY);
-                    SCPEnvelope acc2 = makeNominate(v2SecretKey, qSetHash, 0,
-                                                    votes, acceptedY);
-                    SCPEnvelope acc3 = makeNominate(v3SecretKey, qSetHash, 0,
-                                                    votes, acceptedY);
-                    SCPEnvelope acc4 = makeNominate(v4SecretKey, qSetHash, 0,
-                                                    votes, acceptedY);
-
-                    scp.receiveEnvelope(acc1);
-                    REQUIRE(scp.mEnvs.size() == 1);
-
-                    // this causes 'y' to be accepted (v-blocking)
-                    scp.receiveEnvelope(acc2);
-                    REQUIRE(scp.mEnvs.size() == 2);
-
-                    myVotes.emplace_back(yValue);
-                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                                   myVotes, acceptedY);
-
-                    scp.mExpectedCandidates.clear();
-                    scp.mExpectedCandidates.insert(yValue);
-                    scp.mCompositeValue = yValue;
-                    // this causes the node to send a prepare message (quorum)
-                    scp.receiveEnvelope(acc3);
-                    REQUIRE(scp.mEnvs.size() == 3);
-
-                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0,
-                                  SCPBallot(1, yValue));
-
-                    scp.receiveEnvelope(acc4);
-                    REQUIRE(scp.mEnvs.size() == 3);
-                }
-            }
-        };
-
-        testTimeouts(scp, test);
-    }
-    SECTION("v1 is top node")
-    {
-        TestSCP scp(v0SecretKey.getPublicKey(), qSet);
-
-        auto test = [&](TestSCP& scp) {
-            uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
-            scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-
-            scp.mPriorityLookup = [&](NodeID const& n) {
-                return (n == v1NodeID) ? 1000 : 1;
-            };
-
-            std::vector<Value> votesX, votesY, votesK, votesXY, votesYK,
-                votesXK, emptyV;
-            votesX.emplace_back(xValue);
-            votesY.emplace_back(yValue);
-            votesK.emplace_back(kValue);
-
-            votesXY.emplace_back(xValue);
-            votesXY.emplace_back(yValue);
-
-            votesYK.emplace_back(yValue);
-            votesYK.emplace_back(kValue);
-            std::sort(votesYK.begin(), votesYK.end());
-
-            votesXK.emplace_back(xValue);
-            votesXK.emplace_back(kValue);
-            std::sort(votesXK.begin(), votesXK.end());
-
-            std::vector<Value> valuesHash;
-            valuesHash.emplace_back(xValue);
-            valuesHash.emplace_back(yValue);
-            valuesHash.emplace_back(kValue);
-            std::sort(valuesHash.begin(), valuesHash.end());
-
-            scp.mHashValueCalculator = [&](Value const& v) {
-                auto pos = std::find(valuesHash.begin(), valuesHash.end(), v);
-                if (pos == valuesHash.end())
-                {
-                    abort();
-                }
-                return 1 + std::distance(valuesHash.begin(), pos);
-            };
-
-            SCPEnvelope nom1 =
-                makeNominate(v1SecretKey, qSetHash, 0, votesXY, emptyV);
-            SCPEnvelope nom2 =
-                makeNominate(v2SecretKey, qSetHash, 0, votesXK, emptyV);
-
-            SECTION(
-                "value from v1 is a candidate, self should not introduce new "
-                "value on timeout")
-            {
-                REQUIRE(!scp.nominate(0, xValue, false));
-                checkLeaders(scp, {v1SecretKey.getPublicKey()});
-
-                REQUIRE(scp.mEnvs.size() == 0);
-                nom1 = makeNominate(v1SecretKey, qSetHash, 0, votesX, emptyV);
-                nom2 = makeNominate(v2SecretKey, qSetHash, 0, votesX, emptyV);
-                SCPEnvelope nom3 =
-                    makeNominate(v3SecretKey, qSetHash, 0, votesX, emptyV);
-
-                // Receive `x` from v1, vote for it
-                scp.receiveEnvelope(nom1);
-                REQUIRE(scp.mEnvs.size() == 1);
-                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesX,
-                               emptyV);
-
-                scp.receiveEnvelope(nom2);
-                scp.receiveEnvelope(nom3);
-                REQUIRE(scp.mEnvs.size() == 2);
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesX,
-                               votesX);
-
-                SCPEnvelope acc1 =
-                    makeNominate(v1SecretKey, qSetHash, 0, votesX, votesX);
-                SCPEnvelope acc2 =
-                    makeNominate(v2SecretKey, qSetHash, 0, votesX, votesX);
-                SCPEnvelope acc3 =
-                    makeNominate(v3SecretKey, qSetHash, 0, votesX, votesX);
-
-                scp.receiveEnvelope(acc1);
-                scp.receiveEnvelope(acc2);
-                REQUIRE(scp.mEnvs.size() == 2);
-
-                // Receive accept from quorum, ratify and generate a candidate
-                // value
-                REQUIRE(scp.mTimers.find(Slot::NOMINATION_TIMER) !=
-                        scp.mTimers.end());
-                scp.mCompositeValue = xValue;
-                scp.mExpectedCandidates.emplace(xValue);
-                scp.receiveEnvelope(acc3);
-                REQUIRE(scp.mEnvs.size() == 3);
-                // Timer is cancelled
-                REQUIRE(scp.mTimers.find(Slot::NOMINATION_TIMER) ==
-                        scp.mTimers.end());
-
-                // v0 is the new leader, but we already have a candidate
-                scp.mPriorityLookup = [&](NodeID const& n) {
-                    return (n == v0NodeID) ? 1000 : 1;
-                };
-                REQUIRE(!scp.nominate(0, kValue, true));
-            }
-            SECTION("nomination waits for v1")
-            {
-                REQUIRE(!scp.nominate(0, xValue, false));
-
-                checkLeaders(scp, {v1SecretKey.getPublicKey()});
-
-                REQUIRE(scp.mEnvs.size() == 0);
-
-                SCPEnvelope nom4 =
-                    makeNominate(v4SecretKey, qSetHash, 0, votesXK, emptyV);
-
-                // nothing happens with non top nodes
-                scp.receiveEnvelope(nom2);
-                // (note: don't receive anything from node3 - we want to pick
-                // another dead node)
-                REQUIRE(scp.mEnvs.size() == 0);
-
-                // v1 is leader -> nominate the first value from its message
-                // that's "y"
-                scp.receiveEnvelope(nom1);
-                REQUIRE(scp.mEnvs.size() == 1);
-                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesY,
-                               emptyV);
-
-                scp.receiveEnvelope(nom4);
-                REQUIRE(scp.mEnvs.size() == 1);
-
-                // "timeout -> pick another value from v1"
-                scp.mExpectedCandidates.emplace(xValue);
-                scp.mCompositeValue = xValue;
-
-                // allows to pick another leader,
-                // pick another dead node v3 as to force picking up
-                // a new value from v1
-                scp.mPriorityLookup = [&](NodeID const& n) {
-                    return (n == v3NodeID) ? 1000 : 1;
-                };
-
-                // note: value passed in here should be ignored
-                REQUIRE(scp.nominate(0, kValue, true));
-                // picks up 'x' from v1 (as we already have 'y')
-                // which also happens to causes 'x' to be accepted
-                REQUIRE(scp.mEnvs.size() == 2);
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXY,
-                               votesX);
-            }
-            SECTION("v1 dead, timeout")
-            {
-                REQUIRE(!scp.nominate(0, xValue, false));
-
-                REQUIRE(scp.mEnvs.size() == 0);
-
-                scp.receiveEnvelope(nom2);
-                REQUIRE(scp.mEnvs.size() == 0);
-
-                checkLeaders(scp, {v1SecretKey.getPublicKey()});
-
-                SECTION("v0 is new top node")
-                {
-                    scp.mPriorityLookup = [&](NodeID const& n) {
-                        return (n == v0NodeID) ? 1000 : 1;
-                    };
-
-                    REQUIRE(scp.nominate(0, xValue, true));
-                    checkLeaders(scp, {v0SecretKey.getPublicKey(),
-                                       v1SecretKey.getPublicKey()});
-
-                    REQUIRE(scp.mEnvs.size() == 1);
-                    verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                   votesX, emptyV);
-                }
-                SECTION("v2 is new top node")
-                {
-                    scp.mPriorityLookup = [&](NodeID const& n) {
-                        return (n == v2NodeID) ? 1000 : 1;
-                    };
-
-                    REQUIRE(scp.nominate(0, xValue, true));
-                    checkLeaders(scp, {v1SecretKey.getPublicKey(),
-                                       v2SecretKey.getPublicKey()});
-
-                    REQUIRE(scp.mEnvs.size() == 1);
-                    // v2 votes for XK, but nomination only picks the highest
-                    // value
-                    std::vector<Value> v2Top;
-                    v2Top.emplace_back(std::max(xValue, kValue));
-                    verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                   v2Top, emptyV);
-                }
-                SECTION("v3 is new top node")
-                {
-                    scp.mPriorityLookup = [&](NodeID const& n) {
-                        return (n == v3NodeID) ? 1000 : 1;
-                    };
-                    // nothing happens, we don't have any message for v3
-                    REQUIRE(!scp.nominate(0, xValue, true));
-                    checkLeaders(scp, {v1SecretKey.getPublicKey(),
-                                       v3SecretKey.getPublicKey()});
-
-                    REQUIRE(scp.mEnvs.size() == 0);
-                }
-            }
-        };
-
-        testTimeouts(scp, test);
-    }
-}
-
-TEST_CASE("nomination times out structurally-valid value into empty tx set",
-          "[scp][nomination]")
-{
-    setupValues();
-    SIMULATION_CREATE_NODE(0);
-    SIMULATION_CREATE_NODE(1);
-    SIMULATION_CREATE_NODE(2);
-
-    SCPQuorumSet qSet;
-    qSet.threshold = 2;
-    qSet.validators.push_back(v0NodeID);
-    qSet.validators.push_back(v1NodeID);
-    qSet.validators.push_back(v2NodeID);
-
-    auto const qSetHash = sha256(xdr::xdr_to_opaque(qSet));
-
-    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
-    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-
-    // xValue is structurally-valid throughout — its tx set is either still in
-    // flight or has been downloaded-and-found-invalid.  Seed a wait time past
-    // the download timeout so maybeReplaceValueWithEmptyTxSet triggers
-    // empty-tx-set replacement at bumpState time.
-    scp.startDownload(xValue, OVER_TX_SET_TIMEOUT);
-    scp.mValidateValueOverride = xValueStructurallyValidValidationOverride;
-
-    REQUIRE(scp.nominate(0, xValue, false));
-
-    auto const followerVoteNomination =
-        makeNominate(v1SecretKey, qSetHash, 0, {xValue}, {});
-    REQUIRE(scp.receiveEnvelope(followerVoteNomination) ==
-            SCP::EnvelopeState::VALID);
-
-    scp.mExpectedCandidates.emplace(xValue);
-    scp.mCompositeValue = xValue;
-
-    auto const followerAcceptedNomination =
-        makeNominate(v2SecretKey, qSetHash, 0, {xValue}, {xValue});
-    // Quorum accept-nominated xValue → composite value flows to
-    // bumpState → maybeReplaceValueWithEmptyTxSet sees
-    // kStructurallyValidValue with the wait time past the timeout and
-    // substitutes an empty-tx-set value.
-    REQUIRE(scp.receiveEnvelope(followerAcceptedNomination) ==
-            SCP::EnvelopeState::VALID);
-
-    // The emitted ballot should carry the empty-tx-set value derived from
-    // xValue, not xValue itself.
-    auto const& lastEnv = scp.mEnvs.back();
-    REQUIRE(lastEnv.statement.pledges.type() == SCP_ST_PREPARE);
-    auto const& ballot = lastEnv.statement.pledges.prepare().ballot;
-    REQUIRE(scp.isEmptyTxSetValue(ballot.value));
-    REQUIRE(ballot.value == scp.makeEmptyTxSetValueFromValue(xValue));
-}
-
 TEST_CASE("ballot protocol self-emits CONFIRM after federated accept-commit on "
           "structurally-valid value",
           "[scp][ballotprotocol]")
@@ -4006,6 +3237,974 @@ TEST_CASE("incoming PREPARE with non-tx-set-invalid value is dropped",
     REQUIRE(scp.mSCP.getLatestMessage(v1NodeID) == nullptr);
     // No local emit triggered.
     REQUIRE(scp.mEnvs.empty());
+}
+
+// ---------------------------------------------------------------------------
+// Leader rounds
+//
+// There is no nomination phase. A round is a ballot counter; each round has
+// one leader (SCPDriver::getRoundLeader). At counter r a node votes for the
+// ballot `leader(r)` votes for at counter r, unless it already has a value it
+// must stick to.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+SCPBallot const&
+latestBallot(TestSCP& scp)
+{
+    REQUIRE(!scp.mEnvs.empty());
+    auto const& pl = scp.mEnvs.back().statement.pledges;
+    REQUIRE(pl.type() == SCP_ST_PREPARE);
+    return pl.prepare().ballot;
+}
+}
+
+TEST_CASE("leader rounds core5", "[scp][leaderschedule]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
+    SIMULATION_CREATE_NODE(4);
+
+    // we need 5 nodes to avoid sharing various thresholds:
+    // v-blocking set size: 2
+    // threshold: 4 = 3 + self or 4 others
+    SCPQuorumSet qSet;
+    qSet.threshold = 4;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+    qSet.validators.push_back(v3NodeID);
+    qSet.validators.push_back(v4NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+
+    // round r is led by schedule[(r - 1) % size]
+    std::vector<NodeID> schedule;
+    scp.mRoundLeader = [&](uint64, uint32 round) -> std::optional<NodeID> {
+        if (schedule.empty())
+        {
+            return std::nullopt;
+        }
+        return schedule[(round - 1) % schedule.size()];
+    };
+
+    SCPBallot x1(1, xValue), y1(1, yValue), x2(2, xValue), y2(2, yValue),
+        z2(2, zValue), z3(3, zValue);
+
+    SECTION("the round 1 leader proposes when the slot starts")
+    {
+        schedule = {v0NodeID, v1NodeID, v2NodeID, v3NodeID, v4NodeID};
+        REQUIRE(scp.startSlot(0, xValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
+        REQUIRE(scp.mValuesBuilt == 1);
+        REQUIRE(scp.getLeaderRound(0) == 1);
+        REQUIRE(scp.mProposedValues.size() == 1);
+        REQUIRE(scp.mProposedValues[0] == std::make_pair(uint32(1), xValue));
+        // it has a ballot at its round: the ballot timer rules apply, not the
+        // leader timer
+        REQUIRE(!scp.hasLeaderTimer());
+
+        SECTION("starting again changes nothing")
+        {
+            REQUIRE(!scp.startSlot(0, yValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+            REQUIRE(scp.mValuesBuilt == 1);
+        }
+        SECTION("other nodes' ballots do not move the leader")
+        {
+            scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, y1));
+            scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, y1));
+            REQUIRE(scp.mEnvs.size() == 1);
+        }
+    }
+
+    SECTION("a follower waits for the leader and adopts its ballot")
+    {
+        schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+        REQUIRE(!scp.startSlot(0, yValue));
+        REQUIRE(scp.mEnvs.empty());
+        // followers do not build a value
+        REQUIRE(scp.mValuesBuilt == 0);
+        REQUIRE(scp.getLeaderRound(0) == 1);
+        REQUIRE(scp.hasLeaderTimer());
+
+        // a ballot from a node that does not lead the round is recorded but
+        // not adopted
+        REQUIRE(
+            scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, y1)) ==
+            SCP::EnvelopeState::VALID);
+        REQUIRE(scp.mEnvs.empty());
+        REQUIRE(scp.hasLeaderTimer());
+
+        // the leader's ballot is adopted
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
+        REQUIRE(!scp.hasLeaderTimer());
+        REQUIRE(scp.mValuesBuilt == 0);
+
+        SECTION("and externalizes with a quorum")
+        {
+            // quorum votes prepare x1 -> accept prepared
+            scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1));
+            scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1));
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x1, &x1);
+            // quorum accepted prepared -> confirm prepared, vote commit
+            scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1, &x1));
+            scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1, &x1));
+            scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1, &x1));
+            REQUIRE(scp.mEnvs.size() == 3);
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, x1, &x1, 1,
+                          1);
+            // quorum votes commit -> accept commit
+            scp.receiveEnvelope(
+                makePrepare(v1SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+            scp.receiveEnvelope(
+                makePrepare(v2SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+            scp.receiveEnvelope(
+                makePrepare(v3SecretKey, qSetHash, 0, x1, &x1, 1, 1));
+            REQUIRE(scp.mEnvs.size() == 4);
+            verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, x1, 1, 1);
+            // quorum accepted commit -> externalize
+            scp.receiveEnvelope(
+                makeConfirm(v1SecretKey, qSetHash, 0, 1, x1, 1, 1));
+            scp.receiveEnvelope(
+                makeConfirm(v2SecretKey, qSetHash, 0, 1, x1, 1, 1));
+            scp.receiveEnvelope(
+                makeConfirm(v3SecretKey, qSetHash, 0, 1, x1, 1, 1));
+            REQUIRE(scp.mEnvs.size() == 5);
+            verifyExternalize(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, x1, 1);
+            REQUIRE(scp.mExternalizedValues[0] == xValue);
+            REQUIRE(scp.mValuesBuilt == 0);
+            REQUIRE(!scp.hasLeaderTimer());
+        }
+        SECTION("a later ballot of the same leader at the same counter is "
+                "not adopted")
+        {
+            // equivocating leader: the node already voted for x1
+            scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, y1));
+            REQUIRE(scp.mEnvs.size() == 1);
+        }
+    }
+
+    SECTION("a follower adopts the round 1 leader before its own trigger")
+    {
+        schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+        REQUIRE(scp.getLeaderRound(0) == 0);
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
+        REQUIRE(scp.getLeaderRound(0) == 1);
+
+        // its own trigger then has nothing left to do
+        REQUIRE(!scp.startSlot(0, yValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+        REQUIRE(scp.mValuesBuilt == 0);
+    }
+
+    SECTION("before its trigger a node does not adopt later rounds' leaders")
+    {
+        schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, y2));
+        REQUIRE(scp.mEnvs.empty());
+        REQUIRE(scp.getLeaderRound(0) == 0);
+        REQUIRE(!scp.hasLeaderTimer());
+    }
+
+    SECTION("a leader that is not started does not propose")
+    {
+        schedule = {v0NodeID, v1NodeID, v2NodeID, v3NodeID, v4NodeID};
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, y1));
+        REQUIRE(scp.mEnvs.empty());
+        REQUIRE(scp.mValuesBuilt == 0);
+    }
+
+    SECTION("silent leader: the leader timer hands over to the next leader")
+    {
+        SECTION("local node leads round 2")
+        {
+            schedule = {v1NodeID, v0NodeID, v2NodeID, v3NodeID, v4NodeID};
+            REQUIRE(!scp.startSlot(0, yValue));
+            REQUIRE(scp.hasLeaderTimer());
+            auto timer = scp.getLeaderTimer();
+            REQUIRE(timer.mAbsoluteTimeout ==
+                    std::chrono::milliseconds(scp.mInitialBallotTimeoutMS));
+
+            scp.fireTimer(Slot::LEADER_TIMER);
+            REQUIRE(scp.getLeaderRound(0) == 2);
+            REQUIRE(scp.mEnteredRounds.back() ==
+                    std::make_pair(uint32(2), true));
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, y2);
+            REQUIRE(scp.mValuesBuilt == 1);
+            REQUIRE(!scp.hasLeaderTimer());
+
+            SECTION("the round 1 leader showing up late changes nothing")
+            {
+                scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+                REQUIRE(scp.mEnvs.size() == 1);
+            }
+            SECTION("a stale leader timer callback is ignored")
+            {
+                timer.mCallback();
+                REQUIRE(scp.getLeaderRound(0) == 2);
+                REQUIRE(scp.mEnvs.size() == 1);
+            }
+        }
+        SECTION("another node leads round 2")
+        {
+            schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+            REQUIRE(!scp.startSlot(0, zValue));
+
+            SECTION("its ballot arrives after the timeout")
+            {
+                scp.fireTimer(Slot::LEADER_TIMER);
+                REQUIRE(scp.getLeaderRound(0) == 2);
+                REQUIRE(scp.mEnvs.empty());
+                // waiting for the round 2 leader now, with the round 2
+                // timeout
+                REQUIRE(scp.hasLeaderTimer());
+                REQUIRE(
+                    scp.getLeaderTimer().mAbsoluteTimeout ==
+                    std::chrono::milliseconds(scp.mInitialBallotTimeoutMS +
+                                              scp.mIncrementBallotTimeoutMS));
+
+                SECTION("the round 2 leader's ballot is adopted")
+                {
+                    // a round 2 ballot from a node that does not lead round 2
+                    scp.receiveEnvelope(
+                        makePrepare(v3SecretKey, qSetHash, 0, x2));
+                    REQUIRE(scp.mEnvs.empty());
+
+                    scp.receiveEnvelope(
+                        makePrepare(v2SecretKey, qSetHash, 0, y2));
+                    REQUIRE(scp.mEnvs.size() == 1);
+                    verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, y2);
+                    REQUIRE(!scp.hasLeaderTimer());
+                }
+                SECTION("a late round 1 proposal still gets the node's vote")
+                {
+                    // The node never voted: it votes for the round 1 leader's
+                    // late proposal at the round 1 counter, and keeps waiting
+                    // for the round 2 leader.
+                    scp.receiveEnvelope(
+                        makePrepare(v1SecretKey, qSetHash, 0, x1));
+                    REQUIRE(scp.mEnvs.size() == 1);
+                    verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
+                    REQUIRE(scp.getLeaderRound(0) == 2);
+                    REQUIRE(scp.hasLeaderTimer());
+                    REQUIRE(!scp.hasBallotTimer());
+
+                    SECTION("and externalizes with a quorum at round 1")
+                    {
+                        scp.receiveEnvelope(
+                            makePrepare(v2SecretKey, qSetHash, 0, x1, &x1));
+                        scp.receiveEnvelope(
+                            makePrepare(v3SecretKey, qSetHash, 0, x1, &x1));
+                        scp.receiveEnvelope(
+                            makePrepare(v4SecretKey, qSetHash, 0, x1, &x1));
+                        // accepted then confirmed prepared: the node votes to
+                        // commit x at counter 1
+                        REQUIRE(scp.mEnvs.size() >= 2);
+                        auto const& last =
+                            scp.mEnvs.back().statement.pledges.prepare();
+                        REQUIRE(last.ballot.value == xValue);
+                        REQUIRE(last.nC == 1);
+                        REQUIRE(last.nH == 1);
+                    }
+                    SECTION("the round 2 leader's ballot takes over")
+                    {
+                        scp.receiveEnvelope(
+                            makePrepare(v2SecretKey, qSetHash, 0, y2));
+                        REQUIRE(scp.mEnvs.size() == 2);
+                        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                      y2);
+                        REQUIRE(!scp.hasLeaderTimer());
+                    }
+                    SECTION("a second late proposal is ignored")
+                    {
+                        // only a node without a ballot takes a late proposal
+                        schedule = {v1NodeID, v2NodeID, v3NodeID, v0NodeID,
+                                    v4NodeID};
+                        scp.fireTimer(Slot::LEADER_TIMER);
+                        REQUIRE(scp.getLeaderRound(0) == 3);
+                        scp.receiveEnvelope(
+                            makePrepare(v2SecretKey, qSetHash, 0, y2));
+                        REQUIRE(scp.mEnvs.size() == 1);
+                    }
+                }
+                SECTION("a proposal that is not valid is not taken late either")
+                {
+                    scp.mValidateValueOverride = [&](uint64, Value const& v,
+                                                     bool proposal) {
+                        return (proposal && v == xValue)
+                                   ? SCPDriver::kInvalidValue
+                                   : SCPDriver::kFullyValidatedValue;
+                    };
+                    scp.receiveEnvelope(
+                        makePrepare(v1SecretKey, qSetHash, 0, x1));
+                    REQUIRE(scp.mEnvs.empty());
+                }
+            }
+            SECTION("the round 1 leader's proposal is pending: one extension")
+            {
+                // The application holds the leader's statement (e.g. it is
+                // fetching its transaction set): the node waits one more
+                // timeout, once.
+                scp.mProposalPending = true;
+                scp.fireTimer(Slot::LEADER_TIMER);
+                REQUIRE(scp.getLeaderRound(0) == 1);
+                REQUIRE(scp.hasLeaderTimer());
+                REQUIRE(scp.getLeaderTimer().mAbsoluteTimeout ==
+                        std::chrono::milliseconds(scp.mInitialBallotTimeoutMS));
+                REQUIRE(scp.mEnvs.empty());
+
+                SECTION("the proposal arrives during the extension")
+                {
+                    scp.receiveEnvelope(
+                        makePrepare(v1SecretKey, qSetHash, 0, x1));
+                    REQUIRE(scp.mEnvs.size() == 1);
+                    verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
+                    REQUIRE(scp.getLeaderRound(0) == 1);
+                    REQUIRE(!scp.hasLeaderTimer());
+                }
+                SECTION("it does not: the node moves on")
+                {
+                    scp.fireTimer(Slot::LEADER_TIMER);
+                    REQUIRE(scp.getLeaderRound(0) == 2);
+                    REQUIRE(scp.hasLeaderTimer());
+                    REQUIRE(scp.mEnvs.empty());
+                }
+            }
+            SECTION("its ballot arrived early: kept until the round starts")
+            {
+                // a single node cannot make others skip a round
+                scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, y2));
+                REQUIRE(scp.mEnvs.empty());
+                REQUIRE(scp.getLeaderRound(0) == 1);
+
+                scp.fireTimer(Slot::LEADER_TIMER);
+                REQUIRE(scp.getLeaderRound(0) == 2);
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, y2);
+            }
+            SECTION("then local node leads round 3 with its own value")
+            {
+                scp.fireTimer(Slot::LEADER_TIMER);
+                REQUIRE(scp.mEnvs.empty());
+                scp.fireTimer(Slot::LEADER_TIMER);
+                REQUIRE(scp.getLeaderRound(0) == 3);
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, z3);
+                REQUIRE(scp.mValuesBuilt == 1);
+            }
+        }
+    }
+
+    SECTION("ballot timeout: the next leader takes over")
+    {
+        schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+        REQUIRE(!scp.startSlot(0, zValue));
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        REQUIRE(scp.mEnvs.size() == 1);
+
+        // a quorum is at counter 1: the ballot timer runs
+        REQUIRE(!scp.hasBallotTimer());
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, y1));
+        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, y1));
+        REQUIRE(scp.hasBallotTimer());
+        REQUIRE(!scp.hasLeaderTimer());
+
+        SECTION("to a leader whose ballot is known")
+        {
+            scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, y2));
+            REQUIRE(scp.mEnvs.size() == 1);
+            scp.fireTimer(Slot::BALLOT_PROTOCOL_TIMER);
+            REQUIRE(scp.getLeaderRound(0) == 2);
+            REQUIRE(scp.mEnvs.size() == 2);
+            // v3 and v4 voted for y at counter 1: with the leader and the
+            // local node that is a quorum, so (1, y) is accepted prepared
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, y2, &y1);
+        }
+        SECTION("to a leader that has not spoken yet")
+        {
+            scp.fireTimer(Slot::BALLOT_PROTOCOL_TIMER);
+            REQUIRE(scp.getLeaderRound(0) == 2);
+            // keeps its round 1 ballot, votes for nothing new
+            REQUIRE(scp.mEnvs.size() == 1);
+            REQUIRE(scp.hasLeaderTimer());
+            // the ballot timer of the round it gave up on is stopped
+            REQUIRE(!scp.hasBallotTimer());
+
+            scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, y2));
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, y2, &y1);
+            REQUIRE(!scp.hasLeaderTimer());
+        }
+        SECTION("to the local node, which keeps the value it voted for")
+        {
+            schedule = {v1NodeID, v0NodeID, v2NodeID, v3NodeID, v4NodeID};
+            scp.fireTimer(Slot::BALLOT_PROTOCOL_TIMER);
+            REQUIRE(scp.getLeaderRound(0) == 2);
+            REQUIRE(scp.mEnvs.size() == 2);
+            // x, not its own z: the transaction set of x is already out
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x2);
+            REQUIRE(scp.mValuesBuilt == 0);
+        }
+        SECTION("to the local node, whose current value is not proposable")
+        {
+            schedule = {v1NodeID, v0NodeID, v2NodeID, v3NodeID, v4NodeID};
+            scp.mValidateValueOverride = [&](uint64, Value const& v,
+                                             bool proposal) {
+                return (proposal && v == xValue)
+                           ? SCPDriver::kInvalidValue
+                           : SCPDriver::kFullyValidatedValue;
+            };
+            scp.fireTimer(Slot::BALLOT_PROTOCOL_TIMER);
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, z2);
+            REQUIRE(scp.mValuesBuilt == 1);
+        }
+    }
+
+    SECTION("a confirmed prepared value wins over the leader's")
+    {
+        schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+        REQUIRE(!scp.startSlot(0, zValue));
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1));
+        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x1));
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x1, &x1);
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1, &x1));
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1, &x1));
+        scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x1, &x1));
+        // confirmed prepared: x is now the value to stick to
+        REQUIRE(scp.mEnvs.size() == 3);
+        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, x1, &x1, 1, 1);
+
+        // the round 2 leader votes for something else
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, y2));
+        REQUIRE(scp.mEnvs.size() == 3);
+        scp.fireTimer(Slot::BALLOT_PROTOCOL_TIMER);
+        REQUIRE(scp.getLeaderRound(0) == 2);
+        REQUIRE(scp.mEnvs.size() == 4);
+        verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, x2, &x1, 1, 1);
+        REQUIRE(!scp.hasLeaderTimer());
+    }
+
+    SECTION("a v-blocking set ahead moves a node to that round")
+    {
+        schedule = {v1NodeID, v2NodeID, v3NodeID, v0NodeID, v4NodeID};
+        // v1 and v2 (v-blocking) are at counter 3, on a value they must
+        // stick to; local node has no ballot at all
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, z3));
+        REQUIRE(scp.getLeaderRound(0) == 0);
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, z3));
+        REQUIRE(scp.getLeaderRound(0) == 3);
+        // it does not vote for what they vote for: only the round's leader
+        // decides
+        REQUIRE(scp.mEnvs.empty());
+        REQUIRE(scp.hasLeaderTimer());
+
+        SECTION("where it adopts the leader")
+        {
+            scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, z3));
+            REQUIRE(scp.mEnvs.size() == 1);
+            // with v1, v2 and the leader that is a quorum voting for z3
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, z3, &z3);
+            REQUIRE(!scp.hasLeaderTimer());
+        }
+        SECTION("where it leads once it is started")
+        {
+            schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+            REQUIRE(scp.startSlot(0, xValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                          SCPBallot(3, xValue));
+        }
+    }
+
+    SECTION("a started leader pushed to its round by a v-blocking set "
+            "proposes")
+    {
+        schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+        REQUIRE(!scp.startSlot(0, xValue));
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, z3));
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, z3));
+        REQUIRE(scp.getLeaderRound(0) == 3);
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                      SCPBallot(3, xValue));
+        REQUIRE(scp.mValuesBuilt == 1);
+    }
+
+    SECTION("proposal validation gates adoption")
+    {
+        schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+        REQUIRE(!scp.startSlot(0, zValue));
+
+        SECTION("a value the node would not propose is not adopted")
+        {
+            // valid for the ballot protocol, but not as a proposal (e.g. it
+            // carries an upgrade the local node did not arm)
+            scp.mValidateValueOverride = [&](uint64, Value const& v,
+                                             bool proposal) {
+                return (proposal && v == xValue)
+                           ? SCPDriver::kInvalidValue
+                           : SCPDriver::kFullyValidatedValue;
+            };
+            REQUIRE(scp.receiveEnvelope(
+                        makePrepare(v1SecretKey, qSetHash, 0, x1)) ==
+                    SCP::EnvelopeState::VALID);
+            REQUIRE(scp.mEnvs.empty());
+            REQUIRE(scp.hasLeaderTimer());
+
+            // the regular protocol still applies: a quorum that prepared the
+            // value brings the node along
+            scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1, &x1));
+            scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1, &x1));
+            // v-blocking accepted prepared
+            REQUIRE(scp.mEnvs.empty());
+            scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1, &x1));
+            scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x1, &x1));
+            // quorum accepted prepared -> confirmed prepared
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1, &x1, 1,
+                          1);
+        }
+        SECTION("a value whose transaction set is still downloading is "
+                "adopted")
+        {
+            scp.startDownload(xValue, UNDER_TX_SET_TIMEOUT);
+            scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
+        }
+    }
+
+    SECTION("a leader that cannot build a value lets the round time out")
+    {
+        schedule = {v0NodeID, v1NodeID, v2NodeID, v3NodeID, v4NodeID};
+        scp.mMakeValueOverride = []() { return ValueWrapperPtr(); };
+        REQUIRE(!scp.startSlot(0, xValue));
+        REQUIRE(scp.mEnvs.empty());
+        REQUIRE(scp.mValuesBuilt == 1);
+        REQUIRE(scp.hasLeaderTimer());
+        scp.fireTimer(Slot::LEADER_TIMER);
+        REQUIRE(scp.getLeaderRound(0) == 2);
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, y2));
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, y2);
+    }
+
+    SECTION("building the value re-enters SCP")
+    {
+        schedule = {v0NodeID, v1NodeID, v2NodeID, v3NodeID, v4NodeID};
+        auto xW = scp.wrapValue(xValue);
+
+        SECTION("the slot moved to a later round meanwhile")
+        {
+            scp.mMakeValueOverride = [&]() {
+                // envelopes that became ready while the value was built
+                scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, z3));
+                scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, z3));
+                return xW;
+            };
+            REQUIRE(scp.startSlot(0, xValue));
+            // the value was built for round 1; the node is in round 3 now,
+            // which v2 leads: it votes for v2's ballot, not for its own value
+            REQUIRE(scp.getLeaderRound(0) == 3);
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, z3);
+            REQUIRE(!scp.hasLeaderTimer());
+        }
+        SECTION("the slot externalized meanwhile")
+        {
+            scp.mMakeValueOverride = [&]() {
+                for (auto const& k :
+                     {v1SecretKey, v2SecretKey, v3SecretKey, v4SecretKey})
+                {
+                    scp.receiveEnvelope(makeExternalize(k, qSetHash, 0, y1, 1));
+                }
+                return xW;
+            };
+            scp.startSlot(0, xValue);
+            REQUIRE(scp.mExternalizedValues[0] == yValue);
+            for (auto const& e : scp.mEnvs)
+            {
+                // never voted for its own value
+                auto vals = Slot::getStatementValues(e.statement);
+                REQUIRE(std::find(vals.begin(), vals.end(), xValue) ==
+                        vals.end());
+            }
+            REQUIRE(!scp.hasLeaderTimer());
+        }
+    }
+
+    SECTION("no schedule known: neither proposes nor adopts")
+    {
+        // e.g. the slot is not the next ledger to close
+        REQUIRE(!scp.startSlot(0, xValue));
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        REQUIRE(scp.mEnvs.empty());
+        REQUIRE(scp.mValuesBuilt == 0);
+    }
+
+    SECTION("non-validators never vote for a leader's ballot")
+    {
+        TestSCP watcher(v0SecretKey.getPublicKey(), qSet, false);
+        watcher.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+        watcher.mRoundLeader = [&](uint64, uint32) { return v1NodeID; };
+        watcher.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        REQUIRE(watcher.mEnvs.empty());
+        REQUIRE(watcher.getLeaderRound(0) == 0);
+        REQUIRE(!watcher.hasLeaderTimer());
+    }
+
+    SECTION("nomination statements are dropped")
+    {
+        schedule = {v1NodeID, v2NodeID, v0NodeID, v3NodeID, v4NodeID};
+        REQUIRE(scp.receiveEnvelope(
+                    makeNominate(v1SecretKey, qSetHash, 0, {xValue}, {})) ==
+                SCP::EnvelopeState::INVALID);
+        REQUIRE(scp.mSCP.getLatestMessage(v1NodeID) == nullptr);
+        REQUIRE(scp.mEnvs.empty());
+    }
+}
+
+namespace
+{
+// A small network of TestSCP nodes on one slot, driven by a virtual clock:
+// messages are delayed, reordered and (for a while) lost; some nodes are dead;
+// nodes start the slot at different times.
+struct LeaderRoundsModel
+{
+    struct Node
+    {
+        SecretKey mKey;
+        std::unique_ptr<TestSCP> mSCP;
+        bool mAlive{true};
+        bool mStarted{false};
+        std::chrono::milliseconds mStartTime{0};
+        size_t mEnvsSeen{0};
+        Value mValue;
+    };
+
+    struct Delivery
+    {
+        std::chrono::milliseconds mWhen;
+        uint64_t mSeq;
+        size_t mTo;
+        SCPEnvelope mEnv;
+        bool
+        operator>(Delivery const& o) const
+        {
+            return std::tie(mWhen, mSeq) > std::tie(o.mWhen, o.mSeq);
+        }
+    };
+
+    stellar_default_random_engine mRng;
+    std::vector<Node> mNodes;
+    std::vector<NodeID> mSchedule;
+    std::priority_queue<Delivery, std::vector<Delivery>, std::greater<>> mQueue;
+    uint64_t mSeq{0};
+    std::chrono::milliseconds mNow{0};
+    // until then, messages are lost with probability mLossPercent and can be
+    // delayed up to mMaxChaosDelay
+    std::chrono::milliseconds mChaosEnd{0};
+    uint32_t mLossPercent{0};
+    std::chrono::milliseconds mMaxChaosDelay{0};
+    std::chrono::milliseconds mNextRebroadcast{0};
+    size_t mThreshold{0};
+
+    LeaderRoundsModel(uint32_t seed, size_t numNodes, size_t numDead)
+        : mRng(seed)
+    {
+        mThreshold = numNodes - (numNodes - 1) / 3;
+        releaseAssert(numNodes - numDead >= mThreshold);
+        SCPQuorumSet qSet;
+        qSet.threshold = static_cast<uint32>(mThreshold);
+        for (size_t i = 0; i < numNodes; i++)
+        {
+            Node n;
+            n.mKey = SecretKey::fromSeed(
+                sha256(fmt::format("LEADER_MODEL_NODE_{}", i)));
+            qSet.validators.push_back(n.mKey.getPublicKey());
+            // distinct proposals
+            n.mValue = xdr::xdr_to_opaque(
+                sha256(fmt::format("LEADER_MODEL_VALUE_{}_{}", seed, i)));
+            mNodes.emplace_back(std::move(n));
+        }
+        for (auto const& n : mNodes)
+        {
+            mSchedule.emplace_back(n.mKey.getPublicKey());
+        }
+        stellar::shuffle(mSchedule.begin(), mSchedule.end(), mRng);
+
+        // dead nodes are picked from the front of the schedule half of the
+        // time (so the first leaders are dead), at random otherwise
+        std::vector<size_t> order(numNodes);
+        std::iota(order.begin(), order.end(), 0);
+        if (rand_uniform<int>(0, 1, mRng) == 0)
+        {
+            std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+                auto pos = [&](size_t i) {
+                    return std::find(mSchedule.begin(), mSchedule.end(),
+                                     mNodes[i].mKey.getPublicKey()) -
+                           mSchedule.begin();
+                };
+                return pos(a) < pos(b);
+            });
+        }
+        else
+        {
+            stellar::shuffle(order.begin(), order.end(), mRng);
+        }
+        for (size_t i = 0; i < numDead; i++)
+        {
+            mNodes[order[i]].mAlive = false;
+        }
+
+        mChaosEnd =
+            std::chrono::milliseconds(rand_uniform<int>(0, 30000, mRng));
+        mLossPercent = rand_uniform<uint32_t>(0, 40, mRng);
+        mMaxChaosDelay =
+            std::chrono::milliseconds(rand_uniform<int>(10, 4000, mRng));
+        mNextRebroadcast = mChaosEnd;
+
+        for (auto& n : mNodes)
+        {
+            n.mSCP = std::make_unique<TestSCP>(n.mKey.getPublicKey(), qSet);
+            n.mSCP->mRoundLeader = [this](uint64, uint32 round) {
+                return mSchedule[(round - 1) % mSchedule.size()];
+            };
+            // most nodes start close together; some are late
+            n.mStartTime = std::chrono::milliseconds(
+                rand_uniform<int>(0, 3, mRng) == 0
+                    ? rand_uniform<int>(0, 8000, mRng)
+                    : rand_uniform<int>(0, 300, mRng));
+        }
+    }
+
+    void
+    send(size_t from, SCPEnvelope const& env)
+    {
+        for (size_t to = 0; to < mNodes.size(); to++)
+        {
+            if (to == from || !mNodes[to].mAlive)
+            {
+                continue;
+            }
+            bool chaos = mNow < mChaosEnd;
+            if (chaos && rand_uniform<uint32_t>(0, 99, mRng) < mLossPercent)
+            {
+                continue;
+            }
+            auto maxDelay =
+                chaos ? mMaxChaosDelay : std::chrono::milliseconds(150);
+            auto delay = std::chrono::milliseconds(
+                rand_uniform<int>(1, static_cast<int>(maxDelay.count()), mRng));
+            mQueue.push(Delivery{mNow + delay, mSeq++, to, env});
+        }
+    }
+
+    // forwards whatever the nodes emitted since the last call
+    void
+    flush()
+    {
+        for (size_t i = 0; i < mNodes.size(); i++)
+        {
+            auto& n = mNodes[i];
+            while (n.mEnvsSeen < n.mSCP->mEnvs.size())
+            {
+                auto env = n.mSCP->mEnvs[n.mEnvsSeen++];
+                send(i, env);
+            }
+        }
+    }
+
+    bool
+    allExternalized() const
+    {
+        for (auto const& n : mNodes)
+        {
+            if (n.mAlive && n.mSCP->mExternalizedValues.empty())
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // runs until every live node externalized or `limit` (virtual time);
+    // returns true in the first case
+    bool
+    run(std::chrono::milliseconds limit)
+    {
+        while (!allExternalized())
+        {
+            // next event: a start, a delivery, a timer or a rebroadcast
+            enum class Kind
+            {
+                NONE,
+                START,
+                DELIVERY,
+                TIMER,
+                REBROADCAST
+            };
+            Kind kind = Kind::REBROADCAST;
+            auto when = mNextRebroadcast;
+            size_t node = 0;
+            int timerID = 0;
+            for (size_t i = 0; i < mNodes.size(); i++)
+            {
+                auto& n = mNodes[i];
+                if (!n.mAlive)
+                {
+                    continue;
+                }
+                if (!n.mStarted && n.mStartTime < when)
+                {
+                    kind = Kind::START;
+                    when = n.mStartTime;
+                    node = i;
+                }
+                for (auto const& t : n.mSCP->mTimers)
+                {
+                    if (t.second.mCallback && t.second.mAbsoluteTimeout < when)
+                    {
+                        kind = Kind::TIMER;
+                        when = t.second.mAbsoluteTimeout;
+                        node = i;
+                        timerID = t.first;
+                    }
+                }
+            }
+            if (!mQueue.empty() && mQueue.top().mWhen < when)
+            {
+                kind = Kind::DELIVERY;
+                when = mQueue.top().mWhen;
+            }
+            if (when > limit)
+            {
+                return false;
+            }
+            mNow = std::max(mNow, when);
+            for (auto& n : mNodes)
+            {
+                n.mSCP->mCurrentTimerOffset = mNow;
+            }
+            switch (kind)
+            {
+            case Kind::START:
+            {
+                auto& n = mNodes[node];
+                n.mStarted = true;
+                n.mSCP->startSlot(0, n.mValue);
+            }
+            break;
+            case Kind::TIMER:
+            {
+                auto& td = mNodes[node].mSCP->mTimers[timerID];
+                auto cb = td.mCallback;
+                td.mCallback = nullptr;
+                cb();
+            }
+            break;
+            case Kind::DELIVERY:
+            {
+                auto d = mQueue.top();
+                mQueue.pop();
+                mNodes[d.mTo].mSCP->receiveEnvelope(d.mEnv);
+            }
+            break;
+            case Kind::REBROADCAST:
+            {
+                // like Herder, nodes periodically re-send their latest
+                // statement
+                mNextRebroadcast = mNow + std::chrono::milliseconds(2000);
+                for (size_t i = 0; i < mNodes.size(); i++)
+                {
+                    auto& n = mNodes[i];
+                    if (n.mAlive && !n.mSCP->mEnvs.empty())
+                    {
+                        send(i, n.mSCP->mEnvs.back());
+                    }
+                }
+            }
+            break;
+            default:
+                releaseAssert(false);
+            }
+            flush();
+        }
+        return true;
+    }
+
+    void
+    checkAgreement() const
+    {
+        std::optional<Value> externalized;
+        for (auto const& n : mNodes)
+        {
+            auto const& ext = n.mSCP->mExternalizedValues;
+            if (ext.empty())
+            {
+                continue;
+            }
+            auto const& v = ext.begin()->second;
+            if (!externalized)
+            {
+                externalized = v;
+                // it is one of the proposals
+                REQUIRE(
+                    std::any_of(mNodes.begin(), mNodes.end(),
+                                [&](Node const& o) { return o.mValue == v; }));
+            }
+            REQUIRE(*externalized == v);
+        }
+    }
+};
+
+void
+runLeaderRoundsModel(uint32_t firstSeed, uint32_t numSeeds)
+{
+    for (uint32_t seed = firstSeed; seed < firstSeed + numSeeds; seed++)
+    {
+        size_t const numNodes = 4 + seed % 4;      // 4..7
+        size_t const maxDead = (numNodes - 1) / 3; // 1, 1, 1, 2
+        size_t const numDead = (seed / 4) % (maxDead + 1);
+        INFO(fmt::format("seed {} nodes {} dead {}", seed, numNodes, numDead));
+        LeaderRoundsModel model(seed, numNodes, numDead);
+        // Once messages flow again, the slot must close: the bound leaves
+        // room for a full turn of the schedule with growing timeouts.
+        bool done = model.run(model.mChaosEnd + std::chrono::minutes(10));
+        // safety holds no matter what
+        model.checkAgreement();
+        REQUIRE(done);
+    }
+}
+}
+
+TEST_CASE("leader rounds network model", "[scp][leaderschedule]")
+{
+    runLeaderRoundsModel(1, 400);
+}
+
+TEST_CASE("leader rounds network model long", "[scp][leaderschedule][!hide]")
+{
+    runLeaderRoundsModel(100000, 20000);
 }
 
 }

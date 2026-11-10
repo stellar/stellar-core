@@ -109,9 +109,18 @@ impl ValidatedTx {
         self.fee / i64::from(self.num_ops.max(1))
     }
 
-    /// The `StellarMessage::Transaction(..)` wire framing for flooding this tx.
+    /// The `StellarMessage::Transaction(..)` wire framing for flooding this tx,
+    /// as one owned buffer. The reference encoding; the flooding path itself
+    /// writes [`Self::flood_frame_parts`] without this copy.
     pub fn to_flood_frame(&self) -> Vec<u8> {
         xdr::frame_transaction(&self.bytes)
+    }
+
+    /// The same framing as [`Self::to_flood_frame`], as borrowed parts
+    /// (discriminant, envelope) whose concatenation is the message. Writers
+    /// copy or send these in place, without allocating a framed copy.
+    pub fn flood_frame_parts(&self) -> [&[u8]; 2] {
+        [&xdr::TRANSACTION_DISCRIMINANT, &self.bytes]
     }
 }
 
@@ -194,5 +203,7 @@ mod tests {
             .to_xdr(Limits::none())
             .unwrap();
         assert_eq!(tx.to_flood_frame(), expected);
+        assert_eq!(tx.flood_frame_parts().concat(), expected);
+        assert!(std::ptr::eq(tx.flood_frame_parts()[1], tx.bytes()));
     }
 }

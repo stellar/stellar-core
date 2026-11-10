@@ -2,6 +2,26 @@
 use futures::{AsyncWrite, AsyncWriteExt};
 use std::io;
 
+/// Either one segmented frame or several complete length-prefixed frames.
+/// A batch preserves the wire boundaries of its individual messages.
+#[derive(Clone, Copy)]
+pub(super) enum Frames<'a> {
+    One(&'a [&'a [u8]]),
+    Batch(&'a [u8]),
+}
+
+impl Frames<'_> {
+    pub(super) async fn write<W: AsyncWrite + Unpin>(self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::One(parts) => write_frame_parts(writer, parts).await,
+            Self::Batch(bytes) => {
+                writer.write_all(bytes).await?;
+                writer.flush().await
+            }
+        }
+    }
+}
+
 /// Write a single length-prefixed frame without assembling a bulk copy.
 /// Callers sharing a stream must hold its lock over this entire future.
 pub(super) async fn write_frame_parts<W: AsyncWrite + Unpin>(
@@ -26,6 +46,7 @@ pub(super) async fn write_frame_parts<W: AsyncWrite + Unpin>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::AsyncRead;
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
@@ -79,5 +100,115 @@ mod tests {
         expected_frames.extend_from_slice(&10u32.to_be_bytes());
         expected_frames.extend_from_slice(b"next frame");
         assert_eq!(writer.bytes, expected_frames);
+    }
+
+    /// Delivers at most `max` bytes per read and yields between reads, like
+    /// a QUIC stream handing over a batch as packets arrive.
+    struct ShortReader {
+        bytes: Vec<u8>,
+        pos: usize,
+        max: usize,
+        yield_next: bool,
+    }
+
+    impl AsyncRead for ShortReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            if self.yield_next {
+                self.yield_next = false;
+                cx.waker().wake_by_ref();
+                return Poll::Pending;
+            }
+            self.yield_next = true;
+            let pos = self.pos;
+            let n = buf.len().min(self.max).min(self.bytes.len() - pos);
+            buf[..n].copy_from_slice(&self.bytes[pos..pos + n]);
+            self.pos += n;
+            Poll::Ready(Ok(n))
+        }
+    }
+
+    #[tokio::test]
+    async fn batched_frames_read_back_through_a_buffered_reader() {
+        // Frames from 1 byte to more than twice the read buffer: the large
+        // ones exercise the reader's bypass once its buffer is drained.
+        let frames: Vec<Vec<u8>> = (0..40u8).map(|i| vec![i; 1 + 61 * i as usize]).collect();
+        let mut batch = Vec::new();
+        for frame in &frames[..30] {
+            batch.extend_from_slice(&(frame.len() as u32).to_be_bytes());
+            batch.extend_from_slice(frame);
+        }
+        let mut writer = ShortWriter::default();
+        Frames::Batch(&batch).write(&mut writer).await.unwrap();
+        for frame in &frames[30..] {
+            Frames::One(&[frame]).write(&mut writer).await.unwrap();
+        }
+
+        let reader = ShortReader {
+            bytes: writer.bytes,
+            pos: 0,
+            max: 700,
+            yield_next: false,
+        };
+        let mut reader = futures::io::BufReader::with_capacity(1024, reader);
+        for frame in &frames {
+            assert_eq!(
+                &super::super::read_framed(&mut reader).await.unwrap(),
+                frame
+            );
+        }
+        let end = super::super::read_framed(&mut reader).await.unwrap_err();
+        assert_eq!(end.kind(), io::ErrorKind::UnexpectedEof);
+    }
+
+    /// Delivers its bytes, then never has more and never wakes the reader.
+    struct StallingReader {
+        bytes: Vec<u8>,
+        pos: usize,
+    }
+
+    impl AsyncRead for StallingReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            let pos = self.pos;
+            if pos == self.bytes.len() {
+                return Poll::Pending;
+            }
+            let n = buf.len().min(self.bytes.len() - pos);
+            buf[..n].copy_from_slice(&self.bytes[pos..pos + n]);
+            self.pos += n;
+            Poll::Ready(Ok(n))
+        }
+    }
+
+    #[tokio::test]
+    async fn buffered_tx_stream_takes_in_available_frames_without_waiting_for_more() {
+        let frames = [&b"first"[..], &b"second frame"[..]];
+        let mut bytes = Vec::new();
+        for frame in frames {
+            bytes.extend_from_slice(&(frame.len() as u32).to_be_bytes());
+            bytes.extend_from_slice(frame);
+        }
+        let available = bytes.len();
+        let mut reader = super::super::buffered_tx_stream(StallingReader { bytes, pos: 0 });
+
+        for (index, frame) in frames.into_iter().enumerate() {
+            let read = futures::poll!(Box::pin(super::super::read_framed(&mut reader)));
+            assert!(
+                matches!(&read, Poll::Ready(Ok(data)) if data == frame),
+                "frame {index} was available but not returned: {read:?}"
+            );
+            // One inner read took in both frames.
+            assert_eq!(reader.get_ref().pos, available);
+        }
+        // Only a read past the available data waits.
+        let next = futures::poll!(Box::pin(super::super::read_framed(&mut reader)));
+        assert!(next.is_pending());
     }
 }

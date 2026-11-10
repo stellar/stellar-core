@@ -9,6 +9,7 @@
 #include "util/GlobalChecks.h"
 #include <functional>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -95,6 +96,31 @@ class BallotProtocol
     SCPEnvelopeWrapperPtr
         mLastEnvelopeEmit; // last envelope emitted by this node
 
+    // ** Leader rounds
+    // There is no nomination phase. A round is a ballot counter, and each
+    // round has one leader (SCPDriver::getRoundLeader). At counter r a node
+    // votes for the ballot `leader(r)` votes for at counter r, unless it
+    // already holds a value it must stick to (mValueOverride).
+
+    // The round the local node is in: the highest counter it is willing to
+    // vote at. 0 until the node starts the slot or adopts a round 1 ballot.
+    // Invariant: mLeaderRound >= mCurrentBallot's counter (so it is
+    // UINT32_MAX once the node moved to the "infinite" counter of a committed
+    // ballot).
+    uint32 mLeaderRound;
+    // True once the application started the slot (startLeaderRounds).
+    bool mLeaderRoundsStarted;
+    // Builds the local node's own value when it leads a round.
+    ProposalValueSupplier mMakeValue;
+    // Round the leader timer is armed for (0 = not armed).
+    uint32 mLeaderTimerRound;
+    // True once the leader timer of mLeaderTimerRound got its one extension
+    // (the leader's proposal was pending in the application when it fired).
+    bool mLeaderTimerExtended;
+    // Guards against re-entering progressRound (the value supplier and
+    // bumpState both re-enter the slot).
+    bool mInProgressRound;
+
   public:
     BallotProtocol(Slot& slot);
 
@@ -106,9 +132,20 @@ class BallotProtocol
                                        bool self);
 
     void ballotProtocolTimerExpired();
-    // abandon's current ballot, move to a new ballot
-    // at counter `n` (or, if n == 0, increment current counter)
+    void leaderTimerExpired(uint32 round);
+    // abandon's current ballot, move to round
+    // `n` (or, if n == 0, to the next round)
     bool abandonBallot(uint32 n);
+
+    // Called when the local node is ready to take part in consensus on this
+    // slot: enters round 1 (if not already further along).
+    bool startLeaderRounds(ProposalValueSupplier const& makeValue);
+
+    uint32
+    getLeaderRound() const
+    {
+        return mLeaderRound;
+    }
 
     // bumps the ballot based on the local state and the value passed in:
     // in prepare phase, attempts to take value
@@ -327,6 +364,21 @@ class BallotProtocol
     void startBallotProtocolTimer();
     void stopBallotProtocolTimer();
     void checkHeardFromQuorum();
+
+    // Tries to bring the current ballot up to the current round: with the
+    // value the node must stick to, else as the round's leader (own value),
+    // else by adopting what the round's leader voted for. Arms the leader
+    // timer while the ballot is still behind the round.
+    // Returns true if the current ballot changed.
+    bool progressRound();
+    // One attempt of the above; returns true if the current ballot changed.
+    bool progressRoundStep();
+    // Returns the ballot `leader` voted for at exactly counter `round`, if
+    // its latest statement is at that counter.
+    std::optional<SCPBallot> getLeaderBallot(NodeID const& leader,
+                                             uint32 round) const;
+    void updateLeaderTimer();
+    void armLeaderTimer(uint32 round);
 
     SCPBallotWrapperUPtr makeBallot(SCPBallot const& b) const;
     SCPBallotWrapperUPtr makeBallot(uint32 c, Value const& v) const;

@@ -200,8 +200,8 @@ class Herder
     virtual uint32 getMinLedgerSeqToAskPeers() const = 0;
     virtual uint32 getMinLedgerSeqToRemember() const = 0;
 
-    virtual bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                             SCPStatement const& newSt) = 0;
+    virtual bool isNewerStatement(SCPStatement const& oldSt,
+                                  SCPStatement const& newSt) = 0;
 
     // Returns sequence number for most recent completed checkpoint that the
     // node knows about, as derived from

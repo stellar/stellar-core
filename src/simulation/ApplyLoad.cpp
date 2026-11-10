@@ -959,6 +959,23 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
     stellar::txtest::closeLedger(mApp, txs, /* strictOrder */ false, upgrades);
 }
 
+#ifdef BUILD_TESTS
+std::vector<TransactionEnvelope>
+ApplyLoad::generateSacPaymentEnvelopesForTesting(uint32_t count)
+{
+    std::vector<TransactionFrameBasePtr> txs;
+    txs.reserve(count);
+    generateSacPayments(txs, count);
+    std::vector<TransactionEnvelope> envelopes;
+    envelopes.reserve(txs.size());
+    for (auto const& tx : txs)
+    {
+        envelopes.emplace_back(tx->getEnvelope());
+    }
+    return envelopes;
+}
+#endif
+
 void
 ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
                                 bool recordUtilization)
@@ -1033,11 +1050,13 @@ ApplyLoad::closeBenchmarkLedger(std::vector<TransactionFrameBasePtr> const& txs,
     xdr::xdr_from_opaque(wireBytes, receivedXdr);
     auto receivedTxSet = TxSetXDRFrame::makeFromWire(receivedXdr);
 
-    // Nomination through externalization and apply use production SCP paths.
+    // Proposal through externalization and apply use production SCP paths.
     herder.getPendingEnvelopes().putTxSet(receivedTxSet->getContentsHash(),
                                           ledgerSeq, receivedTxSet);
-    herder.getHerderSCPDriver().nominate(ledgerSeq, nominatedValue,
-                                         receivedTxSet, lcl.header.scpValue);
+    auto& driver = herder.getHerderSCPDriver();
+    driver.startSlot(ledgerSeq, [&driver, nominatedValue]() {
+        return driver.wrapStellarValue(nominatedValue);
+    });
 
     auto const deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(60);
