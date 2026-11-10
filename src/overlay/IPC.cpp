@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/IPC.h"
+#include "util/Logging.h"
 #include <cstring>
 #include <signal.h>
 #include <sys/socket.h>
@@ -83,6 +84,17 @@ sendMessage(int socket, IPCMessage const& msg)
 {
     IgnoreSIGPIPE guard;
 
+    // The receiver would reject a larger payload and stop reading the stream.
+    if (msg.payload.size() > MAX_PAYLOAD_BYTES)
+    {
+        CLOG_ERROR(Overlay,
+                   "Not sending IPC message type {}: its {} byte payload is "
+                   "over the {} byte limit",
+                   static_cast<uint32_t>(msg.type), msg.payload.size(),
+                   MAX_PAYLOAD_BYTES);
+        return false;
+    }
+
     // Message format: [type:4 bytes][length:4 bytes][payload]
     uint32_t type = static_cast<uint32_t>(msg.type);
     uint32_t payloadLen = static_cast<uint32_t>(msg.payload.size());
@@ -124,9 +136,14 @@ receiveMessage(int socket)
     std::memcpy(&type, &header[0], 4);
     std::memcpy(&payloadLen, &header[4], 4);
 
-    // Sanity check payload length (16MB max)
-    if (payloadLen > 16 * 1024 * 1024)
+    // Sanity check payload length
+    if (payloadLen > MAX_PAYLOAD_BYTES)
     {
+        CLOG_ERROR(Overlay,
+                   "IPC message type {} has a {} byte payload, over the {} "
+                   "byte limit; treating the stream as corrupt and stopping "
+                   "reading it",
+                   type, payloadLen, MAX_PAYLOAD_BYTES);
         return std::nullopt;
     }
 
@@ -200,6 +217,12 @@ IPCChannel::send(IPCMessage const& msg)
     if (!mConnected.load())
     {
         return false;
+    }
+    // Refused before anything is written (sendMessage logs it); the
+    // connection stays usable.
+    if (msg.payload.size() > ipc::MAX_PAYLOAD_BYTES)
+    {
+        return ipc::sendMessage(mSocket, msg);
     }
 
     bool result = ipc::sendMessage(mSocket, msg);

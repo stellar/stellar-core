@@ -114,6 +114,14 @@ struct IPCMessage
 namespace ipc
 {
 
+// Largest payload either side sends or accepts in one message; a reader
+// treats a larger length as a corrupt stream and stops reading it. Must equal
+// MAX_PAYLOAD_SIZE in overlay/src/ipc/messages.rs. A mempool pull (up to
+// 2 x the tx-set capacity plus a pending set's transactions, e.g. 22,700 SAC
+// payments of ~750 bytes) must fit, and the overlay truncates its top
+// transactions response to this size.
+constexpr uint32_t MAX_PAYLOAD_BYTES = 64 * 1024 * 1024;
+
 /**
  * Send an IPC message over a socket.
  *

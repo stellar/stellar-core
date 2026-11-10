@@ -7,6 +7,7 @@
 #include "util/TmpDir.h"
 #include <cstring>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <thread>
@@ -187,6 +188,88 @@ TEST_CASE("IPC large message", "[overlay][ipc]")
         REQUIRE(recvMsg->type == IPCMessageType::TX_SET_AVAILABLE);
         REQUIRE(recvMsg->payload.size() == msg.payload.size());
         REQUIRE(recvMsg->payload == msg.payload);
+
+        close(sockets[0]);
+        close(sockets[1]);
+    }
+
+    SECTION("send and receive a 20MB top transactions response")
+    {
+        // Over the old 16 MiB limit: a signature prewarm's mempool pull
+        // (2 x 7,600 + 7,500 SAC payments of ~752 bytes) is about 17.2 MB.
+        int sockets[2];
+        REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+
+        IPCMessage msg;
+        msg.type = IPCMessageType::TOP_TXS_RESPONSE;
+        msg.payload.resize(20 * 1024 * 1024);
+        for (size_t i = 0; i < msg.payload.size(); ++i)
+        {
+            msg.payload[i] = static_cast<uint8_t>(i % 251);
+        }
+
+        std::optional<IPCMessage> recvMsg;
+        std::thread receiver(
+            [&]() { recvMsg = ipc::receiveMessage(sockets[1]); });
+        bool sent = ipc::sendMessage(sockets[0], msg);
+        receiver.join();
+
+        REQUIRE(sent);
+        REQUIRE(recvMsg.has_value());
+        REQUIRE(recvMsg->type == IPCMessageType::TOP_TXS_RESPONSE);
+        REQUIRE(recvMsg->payload == msg.payload);
+
+        close(sockets[0]);
+        close(sockets[1]);
+    }
+
+    SECTION("reject a payload length over the limit")
+    {
+        int sockets[2];
+        REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+
+        // Only the header: the length alone must be rejected, without
+        // waiting for (or allocating) the payload.
+        uint32_t type = static_cast<uint32_t>(IPCMessageType::TOP_TXS_RESPONSE);
+        uint32_t len = ipc::MAX_PAYLOAD_BYTES + 1;
+        uint8_t header[8];
+        std::memcpy(&header[0], &type, 4);
+        std::memcpy(&header[4], &len, 4);
+        REQUIRE(write(sockets[0], header, sizeof(header)) ==
+                static_cast<ssize_t>(sizeof(header)));
+
+        // If the length were accepted, the read of the missing payload would
+        // block: time out so that fails instead of hanging.
+        struct timeval timeout{};
+        timeout.tv_sec = 5;
+        REQUIRE(setsockopt(sockets[1], SOL_SOCKET, SO_RCVTIMEO, &timeout,
+                           sizeof(timeout)) == 0);
+
+        REQUIRE_FALSE(ipc::receiveMessage(sockets[1]).has_value());
+
+        close(sockets[0]);
+        close(sockets[1]);
+    }
+
+    SECTION("refuse to send a payload over the limit")
+    {
+        int sockets[2];
+        REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+
+        IPCMessage msg;
+        msg.type = IPCMessageType::CACHE_TX_SET;
+        msg.payload.resize(ipc::MAX_PAYLOAD_BYTES + 1);
+        REQUIRE_FALSE(ipc::sendMessage(sockets[0], msg));
+
+        // Nothing was written: the stream still carries the next message.
+        IPCMessage small;
+        small.type = IPCMessageType::LEDGER_CLOSED;
+        small.payload = {1, 2, 3};
+        REQUIRE(ipc::sendMessage(sockets[0], small));
+        auto received = ipc::receiveMessage(sockets[1]);
+        REQUIRE(received.has_value());
+        REQUIRE(received->type == IPCMessageType::LEDGER_CLOSED);
+        REQUIRE(received->payload == small.payload);
 
         close(sockets[0]);
         close(sockets[1]);

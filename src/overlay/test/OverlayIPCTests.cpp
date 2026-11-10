@@ -517,6 +517,95 @@ makeTxEnvelope(int64_t fee, int64_t seqNum, uint8_t accountByte,
 }
 
 /**
+ * A transaction envelope of roughly `wasmBytes` bytes: one
+ * uploadContractWasm operation carrying a filler "wasm". The overlay takes
+ * Core's submissions without decoding them, so this only needs to be valid
+ * XDR.
+ */
+static TransactionEnvelope
+makeLargeTxEnvelope(int64_t fee, int64_t seqNum, uint8_t accountByte,
+                    size_t wasmBytes)
+{
+    TransactionEnvelope txEnv;
+    txEnv.type(ENVELOPE_TYPE_TX);
+    auto& tx = txEnv.v1().tx;
+    tx.sourceAccount.type(KEY_TYPE_ED25519);
+    std::fill(tx.sourceAccount.ed25519().begin(),
+              tx.sourceAccount.ed25519().end(), accountByte);
+    tx.fee = static_cast<uint32_t>(fee);
+    tx.seqNum = seqNum;
+    tx.cond.type(PRECOND_NONE);
+    tx.operations.resize(1);
+    tx.operations[0].body.type(INVOKE_HOST_FUNCTION);
+    auto& hostFn = tx.operations[0].body.invokeHostFunctionOp().hostFunction;
+    hostFn.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    hostFn.wasm().resize(wasmBytes);
+    std::fill(hostFn.wasm().begin(), hostFn.wasm().end(), accountByte);
+    return txEnv;
+}
+
+/**
+ * Top transactions responses larger than the old 16 MiB IPC limit reach Core
+ * (a signature prewarm's pull on perfnet was about 17.2 MB and ended Core's
+ * IPC reader), and a pull larger than the limit is truncated to the
+ * highest-priority transactions that fit instead of breaking the connection.
+ */
+TEST_CASE("Rust overlay returns top transactions over 16 MiB",
+          "[overlay-ipc]")
+{
+    std::string overlayBinary = requireOverlayBinary();
+    TmpDir tmpDir("overlay_ipc_large_top_txs_test");
+    std::string socketPath = tmpDir.getName() + "/overlay.sock";
+    uint16_t peerPort = getTestConfig(7).PEER_PORT;
+
+    auto ipc =
+        std::make_unique<OverlayIPC>(socketPath, overlayBinary, peerPort);
+    REQUIRE(ipc->start());
+
+    size_t const txBytes = 1024 * 1024;
+    auto submit = [&](size_t count, uint8_t firstAccount) {
+        for (size_t i = 0; i < count; ++i)
+        {
+            int64_t fee = 1000 + 100 * static_cast<int64_t>(i);
+            auto account = static_cast<uint8_t>(firstAccount + i);
+            ipc->submitTransaction(
+                makeLargeTxEnvelope(fee, 1, account, txBytes), fee, 1);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    };
+
+    SECTION("a 20 MiB response arrives whole")
+    {
+        submit(20, 0);
+        auto txs = ipc->getTopTransactions(20);
+        REQUIRE(txs.size() == 20);
+        for (auto const& tx : txs)
+        {
+            REQUIRE(tx.v1().tx.operations[0]
+                        .body.invokeHostFunctionOp()
+                        .hostFunction.wasm()
+                        .size() == txBytes);
+        }
+        // Highest fee first.
+        REQUIRE(txs.front().v1().tx.fee == 1000 + 100 * 19);
+    }
+
+    SECTION("a response over the limit is truncated and the IPC survives")
+    {
+        submit(80, 0);
+        auto txs = ipc->getTopTransactions(80);
+        // 64 MiB holds 63 of these (each about 1 MiB plus framing).
+        REQUIRE(txs.size() > 16);
+        REQUIRE(txs.size() < 80);
+        REQUIRE(txs.front().v1().tx.fee == 1000 + 100 * 79);
+        // The connection still works.
+        REQUIRE(ipc->getTopTransactions(3).size() == 3);
+    }
+
+    ipc->shutdown();
+}
+
+/**
  * Test TX inclusion in TX set.
  *
  * Submit multiple TXs with different fees, verify all are included.

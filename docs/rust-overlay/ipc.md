@@ -35,8 +35,14 @@ Source:
 | `length` | 4     | Payload length in bytes. Native-endian.              |
 | `payload`| `length` | Type-specific bytes. May be empty.                |
 
-Maximum payload: **16 MB** (`messages.rs:154`). Frames larger than that
-are rejected with `InvalidData`.
+Maximum payload: **64 MiB** (`MAX_PAYLOAD_SIZE` in `messages.rs`, which must
+equal `ipc::MAX_PAYLOAD_BYTES` in Core's `src/overlay/IPC.h`). Readers reject
+larger frames (`InvalidData` in Rust; Core stops reading the stream), and
+neither side sends one: `CoreSender::send` refuses it with
+`IpcError::PayloadTooLarge`, Core's `sendMessage` returns false, and the
+overlay truncates a top transactions response to the longest prefix that fits.
+A mempool pull of 2x the tx-set capacity plus a pending set's transactions
+(22,700 SAC payments, about 17.2 MB) exceeded the old 16 MiB limit.
 
 > Native-endian is unusual for a wire protocol but safe here because
 > Core and Overlay always run on the same host. The libp2p network
