@@ -20,7 +20,7 @@ use tracing::{debug, error, info, warn};
 use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::{Multiaddr, PeerId};
 use stellar_overlay::config::Config;
-use stellar_overlay::flood::{CachedTxSet, Hash256, TxSetCache, TxSetData};
+use stellar_overlay::flood::{CachedTxSet, Hash256, TxSetCache, TxSetData, UnclaimedSetBudget};
 use stellar_overlay::integrated::{Overlay, OverlayHandle};
 use stellar_overlay::ipc::{CoreIpc, Message, MessageType};
 use stellar_overlay::libp2p_overlay::{
@@ -397,6 +397,10 @@ struct App {
     /// Missing sets requested by Core, with the newest slot needing each set.
     /// Prefetches stay in the cache until Core establishes this demand.
     pending_core_tx_sets: HashMap<Hash256, u32>,
+    /// Cached sets that came from a peer (pushed, or prefetched because an
+    /// SCP envelope named them) and that Core has not requested yet. Bounded
+    /// per peer and in total.
+    unclaimed_tx_sets: UnclaimedSetBudget,
     /// Current ledger sequence
     current_ledger_seq: u32,
     /// libp2p overlay handle (QUIC-based SCP + TX)
@@ -484,6 +488,7 @@ impl App {
             overlay_handle,
             tx_set_cache: TxSetCache::new(100),
             pending_core_tx_sets: HashMap::new(),
+            unclaimed_tx_sets: UnclaimedSetBudget::default(),
             current_ledger_seq: 0,
             libp2p_handle,
             libp2p_events: libp2p_event_rx,
@@ -730,6 +735,31 @@ impl App {
                     from
                 );
 
+                // A set nobody here asked for was pushed by its sender (a
+                // round leader does that for the set it is about to propose).
+                // It is cached like any other, but Core only receives it if a
+                // statement Core processes names its hash (RequestTxSet).
+                let already_cached = self.tx_set_cache.get(&hash).is_some();
+                if slot.is_none() {
+                    self.metrics
+                        .txset_push_received
+                        .fetch_add(1, Ordering::Relaxed);
+                    if already_cached {
+                        // Already held (requested earlier, built locally, or
+                        // pushed twice): keep the existing entry.
+                        self.send_requested_tx_set(&hash);
+                        return;
+                    }
+                }
+                // Whether pushed or prefetched, a new set that Core is not
+                // waiting for counts against the limits for unclaimed sets
+                // until Core asks for it. A set this node already held (for
+                // example one it built) is never made evictable by a copy
+                // arriving from a peer.
+                let unclaimed_bytes = (!already_cached
+                    && !self.pending_core_tx_sets.contains_key(&hash))
+                .then(|| data.len() + data.encoded().len());
+
                 // IMPORTANT: Cache the TxSet FIRST, before pushing to Core
                 // This ensures the TxSet is available when SCP processing resumes
                 // Stamp with the slot the set was requested for so eviction is
@@ -740,6 +770,21 @@ impl App {
                     hash,
                     data,
                 );
+                if let Some(bytes) = unclaimed_bytes {
+                    let pushed = slot.is_none();
+                    for evicted in self.unclaimed_tx_sets.insert(from, hash, bytes, pushed) {
+                        self.tx_set_cache.remove(&evicted);
+                        self.metrics
+                            .txset_push_evicted
+                            .fetch_add(1, Ordering::Relaxed);
+                        warn!(
+                            "TXSET_PUSH_EVICT: Dropped TxSet {:02x?}... from the cache (limit on sets from peers that Core has not asked for)",
+                            &evicted[..4]
+                        );
+                    }
+                    // The cache's own capacity limit may have dropped a set.
+                    self.sync_unclaimed_tx_sets();
+                }
 
                 self.send_requested_tx_set(&hash);
             }
@@ -914,6 +959,13 @@ impl App {
         }
     }
 
+    /// Stop counting pushed sets that the cache no longer holds.
+    fn sync_unclaimed_tx_sets(&mut self) {
+        let cache = &self.tx_set_cache;
+        self.unclaimed_tx_sets
+            .retain(|hash| cache.get(hash).is_some());
+    }
+
     /// Core rejects sets it has not requested. Keep proactive network fetches
     /// cached, and deliver only after RequestTxSet. Both event orderings run
     /// on this App task, so a request racing a prefetch cannot lose its reply.
@@ -1024,14 +1076,23 @@ impl App {
                     .and_modify(|needed_slot| *needed_slot = (*needed_slot).max(slot))
                     .or_insert(slot);
 
+                // Core asks only for a hash named by an SCP statement it is
+                // processing: from here on a pushed set is an ordinary cache
+                // entry, no longer subject to the limits for unclaimed sets.
+                let pushed = self.unclaimed_tx_sets.claim(&hash) == Some(true);
+
                 // First check local cache
 
                 if let Some(cached) = self.tx_set_cache.get(&hash) {
                     info!(
-                        "TXSET_FROM_CACHE: Sending TX set {:02x?}... ({} bytes) from local cache",
+                        "TXSET_FROM_CACHE: Sending TX set {:02x?}... ({} bytes) from local cache{}",
                         &hash[..4],
-                        cached.xdr.len()
+                        cached.xdr.len(),
+                        if pushed { " (pushed by a peer)" } else { "" }
                     );
+                    if pushed {
+                        self.metrics.txset_push_hit.fetch_add(1, Ordering::Relaxed);
+                    }
                     self.send_requested_tx_set(&hash);
                 } else {
                     // Not in local cache - request from peers. Spawn so the main
@@ -1113,8 +1174,45 @@ impl App {
                     }
                 };
                 cache_tx_set(&mut self.tx_set_cache, slot, hash, data);
+                // Core built this set itself: whatever a peer sent under the
+                // same hash is no longer an unclaimed set that the limits may
+                // evict (this node must be able to serve what it proposes).
+                self.unclaimed_tx_sets.claim(&hash);
+                // The cache's own capacity limit may have dropped a set.
+                self.sync_unclaimed_tx_sets();
 
                 self.send_requested_tx_set(&hash);
+            }
+
+            MessageType::PushTxSet => {
+                // Core leads a round and is about to propose this set: send
+                // it to every peer now instead of waiting for their requests.
+                // Payload: [hash:32][slotSeq:4]. The set itself came with the
+                // CacheTxSet before this message on the same ordered channel.
+                if msg.payload.len() < 36 {
+                    warn!("PushTxSet payload too short");
+                    return true;
+                }
+                let mut hash = [0u8; 32];
+                hash.copy_from_slice(&msg.payload[0..32]);
+                let slot = u32::from_le_bytes(msg.payload[32..36].try_into().unwrap());
+
+                let Some(cached) = self.tx_set_cache.get(&hash) else {
+                    // E.g. the set failed to encode. Peers request it.
+                    warn!(
+                        "TXSET_PUSH_SKIP: TX set {:02x?}... for slot {} is not cached, not pushing",
+                        &hash[..4],
+                        slot
+                    );
+                    return true;
+                };
+                let data = Arc::clone(&cached.xdr);
+                let handle = self.libp2p_handle.clone();
+                // Spawn so the main loop never awaits on the bounded libp2p
+                // command channel.
+                tokio::spawn(async move {
+                    handle.push_txset(hash, data).await;
+                });
             }
 
             MessageType::SubmitTx => {
@@ -1186,6 +1284,7 @@ impl App {
                         .evict_before(ledger_seq.saturating_sub(12));
                     self.pending_core_tx_sets
                         .retain(|_, slot| *slot >= ledger_seq.saturating_sub(12));
+                    self.sync_unclaimed_tx_sets();
                     // Requests that were never answered expire with the same
                     // retained-slot window.
                     let handle = self.libp2p_handle.clone();
@@ -2009,6 +2108,7 @@ mod tests {
             overlay_handle,
             tx_set_cache: TxSetCache::new(100),
             pending_core_tx_sets: HashMap::new(),
+            unclaimed_tx_sets: UnclaimedSetBudget::default(),
             current_ledger_seq: 0,
             libp2p_handle,
             libp2p_events,
@@ -2246,6 +2346,331 @@ mod tests {
             .await;
             assert_core_txset(&mut core, &hash, &data);
         }
+    }
+
+    fn pushed_txset(hash: Hash256, data: &[u8], from: PeerId) -> LibP2pOverlayEvent {
+        LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: Arc::new(TxSetData::from_local(data.to_vec()).unwrap()),
+            from,
+            // Nobody on this node asked for it: a push.
+            slot: None,
+        }
+    }
+
+    fn push_counters(app: &App) -> (u64, u64, u64) {
+        (
+            app.metrics.txset_push_received.load(Ordering::Relaxed),
+            app.metrics.txset_push_hit.load(Ordering::Relaxed),
+            app.metrics.txset_push_evicted.load(Ordering::Relaxed),
+        )
+    }
+
+    /// A pushed set is held in the overlay and reaches Core only when Core
+    /// asks for that hash; the request is then answered at once.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pushed_txset_reaches_core_only_on_request() {
+        let (mut app, mut core) = test_app();
+        let (hash, data) = test_txset_xdr(41);
+        let event = pushed_txset(hash, &data, PeerId::random());
+        app.handle_libp2p_event(event).await;
+
+        assert!(app.tx_set_cache.get(&hash).is_some());
+        assert!(app.unclaimed_tx_sets.contains(&hash));
+        assert_no_core_txset(&mut core);
+        assert_eq!(push_counters(&app), (1, 0, 0));
+
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hash, 100),
+        ))
+        .await;
+        assert_core_txset(&mut core, &hash, &data);
+        // Claimed by Core: an ordinary cache entry from here on.
+        assert!(!app.unclaimed_tx_sets.contains(&hash));
+        assert!(!app.pending_core_tx_sets.contains_key(&hash));
+        assert_eq!(push_counters(&app), (1, 1, 0));
+
+        // A second request is served too, but is not another push hit.
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hash, 100),
+        ))
+        .await;
+        assert_core_txset(&mut core, &hash, &data);
+        assert_eq!(push_counters(&app), (1, 1, 0));
+    }
+
+    /// A pushed set whose content is not the set Core asks for is never
+    /// delivered: Core's request for the proposed hash stays pending (and
+    /// goes to the network), whatever was pushed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pushed_txset_with_another_hash_does_not_answer_a_request() {
+        let (mut app, mut core) = test_app();
+        let (pushed_hash, pushed_data) = test_txset_xdr(42);
+        let (proposed_hash, proposed_data) = test_txset_xdr(43);
+        let leader = PeerId::random();
+        let event = pushed_txset(pushed_hash, &pushed_data, leader);
+        app.handle_libp2p_event(event).await;
+
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&proposed_hash, 100),
+        ))
+        .await;
+        assert_no_core_txset(&mut core);
+        assert_eq!(app.pending_core_tx_sets.get(&proposed_hash), Some(&100));
+        // The pushed set is still unclaimed and was not counted as a hit.
+        assert!(app.unclaimed_tx_sets.contains(&pushed_hash));
+        assert_eq!(push_counters(&app), (1, 0, 0));
+
+        // An event that claims the proposed hash but carries other content
+        // cannot exist: the reader files a set under the hash it computed.
+        // The proposed set arriving (by request) completes the fetch.
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash: proposed_hash,
+            data: Arc::new(TxSetData::from_local(proposed_data.clone()).unwrap()),
+            from: leader,
+            slot: Some(100),
+        })
+        .await;
+        assert_core_txset(&mut core, &proposed_hash, &proposed_data);
+        assert_no_core_txset(&mut core);
+    }
+
+    /// A push that lands after Core asked for the hash satisfies the request.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn push_arriving_after_the_core_request_completes_it() {
+        let (mut app, mut core) = test_app();
+        let (hash, data) = test_txset_xdr(44);
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hash, 100),
+        ))
+        .await;
+        assert_no_core_txset(&mut core);
+
+        let event = pushed_txset(hash, &data, PeerId::random());
+        app.handle_libp2p_event(event).await;
+        assert_core_txset(&mut core, &hash, &data);
+        // Core was already waiting for it, so it never counted as unclaimed.
+        assert!(!app.unclaimed_tx_sets.contains(&hash));
+        assert!(app.unclaimed_tx_sets.is_empty());
+
+        // A duplicate push changes nothing and delivers nothing.
+        let event = pushed_txset(hash, &data, PeerId::random());
+        app.handle_libp2p_event(event).await;
+        assert_no_core_txset(&mut core);
+        assert_eq!(app.tx_set_cache.len(), 1);
+    }
+
+    /// Sets a peer pushes and Core never asks for are bounded per peer; sets
+    /// Core asked for are not affected by the limit.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn unclaimed_pushed_txsets_are_bounded_per_peer() {
+        use stellar_overlay::flood::txset_push_limits::MAX_UNCLAIMED_SETS_PER_PEER as LIMIT;
+        let (mut app, mut core) = test_app();
+        let pusher = PeerId::random();
+        let other = PeerId::random();
+
+        // One set from the pusher that Core uses.
+        let (used_hash, used_data) = test_txset_xdr(50);
+        let event = pushed_txset(used_hash, &used_data, pusher);
+        app.handle_libp2p_event(event).await;
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&used_hash, 100),
+        ))
+        .await;
+        assert_core_txset(&mut core, &used_hash, &used_data);
+
+        // One unclaimed set from another peer.
+        let (other_hash, other_data) = test_txset_xdr(51);
+        let event = pushed_txset(other_hash, &other_data, other);
+        app.handle_libp2p_event(event).await;
+
+        // The pusher sends two more sets than it may keep unclaimed.
+        let hashes: Vec<Hash256> = (0..LIMIT + 2)
+            .map(|i| {
+                let (hash, _) = test_txset_xdr(60 + i as u8);
+                hash
+            })
+            .collect();
+        for i in 0..LIMIT + 2 {
+            let (hash, data) = test_txset_xdr(60 + i as u8);
+            let event = pushed_txset(hash, &data, pusher);
+            app.handle_libp2p_event(event).await;
+        }
+
+        // Its two oldest unclaimed sets are gone from the cache ...
+        assert!(app.tx_set_cache.get(&hashes[0]).is_none());
+        assert!(app.tx_set_cache.get(&hashes[1]).is_none());
+        for hash in &hashes[2..] {
+            assert!(app.tx_set_cache.get(hash).is_some());
+            assert!(app.unclaimed_tx_sets.contains(hash));
+        }
+        // ... while the set Core used and the other peer's set stay.
+        assert!(app.tx_set_cache.get(&used_hash).is_some());
+        assert!(app.tx_set_cache.get(&other_hash).is_some());
+        assert_eq!(app.unclaimed_tx_sets.len(), LIMIT + 1);
+        let (received, hits, evicted) = push_counters(&app);
+        assert_eq!((received, hits, evicted), (LIMIT as u64 + 4, 1, 2));
+
+        // An evicted set that turns out to be needed is fetched like any
+        // other missing set: the request stays pending instead of failing.
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hashes[0], 100),
+        ))
+        .await;
+        assert_no_core_txset(&mut core);
+        assert!(app.pending_core_tx_sets.contains_key(&hashes[0]));
+
+        // Slot eviction of the cache also releases the budget.
+        app.handle_core_message(Message::new(
+            MessageType::LedgerClosed,
+            ledger_closed_payload(200),
+        ))
+        .await;
+        assert_eq!(app.tx_set_cache.len(), 0);
+        assert!(app.unclaimed_tx_sets.is_empty());
+        assert_eq!(app.unclaimed_tx_sets.total_bytes(), 0);
+    }
+
+    /// A set this node built itself is never evicted by the limits for
+    /// unclaimed sets, even if a peer pushed the same set first (two nodes
+    /// build identical empty sets on an idle network).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn locally_built_txset_is_not_evicted_as_unclaimed() {
+        use stellar_overlay::flood::txset_push_limits::MAX_UNCLAIMED_SETS_PER_PEER as LIMIT;
+        let (mut app, _core) = test_app();
+        let pusher = PeerId::random();
+        let (hash, data) = test_txset_xdr(70);
+
+        // The peer's push arrives first, then Core builds the same set.
+        app.handle_libp2p_event(pushed_txset(hash, &data, pusher))
+            .await;
+        assert!(app.unclaimed_tx_sets.contains(&hash));
+        let mut payload = request_tx_set_payload(&hash, 100);
+        payload.extend_from_slice(&data);
+        app.handle_core_message(Message::new(MessageType::CacheTxSet, payload))
+            .await;
+        assert!(!app.unclaimed_tx_sets.contains(&hash));
+
+        // Another copy from a peer does not make it evictable again.
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: Arc::new(TxSetData::from_local(data.clone()).unwrap()),
+            from: pusher,
+            slot: Some(100),
+        })
+        .await;
+        assert!(!app.unclaimed_tx_sets.contains(&hash));
+
+        // The same peer now pushes more sets than it may keep unclaimed.
+        for i in 0..LIMIT + 2 {
+            let (other, other_data) = test_txset_xdr(80 + i as u8);
+            app.handle_libp2p_event(pushed_txset(other, &other_data, pusher))
+                .await;
+        }
+        assert!(app.tx_set_cache.get(&hash).is_some());
+    }
+
+    /// Sets the overlay prefetched (an SCP envelope named them, a peer
+    /// answered) but Core has not asked for are bounded too, with their own,
+    /// larger per-peer limit: a peer answers a new connection's SCP state
+    /// request with many slots at once. They are not counted as push hits
+    /// when Core does ask, and pushes from the same peer do not evict them.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn prefetched_txsets_core_did_not_ask_for_are_bounded() {
+        use stellar_overlay::flood::txset_push_limits::{
+            MAX_UNCLAIMED_REQUESTED_SETS_PER_PEER as REQUESTED_LIMIT,
+            MAX_UNCLAIMED_SETS_PER_PEER as PUSHED_LIMIT,
+        };
+        let (mut app, mut core) = test_app();
+        let peer = PeerId::random();
+        let sets: Vec<(Hash256, Vec<u8>)> = (0..REQUESTED_LIMIT + 1)
+            .map(|i| test_txset_xdr(90 + i as u8))
+            .collect();
+        // A full window of answers arrives before Core asks for any: all kept.
+        for (hash, data) in &sets[..REQUESTED_LIMIT] {
+            app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+                hash: *hash,
+                data: Arc::new(TxSetData::from_local(data.clone()).unwrap()),
+                from: peer,
+                slot: Some(100),
+            })
+            .await;
+        }
+        assert_eq!(app.unclaimed_tx_sets.len(), REQUESTED_LIMIT);
+        for (hash, _) in &sets[..REQUESTED_LIMIT] {
+            assert!(app.tx_set_cache.get(hash).is_some());
+        }
+        // Pushes from the same peer are counted separately.
+        for i in 0..PUSHED_LIMIT {
+            let (hash, data) = test_txset_xdr(150 + i as u8);
+            app.handle_libp2p_event(pushed_txset(hash, &data, peer))
+                .await;
+        }
+        assert!(app.tx_set_cache.get(&sets[0].0).is_some());
+        assert_eq!(push_counters(&app), (PUSHED_LIMIT as u64, 0, 0));
+
+        // One more answer than the limit drops the oldest prefetched set.
+        let (extra_hash, extra_data) = &sets[REQUESTED_LIMIT];
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash: *extra_hash,
+            data: Arc::new(TxSetData::from_local(extra_data.clone()).unwrap()),
+            from: peer,
+            slot: Some(100),
+        })
+        .await;
+        assert!(app.tx_set_cache.get(&sets[0].0).is_none());
+        assert_eq!(app.unclaimed_tx_sets.len(), REQUESTED_LIMIT + PUSHED_LIMIT);
+        assert_no_core_txset(&mut core);
+
+        // Core asks for a prefetched set: served, and not a push hit.
+        let (hash, data) = &sets[1];
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(hash, 100),
+        ))
+        .await;
+        assert_core_txset(&mut core, hash, data);
+        assert!(!app.unclaimed_tx_sets.contains(hash));
+        assert_eq!(push_counters(&app), (PUSHED_LIMIT as u64, 0, 1));
+
+        // Core asks for the evicted one: it is fetched again, not lost.
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&sets[0].0, 100),
+        ))
+        .await;
+        assert_no_core_txset(&mut core);
+        assert!(app.pending_core_tx_sets.contains_key(&sets[0].0));
+    }
+
+    /// PushTxSet for a set the overlay does not hold, or with a short
+    /// payload, is ignored: no crash, no shutdown, nothing sent to Core.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn push_txset_ipc_for_unknown_or_malformed_input_is_ignored() {
+        let (mut app, mut core) = test_app();
+        let (hash, _) = test_txset_xdr(45);
+        assert!(
+            app.handle_core_message(Message::new(
+                MessageType::PushTxSet,
+                request_tx_set_payload(&hash, 100),
+            ))
+            .await
+        );
+        assert!(
+            app.handle_core_message(Message::new(MessageType::PushTxSet, vec![1, 2, 3]))
+                .await
+        );
+        assert!(
+            app.handle_core_message(Message::new(MessageType::PushTxSet, vec![]))
+                .await
+        );
+        assert_no_core_txset(&mut core);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

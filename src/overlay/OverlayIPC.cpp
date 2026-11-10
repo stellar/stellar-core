@@ -757,6 +757,27 @@ OverlayIPC::cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
 }
 
 void
+OverlayIPC::pushTxSet(Hash const& hash, uint32_t slotIndex)
+{
+    if (!mChannel || !mChannel->isConnected())
+    {
+        return;
+    }
+
+    IPCMessage msg;
+    msg.type = IPCMessageType::PUSH_TX_SET;
+    // Payload: [hash:32][slotSeq:4]
+    msg.payload.resize(36);
+    std::memcpy(msg.payload.data(), hash.data(), 32);
+    std::memcpy(msg.payload.data() + 32, &slotIndex, 4);
+
+    CLOG_DEBUG(Overlay, "Pushing TX set {} for slot {} to peers",
+               hexAbbrev(hash), slotIndex);
+    std::lock_guard<std::mutex> lock(mSendMutex);
+    mChannel->send(msg);
+}
+
+void
 OverlayIPC::setPeerConfig(std::vector<std::string> const& knownPeers,
                           std::vector<std::string> const& preferredPeers,
                           uint16_t listenPort)

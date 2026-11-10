@@ -56,6 +56,12 @@ pub enum MessageType {
     /// Request overlay metrics snapshot (empty payload)
     RequestOverlayMetrics = 13,
 
+    /// Push a cached TX set to every connected peer now, without waiting for
+    /// their requests. Core sends it for the set it is about to propose as a
+    /// round leader, after the `CacheTxSet` that carried the set.
+    /// Payload: [hash:32][slotSeq:4]
+    PushTxSet = 14,
+
     // ═══ Overlay → Core (Critical Path) ═══
     /// Received SCP envelope from network
     ScpReceived = 100,
@@ -93,6 +99,7 @@ impl TryFrom<u32> for MessageType {
             11 => Ok(MessageType::RequestTxSet),
             12 => Ok(MessageType::CacheTxSet),
             13 => Ok(MessageType::RequestOverlayMetrics),
+            14 => Ok(MessageType::PushTxSet),
             100 => Ok(MessageType::ScpReceived),
             101 => Ok(MessageType::TopTxsResponse),
             102 => Ok(MessageType::PeerRequestsScpState),
@@ -294,6 +301,7 @@ mod tests {
             MessageType::RequestTxSet,
             MessageType::CacheTxSet,
             MessageType::RequestOverlayMetrics,
+            MessageType::PushTxSet,
             MessageType::ScpReceived,
             MessageType::TopTxsResponse,
             MessageType::PeerRequestsScpState,
@@ -364,6 +372,7 @@ mod tests {
             MessageType::try_from(13).unwrap(),
             MessageType::RequestOverlayMetrics
         );
+        assert_eq!(MessageType::try_from(14).unwrap(), MessageType::PushTxSet);
         assert_eq!(
             MessageType::try_from(100).unwrap(),
             MessageType::ScpReceived

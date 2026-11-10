@@ -187,6 +187,12 @@ overlay.recv.<X>                          | timer     | received message <X>
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
 overlay.timeout.straggler                 | meter     | straggler peer timeout
+overlay.txset-push.dropped                | meter     | tx-set frames dropped undecoded by the per-peer limit on frames the node did not ask for
+overlay.txset-push.evicted                | meter     | tx sets from peers evicted by the limits on sets Core has not asked for
+overlay.txset-push.hit                    | meter     | Core tx-set requests answered at once from a set a peer had pushed
+overlay.txset-push.received               | meter     | tx sets received from a peer without a request
+overlay.txset-push.request-skipped        | meter     | peer requests not answered because the set was already pushed to that peer
+overlay.txset-push.sent                   | meter     | tx sets pushed to a peer by a round leader, without a request (one per peer)
 process.action.queue                      | counter   | number of items waiting in internal action-queue
 process.action.overloaded                 | counter   | 0-or-1 value indicating action-queue overloading
 process.file.handles                      | counter   | number of open file handles

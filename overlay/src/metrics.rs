@@ -97,6 +97,20 @@ pub struct OverlayMetrics {
     /// overlay.send.txset — TX set messages sent
     pub send_txset: AtomicU64,
 
+    // Leader tx-set push
+    /// overlay.txset-push.sent — tx sets pushed to a peer as round leader (one per peer)
+    pub txset_push_sent: AtomicU64,
+    /// overlay.txset-push.received — tx sets received without a request
+    pub txset_push_received: AtomicU64,
+    /// overlay.txset-push.hit — Core requests answered at once from a pushed set
+    pub txset_push_hit: AtomicU64,
+    /// overlay.txset-push.request-skipped — peer requests not answered because the set was already pushed to that peer
+    pub txset_push_request_skipped: AtomicU64,
+    /// overlay.txset-push.dropped — unrequested tx-set frames dropped by the per-peer rate limit
+    pub txset_push_dropped: AtomicU64,
+    /// overlay.txset-push.evicted — unrequested tx sets evicted by the unclaimed-set limits
+    pub txset_push_evicted: AtomicU64,
+
     // Receive timers (per message type, tracked as sum_us + count)
     /// overlay.recv.scp-message — time processing SCP messages
     pub recv_scp_sum_us: AtomicU64,
@@ -152,6 +166,12 @@ impl Default for OverlayMetrics {
             send_scp_message: AtomicU64::new(0),
             send_transaction: AtomicU64::new(0),
             send_txset: AtomicU64::new(0),
+            txset_push_sent: AtomicU64::new(0),
+            txset_push_received: AtomicU64::new(0),
+            txset_push_hit: AtomicU64::new(0),
+            txset_push_request_skipped: AtomicU64::new(0),
+            txset_push_dropped: AtomicU64::new(0),
+            txset_push_evicted: AtomicU64::new(0),
             recv_scp_sum_us: AtomicU64::new(0),
             recv_scp_count: AtomicU64::new(0),
             fetch_txset_sum_us: AtomicU64::new(0),
@@ -213,6 +233,12 @@ impl OverlayMetrics {
             send_scp_message: self.send_scp_message.load(ORD),
             send_transaction: self.send_transaction.load(ORD),
             send_txset: self.send_txset.load(ORD),
+            txset_push_sent: self.txset_push_sent.load(ORD),
+            txset_push_received: self.txset_push_received.load(ORD),
+            txset_push_hit: self.txset_push_hit.load(ORD),
+            txset_push_request_skipped: self.txset_push_request_skipped.load(ORD),
+            txset_push_dropped: self.txset_push_dropped.load(ORD),
+            txset_push_evicted: self.txset_push_evicted.load(ORD),
             recv_scp_sum_us: self.recv_scp_sum_us.load(ORD),
             recv_scp_count: self.recv_scp_count.load(ORD),
             fetch_txset_sum_us: self.fetch_txset_sum_us.load(ORD),
@@ -282,6 +308,12 @@ pub struct MetricsSnapshot {
     pub send_scp_message: u64,
     pub send_transaction: u64,
     pub send_txset: u64,
+    pub txset_push_sent: u64,
+    pub txset_push_received: u64,
+    pub txset_push_hit: u64,
+    pub txset_push_request_skipped: u64,
+    pub txset_push_dropped: u64,
+    pub txset_push_evicted: u64,
     pub recv_scp_sum_us: u64,
     pub recv_scp_count: u64,
     pub fetch_txset_sum_us: u64,

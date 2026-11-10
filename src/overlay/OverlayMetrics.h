@@ -66,5 +66,13 @@ struct OverlayMetrics
 
     // ── TxSet fetch latency ──
     medida::Timer& mFetchTxSetTimer;
+
+    // ── Leader tx-set push (synced from the Rust overlay) ──
+    medida::Meter& mTxSetPushSent;
+    medida::Meter& mTxSetPushReceived;
+    medida::Meter& mTxSetPushHit;
+    medida::Meter& mTxSetPushRequestSkipped;
+    medida::Meter& mTxSetPushDropped;
+    medida::Meter& mTxSetPushEvicted;
 };
 }

@@ -12,8 +12,8 @@
 //! QUIC provides independent loss recovery per stream.
 
 use crate::flood::{
-    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxSetData,
-    TxStreamMessage,
+    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, PushRateLimiter,
+    PushRecord, TxBuffer, TxSetData, TxStreamMessage,
 };
 #[cfg(test)]
 use crate::integrated::CoreCommand;
@@ -114,6 +114,12 @@ pub enum OverlayCommand {
     },
     /// Record that a peer has a specific TX set (learned from SCP message)
     RecordTxSetSource { hash: [u8; 32], peer: PeerId },
+    /// Push a TX set to every connected peer that has not been sent it
+    /// (this node leads a round and is about to propose the set)
+    PushTxSet {
+        hash: [u8; 32],
+        data: Arc<TxSetData>,
+    },
     /// Connect to a peer by address (bootstrap — PeerId unknown)
     Dial(Multiaddr),
     /// Connect to a known peer by PeerId (reconnect — deduplicates automatically)
@@ -291,6 +297,21 @@ impl OverlayHandle {
         }
     }
 
+    /// Push a TX set to every connected peer without waiting for requests.
+    /// Each peer is sent a given set once; see `PushRecord`.
+    pub async fn push_txset(&self, hash: [u8; 32], data: Arc<TxSetData>) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::PushTxSet { hash, data })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send PushTxSet: {}",
+                e
+            );
+        }
+    }
+
     /// Record that a peer has a specific TX set (call when receiving SCP with txSetHash)
     pub async fn record_txset_source(&self, hash: [u8; 32], peer: PeerId) {
         if let Err(e) = self
@@ -402,6 +423,12 @@ struct SharedState {
     /// Pending TX set requests: hash -> (peer, request_time) to avoid duplicate fetches and track latency
     /// hash -> (peer asked, request time, slot the set is for)
     pending_txset_requests: RwLock<HashMap<[u8; 32], (PeerId, Instant, u32)>>,
+    /// TX sets this node pushed as a round leader, per peer. Never held
+    /// across an await.
+    txset_pushes: std::sync::Mutex<PushRecord>,
+    /// Per-peer allowance for TX-set frames nobody asked for. Never held
+    /// across an await.
+    txset_push_limiter: std::sync::Mutex<PushRateLimiter>,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
     /// Direct, bounded admission into the same mempool FIFO as Core removal.
@@ -446,6 +473,8 @@ impl SharedState {
                 std::num::NonZeroUsize::new(1000).unwrap(),
             )),
             pending_txset_requests: RwLock::new(HashMap::new()),
+            txset_pushes: std::sync::Mutex::new(PushRecord::new()),
+            txset_push_limiter: std::sync::Mutex::new(PushRateLimiter::default()),
             event_tx,
             mempool,
             tx_dropped_count: AtomicU64::new(0),
@@ -662,6 +691,9 @@ impl StellarOverlay {
                             sources.put(hash, peer);
                             debug!("Recorded peer {} as source for TX set {:02x?}...", peer, &hash[..4]);
                         }
+                        OverlayCommand::PushTxSet { hash, data } => {
+                            self.push_txset(hash, data).await;
+                        }
                         OverlayCommand::Dial(addr) => {
                             info!("Dialing peer at {}", addr);
                             self.state.metrics.connection_pending.fetch_add(1, Ordering::Relaxed);
@@ -803,6 +835,14 @@ impl StellarOverlay {
                 num_established,
                 ..
             } => {
+                // Whatever was pushed to the peer may have been on this
+                // connection's streams and not arrived: answer its requests
+                // normally again. This holds for a duplicate connection too.
+                self.state
+                    .txset_pushes
+                    .lock()
+                    .unwrap()
+                    .forget_peer(&peer_id);
                 // Only clean up when the LAST connection to this peer closes.
                 // Duplicate connections closing shouldn't tear down working streams.
                 if num_established == 0 {
@@ -832,6 +872,11 @@ impl StellarOverlay {
                             );
                         }
                     }
+                    self.state
+                        .txset_push_limiter
+                        .lock()
+                        .unwrap()
+                        .forget_peer(&peer_id);
                     // Notify main loop to clean up any pending requests for this peer
                     if let Err(e) = self.state.event_tx.send(OverlayEvent::PeerDisconnected {
                         peer_id: peer_id.clone(),
@@ -1099,6 +1144,12 @@ impl StellarOverlay {
             .write()
             .await
             .insert(hash, pending_request);
+        // The answer must get past the limit on TX-set frames from that peer.
+        self.state
+            .txset_push_limiter
+            .lock()
+            .unwrap()
+            .request_sent(peer, Instant::now());
 
         let request = crate::xdr::frame_get_tx_set(hash);
         let state = Arc::clone(&self.state);
@@ -1125,6 +1176,102 @@ impl StellarOverlay {
                 }
             }
         });
+    }
+
+    /// Push a TX set to every connected peer that has not been sent it. The
+    /// frame is the one a request is answered with, sent unsolicited on the
+    /// TX-set stream; receivers verify and cache it by its content hash.
+    async fn push_txset(&mut self, hash: [u8; 32], data: Arc<TxSetData>) {
+        // Include the StellarMessage discriminant in the existing wire limit.
+        if data.len() > MAX_MESSAGE_SIZE - 4 {
+            warn!(
+                "TXSET_PUSH_SKIP: TX set {:02x?}... is too large to send ({} bytes)",
+                &hash[..4],
+                data.len()
+            );
+            return;
+        }
+        let connected: Vec<PeerId> = self
+            .state
+            .peer_streams
+            .read()
+            .await
+            .keys()
+            .cloned()
+            .collect();
+        let (targets, busy) = self
+            .state
+            .txset_pushes
+            .lock()
+            .unwrap()
+            .start_push_counting_busy(hash, connected);
+        if busy > 0 {
+            // Those peers request the set when they see the proposal.
+            warn!(
+                "TXSET_PUSH_BUSY: Not pushing TX set {:02x?}... to {} peer(s): an earlier push to them is still in flight",
+                &hash[..4],
+                busy
+            );
+        }
+        if targets.is_empty() {
+            debug!(
+                "TXSET_PUSH_SKIP: TX set {:02x?}... has no peer left to push to",
+                &hash[..4]
+            );
+            return;
+        }
+        info!(
+            "TXSET_PUSH: Pushing TX set {:02x?}... ({} bytes, {} on the wire) to {} peers",
+            &hash[..4],
+            data.len(),
+            data.encoded().len(),
+            targets.len()
+        );
+        for peer in targets {
+            let state = Arc::clone(&self.state);
+            let data = Arc::clone(&data);
+            self.sends.spawn(async move {
+                match send_to_peer_stream(&state, peer, StreamType::TxSet, data.encoded()).await {
+                    Ok(_) => {
+                        state.txset_pushes.lock().unwrap().push_written(
+                            &hash,
+                            &peer,
+                            Instant::now(),
+                        );
+                        let metrics = &state.metrics;
+                        metrics.txset_push_sent.fetch_add(1, Ordering::Relaxed);
+                        metrics.send_txset.fetch_add(1, Ordering::Relaxed);
+                        metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                        metrics
+                            .byte_write
+                            .fetch_add(data.encoded().len() as u64, Ordering::Relaxed);
+                        debug!(
+                            "TXSET_PUSH_OK: Queued TX set {:02x?}... to {}",
+                            &hash[..4],
+                            peer
+                        );
+                    }
+                    Err(e) => {
+                        state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                        warn!(
+                            "TXSET_PUSH_FAIL: Failed to push TX set {:02x?}... to {}: {}",
+                            &hash[..4],
+                            peer,
+                            e
+                        );
+                        // The peer does not have the set from us. If its
+                        // request was skipped because of this push, answer it
+                        // through the normal path now.
+                        let skipped = state.txset_pushes.lock().unwrap().push_failed(&hash, &peer);
+                        if skipped {
+                            let _ = state
+                                .event_tx
+                                .send(OverlayEvent::TxSetRequested { hash, from: peer });
+                        }
+                    }
+                }
+            });
+        }
     }
 
     /// Forget requests for slots below `min_slot` that were never answered.
@@ -2165,6 +2312,29 @@ fn handle_txset_request(state: &SharedState, peer_id: PeerId, hash: [u8; 32]) {
         &hash[..4],
         peer_id
     );
+    // A set this node is pushing to that peer, or pushed a moment ago, is
+    // already on the peer's TX-set stream on this connection. The request
+    // crossed it; a second copy could only arrive later. The peer's pending
+    // request completes when the pushed copy lands. A repeated request, or
+    // one that comes later than a crossing can explain, is answered (see
+    // `PushRecord::should_skip_request`).
+    if state
+        .txset_pushes
+        .lock()
+        .unwrap()
+        .should_skip_request(&hash, &peer_id, Instant::now())
+    {
+        state
+            .metrics
+            .txset_push_request_skipped
+            .fetch_add(1, Ordering::Relaxed);
+        info!(
+            "TXSET_REQ_SKIP: TxSet {:02x?}... was already pushed to {}, not sending it again",
+            &hash[..4],
+            peer_id
+        );
+        return;
+    }
     if let Err(e) = state.event_tx.send(OverlayEvent::TxSetRequested {
         hash,
         from: peer_id,
@@ -2193,6 +2363,13 @@ async fn deliver_txset(state: &SharedState, peer_id: PeerId, txset_data: Arc<TxS
                 .metrics
                 .fetch_txset_count
                 .fetch_add(1, Ordering::Relaxed);
+            // An answer to a request does not use the peer's allowance for
+            // unrequested frames.
+            state
+                .txset_push_limiter
+                .lock()
+                .unwrap()
+                .answered_request(peer_id, Instant::now());
             Some(slot)
         } else {
             None
@@ -2239,6 +2416,28 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                             .metrics
                             .byte_read
                             .fetch_add(data.len() as u64, Ordering::Relaxed);
+                        // Bound what a peer can make this node decompress
+                        // and parse. Answers to this node's requests are
+                        // free (the token is returned in `deliver_txset`);
+                        // frames nobody asked for (pushes) draw on a per-peer
+                        // allowance, and a frame over it is dropped here.
+                        if !state
+                            .txset_push_limiter
+                            .lock()
+                            .unwrap()
+                            .allow(peer_id, Instant::now())
+                        {
+                            state
+                                .metrics
+                                .txset_push_dropped
+                                .fetch_add(1, Ordering::Relaxed);
+                            warn!(
+                                "TXSET_PUSH_DROP: Dropping TxSet frame ({} bytes) from {}: over the per-peer limit for frames this node did not ask for",
+                                data.len(),
+                                peer_id
+                            );
+                            continue;
+                        }
                         // Preserve the received encoding through verification and
                         // cache insertion. Forwarding never compresses it again.
                         let decoded = tokio::task::spawn_blocking(move || {
@@ -2443,6 +2642,9 @@ mod dispatch_tests;
 
 #[cfg(test)]
 mod quic_window_experiment;
+
+#[cfg(test)]
+mod txset_push_tests;
 
 #[cfg(test)]
 mod tests {

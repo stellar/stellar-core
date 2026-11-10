@@ -1874,16 +1874,36 @@ HerderImpl::prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
     {
         return;
     }
-    mPreparedTxSet = buildTxSet(ledgerSeq, closeTime);
+    mPreparedTxSet = buildTxSet(ledgerSeq, closeTime, /*pushToPeers=*/false);
     CLOG_INFO(Herder,
               "Prepared TX set for ledger {} before trigger: {} transactions, "
               "close time {}",
               ledgerSeq, mPreparedTxSet->txSet->sizeTxTotal(),
               closeTime.toString());
+    // A capacity-limited prepared set is proposed unchanged at the trigger
+    // (makeProposalValue), so peers can have it before the proposal exists.
+    // Any other prepared set is rebuilt at the trigger and is not pushed.
+    if (mPreparedTxSet->capacityLimited && mPreparedTxSet->applicableTxSet)
+    {
+        pushTxSetToPeers(mPreparedTxSet->txSet, ledgerSeq);
+    }
+}
+
+void
+HerderImpl::pushTxSetToPeers(TxSetXDRFrameConstPtr const& txSet,
+                             uint32_t ledgerSeq)
+{
+    // Legacy (pre-protocol 20) sets cannot be carried by the Rust overlay.
+    if (!txSet || !txSet->isGeneralizedTxSet())
+    {
+        return;
+    }
+    mApp.getOverlayManager().pushTxSet(txSet->getContentsHash(), ledgerSeq);
 }
 
 HerderImpl::PreparedTxSet
-HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
+HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
+                       bool pushToPeers)
 {
     auto const txSetBuildStart = std::chrono::steady_clock::now();
     auto const lcl = mLedgerManager.getLastClosedLedgerHeader();
@@ -2014,6 +2034,15 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime)
                 // the set's XDR first.
                 overlayMgr.cacheTxSet(txSet->getContentsHash(),
                                       txSet->getGeneralizedXDR(), ledgerSeq);
+                // Leader's push: this set is about to be proposed, so send
+                // it to the peers now, while the builder's remaining
+                // validation and the proposal's persistence still run. If
+                // that validation fails nothing is proposed, and peers drop
+                // the unused set.
+                if (pushToPeers)
+                {
+                    pushTxSetToPeers(txSet, ledgerSeq);
+                }
             }
         },
         targets);
@@ -2480,12 +2509,23 @@ HerderImpl::makeProposalValue(uint32_t ledgerSeqToTrigger)
         ctValidityOffset(prepared->closeTime) !=
             std::chrono::milliseconds::zero())
     {
-        prepared = buildTxSet(ledgerSeqToTrigger, nextCloseTime);
+        // Push the set from inside the build if this node proposes it as
+        // the current round's leader. (Every validator also builds here for
+        // legacy tx sets, which are neither cached nor pushed.)
+        uint32_t const round = getSCP().getLeaderRound(ledgerSeqToTrigger);
+        bool const activeLeader =
+            round != 0 &&
+            mHerderSCPDriver.isLocalNodeRoundLeader(ledgerSeqToTrigger, round);
+        prepared = buildTxSet(ledgerSeqToTrigger, nextCloseTime,
+                              /*pushToPeers=*/activeLeader);
     }
     else
     {
         CLOG_INFO(Herder, "Using prepared TX set for ledger {}",
                   ledgerSeqToTrigger);
+        // Pushed when it was prepared; this reaches peers that connected
+        // since (the overlay sends a set to each peer once).
+        pushTxSetToPeers(prepared->txSet, ledgerSeqToTrigger);
     }
     nextCloseTime = prepared->closeTime;
     // The offset is computed in *apply* time rather than consensus time:

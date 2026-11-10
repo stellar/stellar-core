@@ -5388,7 +5388,7 @@ class LeaderBuildTestAccess
     static TxSetXDRFrameConstPtr
     build(HerderImpl& herder, uint32_t ledgerSeq, ConsensusTime closeTime)
     {
-        return herder.buildTxSet(ledgerSeq, closeTime).txSet;
+        return herder.buildTxSet(ledgerSeq, closeTime, false).txSet;
     }
 
     // The same, with the hashes of the invalid candidates it found.
@@ -5396,7 +5396,7 @@ class LeaderBuildTestAccess
     buildWithInvalid(HerderImpl& herder, uint32_t ledgerSeq,
                      ConsensusTime closeTime)
     {
-        auto prepared = herder.buildTxSet(ledgerSeq, closeTime);
+        auto prepared = herder.buildTxSet(ledgerSeq, closeTime, false);
         return {prepared.txSet, prepared.invalidTxHashes};
     }
 

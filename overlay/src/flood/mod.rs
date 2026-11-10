@@ -10,6 +10,7 @@ mod pending_requests;
 mod tx_buffer;
 mod txset;
 pub(crate) mod txset_encoding;
+pub(crate) mod txset_push;
 
 pub use inv_batcher::InvBatcher;
 pub use inv_messages::{GetData, InvBatch, InvEntry, TxStreamMessage, INV_BATCH_MAX_SIZE};
@@ -19,3 +20,12 @@ pub use pending_requests::PendingRequests;
 pub use tx_buffer::TxBuffer;
 pub use txset::{CachedTxSet, Hash256, TxSetCache};
 pub use txset_encoding::TxSetData;
+pub use txset_push::{PushRateLimiter, PushRecord, UnclaimedSetBudget};
+
+/// Limits of the tx-set push, for tests outside this crate's library.
+pub mod txset_push_limits {
+    pub use super::txset_push::{
+        MAX_UNCLAIMED_BYTES, MAX_UNCLAIMED_REQUESTED_SETS_PER_PEER, MAX_UNCLAIMED_SETS_PER_PEER,
+        PUSH_BURST, PUSH_REFILL_PER_SEC, PUSH_SKIP_WINDOW,
+    };
+}

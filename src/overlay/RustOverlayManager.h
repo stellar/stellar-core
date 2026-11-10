@@ -74,6 +74,23 @@ class RustOverlayManager
     void cacheTxSet(Hash const& txSetHash,
                     GeneralizedTransactionSet const& txSet, uint32_t slotIndex);
 
+    // Send a TX set that was handed to the overlay with cacheTxSet to every
+    // connected peer now, without waiting for their requests. Called by a
+    // round leader for the set it is about to propose. Peers keep a pushed
+    // set by its content hash and use it only if an SCP statement names it;
+    // a peer that did not get it requests it as before.
+    void pushTxSet(Hash const& txSetHash, uint32_t slotIndex);
+
+#ifdef BUILD_TESTS
+    // Make pushTxSet a no-op, as if every push were lost: peers then get
+    // the leader's set through the request path only.
+    void
+    setDropTxSetPushForTesting(bool drop)
+    {
+        mDropTxSetPushForTesting = drop;
+    }
+#endif
+
     // Get top transactions from Rust overlay's mempool for TX set building.
     // Blocks until the overlay responds, shuts down, or disconnects.
     std::vector<TransactionEnvelope> getTopTransactions(size_t count);
@@ -100,6 +117,9 @@ class RustOverlayManager
     std::unique_ptr<OverlayIPC> mOverlayIPC;
     std::atomic<bool> mShuttingDown{false};
     std::vector<std::string> mExtraKnownPeers;
+#ifdef BUILD_TESTS
+    bool mDropTxSetPushForTesting{false};
+#endif
 
     // Config KNOWN_PEERS plus any peers added via addKnownPeerForTesting.
     std::vector<std::string> effectiveKnownPeers() const;
