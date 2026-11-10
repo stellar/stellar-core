@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <map>
 #include <optional>
 #include <thread>
@@ -72,6 +73,67 @@ makeMockSCPEnvelope(uint64_t slotIndex, uint32_t nodeId)
 }
 
 } // anonymous namespace
+
+TEST_CASE("OverlayIPC decodes top transactions in place", "[overlay-ipc]")
+{
+    // Envelopes of different lengths (memo text is padded to 4 bytes).
+    std::vector<TransactionEnvelope> envs;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        TransactionEnvelope env(ENVELOPE_TYPE_TX);
+        env.v1().tx.fee = 100 + i;
+        env.v1().tx.seqNum = i + 1;
+        env.v1().tx.memo.type(MEMO_TEXT);
+        env.v1().tx.memo.text() = std::string(3 * i + 1, 'x');
+        envs.push_back(env);
+    }
+    auto payloadOf = [](uint32_t count,
+                        std::vector<std::vector<uint8_t>> const& entries) {
+        std::vector<uint8_t> payload(4);
+        std::memcpy(payload.data(), &count, 4);
+        for (auto const& entry : entries)
+        {
+            uint32_t const len = static_cast<uint32_t>(entry.size());
+            auto const at = payload.size();
+            payload.resize(at + 4);
+            std::memcpy(payload.data() + at, &len, 4);
+            payload.insert(payload.end(), entry.begin(), entry.end());
+        }
+        return payload;
+    };
+    std::vector<std::vector<uint8_t>> xdrs;
+    for (auto const& env : envs)
+    {
+        xdrs.push_back(xdr::xdr_to_opaque(env));
+    }
+
+    SECTION("well formed")
+    {
+        REQUIRE(OverlayIPC::parseTopTransactions(payloadOf(3, xdrs)) == envs);
+    }
+    SECTION("malformed entries are skipped")
+    {
+        // A 5-byte entry fails to decode and leaves the next ones unaligned,
+        // decoded from a copy, until a 3-byte one (which fails too) aligns
+        // them again. An aligned entry with an invalid envelope type fails
+        // to decode in place.
+        std::vector<uint8_t> const badType(xdrs[0].size(), 0xff);
+        auto payload = payloadOf(
+            6,
+            {xdrs[0], {1, 2, 3, 4, 5}, xdrs[1], {1, 2, 3}, badType, xdrs[2]});
+        REQUIRE(OverlayIPC::parseTopTransactions(payload) == envs);
+    }
+    SECTION("truncated payload")
+    {
+        auto payload = payloadOf(3, xdrs);
+        payload.resize(payload.size() - 1);
+        REQUIRE(OverlayIPC::parseTopTransactions(payload) ==
+                std::vector<TransactionEnvelope>{envs[0], envs[1]});
+        // More entries announced than present.
+        REQUIRE(OverlayIPC::parseTopTransactions(payloadOf(5, xdrs)) == envs);
+        REQUIRE(OverlayIPC::parseTopTransactions({1, 0}).empty());
+    }
+}
 
 TEST_CASE("OverlayIPC connects to Rust overlay", "[overlay-ipc]")
 {

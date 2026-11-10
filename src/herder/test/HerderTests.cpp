@@ -35,6 +35,7 @@
 #include "lib/json/json.h"
 #include "main/CommandHandler.h"
 #include "main/PersistentState.h"
+#include "overlay/OverlayIPC.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/RustOverlayManager.h"
 #include "test/Catch2.h"
@@ -8439,38 +8440,24 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
     REQUIRE(envelopes.size() == candidates);
     app->getBatchExecutor().setPreferredTaskCountForTesting(tasks);
 
-    // The Rust overlay's GetTopTxs response, decoded exactly as
+    // BENCH_PULL: hand over only the first N candidates (a smaller pull).
+    uint32_t const count = static_cast<uint32_t>(envelopes.size());
+    uint32_t const pull = std::min(envInt("BENCH_PULL", count), count);
+    // The Rust overlay's GetTopTxs response for the pull, decoded as
     // OverlayIPC::getTopTransactions does: [count:4]([len:4][xdr])*
     std::vector<uint8_t> payload(4);
-    uint32_t const count = static_cast<uint32_t>(envelopes.size());
-    std::memcpy(payload.data(), &count, 4);
-    for (auto const& env : envelopes)
+    std::memcpy(payload.data(), &pull, 4);
+    for (uint32_t i = 0; i < pull; ++i)
     {
-        auto bytes = xdr::xdr_to_opaque(env);
+        auto bytes = xdr::xdr_to_opaque(envelopes[i]);
         uint32_t const len = static_cast<uint32_t>(bytes.size());
         auto const at = payload.size();
         payload.resize(at + 4 + len);
         std::memcpy(payload.data() + at, &len, 4);
         std::memcpy(payload.data() + at + 4, bytes.data(), len);
     }
-    // BENCH_PULL: hand over only the first N candidates (a smaller pull).
-    uint32_t const pull = std::min(envInt("BENCH_PULL", count), count);
     herder.mGetTopTransactionsForTesting = [&](size_t) {
-        std::vector<TransactionEnvelope> result;
-        size_t offset = 4;
-        for (uint32_t i = 0; i < pull; ++i)
-        {
-            uint32_t len;
-            std::memcpy(&len, payload.data() + offset, 4);
-            offset += 4;
-            TransactionEnvelope tx;
-            std::vector<uint8_t> txData(payload.begin() + offset,
-                                        payload.begin() + offset + len);
-            xdr::xdr_from_opaque(txData, tx);
-            result.push_back(std::move(tx));
-            offset += len;
-        }
-        return result;
+        return OverlayIPC::parseTopTransactions(payload);
     };
 
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();

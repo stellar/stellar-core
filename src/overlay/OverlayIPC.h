@@ -125,6 +125,15 @@ class OverlayIPC
     std::vector<TransactionEnvelope> getTopTransactions(size_t count);
 
     /**
+     * Decode a GET_TOP_TXS response payload:
+     * [count:4]([len:4][TransactionEnvelope XDR:len])*. Envelopes are
+     * decoded in place from the payload. Entries that fail to decode are
+     * skipped (with a warning); a truncated payload ends the list.
+     */
+    static std::vector<TransactionEnvelope>
+    parseTopTransactions(std::vector<uint8_t> const& payload);
+
+    /**
      * Submit a transaction to the overlay for flooding.
      *
      * @param tx The transaction envelope

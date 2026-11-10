@@ -608,25 +608,31 @@ OverlayIPC::getTopTransactions(size_t count)
         return result;
     }
 
-    // Parse response: list of XDR-encoded TransactionEnvelopes
+    return parseTopTransactions(response.payload);
+}
+
+std::vector<TransactionEnvelope>
+OverlayIPC::parseTopTransactions(std::vector<uint8_t> const& payload)
+{
+    std::vector<TransactionEnvelope> result;
     // Format: [count:4][len1:4][tx1:len1][len2:4][tx2:len2]...
-    if (response.payload.size() < 4)
+    if (payload.size() < 4)
     {
         return result;
     }
 
     uint32_t txCount;
-    std::memcpy(&txCount, response.payload.data(), 4);
+    std::memcpy(&txCount, payload.data(), 4);
+    result.reserve(std::min<size_t>(txCount, payload.size() / 4));
 
     size_t offset = 4;
-    for (uint32_t i = 0; i < txCount && offset + 4 <= response.payload.size();
-         ++i)
+    for (uint32_t i = 0; i < txCount && offset + 4 <= payload.size(); ++i)
     {
         uint32_t txLen;
-        std::memcpy(&txLen, response.payload.data() + offset, 4);
+        std::memcpy(&txLen, payload.data() + offset, 4);
         offset += 4;
 
-        if (offset + txLen > response.payload.size())
+        if (txLen > payload.size() - offset)
         {
             break;
         }
@@ -634,10 +640,21 @@ OverlayIPC::getTopTransactions(size_t count)
         try
         {
             TransactionEnvelope tx;
-            std::vector<uint8_t> txData(response.payload.begin() + offset,
-                                        response.payload.begin() + offset +
-                                            txLen);
-            xdr::xdr_from_opaque(txData, tx);
+            uint8_t const* const start = payload.data() + offset;
+            // XDR is read in 4-byte words from 4-byte aligned memory. Well
+            // formed entries are (XDR lengths are multiples of 4), so decode
+            // them in place; copy anything else to aligned memory first.
+            if ((reinterpret_cast<uintptr_t>(start) & 3) == 0)
+            {
+                xdr::xdr_get g(start, start + txLen);
+                xdr::xdr_argpack_archive(g, tx);
+                g.done();
+            }
+            else
+            {
+                std::vector<uint8_t> const txData(start, start + txLen);
+                xdr::xdr_from_opaque(txData, tx);
+            }
             result.push_back(std::move(tx));
         }
         catch (std::exception const& e)
