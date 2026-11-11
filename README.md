@@ -403,5 +403,5 @@ Test status of this branch's code (`0c9a02e56`, the same tree as the merge of #5
   recvSCPEnvelope", at protocol version 4): its helper tries 100 random peers and needs one that
   does not lead round 1, and for that day's test seed and that partition's node key the local
   node sorts last in the schedule, so every peer leads. The binary of #5495 alone fails the same
-  way with the same seed and instance number, and the test passes with any other instance number
-  tried. It is a flaw of that test helper, not of the later changes. Not fixed.
+  way with the same seed and instance number, and the test passes with instance number 0. It is
+  a flaw of that test helper, not of the later changes. Not fixed.
