@@ -58,6 +58,16 @@ impl TxSetCache {
         self.by_hash.get(hash)
     }
 
+    /// Remove one TX set. Returns true if it was cached.
+    pub fn remove(&mut self, hash: &Hash256) -> bool {
+        if self.by_hash.remove(hash).is_some() {
+            self.order.retain(|h| h != hash);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Remove TX sets for ledgers before the given sequence.
     pub fn evict_before(&mut self, ledger_seq: u32) {
         self.order.retain(|hash| {
@@ -119,6 +129,35 @@ mod tests {
 
         assert!(cache.get(&[1u8; 32]).is_none()); // evicted
         assert!(cache.get(&[2u8; 32]).is_some()); // kept
+    }
+
+    #[test]
+    fn test_cache_remove_keeps_order_in_sync() {
+        let mut cache = TxSetCache::new(2);
+        for (seed, seq) in [(1u8, 100), (2u8, 101)] {
+            cache.insert(CachedTxSet {
+                hash: [seed; 32],
+                xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
+                ledger_seq: seq,
+            });
+        }
+        assert!(cache.remove(&[1u8; 32]));
+        assert!(!cache.remove(&[1u8; 32]));
+        assert_eq!(cache.len(), 1);
+
+        // The removed hash no longer takes part in capacity eviction: adding
+        // two more sets evicts [2] and keeps the cache at capacity.
+        for (seed, seq) in [(3u8, 102), (4u8, 103)] {
+            cache.insert(CachedTxSet {
+                hash: [seed; 32],
+                xdr: Arc::new(TxSetData::from_local(vec![]).unwrap()),
+                ledger_seq: seq,
+            });
+        }
+        assert_eq!(cache.len(), 2);
+        assert!(cache.get(&[2u8; 32]).is_none());
+        assert!(cache.get(&[3u8; 32]).is_some());
+        assert!(cache.get(&[4u8; 32]).is_some());
     }
 
     #[test]

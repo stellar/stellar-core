@@ -269,7 +269,16 @@ class HerderImpl : public Herder
         bool capacityLimited;
     };
     std::optional<PreparedTxSet> mPreparedTxSet;
-    PreparedTxSet buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
+    // `pushToPeers`: this is the set the node is about to propose as a round
+    // leader, so the overlay sends it to every peer as soon as its XDR exists
+    // instead of waiting for their requests (see pushTxSetToPeers).
+    PreparedTxSet buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
+                             bool pushToPeers);
+    // Leader's tx-set push: ask the overlay to send a set it already holds
+    // (cacheTxSet) to every connected peer. Peers use a pushed set only if
+    // an SCP statement names its hash; one that missed it requests it.
+    void pushTxSetToPeers(TxSetXDRFrameConstPtr const& txSet,
+                          uint32_t ledgerSeq);
     void prepareTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
     void discardPreparedTxSet();
     ValueWrapperPtr makeProposalValue(uint32_t ledgerSeq);

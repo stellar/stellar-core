@@ -76,6 +76,12 @@ enum class IPCMessageType : uint32_t
     /// Response: OVERLAY_METRICS_RESPONSE with JSON payload
     REQUEST_OVERLAY_METRICS = 13,
 
+    /// Push a cached TX set to every connected peer now, without waiting
+    /// for their requests. Sent for the set this node is about to propose
+    /// as a round leader, after the CACHE_TX_SET that carried the set.
+    /// Payload: [hash:32][slotSeq:4]
+    PUSH_TX_SET = 14,
+
     // ═══ Overlay → Core (Critical Path) ═══
 
     /// Received SCP envelope from network

@@ -194,6 +194,19 @@ class OverlayIPC
     void cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
                     uint32_t slotIndex);
 
+    /**
+     * Push a TX set to every connected peer (leader's tx-set push).
+     *
+     * The set must have been handed to Rust with cacheTxSet first. Rust
+     * sends it to each connected peer once, without waiting for requests;
+     * peers verify and keep it by its content hash and use it only if an
+     * SCP statement names that hash.
+     *
+     * @param hash The TX set hash
+     * @param slotIndex The slot the set is proposed for (for logging)
+     */
+    void pushTxSet(Hash const& hash, uint32_t slotIndex);
+
     /// Set callback for received SCP envelopes
     void setOnSCPReceived(SCPReceivedCallback cb);
 

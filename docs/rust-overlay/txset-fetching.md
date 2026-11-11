@@ -1,8 +1,10 @@
 # TX set fetching
 
-SCP envelopes reference transaction sets by hash. Rust prefetches their bodies
-from peers and keeps them in the tx-set cache. Core receives a set only after
-it establishes demand with `RequestTxSet`.
+SCP envelopes reference transaction sets by hash. A round's leader pushes the
+set it is about to propose to its peers; a node that does not hold a
+referenced set requests its body from a peer. Either way Rust keeps the bodies
+in the tx-set cache, and Core receives a set only after it establishes demand
+with `RequestTxSet`.
 
 ## Wire formats and routes
 
@@ -56,6 +58,86 @@ and strict-parsing on a blocking worker. The cache shares an immutable
 borrow those encoded bytes directly, so relays never recompress received sets.
 Encoding is complete before cache insertion; sending has no lazy initialization
 or compression decision. Core continues receiving uncompressed XDR over IPC.
+
+## Leader push
+
+A round leader does not wait to be asked. For the set it is about to propose,
+Core sends `PushTxSet [hash:32][slot:u32 LE]` right after the `CacheTxSet`
+that carried the set: from inside the build when the node leads the current
+round, after the build for a first-round leader's early (prepared) set that
+was capacity limited, and again when a prepared set is taken at the trigger.
+App looks the hash up in the cache (a miss is logged and ignored) and the
+dispatcher writes the prepared encoding to the tx-set stream of every
+connected peer that has not been sent this set. The proposal itself follows
+on the control stream once Core has validated and persisted it.
+
+The pushed frame is an ordinary tx-set frame that nobody requested. It
+carries no hash and no slot: the receiver decompresses, strict-parses and
+hashes it like a response and caches it under the hash it computed. Core is
+not told. When an SCP statement names that hash, Core's `RequestTxSet` is a
+cache hit (`overlay.txset-push.hit`). A pushed set whose hash no statement
+names is never delivered to Core.
+
+Push against request. If the proposal reaches a peer before the pushed set is
+complete, the peer requests the set as usual. The leader does not answer that
+request (`overlay.txset-push.request-skipped`) if it is the first one from
+that peer for a set that is still being written to it, or was written less
+than 500 ms ago, on the current connection: the bytes are already on the same
+ordered, reliable stream, and the peer's reservation is cleared when they
+land. Every other request is answered: a repeated one, one that arrives later
+(a peer only asks when it does not hold the set, so it lost or dropped the
+pushed copy), and one from a peer the set was not pushed to. A failed push
+write answers a skipped request after all, and any connection to the peer
+closing drops the record for that peer. (If a connection closes while a push
+is still being written, that push is no longer recorded: a request that
+crosses it gets a second copy, and if the write then fails, a request that
+was skipped before the close is not answered and falls to Core's retry.)
+
+A leader keeps at most one push in flight per peer (`TXSET_PUSH_BUSY` in the
+log when a peer is left out). A peer that does not read its tx-set stream is
+not sent further sets (it requests them), so it pins at most one pushed set
+in the leader's memory; closing a connection does not release that count,
+only the end of the write does. Answers to that peer's requests queue behind
+the stuck write under the send permits that bound all tx-set responses.
+
+A node that did not receive the push (not connected to the leader, connected
+later, or busy with an earlier push) has no cached set and uses the request
+path below. A push that the receiver itself dropped (rate limit) or evicted
+right away (limits on unclaimed sets) is not recovered that fast: the
+receiver's request reaches the leader within the 500 ms and is skipped, so the
+set only comes with Core's retry to another peer after one second. The window
+helps requests that arrive later (an eviction after some time, a first request
+that went to a relay). The push is not relayed: a
+node that is not connected to the leader requests the set from the peer that
+relayed the proposal, which holds the pushed copy.
+
+Limits on what a peer can make a node decode and keep:
+
+- Rate: every tx-set frame takes a token from a per-peer bucket (burst 8, 4
+  per second). A frame that delivers a set this node has a request pending
+  for returns its token (to the peer that delivered it, whichever peer was
+  asked), so only frames nobody is waiting for use the allowance. With the bucket empty a
+  frame still passes if this node sent that peer a request it has not used up
+  (one frame per request, at most 8 saved). Anything else is dropped before
+  decompression (`overlay.txset-push.dropped`).
+- Space: cached sets that came from a peer and that Core has not asked for
+  are limited per peer, oldest dropped first: 4 that the peer pushed and,
+  separately, 16 that answered this node's own requests (a peer answers a new
+  connection's SCP state request with about 12 slots at once). Together they
+  are limited to 128 MiB (the peer holding the most bytes loses its oldest
+  set). Evictions count as `overlay.txset-push.evicted`. A set leaves this
+  accounting when Core requests or builds it, or when the cache drops it. A
+  set is accounted to the peer that delivered it first.
+- Not bounded by these: a peer can make a node send it requests, because the
+  overlay prefetches any hash named in an SCP envelope before Core checks the
+  signature; each such envelope buys one frame over the rate. A peer that
+  reconnects starts with a full allowance. Many colluding peers can use the
+  shared byte budget to push out a large honest set, and a peer that delivers
+  the leader's set first and then pushes four more evicts it (the receiver
+  then requests the set). The cache itself still holds 100 sets of any kind,
+  first in, first out: with up to 20 unclaimed sets per peer, five peers can
+  fill it and cycle out sets the node built or already uses (on the base one
+  peer could, through prefetches).
 
 ## Core requests and network prefetches
 
@@ -120,6 +202,12 @@ set remains available for peer requests until normal capacity or slot eviction.
 See [mempool](mempool.md).
 
 ## Remaining limitations
+
+- The push is not relayed and carries the full compressed set; nodes that are
+  not connected to the leader, and a compact (hash-list) form, are future work.
+- A peer whose first copy of a proposal came through a relay requests the set
+  from that relay, which answers from its cache while the leader's push may
+  still be in flight: one duplicate transfer.
 
 - A cache miss at the selected peer has no explicit negative response; the
   requester only notices through Core's one-second retry.

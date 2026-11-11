@@ -108,6 +108,18 @@ Streams open when a peer connects and reopen on demand after failure. Every
 opening applies the route's priority before writing application data. A fetch
 reuses the existing stream; it does not open a new stream per request.
 
+Every connection starts with a congestion window of 8 MiB instead of Quinn's
+default of about ten packets (`initial_congestion_window` in the vendored
+`libp2p-quic` config, see
+[`congestion-window.patch`](../../overlay/vendor/congestion-window.patch);
+`STELLAR_OVERLAY_QUIC_INITIAL_CWND` overrides it in bytes, 0 = Quinn's
+default). Quinn paces one window over 0.8 round trips and does not grow the
+window while the sender is application limited, so with the default a tx set
+of 0.6 MB took 1 to 1.3 round trips on top of the one-way delay on a warm
+connection and 6 to 7 on a cold one; with 8 MiB it leaves in one flight (about
+20 ms after the one-way delay at a 150 ms round trip). CUBIC still shrinks the
+window on loss. This is a prototype setting for validators on good links.
+
 Streams still share connection-level flow control, congestion control, CPU,
 and link bandwidth. This separation removes dispatcher and stream-lock
 serialization; it does not guarantee SCP latency under link saturation.

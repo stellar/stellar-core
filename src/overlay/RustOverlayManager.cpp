@@ -228,6 +228,21 @@ RustOverlayManager::cacheTxSet(Hash const& txSetHash,
     }
 }
 
+void
+RustOverlayManager::pushTxSet(Hash const& txSetHash, uint32_t slotIndex)
+{
+#ifdef BUILD_TESTS
+    if (mDropTxSetPushForTesting)
+    {
+        return;
+    }
+#endif
+    if (mOverlayIPC && !mShuttingDown)
+    {
+        mOverlayIPC->pushTxSet(txSetHash, slotIndex);
+    }
+}
+
 std::vector<TransactionEnvelope>
 RustOverlayManager::getTopTransactions(size_t count)
 {
@@ -377,6 +392,14 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mSendSCPMessageSetMeter, "send_scp_message");
     markDelta(m.mSendTransactionMeter, "send_transaction");
     markDelta(m.mSendTxSetMeter, "send_txset");
+
+    // Leader tx-set push
+    markDelta(m.mTxSetPushSent, "txset_push_sent");
+    markDelta(m.mTxSetPushReceived, "txset_push_received");
+    markDelta(m.mTxSetPushHit, "txset_push_hit");
+    markDelta(m.mTxSetPushRequestSkipped, "txset_push_request_skipped");
+    markDelta(m.mTxSetPushDropped, "txset_push_dropped");
+    markDelta(m.mTxSetPushEvicted, "txset_push_evicted");
 
     // Connection lifecycle — these aren't registered as medida meters on
     // the C++ side yet, so they'll just be tracked by the existing counters.

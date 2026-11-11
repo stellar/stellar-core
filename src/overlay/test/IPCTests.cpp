@@ -100,6 +100,28 @@ TEST_CASE("IPC message types", "[overlay][ipc]")
         close(sockets[1]);
     }
 
+    SECTION("CoreToOverlay::PushTxSet")
+    {
+        int sockets[2];
+        REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+
+        // [hash:32][slotSeq:4]; the value must match the Rust overlay's
+        // MessageType::PushTxSet.
+        REQUIRE(static_cast<uint32_t>(IPCMessageType::PUSH_TX_SET) == 14);
+        IPCMessage msg;
+        msg.type = IPCMessageType::PUSH_TX_SET;
+        msg.payload.assign(36, 7);
+
+        REQUIRE(ipc::sendMessage(sockets[0], msg));
+        auto recvMsg = ipc::receiveMessage(sockets[1]);
+        REQUIRE(recvMsg.has_value());
+        REQUIRE(recvMsg->type == IPCMessageType::PUSH_TX_SET);
+        REQUIRE(recvMsg->payload == msg.payload);
+
+        close(sockets[0]);
+        close(sockets[1]);
+    }
+
     SECTION("OverlayToCore::SCPReceived")
     {
         int sockets[2];

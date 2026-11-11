@@ -18,6 +18,12 @@ mod ipc {
     pub const BROADCAST_SCP: u32 = 1;
     pub const SET_PEER_CONFIG: u32 = 8;
     pub const SHUTDOWN: u32 = 7;
+    pub const REQUEST_TX_SET: u32 = 11;
+    pub const CACHE_TX_SET: u32 = 12;
+    pub const REQUEST_OVERLAY_METRICS: u32 = 13;
+    pub const PUSH_TX_SET: u32 = 14;
+    pub const TX_SET_AVAILABLE: u32 = 103;
+    pub const OVERLAY_METRICS_RESPONSE: u32 = 105;
     pub const SCP_RECEIVED: u32 = 100;
     pub const PEER_REQUESTS_SCP_STATE: u32 = 102;
 
@@ -148,6 +154,116 @@ fn valid_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
     let mut envelope = ScpEnvelope::default();
     envelope.statement.slot_index = slot_index;
     envelope.to_xdr(Limits::none()).unwrap()
+}
+
+/// A minimal valid GeneralizedTransactionSet and its content hash.
+fn txset_xdr(seed: u8) -> ([u8; 32], Vec<u8>) {
+    use sha2::{Digest, Sha256};
+    use stellar_xdr::{GeneralizedTransactionSet, Hash};
+    let mut tx_set = GeneralizedTransactionSet::default();
+    let GeneralizedTransactionSet::V1(v1) = &mut tx_set;
+    v1.previous_ledger_hash = Hash([seed; 32]);
+    let bytes = tx_set.to_xdr(Limits::none()).unwrap();
+    let hash: [u8; 32] = Sha256::digest(&bytes).into();
+    (hash, bytes)
+}
+
+/// `[hash:32][slot:4 LE]`, the payload of REQUEST_TX_SET and PUSH_TX_SET and
+/// the prefix of CACHE_TX_SET.
+fn txset_key(hash: &[u8; 32], slot: u32) -> Vec<u8> {
+    let mut payload = hash.to_vec();
+    payload.extend_from_slice(&slot.to_le_bytes());
+    payload
+}
+
+/// Read IPC messages until one of `msg_type` arrives (skipping others, such
+/// as SCP state requests of a new connection). None on timeout.
+fn recv_until(stream: &mut UnixStream, msg_type: u32, timeout: Duration) -> Option<Vec<u8>> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let remaining = deadline.checked_duration_since(Instant::now())?;
+        stream
+            .set_read_timeout(Some(remaining.max(Duration::from_millis(1))))
+            .unwrap();
+        match ipc::recv_message(stream) {
+            Ok((got, payload)) if got == msg_type => return Some(payload),
+            Ok(_) => {}
+            Err(_) => return None,
+        }
+    }
+}
+
+/// One counter of the overlay's metrics snapshot.
+fn overlay_metric(stream: &mut UnixStream, name: &str) -> u64 {
+    ipc::send_message(stream, ipc::REQUEST_OVERLAY_METRICS, &[]).unwrap();
+    let payload = recv_until(
+        stream,
+        ipc::OVERLAY_METRICS_RESPONSE,
+        Duration::from_secs(5),
+    )
+    .expect("metrics response");
+    let json: serde_json::Value = serde_json::from_slice(&payload).unwrap();
+    json[name]
+        .as_u64()
+        .unwrap_or_else(|| panic!("no metric {name}"))
+}
+
+/// Two overlay processes, B connected to A, each with its Core-side socket.
+struct TwoOverlays {
+    child_a: Child,
+    child_b: Child,
+    core_a: UnixStream,
+    core_b: UnixStream,
+    socket_a: String,
+    socket_b: String,
+}
+
+impl TwoOverlays {
+    fn start(name: &str, port_a: u16, port_b: u16) -> Self {
+        let socket_a = format!("/tmp/e2e-{}-a-{}.sock", name, std::process::id());
+        let socket_b = format!("/tmp/e2e-{}-b-{}.sock", name, std::process::id());
+        let _ = std::fs::remove_file(&socket_a);
+        let _ = std::fs::remove_file(&socket_b);
+        let child_a = spawn_overlay(&socket_a, port_a);
+        let child_b = spawn_overlay(&socket_b, port_b);
+        let core_a = wait_for_socket(&socket_a, 5000).expect("Socket A should be ready");
+        let mut core_b = wait_for_socket(&socket_b, 5000).expect("Socket B should be ready");
+        let peer_config = format!(
+            r#"{{"known_peers":["127.0.0.1:{}"],"preferred_peers":[],"listen_port":{}}}"#,
+            port_a, port_b
+        );
+        ipc::send_message(&mut core_b, ipc::SET_PEER_CONFIG, peer_config.as_bytes())
+            .expect("Should send peer config");
+        // Connection and stream setup.
+        thread::sleep(Duration::from_millis(1000));
+        Self {
+            child_a,
+            child_b,
+            core_a,
+            core_b,
+            socket_a,
+            socket_b,
+        }
+    }
+
+    fn stop(self) {
+        let TwoOverlays {
+            mut child_a,
+            mut child_b,
+            mut core_a,
+            mut core_b,
+            socket_a,
+            socket_b,
+        } = self;
+        ipc::send_message(&mut core_a, ipc::SHUTDOWN, &[]).ok();
+        ipc::send_message(&mut core_b, ipc::SHUTDOWN, &[]).ok();
+        drop(core_a);
+        drop(core_b);
+        wait_for_child_exit(&mut child_a, "overlay A");
+        wait_for_child_exit(&mut child_b, "overlay B");
+        let _ = std::fs::remove_file(&socket_a);
+        let _ = std::fs::remove_file(&socket_b);
+    }
 }
 
 /// Wait for socket to be ready and return the connected stream
@@ -328,5 +444,200 @@ mod tests {
                 panic!("B did not receive SCP message from A: {}. This indicates peer connection or relay failed.", e);
             }
         }
+    }
+
+    /// The leader's Core hands its set to its overlay and asks for the push
+    /// (CACHE_TX_SET, PUSH_TX_SET). The follower's overlay then holds the
+    /// set before its Core knows the hash: Core's later request is answered
+    /// from the pushed copy, without any network request.
+    #[test]
+    fn test_leader_push_delivers_txset_before_the_request() {
+        let mut net = TwoOverlays::start("push", 11720, 11721);
+        let (hash, xdr) = txset_xdr(0x61);
+
+        let mut cache = txset_key(&hash, 5);
+        cache.extend_from_slice(&xdr);
+        ipc::send_message(&mut net.core_a, ipc::CACHE_TX_SET, &cache).unwrap();
+        ipc::send_message(&mut net.core_a, ipc::PUSH_TX_SET, &txset_key(&hash, 5)).unwrap();
+
+        // The pushed set reaches B's overlay but not B's Core.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while overlay_metric(&mut net.core_b, "txset_push_received") == 0 {
+            assert!(Instant::now() < deadline, "push did not arrive");
+            thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            recv_until(
+                &mut net.core_b,
+                ipc::TX_SET_AVAILABLE,
+                Duration::from_millis(300)
+            )
+            .is_none(),
+            "Core must not receive a set it did not ask for"
+        );
+
+        // B's Core sees the proposal and asks for the hash.
+        ipc::send_message(&mut net.core_b, ipc::REQUEST_TX_SET, &txset_key(&hash, 5)).unwrap();
+        let payload = recv_until(
+            &mut net.core_b,
+            ipc::TX_SET_AVAILABLE,
+            Duration::from_secs(5),
+        )
+        .expect("requested set");
+        assert_eq!(&payload[..32], &hash);
+        assert_eq!(&payload[32..], &xdr[..]);
+
+        assert_eq!(overlay_metric(&mut net.core_a, "txset_push_sent"), 1);
+        assert_eq!(overlay_metric(&mut net.core_b, "txset_push_received"), 1);
+        assert_eq!(overlay_metric(&mut net.core_b, "txset_push_hit"), 1);
+        // No request went over the network.
+        assert_eq!(overlay_metric(&mut net.core_b, "fetch_txset_count"), 0);
+        net.stop();
+    }
+
+    /// Fallback: the leader's overlay holds the set but the push never
+    /// happened (lost). The follower's request fetches it from the leader.
+    #[test]
+    fn test_txset_request_path_works_without_a_push() {
+        let mut net = TwoOverlays::start("nopush", 11730, 11731);
+        let (hash, xdr) = txset_xdr(0x62);
+
+        let mut cache = txset_key(&hash, 5);
+        cache.extend_from_slice(&xdr);
+        ipc::send_message(&mut net.core_a, ipc::CACHE_TX_SET, &cache).unwrap();
+        thread::sleep(Duration::from_millis(300));
+        assert_eq!(overlay_metric(&mut net.core_b, "txset_push_received"), 0);
+
+        ipc::send_message(&mut net.core_b, ipc::REQUEST_TX_SET, &txset_key(&hash, 5)).unwrap();
+        let payload = recv_until(
+            &mut net.core_b,
+            ipc::TX_SET_AVAILABLE,
+            Duration::from_secs(5),
+        )
+        .expect("requested set");
+        assert_eq!(&payload[..32], &hash);
+        assert_eq!(&payload[32..], &xdr[..]);
+
+        assert_eq!(overlay_metric(&mut net.core_a, "txset_push_sent"), 0);
+        assert_eq!(overlay_metric(&mut net.core_b, "txset_push_hit"), 0);
+        assert_eq!(overlay_metric(&mut net.core_b, "fetch_txset_count"), 1);
+        net.stop();
+    }
+
+    /// The leader pushes set A but its proposal names B. The follower's
+    /// request for B is not answered with A: it is fetched from the leader,
+    /// which still answers requests for sets it did not push.
+    #[test]
+    fn test_pushed_txset_does_not_answer_a_request_for_another_hash() {
+        let mut net = TwoOverlays::start("mismatch", 11740, 11741);
+        let (pushed_hash, pushed_xdr) = txset_xdr(0x63);
+        let (proposed_hash, proposed_xdr) = txset_xdr(0x64);
+
+        for (hash, xdr) in [(&pushed_hash, &pushed_xdr), (&proposed_hash, &proposed_xdr)] {
+            let mut cache = txset_key(hash, 5);
+            cache.extend_from_slice(xdr);
+            ipc::send_message(&mut net.core_a, ipc::CACHE_TX_SET, &cache).unwrap();
+        }
+        ipc::send_message(
+            &mut net.core_a,
+            ipc::PUSH_TX_SET,
+            &txset_key(&pushed_hash, 5),
+        )
+        .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while overlay_metric(&mut net.core_b, "txset_push_received") == 0 {
+            assert!(Instant::now() < deadline, "push did not arrive");
+            thread::sleep(Duration::from_millis(50));
+        }
+
+        ipc::send_message(
+            &mut net.core_b,
+            ipc::REQUEST_TX_SET,
+            &txset_key(&proposed_hash, 5),
+        )
+        .unwrap();
+        let payload = recv_until(
+            &mut net.core_b,
+            ipc::TX_SET_AVAILABLE,
+            Duration::from_secs(5),
+        )
+        .expect("requested set");
+        assert_eq!(&payload[..32], &proposed_hash);
+        assert_eq!(&payload[32..], &proposed_xdr[..]);
+        // Only the requested set was delivered.
+        assert!(recv_until(
+            &mut net.core_b,
+            ipc::TX_SET_AVAILABLE,
+            Duration::from_millis(300)
+        )
+        .is_none());
+
+        assert_eq!(overlay_metric(&mut net.core_b, "txset_push_hit"), 0);
+        assert_eq!(overlay_metric(&mut net.core_b, "fetch_txset_count"), 1);
+        assert_eq!(
+            overlay_metric(&mut net.core_a, "txset_push_request_skipped"),
+            0
+        );
+        net.stop();
+    }
+
+    /// A push that the receiver drops (here: by its per-peer rate limit and
+    /// by its limit on sets Core has not asked for) is recovered through the
+    /// request path: when the follower's Core later asks for such a set, the
+    /// leader answers although it had pushed it. Every set arrives.
+    #[test]
+    fn test_dropped_push_is_recovered_by_a_request() {
+        let mut net = TwoOverlays::start("dropped", 11750, 11751);
+        // More unrequested sets in a burst than the follower accepts.
+        let sets: Vec<([u8; 32], Vec<u8>)> = (0..14).map(|i| txset_xdr(0x70 + i)).collect();
+        for (hash, xdr) in &sets {
+            let mut cache = txset_key(hash, 5);
+            cache.extend_from_slice(xdr);
+            ipc::send_message(&mut net.core_a, ipc::CACHE_TX_SET, &cache).unwrap();
+            ipc::send_message(&mut net.core_a, ipc::PUSH_TX_SET, &txset_key(hash, 5)).unwrap();
+            thread::sleep(Duration::from_millis(15));
+        }
+        // Later than any request could have crossed a push.
+        thread::sleep(Duration::from_millis(800));
+        let pushed = overlay_metric(&mut net.core_a, "txset_push_sent");
+        let received = overlay_metric(&mut net.core_b, "txset_push_received");
+        let dropped = overlay_metric(&mut net.core_b, "txset_push_dropped");
+        assert!(dropped >= 1, "the burst should exceed the follower's limit");
+        assert_eq!(received + dropped, pushed);
+
+        for (hash, xdr) in &sets {
+            ipc::send_message(&mut net.core_b, ipc::REQUEST_TX_SET, &txset_key(hash, 5)).unwrap();
+            let payload = recv_until(
+                &mut net.core_b,
+                ipc::TX_SET_AVAILABLE,
+                Duration::from_secs(5),
+            )
+            .expect("requested set");
+            assert_eq!(&payload[..32], hash);
+            assert_eq!(&payload[32..], &xdr[..]);
+        }
+        // Of the sets that arrived, the follower kept only as many as one
+        // peer may have unclaimed; the older ones were evicted.
+        let evicted = overlay_metric(&mut net.core_b, "txset_push_evicted");
+        assert_eq!(
+            received - evicted,
+            stellar_overlay::flood::txset_push_limits::MAX_UNCLAIMED_SETS_PER_PEER as u64
+        );
+        // Every set the follower did not hold (dropped by the rate limit,
+        // evicted, or not pushed because an earlier push was still in
+        // flight) came through a request, which the leader answered.
+        assert_eq!(
+            overlay_metric(&mut net.core_b, "fetch_txset_count"),
+            sets.len() as u64 - (received - evicted)
+        );
+        assert_eq!(
+            overlay_metric(&mut net.core_b, "txset_push_hit"),
+            received - evicted
+        );
+        assert_eq!(
+            overlay_metric(&mut net.core_a, "txset_push_request_skipped"),
+            0
+        );
+        net.stop();
     }
 }

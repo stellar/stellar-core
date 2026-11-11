@@ -72,6 +72,7 @@ A mempool pull of 2x the tx-set capacity plus a pending set's transactions
 | 11 | `RequestTxSet`        | `[hash:32][slot:u32 LE]`                     | Fetch TX set body by hash                         |
 | 12 | `CacheTxSet`          | `[hash:32][slot:u32 LE][txset_xdr]`          | Tell overlay to cache a locally-built TX set      |
 | 13 | `RequestOverlayMetrics` | (empty)                                    | Request metrics snapshot                          |
+| 14 | `PushTxSet`           | `[hash:32][slot:u32 LE]`                     | Send a cached TX set to every peer now (leader push) |
 
 ### Overlay → Core
 

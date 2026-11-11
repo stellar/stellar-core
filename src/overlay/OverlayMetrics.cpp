@@ -57,6 +57,18 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
     , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mTxSetPushSent(
+          app.getMetrics().NewMeter({"overlay", "txset-push", "sent"}, "txset"))
+    , mTxSetPushReceived(app.getMetrics().NewMeter(
+          {"overlay", "txset-push", "received"}, "txset"))
+    , mTxSetPushHit(
+          app.getMetrics().NewMeter({"overlay", "txset-push", "hit"}, "txset"))
+    , mTxSetPushRequestSkipped(app.getMetrics().NewMeter(
+          {"overlay", "txset-push", "request-skipped"}, "txset"))
+    , mTxSetPushDropped(app.getMetrics().NewMeter(
+          {"overlay", "txset-push", "dropped"}, "txset"))
+    , mTxSetPushEvicted(app.getMetrics().NewMeter(
+          {"overlay", "txset-push", "evicted"}, "txset"))
 {
 }
 }

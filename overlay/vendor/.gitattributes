@@ -3,3 +3,4 @@ libp2p-core/CHANGELOG.md -whitespace
 libp2p-core/src/generated/* -whitespace
 multistream-select/CHANGELOG.md -whitespace
 stream-priority.patch -whitespace
+congestion-window.patch -whitespace
