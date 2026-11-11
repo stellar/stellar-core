@@ -211,11 +211,13 @@ generators had submitted exactly 4,800,000 and none was rejected.
   `SIGCHLD`, and a checkpoint publish runs child processes.
 - **Fix.** `0c9a02e56`: an interrupted read or write on the IPC socket is retried. A unit test
   interrupts a blocked read with a signal and fails without the fix.
-- **In the run with the fix** all 48 nodes were checked seven times, before, during and after the
-  load: none logged the warning and none had a stuck socket.
-- **One clean run does not prove the fix.** The reader was the same code in the "before" build,
-  and that run had no such event in 30 minutes either. The first run of the change had three in
-  40 minutes; whether the change makes the event more likely is not known.
+- **In the run with the fix** all 48 nodes were checked fourteen times, from before the load until
+  17 s before the network was terminated: none logged the warning and none had a stuck socket.
+  Every node published 44 checkpoints in that time (about 2,100 in the network); the three events
+  of the first run fell within its first 19 checkpoints per node (about 900).
+- **This is not a proof.** The fix logs nothing when it retries, so there is no count of
+  interrupted reads it survived, and the "before" build, with the unfixed reader, had no such
+  event in its 30 minutes either. Whether the change makes the event more likely is not known.
 
 ### Where a ledger's time goes now
 
@@ -277,7 +279,7 @@ runs the load, judges it, and terminates the network.
 | | |
 |---|---|
 | Instance type | c6id.2xlarge: 8 vCPU (Intel Ice Lake, with SHA extensions), 16 GiB RAM, local NVMe |
-| Build, with apply-time validation | Commit `0c9a02e56`, the perftests package `30.0.1-3678.0c9a02e566.noble~perf.apply.time.txset.validation~perftests` (the first run of the change: `a33da62c4`, `30.0.1-3677.a33da62c49.noble~perf.apply.time.txset.validation~perftests`) |
+| Build, with apply-time validation | Commit `0c9a02e56`, the perftests package `30.0.1-3678.0c9a02e566.noble~perf.apply.time.txset.validation~perftests` (the first run of the change: `a33da62c4`, `30.0.1-3677.a33da62c49.noble~perf.apply.time.txset.validation~perftests`). All 48 nodes reported the commit in their build label |
 | Build, before | Commit `8f7768be7`, the perftests package `30.0.1-3675.8f7768be7a.noble~perf.leader.txset.push~perftests`. All 48 nodes reported that commit in their build label |
 | Overlay | The Rust overlay of this stack: QUIC, one connection per peer, 8 MiB initial congestion window. With the change it also stores tx sets on the local NVMe |
 | Ledger protocol | 30, upgraded from genesis during preparation |
