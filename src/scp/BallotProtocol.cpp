@@ -549,6 +549,10 @@ BallotProtocol::progressRoundStep()
                                  /*proposal=*/true) != SCPDriver::kInvalidValue)
         {
             Value v = mCurrentBallot->getBallot().value;
+            if (auto replacement = driver.reproposeValue(slotIndex, round, v))
+            {
+                v = replacement->getValue();
+            }
             driver.proposedValue(slotIndex, round, v);
             return bumpState(v, round);
         }

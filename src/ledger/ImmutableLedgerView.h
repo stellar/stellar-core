@@ -274,6 +274,56 @@ class SorobanPreApplyLedgerView : public AbstractLedgerView
     ApplyLedgerView mLclView;
 };
 
+// The ledger state right after a ledger was executed (fees charged,
+// transactions applied) and before it is committed: the snapshot of the
+// ledger before it plus the entries the execution changed. The commit adds
+// what the ledger's upgrades change, eviction, and the header's hashes; up to
+// those, this is the state the ledger leaves behind.
+//
+// Everything in here is immutable and shared, so the state can be read from
+// any thread, each through a view of its own (`makeView`). It is captured by
+// the ledger apply thread from a speculative execution (see
+// LedgerManager::startSpeculativeApply) for the node that expects to lead
+// the next ledger, which validates its candidate transactions against it
+// while the executed ledger is still going through consensus.
+//
+// Only what transaction validation reads is kept: the header and the account
+// entries the execution changed. A view of this state refuses (throws on) any
+// other kind of entry rather than answer with the previous ledger's version.
+// The Soroban network configuration is the previous ledger's: it only changes
+// with an upgrade, and upgrades are applied by the commit, so a state
+// captured for a value that carries upgrades must not be used.
+struct ExecutedLedgerState
+{
+    // Account entries the execution created or changed; nullptr for erased
+    // ones.
+    using Changes = UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>;
+
+    uint32_t mLedgerSeq{0};
+    // The value the ledger was executed with.
+    StellarValue mValue;
+    // True if the value's transaction set was found invalid, so that the
+    // ledger applies nothing (see LedgerManagerImpl::validateTxSetForApply).
+    bool mTxSetSkipped{false};
+    // Number of transactions the ledger applied. In the test-only
+    // overlay-only mode, which applies nothing: the size of its set.
+    size_t mAppliedTxs{0};
+    // The ledger's header as execution left it: sequence number, value and
+    // fee pool are final; upgrades and the hashes computed by the commit are
+    // not in it.
+    std::shared_ptr<LedgerHeader const> mHeader;
+    // Snapshot of the ledger before.
+    ImmutableLedgerDataPtr mPreviousLedger;
+    std::shared_ptr<Changes const> mChanges;
+    // Full hashes of the transactions of the ledger's set.
+    std::shared_ptr<UnorderedSet<Hash> const> mTxHashes;
+
+    // A read-only view of the state, for validating transactions. Each view
+    // is for one thread.
+    std::unique_ptr<AbstractLedgerView const>
+    makeView(MetricsRegistry& metrics) const;
+};
+
 // Immutable wrapper for a complete ledger state snapshot.
 // This object provides read-only access to all components of a full ledger
 // state at a specific ledger sequence. All components are instantiated together

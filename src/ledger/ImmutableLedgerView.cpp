@@ -454,4 +454,29 @@ ApplyLedgerView::ApplyLedgerView(ImmutableLedgerDataPtr state,
     : ImmutableLedgerView(std::move(state), metrics)
 {
 }
+
+std::unique_ptr<AbstractLedgerView const>
+ExecutedLedgerState::makeView(MetricsRegistry& metrics) const
+{
+    releaseAssert(mHeader && mPreviousLedger && mChanges);
+    return std::make_unique<SorobanPreApplyLedgerView>(
+        mHeader,
+        [changes = mChanges](LedgerKey const& key)
+            -> std::optional<std::shared_ptr<LedgerEntry const>> {
+            if (key.type() != ACCOUNT)
+            {
+                // Not captured: the previous ledger's version could be
+                // stale.
+                throw std::logic_error(
+                    "executed ledger state only holds account entries");
+            }
+            auto it = changes->find(key);
+            if (it == changes->end())
+            {
+                return std::nullopt;
+            }
+            return it->second;
+        },
+        ApplyLedgerView(mPreviousLedger, metrics));
+}
 }

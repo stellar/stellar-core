@@ -18,6 +18,7 @@ namespace stellar
 {
 
 class LedgerCloseData;
+struct ExecutedLedgerState;
 class Database;
 class SorobanMetricsRegistry;
 struct SorobanApplyMetrics;
@@ -440,7 +441,22 @@ class LedgerManager
     // commit the result. If another value externalizes, or another ledger is
     // handed in, the execution is dropped. Must not be called while a ledger
     // is applying.
-    virtual void startSpeculativeApply(LedgerCloseData const& ledgerData) = 0;
+    //
+    // With `onExecuted`, the apply thread captures the state the execution
+    // left (see ExecutedLedgerState) and hands it to `onExecuted` on the main
+    // thread once the execution has finished; nullptr if the ledger was not
+    // executed after all. The state stays valid whatever becomes of the
+    // execution: whether it describes the last closed ledger is for the
+    // caller to check, by comparing the value that externalized.
+    using SpeculativeApplyExecuted =
+        std::function<void(std::shared_ptr<ExecutedLedgerState const>)>;
+    virtual void startSpeculativeApply(LedgerCloseData const& ledgerData,
+                                       SpeculativeApplyExecuted onExecuted) = 0;
+    void
+    startSpeculativeApply(LedgerCloseData const& ledgerData)
+    {
+        startSpeculativeApply(ledgerData, SpeculativeApplyExecuted{});
+    }
     // True while the apply thread may be executing a ledger speculatively.
     // Like isApplying(), this tells the main thread that the resources ledger
     // apply uses (e.g. the batch executor) are taken.

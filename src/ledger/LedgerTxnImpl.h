@@ -419,6 +419,11 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnDelta getDelta();
 
+    // forEachChangedEntry has the strong exception safety guarantee
+    void forEachChangedEntry(
+        std::function<void(LedgerKey const&, LedgerEntry const*)> const& f)
+        const;
+
     // getOffersByAccountAndAsset has the basic exception safety guarantee.
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account, Asset const& asset);

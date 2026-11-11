@@ -414,7 +414,13 @@ class LedgerManagerImpl : public LedgerManager
 
     // Apply thread only: the ledger executed ahead of consensus, if any.
     std::unique_ptr<LedgerExecution> mSpeculativeExecution;
-    void speculativelyExecuteLedger(LedgerCloseData const& ledgerData);
+    // Returns the state the execution left if `captureState` is set and the
+    // ledger was executed.
+    std::shared_ptr<ExecutedLedgerState const>
+    speculativelyExecuteLedger(LedgerCloseData const& ledgerData,
+                               bool captureState);
+    std::shared_ptr<ExecutedLedgerState const>
+    captureExecutedState(LedgerExecution const& execution) const;
     // Returns the speculative execution if it is one of `ledgerData`, and
     // drops it otherwise.
     std::unique_ptr<LedgerExecution>
@@ -696,7 +702,9 @@ class LedgerManagerImpl : public LedgerManager
 
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
-    void startSpeculativeApply(LedgerCloseData const& ledgerData) override;
+    using LedgerManager::startSpeculativeApply;
+    void startSpeculativeApply(LedgerCloseData const& ledgerData,
+                               SpeculativeApplyExecuted onExecuted) override;
     bool isSpeculativelyApplying() const override;
     void abortSpeculativeApply() override;
     void completeLedgerClose(uint32_t ledgerSeq, bool calledViaExternalize,

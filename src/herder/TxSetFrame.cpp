@@ -881,7 +881,8 @@ makeTxSetFromTransactions(
 #endif
     ,
     TxSetReadyCallback const& onTxSetReady,
-    std::vector<size_t> const& validTxTargets)
+    std::vector<size_t> const& validTxTargets,
+    TxValidationCache* validationCache)
 {
     releaseAssert(threadIsMain());
     releaseAssert(!app.getLedgerManager().isApplying());
@@ -926,7 +927,7 @@ makeTxSetFromTransactions(
             {
                 validatedTxs = TxSetUtils::trimInvalid(
                     phaseTxs, app, accountFeeMap, closeTimeOffset.seconds(),
-                    closeTimeOffset.seconds(), invalid);
+                    closeTimeOffset.seconds(), invalid, validationCache);
             }
             else
             {
@@ -941,7 +942,7 @@ makeTxSetFromTransactions(
                                SurgePricingPriorityQueue::GENERIC_LANE;
                     },
                     app, accountFeeMap, closeTimeOffset.seconds(),
-                    closeTimeOffset.seconds(), invalid);
+                    closeTimeOffset.seconds(), invalid, validationCache);
             }
 #ifdef BUILD_TESTS
             // In tests we shouldn't be really trying to close ledgers with
@@ -1922,6 +1923,40 @@ TxSetPhaseFrame::sortedForApply(Hash const& txSetHash) const
         return TxSetPhaseFrame(
             mPhase, sortedForApplySequential(getSequentialTxs(), txSetHash),
             mInclusionFeeMap);
+    }
+}
+
+bool
+txValidityDependsOnCloseTime(TransactionEnvelope const& env)
+{
+    auto timeBounded = [](TimeBounds const& tb) {
+        return tb.minTime != 0 || tb.maxTime != 0;
+    };
+    auto conditional = [&](Preconditions const& cond) {
+        switch (cond.type())
+        {
+        case PRECOND_NONE:
+            return false;
+        case PRECOND_TIME:
+            return timeBounded(cond.timeBounds());
+        case PRECOND_V2:
+            return (cond.v2().timeBounds &&
+                    timeBounded(*cond.v2().timeBounds)) ||
+                   cond.v2().minSeqAge != 0;
+        }
+        // An unknown kind of precondition: assume the worst.
+        return true;
+    };
+    switch (env.type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+        return env.v0().tx.timeBounds && timeBounded(*env.v0().tx.timeBounds);
+    case ENVELOPE_TYPE_TX:
+        return conditional(env.v1().tx.cond);
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+        return conditional(env.feeBump().tx.innerTx.v1().tx.cond);
+    default:
+        return true;
     }
 }
 

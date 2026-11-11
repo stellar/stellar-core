@@ -71,7 +71,8 @@ class TxSetUtils
     trimInvalid(TxFrameList const& txs, Application& app,
                 UnorderedMap<AccountID, int64_t>& accountFeeMap,
                 uint64_t lowerBoundCloseTimeOffset,
-                uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs);
+                uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
+                TxValidationCache* validationCache = nullptr);
 
     // Like `trimInvalid`, for candidates in priority order when only the
     // first `targetValidTxs` valid ones that `countsTowardTarget` accepts are
@@ -86,6 +87,6 @@ class TxSetUtils
             countsTowardTarget,
         Application& app, UnorderedMap<AccountID, int64_t>& accountFeeMap,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        TxFrameList& invalidTxs);
+        TxFrameList& invalidTxs, TxValidationCache* validationCache = nullptr);
 }; // class TxSetUtils
 } // namespace stellar

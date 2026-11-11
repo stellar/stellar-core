@@ -1516,6 +1516,36 @@ LedgerTxn::Impl::getDelta()
     return delta;
 }
 
+void
+LedgerTxn::forEachChangedEntry(
+    std::function<void(LedgerKey const&, LedgerEntry const*)> const& f) const
+{
+    getImpl()->forEachChangedEntry(f);
+}
+
+void
+LedgerTxn::Impl::forEachChangedEntry(
+    std::function<void(LedgerKey const&, LedgerEntry const*)> const& f) const
+{
+    abortIfWrongThread("forEachChangedEntry");
+    throwIfChild();
+    if (!mActive.empty())
+    {
+        throw std::runtime_error(
+            "LedgerTxn has active entries: its changes can't be read");
+    }
+    for (auto const& kv : mEntry)
+    {
+        auto const& key = kv.first;
+        if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY)
+        {
+            continue;
+        }
+        f(key.ledgerKey(),
+          kv.second.isDeleted() ? nullptr : &kv.second->ledgerEntry());
+    }
+}
+
 EntryIterator
 LedgerTxn::Impl::getEntryIterator(EntryMap const& entries) const
 {

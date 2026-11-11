@@ -103,6 +103,28 @@ enum class TxSetValidationResult
 // Returns a string representation of the validation result for logging.
 std::string toString(TxSetValidationResult result);
 
+// What validating one transaction against a ledger found: whether
+// `checkValid` passed and, if it did, the available balance of the fee source
+// (which the caller compares with the fees of all the transactions it pays
+// for).
+struct TxValidationResult
+{
+    bool mValid{false};
+    std::optional<int64_t> mFeeSourceBalance;
+};
+
+// Validation results by full transaction hash, for transactions validated
+// against one particular ledger. It only holds transactions whose validity
+// does not depend on the close time of the ledger they go into (see
+// `txValidityDependsOnCloseTime`), so a result is the same for every set
+// built on that ledger. Whoever owns the cache makes sure it is only used
+// with the ledger its results were computed on.
+using TxValidationCache = UnorderedMap<Hash, TxValidationResult>;
+
+// Whether the outcome of validating `env` can depend on the close time it is
+// validated for: it has time bounds or a minimum sequence age.
+bool txValidityDependsOnCloseTime(TransactionEnvelope const& env);
+
 // The ledger state a transaction set is validated against: the ledger the
 // set would apply on top of. Validation only reads the state through this
 // context, so it can run wherever the context's views can be used: the main
@@ -120,6 +142,11 @@ struct TxSetValidationContext
     // Upper bound on the number of tasks the per-transaction checks are
     // split into. 1 runs them on the calling thread.
     size_t mMaxTasks;
+    // Results of earlier validations against this ledger, if any: a
+    // transaction found in it is not validated again, and the results of the
+    // others are added to it. Only read while the validation tasks run, and
+    // only written by the calling thread.
+    TxValidationCache* mValidationCache{nullptr};
 
     // The LCL as seen by the main thread. Main thread only.
     static TxSetValidationContext forLCL(Application& app);
@@ -185,7 +212,10 @@ makeTxSetFromTransactions(
 #endif
     ,
     TxSetReadyCallback const& onTxSetReady = {},
-    std::vector<size_t> const& validTxTargets = {});
+    std::vector<size_t> const& validTxTargets = {},
+    // Results of earlier validations against the LCL (see
+    // `TxValidationCache`); extended with this build's.
+    TxValidationCache* validationCache = nullptr);
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -449,7 +479,8 @@ class TxSetPhaseFrame
 #endif
         ,
         TxSetReadyCallback const& onTxSetReady,
-        std::vector<size_t> const& validTxTargets);
+        std::vector<size_t> const& validTxTargets,
+        TxValidationCache* validationCache);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
@@ -642,7 +673,8 @@ class ApplicableTxSetFrame
 #endif
         ,
         TxSetReadyCallback const& onTxSetReady,
-        std::vector<size_t> const& validTxTargets);
+        std::vector<size_t> const& validTxTargets,
+        TxValidationCache* validationCache);
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(

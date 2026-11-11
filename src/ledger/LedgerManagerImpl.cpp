@@ -1869,7 +1869,8 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 }
 
 void
-LedgerManagerImpl::startSpeculativeApply(LedgerCloseData const& ledgerData)
+LedgerManagerImpl::startSpeculativeApply(LedgerCloseData const& ledgerData,
+                                         SpeculativeApplyExecuted onExecuted)
 {
     releaseAssert(threadIsMain());
     releaseAssert(mApp.getConfig().backgroundLedgerApply());
@@ -1878,12 +1879,18 @@ LedgerManagerImpl::startSpeculativeApply(LedgerCloseData const& ledgerData)
     ++mSpeculationsExecuting;
     mApplyState.getMetrics().mSpeculationStarted.inc();
     mApp.postOnLedgerApplyThread(
-        [this, ledgerData]() {
-            speculativelyExecuteLedger(ledgerData);
+        [this, ledgerData, onExecuted = std::move(onExecuted)]() mutable {
+            auto state = speculativelyExecuteLedger(
+                ledgerData, static_cast<bool>(onExecuted));
             mApp.postOnMainThread(
-                [this]() {
+                [this, state = std::move(state),
+                 onExecuted = std::move(onExecuted)]() {
                     releaseAssert(mSpeculationsExecuting > 0);
                     --mSpeculationsExecuting;
+                    if (onExecuted)
+                    {
+                        onExecuted(state);
+                    }
                 },
                 "speculative apply executed");
         },
@@ -1919,8 +1926,63 @@ LedgerManagerImpl::abortSpeculativeApply()
     future.wait();
 }
 
-void
-LedgerManagerImpl::speculativelyExecuteLedger(LedgerCloseData const& ledgerData)
+std::shared_ptr<ExecutedLedgerState const>
+LedgerManagerImpl::captureExecutedState(LedgerExecution const& execution) const
+{
+    ZoneScoped;
+    auto state = std::make_shared<ExecutedLedgerState>();
+    auto const& ledgerData = execution.mLedgerData;
+    state->mLedgerSeq = ledgerData.getLedgerSeq();
+    state->mValue = ledgerData.getValue();
+    state->mTxSetSkipped = execution.mTxSetSkipped;
+    {
+        // Not left active: the commit loads the header again.
+        auto header = execution.mLtx->loadHeader();
+        state->mHeader = std::make_shared<LedgerHeader const>(header.current());
+    }
+    state->mPreviousLedger = mApplyState.getLedgerState();
+
+    // Transaction validation only reads accounts (see ExecutedLedgerState).
+    auto changes = std::make_shared<ExecutedLedgerState::Changes>();
+    execution.mLtx->forEachChangedEntry([&changes](LedgerKey const& key,
+                                                   LedgerEntry const* entry) {
+        if (key.type() == ACCOUNT)
+        {
+            changes->emplace(key,
+                             entry ? std::make_shared<LedgerEntry const>(*entry)
+                                   : nullptr);
+        }
+    });
+    state->mChanges = std::move(changes);
+
+    auto txHashes = std::make_shared<UnorderedSet<Hash>>();
+    if (!execution.mTxSetSkipped && execution.mApplicableTxSet)
+    {
+        txHashes->reserve(execution.mApplicableTxSet->sizeTxTotal());
+        for (auto const& phase : execution.mApplicableTxSet->getPhases())
+        {
+            for (auto const& tx : phase)
+            {
+                txHashes->insert(tx->getFullHash());
+            }
+        }
+    }
+    // What the ledger applied: its results or, in overlay-only mode (which
+    // executes nothing and records no results), its transaction set.
+    state->mAppliedTxs = execution.mTxResultSet.results.size();
+#ifdef BUILD_TESTS
+    if (mApp.getRunInOverlayOnlyMode())
+    {
+        state->mAppliedTxs = txHashes->size();
+    }
+#endif
+    state->mTxHashes = std::move(txHashes);
+    return state;
+}
+
+std::shared_ptr<ExecutedLedgerState const>
+LedgerManagerImpl::speculativelyExecuteLedger(LedgerCloseData const& ledgerData,
+                                              bool captureState)
 {
     ZoneScoped;
     // At most one ledger is executed ahead of consensus: a newer request
@@ -1928,7 +1990,7 @@ LedgerManagerImpl::speculativelyExecuteLedger(LedgerCloseData const& ledgerData)
     abortSpeculativeExecution();
     if (mApp.isStopping())
     {
-        return;
+        return nullptr;
     }
     {
         // The main thread asked for this on top of its LCL. Apply's own
@@ -1939,7 +2001,7 @@ LedgerManagerImpl::speculativelyExecuteLedger(LedgerCloseData const& ledgerData)
         if (ledgerData.getLedgerSeq() != lcl.header.ledgerSeq + 1 ||
             ledgerData.getTxSet()->previousLedgerHash() != lcl.hash)
         {
-            return;
+            return nullptr;
         }
     }
     try
@@ -1953,6 +2015,29 @@ LedgerManagerImpl::speculativelyExecuteLedger(LedgerCloseData const& ledgerData)
         CLOG_ERROR(Ledger, "Speculative execution of ledger {} failed: {}",
                    ledgerData.getLedgerSeq(), e.what());
         mApplyState.markAbortedApplying();
+        return nullptr;
+    }
+    if (!captureState)
+    {
+        return nullptr;
+    }
+    try
+    {
+        // On the apply thread, between the execution and its commit: timed,
+        // so that its cost is on record.
+        auto timer = mApp.getMetrics()
+                         .NewTimer({"ledger", "apply", "capture-state"})
+                         .TimeScope();
+        return captureExecutedState(*mSpeculativeExecution);
+    }
+    catch (std::exception const& e)
+    {
+        // Only costs the next leader its head start.
+        CLOG_WARNING(Ledger,
+                     "Could not capture the state of the speculative "
+                     "execution of ledger {}: {}",
+                     ledgerData.getLedgerSeq(), e.what());
+        return nullptr;
     }
 }
 

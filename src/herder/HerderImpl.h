@@ -9,6 +9,7 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/PendingEnvelopes.h"
 #include "herder/QuorumIntersectionChecker.h"
+#include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "overlay/NetworkConstants.h"
@@ -145,6 +146,7 @@ class HerderImpl : public Herder
     std::function<std::vector<TransactionEnvelope>(size_t)>
         mGetTopTransactionsForTesting;
     friend class LeaderBuildTestAccess;
+    friend class ProposalPrevalidationTestAccess;
 
     std::optional<uint32_t> mMaxClassicTxSize;
     std::optional<uint32_t> mMaxTxSizeOverride;
@@ -273,8 +275,13 @@ class HerderImpl : public Herder
         TxSetXDRFrameConstPtr txSet;
         ApplicableTxSetFrameConstPtr applicableTxSet;
         std::vector<Hash> invalidTxHashes;
-        bool capacityLimited;
     };
+    // How long before the trigger the first-round leader builds its set: the
+    // set and its push to the peers are then out of the way when consensus
+    // starts, and what arrives in between waits for the next ledger. A
+    // quarter of the target close time, at most 250 ms.
+    static std::chrono::milliseconds
+    prepareTxSetLeadTime(std::chrono::milliseconds expectedCloseTime);
     std::optional<PreparedTxSet> mPreparedTxSet;
     // `pushToPeers`: this is the set the node is about to propose as a round
     // leader, so the overlay sends it to every peer as soon as its XDR exists
@@ -327,6 +334,65 @@ class HerderImpl : public Herder
     void prewarmSignatureCache(uint32_t ledgerSeq,
                                std::vector<size_t> const& pendingPerPhase);
     std::shared_ptr<SignaturePrewarm> mSignaturePrewarm;
+
+    // Pre-validation of the next ledger's candidates.
+    //
+    // A node that expects to lead ledger N+1 (in round 1, or in round 2 if
+    // the first leader times out) starts validating its candidates as soon as
+    // it has executed ledger N speculatively, while N is still going through
+    // consensus: background tasks run `checkValid` on the mempool's top
+    // transactions against the state that execution left (see
+    // ExecutedLedgerState). When N has closed with the value that was
+    // executed, the build of N+1 takes those results instead of validating
+    // the same transactions on the main thread (see mValidationCache).
+    struct ProposalPrevalidation
+    {
+        // The executed ledger (N) and its value: the results hold on top of
+        // N if and only if N closes with this value.
+        uint32_t ledgerSeq{0};
+        StellarValue value;
+        std::chrono::steady_clock::time_point start;
+        std::atomic<bool> stop{false};
+        // Decoded and selected once, by whichever task gets there first.
+        std::once_flag selected;
+        std::vector<TransactionFrameBasePtr> candidates;
+        // Guards everything below. Tasks hand over their results in small
+        // batches, so whoever stops the job takes what is there and never
+        // waits for a task: nothing is published after `stop` is set.
+        std::mutex mutex;
+        std::vector<std::pair<Hash, TxValidationResult>> published;
+        size_t pendingTasks{0};
+        size_t activeTasks{0};
+        // Nanoseconds from `start` until the last task finished, or -1.
+        std::atomic<int64_t> finishedAfterNs{-1};
+    };
+    std::shared_ptr<ProposalPrevalidation> mProposalPrevalidation;
+    // Whether the local node would lead round 1 or 2 of the ledger after
+    // `slotIndex` if `slotIndex` closes with `value`.
+    bool mayLeadAfter(uint64_t slotIndex, StellarValue const& value,
+                      bool appliedTransactions);
+    // Called on the main thread when the speculative execution of a ledger
+    // has finished (`state` is null if it was not executed).
+    void startProposalPrevalidation(
+        std::shared_ptr<ExecutedLedgerState const> state);
+    // Stops the running pre-validation, if any. With `lcl`, its results are
+    // moved into mValidationCache if they hold on top of `lcl`.
+    void stopProposalPrevalidation(LedgerHeaderHistoryEntry const* lcl);
+
+    // Validation results for candidates of the next ledger, computed against
+    // the last closed ledger `lclHash`: by the pre-validation above, and by
+    // every build on that ledger. A later build on the same ledger (the build
+    // at the trigger after an early one, a later round's) only validates what
+    // it has not seen.
+    struct ValidationCache
+    {
+        Hash lclHash;
+        TxValidationCache results;
+    };
+    ValidationCache mValidationCache;
+    // The cache for a build on top of `lcl`, emptied if it was for another
+    // ledger and topped up with the pre-validation's results.
+    TxValidationCache* validationCacheFor(LedgerHeaderHistoryEntry const& lcl);
 
     // Tx sets the overlay holds on stable storage: received from it, or
     // handed to it after building them. persistSCPState leaves those out of
