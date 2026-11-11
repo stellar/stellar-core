@@ -374,9 +374,12 @@ class HistoryManager
                      std::vector<std::string> const& originalBuckets,
                      bool success) = 0;
 
-    virtual void
-    appendTransactionSet(uint32_t ledgerSeq, TxSetXDRFrameConstPtr const& txSet,
-                         TransactionResultSet const& resultSet) = 0;
+    // `keepTxSetWithoutResults` stores the transaction set of a ledger that
+    // has no results (see CheckpointBuilder::appendTransactionSet).
+    virtual void appendTransactionSet(uint32_t ledgerSeq,
+                                      TxSetXDRFrameConstPtr const& txSet,
+                                      TransactionResultSet const& resultSet,
+                                      bool keepTxSetWithoutResults = false) = 0;
     virtual void appendLedgerHeader(LedgerHeader const& header) = 0;
 
     // On startup, restore checkpoint files based on the last committed LCL

@@ -2842,3 +2842,41 @@ TEST_CASE("History publish and catchup over sub-second ledgers",
         "sub-second-catchup");
     REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
 }
+
+// A ledger whose transaction set was found invalid at apply time
+// (APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION) closed without applying it,
+// but its header carries the hash of that set. History has to keep the set,
+// although the ledger has no results, so that a node replaying the ledger can
+// match the header, reach the same verdict and close the same ledger.
+TEST_CASE("Catchup replays ledgers whose tx set was skipped",
+          "[history][catchup][apply-time-validation]")
+{
+    auto skippedTxSets = [](Application& app) {
+        return app.getMetrics()
+            .NewCounter({"ledger", "apply", "txset-skipped"})
+            .count();
+    };
+
+    CatchupSimulation catchupSimulation{};
+    auto const checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+    // One in the first checkpoint, two in later ones (the second right after
+    // a valid ledger, the third right after a skipped one).
+    catchupSimulation.mInvalidTxSetLedgers = {6, checkpointLedger - 3,
+                                              checkpointLedger - 2};
+    REQUIRE(checkpointLedger - 3 > 6);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+
+    auto& publisher = catchupSimulation.getApp();
+    REQUIRE(skippedTxSets(publisher) == 3);
+
+    // Replay everything from the archive.
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(),
+        Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+    REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
+            checkpointLedger);
+    // The replaying node skipped the same three sets, and (checked by
+    // catchupOffline) closed ledgers with the publisher's hashes.
+    REQUIRE(skippedTxSets(*app) == 3);
+}

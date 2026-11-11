@@ -174,6 +174,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
     PARALLEL_LEDGER_APPLY = true;
+    EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = true;
     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     DISABLE_TX_META_FOR_TESTING = false;
@@ -1210,6 +1211,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"PARALLEL_LEDGER_APPLY",
                  [&]() { PARALLEL_LEDGER_APPLY = readBool(item); }},
+                {"EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY",
+                 [&]() {
+                     EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = readBool(item);
+                 }},
                 {"EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD",
                  [&]() {
                      EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = readBool(item);
@@ -2379,6 +2384,10 @@ Config::logBasicInfo() const
              "PARALLEL_LEDGER_APPLY="
              "{}",
              PARALLEL_LEDGER_APPLY ? "true" : "false");
+    LOG_INFO(DEFAULT_LOG,
+             "EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY="
+             "{}",
+             EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY ? "true" : "false");
 }
 
 void

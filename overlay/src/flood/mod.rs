@@ -11,6 +11,7 @@ mod tx_buffer;
 mod txset;
 pub(crate) mod txset_encoding;
 pub(crate) mod txset_push;
+mod txset_store;
 
 pub use inv_batcher::InvBatcher;
 pub use inv_messages::{GetData, InvBatch, InvEntry, TxStreamMessage, INV_BATCH_MAX_SIZE};
@@ -29,3 +30,4 @@ pub mod txset_push_limits {
         PUSH_BURST, PUSH_REFILL_PER_SEC, PUSH_SKIP_WINDOW,
     };
 }
+pub use txset_store::TxSetStore;

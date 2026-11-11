@@ -27,8 +27,17 @@ RustOverlayManager::RustOverlayManager(Application& app)
     CLOG_INFO(Overlay, "Creating RustOverlayManager with port={}",
               cfg.PEER_PORT);
 
-    mOverlayIPC = std::make_unique<OverlayIPC>(
-        cfg.OVERLAY_SOCKET_PATH, cfg.OVERLAY_BINARY_PATH, cfg.PEER_PORT);
+    // The overlay keeps the TX sets this node votes on next to the buckets.
+    // A standalone node never starts the overlay, and keeps storing its tx
+    // sets itself.
+    std::optional<std::string> txSetDir;
+    if (!cfg.RUN_STANDALONE && !cfg.BUCKET_DIR_PATH.empty())
+    {
+        txSetDir = cfg.BUCKET_DIR_PATH + "/txsets";
+    }
+    mOverlayIPC = std::make_unique<OverlayIPC>(cfg.OVERLAY_SOCKET_PATH,
+                                               cfg.OVERLAY_BINARY_PATH,
+                                               cfg.PEER_PORT, txSetDir);
 }
 
 RustOverlayManager::~RustOverlayManager()
@@ -63,14 +72,21 @@ RustOverlayManager::start()
         return mApp.getHerder().getSCPStateForPeer(ledgerSeq);
     });
 
-    mOverlayIPC->setOnTxSetReceived([this](Hash const& hash,
-                                           GeneralizedTransactionSet&& txSet) {
-        // Called from IPC reader thread - post to main thread
-        auto frame = TxSetXDRFrame::makeFromWire(std::move(txSet));
-        mApp.postOnMainThread(
-            [this, hash, frame]() { mApp.getHerder().recvTxSet(hash, frame); },
-            "RustOverlayManager: TxSetReceived");
-    });
+    mOverlayIPC->setOnTxSetReceived(
+        [this](Hash const& hash, GeneralizedTransactionSet&& txSet) {
+            // Called from IPC reader thread - post to main thread
+            auto frame = TxSetXDRFrame::makeFromWire(std::move(txSet));
+            mApp.postOnMainThread(
+                [this, hash, frame]() {
+                    if (storesTxSets())
+                    {
+                        // The overlay wrote the set to disk before sending it.
+                        mApp.getHerder().txSetStoredByOverlay(hash);
+                    }
+                    mApp.getHerder().recvTxSet(hash, frame);
+                },
+                "RustOverlayManager: TxSetReceived");
+        });
 
     if (!mOverlayIPC->start())
     {
@@ -217,15 +233,23 @@ RustOverlayManager::requestTxSet(Hash const& txSetHash, uint32_t slotIndex)
     }
 }
 
-void
+bool
 RustOverlayManager::cacheTxSet(Hash const& txSetHash,
                                GeneralizedTransactionSet const& txSet,
                                uint32_t slotIndex)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
-        mOverlayIPC->cacheTxSet(txSetHash, txSet, slotIndex);
+        return mOverlayIPC->cacheTxSet(txSetHash, txSet, slotIndex) &&
+               mOverlayIPC->storesTxSets();
     }
+    return false;
+}
+
+bool
+RustOverlayManager::storesTxSets() const
+{
+    return mOverlayIPC && mOverlayIPC->storesTxSets();
 }
 
 void

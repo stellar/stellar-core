@@ -486,6 +486,29 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
                 res = SCPDriver::kInvalidValue;
             }
         }
+        else if (protocolValidatesTxSetsAtApply(lcl.header.ledgerVersion))
+        {
+            // The transaction set is not validated before voting: the round
+            // leader is assumed to propose a valid one, and ledger apply
+            // decides (an invalid set applies as an empty ledger). Holding
+            // the set is still required, so that a quorum that votes for a
+            // value can always apply it. The one thing checked here is that
+            // the set was built on top of our LCL: it costs nothing, and an
+            // honest node never externalizes a set for another ledger, so
+            // apply keeps treating such a set as local corruption.
+            if (txSet->previousLedgerHash() != lcl.hash)
+            {
+                CLOG_DEBUG(Herder,
+                           "HerderSCPDriver::validateValue i: {} txSet {} is "
+                           "not based on the LCL",
+                           slotIndex, hexAbbrev(txSetHash));
+                res = SCPDriver::kStructurallyValidValue;
+            }
+            else
+            {
+                res = SCPDriver::kFullyValidatedValue;
+            }
+        }
         else if (!checkAndCacheTxSetValid(*txSet, lcl, closeTimeOffset))
         {
             CLOG_DEBUG(Herder,

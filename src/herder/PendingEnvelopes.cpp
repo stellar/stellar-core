@@ -794,6 +794,23 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 }
 
 void
+PendingEnvelopes::fetchTxSet(Hash const& hash, uint64 slot)
+{
+    if (hasTxSet(hash) ||
+        mPendingTxSetFetches.find(hash) != mPendingTxSetFetches.end())
+    {
+        return;
+    }
+    // No envelope waits for it; the fetch record is what makes recvTxSet
+    // accept the set and retryStalledTxSetFetches ask for it again.
+    mPendingTxSetFetches[hash];
+    auto const now = mApp.getClock().now();
+    mTxSetFetches[hash] = TxSetFetchState{now, now, slot, 1};
+    mApp.getOverlayManager().requestTxSet(hash, static_cast<uint32_t>(slot));
+    scheduleTxSetFetchRetry();
+}
+
+void
 PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
 {
     ZoneScoped;

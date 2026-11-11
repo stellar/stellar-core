@@ -4,6 +4,7 @@
 
 #include "overlay/IPC.h"
 #include "util/Logging.h"
+#include <cerrno>
 #include <cstring>
 #include <signal.h>
 #include <sys/socket.h>
@@ -25,6 +26,14 @@ readExact(int socket, uint8_t* buffer, size_t n)
     while (totalRead < n)
     {
         ssize_t r = recv(socket, buffer + totalRead, n - totalRead, 0);
+        if (r < 0 && errno == EINTR)
+        {
+            // A signal was delivered to this thread (e.g. SIGCHLD for a child
+            // process that exited): the connection is fine, read on. Giving
+            // up here would stop the IPC reader for good and cut the node
+            // off from its overlay.
+            continue;
+        }
         if (r <= 0)
         {
             return false;
@@ -50,6 +59,11 @@ writeExact(int socket, uint8_t const* buffer, size_t n)
         ssize_t w =
             send(socket, buffer + totalWritten, n - totalWritten, MSG_NOSIGNAL);
 #endif
+        if (w < 0 && errno == EINTR)
+        {
+            // Interrupted by a signal before anything was written: retry.
+            continue;
+        }
         if (w <= 0)
         {
             return false;

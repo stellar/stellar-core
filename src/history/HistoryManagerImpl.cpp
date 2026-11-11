@@ -601,11 +601,14 @@ HistoryManagerImpl::historyPublished(
 void
 HistoryManagerImpl::appendTransactionSet(uint32_t ledgerSeq,
                                          TxSetXDRFrameConstPtr const& txSet,
-                                         TransactionResultSet const& resultSet)
+                                         TransactionResultSet const& resultSet,
+                                         bool keepTxSetWithoutResults)
 {
     if (mApp.getHistoryArchiveManager().publishEnabled())
     {
-        mCheckpointBuilder.appendTransactionSet(ledgerSeq, txSet, resultSet);
+        mCheckpointBuilder.appendTransactionSet(ledgerSeq, txSet, resultSet,
+                                                /* skipStartupCheck */ false,
+                                                keepTxSetWithoutResults);
     }
 }
 

@@ -14,6 +14,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
+#include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
@@ -228,6 +229,18 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
     , mMetaStreamBytes(
           registry.NewMeter({"ledger", "metastream", "bytes"}, "byte"))
     , mMetaStreamWriteTime(registry.NewTimer({"ledger", "metastream", "write"}))
+    , mTxSetValidate(registry.NewTimer({"herder", "txset", "validate"}))
+    , mTxSetSkipped(registry.NewCounter({"ledger", "apply", "txset-skipped"}))
+    , mLedgerExecute(registry.NewTimer({"ledger", "apply", "execute"}))
+    , mLedgerCommit(registry.NewTimer({"ledger", "apply", "commit"}))
+    , mSpeculationStarted(
+          registry.NewCounter({"ledger", "apply", "speculation-started"}))
+    , mSpeculationHit(
+          registry.NewCounter({"ledger", "apply", "speculation-hit"}))
+    , mSpeculationMiss(
+          registry.NewCounter({"ledger", "apply", "speculation-miss"}))
+    , mSpeculationIdle(
+          registry.NewTimer({"ledger", "apply", "speculation-idle"}))
 {
 }
 
@@ -335,6 +348,7 @@ LedgerManagerImpl::ApplyState::getModuleCache() const
 void
 LedgerManagerImpl::markApplyStateReset()
 {
+    abortSpeculativeApply();
     mApplyState.resetToSetupPhase();
 }
 
@@ -934,6 +948,7 @@ LedgerManagerImpl::getInMemorySorobanStateForTesting()
 void
 LedgerManagerImpl::rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion)
 {
+    abortSpeculativeApply();
     // Make sure we don't race on an in-progress compilation.
     if (mApplyState.isCompilationRunning())
     {
@@ -1105,6 +1120,16 @@ LedgerManagerImpl::ApplyState::markEndOfSetupPhase()
     threadInvariant();
     releaseAssert(mPhase == Phase::SETTING_UP_STATE);
     mPhase = Phase::READY_TO_APPLY;
+}
+
+void
+LedgerManagerImpl::ApplyState::markAbortedApplying()
+{
+    threadInvariant();
+    if (mPhase == Phase::APPLYING)
+    {
+        mPhase = Phase::READY_TO_APPLY;
+    }
 }
 
 void
@@ -1653,6 +1678,150 @@ LedgerManagerImpl::completeLedgerClose(
     CLOG_INFO(Ledger, "Ledger close complete: {}", ledgerSeq);
 }
 
+// A ledger that has been executed but not committed: the open LedgerTxn that
+// holds its changes and everything else commitLedger needs to close it.
+// Destroying it without committing rolls the ledger back.
+struct LedgerManagerImpl::LedgerExecution
+{
+    explicit LedgerExecution(LedgerCloseData const& ledgerData)
+        : mLedgerData(ledgerData)
+    {
+    }
+
+    LedgerCloseData const mLedgerData;
+    // Declared before everything that was computed inside of it, so that it
+    // is destroyed (rolled back, unless committed) last.
+    std::unique_ptr<LedgerTxn> mLtx;
+    uint32_t mInitialLedgerVers{0};
+    bool mTxSetSkipped{false};
+    ApplicableTxSetFrameConstPtr mApplicableTxSet;
+    std::unique_ptr<LedgerCloseMetaFrame> mLedgerCloseMeta;
+    TransactionResultSet mTxResultSet;
+    std::vector<SorobanApplyMetrics> mSorobanApplyMetricsPerThread;
+    // When the execution finished, and how long it took.
+    std::chrono::steady_clock::time_point mExecuted;
+    std::chrono::steady_clock::duration mExecuteDuration{};
+};
+
+LedgerManagerImpl::~LedgerManagerImpl() = default;
+
+// Every validation task reads the ledger through a view of its own, and
+// every view holds its own handles on the bucket files it reads. A node that
+// replays ledgers is usually in the middle of catchup, with bucket downloads,
+// applies and merges holding files open as well, so replay splits the check
+// into few tasks instead of one per core.
+static size_t const MAX_REPLAY_TX_SET_VALIDATION_TASKS = 4;
+
+LedgerManagerImpl::TxSetForApply
+LedgerManagerImpl::validateTxSetForApply(LedgerCloseData const& ledgerData,
+                                         bool replay)
+{
+    ZoneScoped;
+    auto const& sv = ledgerData.getValue();
+    auto const& txSet = ledgerData.getTxSet();
+#ifdef BUILD_TESTS
+    if (txSet->mApplicableTxSetOverride)
+    {
+        // A test handed over exactly what to apply (see
+        // makeTxSetFromTransactions' strict order), bypassing the wire format
+        // and with it everything validation is about: such sets deliberately
+        // break the rules (transaction order, cluster limits, invalid
+        // transactions) to exercise apply itself.
+        return {};
+    }
+#endif
+
+    // The ledger the set applies on top of, and how to read it. Apply reads
+    // its own snapshot of the previous ledger; the in-memory ledger mode
+    // (tests) has no such snapshot and runs on the main thread, where the LCL
+    // is that ledger.
+    ImmutableLedgerDataPtr state;
+    std::optional<TxSetValidationContext> ctx;
+#ifdef BUILD_TESTS
+    if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        ctx.emplace(TxSetValidationContext::forLCL(mApp));
+    }
+#endif
+    if (!ctx)
+    {
+        state = mApplyState.getLedgerState();
+        ctx.emplace(TxSetValidationContext{
+            state->getLastClosedLedgerHeader(),
+            state->hasSorobanConfig() ? &state->getSorobanConfig() : nullptr,
+            [state, &metrics = mApp.getMetrics()]()
+                -> std::unique_ptr<AbstractLedgerView const> {
+                return std::make_unique<ApplyLedgerView>(state, metrics);
+            },
+            replay ? MAX_REPLAY_TX_SET_VALIDATION_TASKS
+                   : std::numeric_limits<size_t>::max()});
+    }
+    auto const& lcl = ctx->mLcl;
+
+    if (!protocolValidatesTxSetsAtApply(lcl.header.ledgerVersion))
+    {
+        // Validated before voting; applied as is.
+        return {};
+    }
+    if (isEmptyTxSetStellarValue(sv) ||
+        sv.txSetHash == Herder::EMPTY_TX_SET_HASH)
+    {
+        // Consensus itself dropped the transaction set: there is nothing to
+        // validate.
+        return {};
+    }
+    if (txSet->previousLedgerHash() != lcl.hash ||
+        txSet->getContentsHash() != sv.txSetHash)
+    {
+        // Not a question of transaction set validity: the set is not the
+        // one the value names, or it is not for this ledger. Honest nodes do
+        // not externalize such values, so applyLedger keeps treating them as
+        // local corruption (it throws below).
+        return {};
+    }
+    if (!(getApplyTime(lcl.header.scpValue) <= getApplyTime(sv)))
+    {
+        // A value that closes before the ledger it follows. Neither consensus
+        // nor history verification lets one through (close times strictly
+        // increase), so there is no verdict to agree on with other nodes;
+        // tests that apply ledgers directly do build such values. It is
+        // applied as before this protocol, without a check.
+        return {};
+    }
+
+    // Same timer and signature cache meters as the validation that used to
+    // run before voting (up to protocol 29), so that the two can be compared.
+    auto timer = mApplyState.getMetrics().mTxSetValidate.TimeScope();
+    uint64_t sigCacheHits = 0;
+    uint64_t sigCacheMisses = 0;
+    PubKeyUtils::getVerifySigCacheCounts(sigCacheHits, sigCacheMisses);
+    auto result = TxSetValidationResult::VALID;
+    auto applicable = txSet->prepareForApply(mApp, lcl.header);
+    if (applicable)
+    {
+        auto const closeTimeOffset =
+            (getApplyTime(sv) - getApplyTime(lcl.header.scpValue)).seconds();
+        result = applicable->checkValidWithResult(mApp, *ctx, closeTimeOffset,
+                                                  closeTimeOffset);
+    }
+    markSignatureCacheLookups(mApp, "validate", sigCacheHits, sigCacheMisses);
+    if (applicable && result == TxSetValidationResult::VALID)
+    {
+        return {std::move(applicable), false};
+    }
+
+    CLOG_WARNING(Ledger,
+                 "Transaction set {} externalized for ledger {} is not valid "
+                 "({}): closing the ledger without applying it",
+                 hexAbbrev(txSet->getContentsHash()), lcl.header.ledgerSeq + 1,
+                 applicable ? toString(result) : "malformed");
+    mApplyState.getMetrics().mTxSetSkipped.inc();
+    applicable =
+        TxSetXDRFrame::makeEmpty(lcl)->prepareForApply(mApp, lcl.header);
+    releaseAssert(applicable);
+    return {std::move(applicable), true};
+}
+
 // This is the main entrypoint for ledger application. It runs either
 // synchronously on the main thread, or on the single dedicated ledger apply
 // thread when background ledger apply is enabled. It is called from the
@@ -1673,13 +1842,175 @@ void
 LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                                bool calledViaExternalize)
 {
+    if (threadIsMain())
+    {
+        // Ledgers that apply on the main thread (catchup, or no background
+        // apply at all) never use a speculative execution; make sure the apply
+        // thread holds none.
+        abortSpeculativeApply();
+    }
     if (mApp.isStopping())
     {
+        abortSpeculativeExecution();
         return;
     }
 
     JITTER_INJECT_DELAY();
 
+    // If this ledger was already executed speculatively, while its value was
+    // still going through consensus, all that is left to do is to commit it.
+    auto execution = takeSpeculativeExecution(ledgerData);
+    if (!execution)
+    {
+        execution =
+            executeLedger(ledgerData, /* replay */ !calledViaExternalize);
+    }
+    commitLedger(std::move(execution), calledViaExternalize);
+}
+
+void
+LedgerManagerImpl::startSpeculativeApply(LedgerCloseData const& ledgerData)
+{
+    releaseAssert(threadIsMain());
+    releaseAssert(mApp.getConfig().backgroundLedgerApply());
+    releaseAssert(!isApplying());
+    mSpeculationOutstanding = true;
+    ++mSpeculationsExecuting;
+    mApplyState.getMetrics().mSpeculationStarted.inc();
+    mApp.postOnLedgerApplyThread(
+        [this, ledgerData]() {
+            speculativelyExecuteLedger(ledgerData);
+            mApp.postOnMainThread(
+                [this]() {
+                    releaseAssert(mSpeculationsExecuting > 0);
+                    --mSpeculationsExecuting;
+                },
+                "speculative apply executed");
+        },
+        "speculative apply");
+}
+
+bool
+LedgerManagerImpl::isSpeculativelyApplying() const
+{
+    releaseAssert(threadIsMain());
+    return mSpeculationsExecuting > 0;
+}
+
+void
+LedgerManagerImpl::abortSpeculativeApply()
+{
+    releaseAssert(threadIsMain());
+    if (!mSpeculationOutstanding)
+    {
+        return;
+    }
+    mSpeculationOutstanding = false;
+    // The execution, if there is one, belongs to the apply thread: have that
+    // thread drop it, and wait until it has.
+    std::promise<void> aborted;
+    auto future = aborted.get_future();
+    mApp.postOnLedgerApplyThread(
+        [this, &aborted]() {
+            abortSpeculativeExecution();
+            aborted.set_value();
+        },
+        "abort speculative apply");
+    future.wait();
+}
+
+void
+LedgerManagerImpl::speculativelyExecuteLedger(LedgerCloseData const& ledgerData)
+{
+    ZoneScoped;
+    // At most one ledger is executed ahead of consensus: a newer request
+    // replaces the previous one (the node moved on to another value).
+    abortSpeculativeExecution();
+    if (mApp.isStopping())
+    {
+        return;
+    }
+    {
+        // The main thread asked for this on top of its LCL. Apply's own
+        // previous ledger is the same one unless a ledger was queued for
+        // apply in between, in which case there is nothing to speculate on.
+        auto const& lcl =
+            mApplyState.getLedgerState()->getLastClosedLedgerHeader();
+        if (ledgerData.getLedgerSeq() != lcl.header.ledgerSeq + 1 ||
+            ledgerData.getTxSet()->previousLedgerHash() != lcl.hash)
+        {
+            return;
+        }
+    }
+    try
+    {
+        mSpeculativeExecution = executeLedger(ledgerData, /* replay */ false);
+    }
+    catch (std::exception const& e)
+    {
+        // Whatever is wrong with this ledger is reported by the real apply,
+        // if its value externalizes. The LedgerTxn is gone at this point.
+        CLOG_ERROR(Ledger, "Speculative execution of ledger {} failed: {}",
+                   ledgerData.getLedgerSeq(), e.what());
+        mApplyState.markAbortedApplying();
+    }
+}
+
+std::unique_ptr<LedgerManagerImpl::LedgerExecution>
+LedgerManagerImpl::takeSpeculativeExecution(LedgerCloseData const& ledgerData)
+{
+    if (!mSpeculativeExecution)
+    {
+        return nullptr;
+    }
+    auto const& speculated = mSpeculativeExecution->mLedgerData;
+    bool const matches =
+        speculated.getLedgerSeq() == ledgerData.getLedgerSeq() &&
+        speculated.getValue() == ledgerData.getValue() &&
+        speculated.getTxSet()->getContentsHash() ==
+            ledgerData.getTxSet()->getContentsHash() &&
+        !ledgerData.getExpectedHash()
+#ifdef BUILD_TESTS
+        && !ledgerData.getExpectedResults()
+#endif
+        ;
+    if (!matches)
+    {
+        // Consensus settled on another value.
+        abortSpeculativeExecution();
+        return nullptr;
+    }
+    auto& metrics = mApplyState.getMetrics();
+    metrics.mSpeculationHit.inc();
+    metrics.mSpeculationIdle.Update(std::chrono::steady_clock::now() -
+                                    mSpeculativeExecution->mExecuted);
+    return std::move(mSpeculativeExecution);
+}
+
+void
+LedgerManagerImpl::abortSpeculativeExecution()
+{
+    if (!mSpeculativeExecution)
+    {
+        return;
+    }
+    CLOG_DEBUG(Ledger, "Dropping the speculative execution of ledger {}",
+               mSpeculativeExecution->mLedgerData.getLedgerSeq());
+    // Rolls back the LedgerTxn and with it everything the ledger did.
+    mSpeculativeExecution.reset();
+    mApplyState.markAbortedApplying();
+    mApplyState.getMetrics().mSpeculationMiss.inc();
+}
+
+// First phase of applying a ledger: validates its transaction set (protocol
+// 30+), charges fees and executes the transactions inside a LedgerTxn. Nothing
+// that this phase does is visible outside of the returned LedgerExecution and
+// the apply state's phase (APPLYING): destroying the execution rolls the
+// ledger back (see abortSpeculativeExecution). That is what allows running it
+// speculatively, before the ledger's value has externalized.
+std::unique_ptr<LedgerManagerImpl::LedgerExecution>
+LedgerManagerImpl::executeLedger(LedgerCloseData const& ledgerData, bool replay)
+{
     // Complete any pending wasm-module-compilation before closing the ledger.
     // This might or might-not exist, depending on whether we triggered a
     // compilation in the previous ledger-apply.
@@ -1691,18 +2022,27 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 
 #ifdef BUILD_TESTS
     mLastLedgerTxMeta.clear();
-    mLastLedgerCloseMeta.reset();
 #endif
     ZoneScoped;
     mApplyState.markStartOfApplying();
     JITTER_INJECT_DELAY();
 
-    auto ledgerTime = mApplyState.getMetrics().mLedgerClose.TimeScope();
+    auto const executeStart = std::chrono::steady_clock::now();
+
+    // Protocol 30+: decide whether this ledger applies its transaction set.
+    // This reads the previous ledger, so it comes before the LedgerTxn that
+    // builds this one. It also comes before `applyLedgerTime` starts: the
+    // simulated apply time (tests) stands in for executing transactions, and
+    // must not absorb the time spent validating them.
+    auto txSetForApply = validateTxSetForApply(ledgerData, replay);
+
     LogSlowExecution applyLedgerTime{"applyLedger",
                                      LogSlowExecution::Mode::MANUAL, "",
                                      std::chrono::milliseconds::max()};
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto execution = std::make_unique<LedgerExecution>(ledgerData);
+    execution->mLtx = std::make_unique<LedgerTxn>(mApp.getLedgerTxnRoot());
+    auto& ltx = *execution->mLtx;
     auto header = ltx.loadHeader();
     // Note: applyLedger should be able to work correctly based on ledger header
     // stored in LedgerTxn. The issue is that in tests LedgerTxn is sometimes
@@ -1724,19 +2064,6 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                header.current().ledgerSeq);
 
     ZoneValue(static_cast<int64_t>(header.current().ledgerSeq));
-
-    auto now = mApp.getClock().now();
-    auto closeDuration = now - mLastClose;
-    mApplyState.getMetrics().mLedgerAgeClosed.Update(closeDuration);
-#ifdef BUILD_TESTS
-    mApplyState.getMetrics().mLedgerAgeClosedHistogram.Update(
-        std::chrono::duration_cast<std::chrono::milliseconds>(closeDuration)
-            .count());
-#endif
-    // mLastClose is only accessed by a single thread, so no synchronization
-    // needed
-    mLastClose = now;
-    mApplyState.getMetrics().mLedgerAge.set_count(0);
 
     TxSetXDRFrameConstPtr txSet = ledgerData.getTxSet();
 
@@ -1794,8 +2121,13 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     auto const& sv = ledgerData.getValue();
     header.current().scpValue = sv;
 
-    maybeResetLedgerCloseMetaDebugStream(header.current().ledgerSeq);
-    auto applicableTxSet = txSet->prepareForApply(mApp, prevHeader);
+    // A transaction set that was found invalid is kept as the ledger's set
+    // (in the header, in history and in meta), but nothing of it is applied:
+    // `applicableTxSet` is empty then.
+    bool const txSetSkipped = txSetForApply.mSkipped;
+    auto applicableTxSet = txSetForApply.mApplicable
+                               ? std::move(txSetForApply.mApplicable)
+                               : txSet->prepareForApply(mApp, prevHeader);
 
     if (applicableTxSet == nullptr)
     {
@@ -1812,8 +2144,12 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // LedgerHeader, we optionally collect an even-more-fine-grained record of
     // the ledger entries modified by each tx during tx processing in a
     // LedgerCloseMeta, for streaming to attached clients (typically: horizon).
+    // The debug stream is opened and rotated when the ledger commits (see
+    // commitLedger), so whether it will want this ledger's meta is decided
+    // from the configuration here, not from whether it is open yet.
     std::unique_ptr<LedgerCloseMetaFrame> ledgerCloseMeta;
-    if (mMetaStream || mMetaDebugStream)
+    if (mMetaStream || mMetaDebugStream ||
+        mApp.getConfig().METADATA_DEBUG_LEDGERS != 0)
     {
         if (mNextMetaToEmit)
         {
@@ -1855,8 +2191,8 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 #ifdef BUILD_TESTS
     if (mApp.getRunInOverlayOnlyMode())
     {
-        auto numTxs = txSet->sizeTxTotal();
-        auto numOps = txSet->sizeOpTotalForLogging();
+        auto numTxs = txSetSkipped ? 0 : txSet->sizeTxTotal();
+        auto numOps = txSetSkipped ? 0 : txSet->sizeOpTotalForLogging();
         auto numClassicTxs = applicableTxSet->sizeTx(TxSetPhase::CLASSIC);
         auto numSorobanTxs = applicableTxSet->sizeTx(TxSetPhase::SOROBAN);
         auto ledgerSeq = header.current().ledgerSeq;
@@ -1898,9 +2234,74 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                               ledgerCloseMeta, sorobanApplyMetricsPerThread);
     }
 
+#ifdef BUILD_TESTS
+    // The simulated apply time stands in for executing the transactions, so
+    // it belongs to this phase: a ledger that is executed speculatively
+    // spends it before its value externalizes.
+    maybeSimulateSleep(mApp.getConfig(),
+                       txSetSkipped ? 0 : txSet->sizeOpTotalForLogging(),
+                       applyLedgerTime, mApplySleepRng);
+#endif
+
+    execution->mInitialLedgerVers = initialLedgerVers;
+    execution->mTxSetSkipped = txSetSkipped;
+    execution->mApplicableTxSet = std::move(applicableTxSet);
+    execution->mLedgerCloseMeta = std::move(ledgerCloseMeta);
+    execution->mTxResultSet = std::move(txResultSet);
+    execution->mSorobanApplyMetricsPerThread =
+        std::move(sorobanApplyMetricsPerThread);
+    execution->mExecuted = std::chrono::steady_clock::now();
+    execution->mExecuteDuration = execution->mExecuted - executeStart;
+    mApplyState.getMetrics().mLedgerExecute.Update(execution->mExecuteDuration);
+    return execution;
+}
+
+// Second phase of applying a ledger: makes an executed ledger the last closed
+// one. Records it in history, applies the upgrades of its value, seals the
+// LedgerTxn into the BucketList and the database, emits meta, and hands over
+// to completeLedgerClose on the main thread.
+void
+LedgerManagerImpl::commitLedger(std::unique_ptr<LedgerExecution> execution,
+                                bool calledViaExternalize)
+{
+    ZoneScoped;
+    auto const commitStart = std::chrono::steady_clock::now();
+    auto const& ledgerData = execution->mLedgerData;
+    auto& ltx = *execution->mLtx;
+    TxSetXDRFrameConstPtr txSet = ledgerData.getTxSet();
+    auto const& sv = ledgerData.getValue();
+    auto const initialLedgerVers = execution->mInitialLedgerVers;
+    bool const txSetSkipped = execution->mTxSetSkipped;
+    auto& applicableTxSet = execution->mApplicableTxSet;
+    auto& ledgerCloseMeta = execution->mLedgerCloseMeta;
+    auto& txResultSet = execution->mTxResultSet;
+    auto& sorobanApplyMetricsPerThread =
+        execution->mSorobanApplyMetricsPerThread;
+
+#ifdef BUILD_TESTS
+    mLastLedgerCloseMeta.reset();
+#endif
+
+    auto now = mApp.getClock().now();
+    auto closeDuration = now - mLastClose;
+    mApplyState.getMetrics().mLedgerAgeClosed.Update(closeDuration);
+#ifdef BUILD_TESTS
+    mApplyState.getMetrics().mLedgerAgeClosedHistogram.Update(
+        std::chrono::duration_cast<std::chrono::milliseconds>(closeDuration)
+            .count());
+#endif
+    // mLastClose is only accessed by a single thread, so no synchronization
+    // needed
+    mLastClose = now;
+    mApplyState.getMetrics().mLedgerAge.set_count(0);
+
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    mApp.getHistoryManager().appendTransactionSet(ledgerSeq, txSet,
-                                                  txResultSet);
+    // Rotating the debug meta stream is not something a dropped execution
+    // could undo, so it happens here rather than when the ledger is executed.
+    maybeResetLedgerCloseMetaDebugStream(ledgerSeq);
+    mApp.getHistoryManager().appendTransactionSet(
+        ledgerSeq, txSet, txResultSet,
+        /* keepTxSetWithoutResults */ txSetSkipped);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -2110,8 +2511,6 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     maybeRunSnapshotInvariantFromLedgerState(mApplyState.copyApplyLedgerView());
 
 #ifdef BUILD_TESTS
-    maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(),
-                       applyLedgerTime, mApplySleepRng);
     recordTxE2eLatency(*applicableTxSet);
 #endif
 
@@ -2137,9 +2536,15 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         mApp.postOnMainThread(std::move(cb), "completeLedgerClose");
     }
 
-    std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
+    auto const commitDuration = std::chrono::steady_clock::now() - commitStart;
+    mApplyState.getMetrics().mLedgerCommit.Update(commitDuration);
+    // The time spent applying the ledger. For a ledger that was executed
+    // speculatively this leaves out the time it waited for its value to
+    // externalize.
+    auto const ledgerTime = execution->mExecuteDuration + commitDuration;
+    mApplyState.getMetrics().mLedgerClose.Update(ledgerTime);
     CLOG_DEBUG(Perf, "Applied ledger {} in {} seconds", ledgerSeq,
-               ledgerTimeSeconds.count());
+               std::chrono::duration<double>(ledgerTime).count());
     FrameMark;
 }
 
@@ -2153,6 +2558,7 @@ LedgerManagerImpl::setLastClosedLedger(
     // transaction-apply, it's like "load any bucket state into the DB").
     ZoneScoped;
     releaseAssert(threadIsMain());
+    abortSpeculativeApply();
     mApplyState.assertSetupPhase();
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
@@ -2190,6 +2596,7 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
     HistoryArchiveState has;
     has.currentLedger = header.ledgerSeq;
 
+    abortSpeculativeApply();
     // No TXs to apply when manually advancing ledger header
     mApplyState.markStartOfApplying();
     mApplyState.markStartOfCommitting();

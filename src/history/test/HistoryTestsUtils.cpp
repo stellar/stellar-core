@@ -11,6 +11,7 @@
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "herder/TxSetFrame.h"
+#include "herder/test/TestTxSetUtils.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
@@ -707,6 +708,18 @@ CatchupSimulation::generateRandomLedger(
                       : PerPhaseTransactionList{txs};
     TxSetXDRFrameConstPtr txSet =
         makeTxSetFromTransactions(phases, getApp(), ApplyTimeOffset{}).first;
+    if (mInvalidTxSetLedgers.count(ledgerSeq))
+    {
+        auto invalidTxs = txs;
+        invalidTxs.emplace_back(transactionFromOperations(
+            getApp(), root->getSecretKey(),
+            root->getLastSequenceNumber() + 1000, {payment(alice, 1)}, 1000));
+        txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                    {{std::make_pair(std::nullopt, invalidTxs)}, {}}, getApp(),
+                    lm.getLastClosedLedgerHeader().hash)
+                    .first;
+        releaseAssert(txSet);
+    }
 
     CLOG_INFO(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
               ledgerSeq, txSet->sizeTxTotal(),

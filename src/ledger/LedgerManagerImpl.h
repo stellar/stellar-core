@@ -88,6 +88,23 @@ class LedgerManagerImpl : public LedgerManager
         medida::Counter& mStagesPerLedger;
         medida::Meter& mMetaStreamBytes;
         medida::Timer& mMetaStreamWriteTime;
+        // Apply-time transaction set validation (protocol 30+): time spent
+        // preparing and checking the set (the "herder.txset.validate" timer
+        // of the validation that used to run before voting), and ledgers
+        // whose set was found invalid and applied as empty.
+        medida::Timer& mTxSetValidate;
+        medida::Counter& mTxSetSkipped;
+        // The two phases of applying a ledger (see executeLedger and
+        // commitLedger), and what became of the ledgers that were executed
+        // speculatively: started, committed as executed (hit; with the time
+        // the finished execution waited for its value to externalize) or
+        // dropped (miss).
+        medida::Timer& mLedgerExecute;
+        medida::Timer& mLedgerCommit;
+        medida::Counter& mSpeculationStarted;
+        medida::Counter& mSpeculationHit;
+        medida::Counter& mSpeculationMiss;
+        medida::Timer& mSpeculationIdle;
         LedgerApplyMetrics(MetricsRegistry& registry);
     };
 
@@ -285,6 +302,11 @@ class LedgerManagerImpl : public LedgerManager
         // Throws if current state is not READY_TO_APPLY, advances to APPLYING
         void markStartOfApplying();
 
+        // Returns from APPLYING to READY_TO_APPLY without committing: the
+        // ledger that was being executed has been rolled back. No-op in any
+        // other phase.
+        void markAbortedApplying();
+
         // Throws if current state is not APPLYING, advances to
         // COMMITTING
         void markStartOfCommitting();
@@ -340,6 +362,70 @@ class LedgerManagerImpl : public LedgerManager
     // Use in the context of parallel ledger apply to indicate background thread
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
+
+    // The transactions a ledger applies, decided at apply time.
+    struct TxSetForApply
+    {
+        // Null if the decision is not made at apply time (see
+        // `validateTxSetForApply`); the caller prepares the ledger's
+        // transaction set as is.
+        ApplicableTxSetFrameConstPtr mApplicable;
+        // True if the ledger's transaction set is not valid on top of the
+        // previous ledger: `mApplicable` is then the empty set.
+        bool mSkipped{false};
+    };
+
+    // From APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION on, validators vote
+    // for a value without validating its transaction set, and this is where
+    // the set is checked: against the ledger it applies on top of, with the
+    // value's close time. A set that fails the check is not applied: the
+    // ledger closes as if the set were empty (its header still carries the
+    // externalized value). The outcome is a function of the previous ledger
+    // and the value only, so that every node, live or replaying history,
+    // makes the same decision.
+    //
+    // Must run before the ledger's LedgerTxn is opened. Runs on the thread
+    // that applies the ledger. `replay` is set for ledgers that are applied
+    // from history or from the buffer of a catching-up node rather than as
+    // they externalize; it only bounds how many tasks the check is split
+    // into, never its outcome.
+    TxSetForApply validateTxSetForApply(LedgerCloseData const& ledgerData,
+                                        bool replay);
+
+    // Applying a ledger has two phases: executeLedger does all the work that
+    // only depends on the previous ledger and the ledger's value, and leaves
+    // no trace if its result is dropped; commitLedger makes the result the
+    // last closed ledger. applyLedger runs one after the other.
+    //
+    // Speculative apply runs the first phase early. When a validator votes
+    // for a value for the next ledger, the main thread hands that ledger to
+    // the apply thread (startSpeculativeApply), which executes it while
+    // consensus is still in flight and keeps the result
+    // (mSpeculativeExecution). When a value externalizes, applyLedger commits
+    // that result if it is for the same value, and otherwise drops it and
+    // applies the ledger from scratch. A speculative execution is never
+    // observable: it is committed by the same code, in the same order, as a
+    // ledger that was not executed ahead of time.
+    struct LedgerExecution;
+    std::unique_ptr<LedgerExecution>
+    executeLedger(LedgerCloseData const& ledgerData, bool replay);
+    void commitLedger(std::unique_ptr<LedgerExecution> execution,
+                      bool calledViaExternalize);
+
+    // Apply thread only: the ledger executed ahead of consensus, if any.
+    std::unique_ptr<LedgerExecution> mSpeculativeExecution;
+    void speculativelyExecuteLedger(LedgerCloseData const& ledgerData);
+    // Returns the speculative execution if it is one of `ledgerData`, and
+    // drops it otherwise.
+    std::unique_ptr<LedgerExecution>
+    takeSpeculativeExecution(LedgerCloseData const& ledgerData);
+    void abortSpeculativeExecution();
+
+    // Main thread only. Number of speculative executions handed to the apply
+    // thread that have not finished executing, and whether the apply thread
+    // may still hold one.
+    uint32_t mSpeculationsExecuting{0};
+    bool mSpeculationOutstanding{false};
 
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
@@ -549,6 +635,7 @@ class LedgerManagerImpl : public LedgerManager
 
   public:
     LedgerManagerImpl(Application& app);
+    ~LedgerManagerImpl() override;
 
     void moveToSynced() override;
     void beginApply() override;
@@ -609,6 +696,9 @@ class LedgerManagerImpl : public LedgerManager
 
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
+    void startSpeculativeApply(LedgerCloseData const& ledgerData) override;
+    bool isSpeculativelyApplying() const override;
+    void abortSpeculativeApply() override;
     void completeLedgerClose(uint32_t ledgerSeq, bool calledViaExternalize,
                              LedgerCloseData const& ledgerData,
                              ImmutableLedgerDataPtr appliedLedgerState,

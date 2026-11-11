@@ -175,11 +175,23 @@ TxSetUtils::getInvalidTxListWithErrors(
     UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset)
 {
-    ZoneScoped;
     releaseAssert(threadIsMain());
+    return getInvalidTxListWithErrors(
+        inTxs, app, TxSetValidationContext::forLCL(app), accountFeeMap,
+        lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
+}
+
+template <typename T>
+TxFrameListWithErrors
+TxSetUtils::getInvalidTxListWithErrors(
+    T const& inTxs, Application& app, TxSetValidationContext const& ctx,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset)
+{
+    ZoneScoped;
     TxFrameList txs(inTxs.begin(), inTxs.end());
 
-    auto ledgerView = app.getLedgerManager().getLCLView();
+    auto ledgerView = ctx.mMakeView();
     // Validate minSeqLedgerGap and LedgerBounds against the next ledgerSeq,
     // which is what will be used at apply time.
     std::optional<uint32_t> validationLedgerSeq;
@@ -187,45 +199,24 @@ TxSetUtils::getInvalidTxListWithErrors(
             ledgerView->getLedgerHeader().current().ledgerVersion,
             ProtocolVersion::V_19))
     {
-        validationLedgerSeq =
-            app.getLedgerManager().getLastClosedLedgerNum() + 1;
+        validationLedgerSeq = ctx.mLcl.header.ledgerSeq + 1;
     }
 
     // Parallelize transaction validation using the batch executor with
-    // `taskCount` batches.
-    auto taskCount = app.getBatchExecutor().preferredTaskCount();
-
-    // In some cases we might process a transaction set for ledger N while
-    // applying ledger N, in which case we won't be able to re-use the batch
-    // executor and thus need to fall back to single-threaded execution.
-    // This is really an edge case: it requires several tx sets to exist for the
-    // same ledger (which is rare), and the timing must be very specific for
-    // processing to happen after the vote and application start. Thus in
-    // practice we may consider this rare enough to not worry about the
-    // performance impact.
-    // NB: Both this method and `isApplying` must happen on the main thread,
-    // so there is no race condition risk.
-    if (app.getLedgerManager().isApplying())
-    {
-        taskCount = 1;
-    }
-#ifdef BUILD_TESTS
-    // In in-memory mode we use a raw LTX in validation, which is not safe to
-    // share across multiple threads. That's avoidable, but requires changes to
-    // LTX and validation logic, so it's not worth for fixing this just for
-    // tests.
-    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        taskCount = 1;
-    }
-#endif
+    // `taskCount` batches. The context bounds the count: the batch executor
+    // runs one batch at a time, so a caller that may overlap with another
+    // user of it (see `TxSetValidationContext::forLCL`) asks for one task,
+    // which runs on the calling thread.
+    auto taskCount = std::max<size_t>(
+        1,
+        std::min(app.getBatchExecutor().preferredTaskCount(), ctx.mMaxTasks));
 
     std::vector<std::unique_ptr<AbstractLedgerView const>> ledgerViews;
     ledgerViews.emplace_back(std::move(ledgerView));
 
     for (size_t i = 1; i < taskCount; ++i)
     {
-        ledgerViews.emplace_back(app.getLedgerManager().getLCLView());
+        ledgerViews.emplace_back(ctx.mMakeView());
     }
 
     std::vector<std::pair<bool, std::optional<int64_t>>> txValidationResult(
@@ -326,6 +317,17 @@ TxSetUtils::getInvalidTxListWithErrors<TxFrameList>(
 template TxFrameListWithErrors
 TxSetUtils::getInvalidTxListWithErrors<TxSetPhaseFrame>(
     TxSetPhaseFrame const& txs, Application& app,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
+template TxFrameListWithErrors
+TxSetUtils::getInvalidTxListWithErrors<TxFrameList>(
+    TxFrameList const& txs, Application& app, TxSetValidationContext const& ctx,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
+template TxFrameListWithErrors
+TxSetUtils::getInvalidTxListWithErrors<TxSetPhaseFrame>(
+    TxSetPhaseFrame const& txs, Application& app,
+    TxSetValidationContext const& ctx,
     UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
 

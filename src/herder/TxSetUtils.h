@@ -57,6 +57,15 @@ class TxSetUtils
                                UnorderedMap<AccountID, int64_t>& accountFeeMap,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset);
+    // Same, against the ledger state described by `ctx` instead of the main
+    // thread's LCL.
+    template <typename TxContainer>
+    static TxFrameListWithErrors
+    getInvalidTxListWithErrors(TxContainer const& txs, Application& app,
+                               TxSetValidationContext const& ctx,
+                               UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                               uint64_t lowerBoundCloseTimeOffset,
+                               uint64_t upperBoundCloseTimeOffset);
 
     static TxFrameList
     trimInvalid(TxFrameList const& txs, Application& app,

@@ -849,6 +849,12 @@ ApplicationImpl::idempotentShutdown(bool forgetBuckets)
     // are live and valid. Note that `joinAllThreads` will also attempt to
     // shutdown mLedgerApplyThread for completeness, but since this method is
     // idempotent, the extra call is harmless.
+    if (mLedgerApplyThread && mLedgerManager)
+    {
+        // A ledger that was executed speculatively is rolled back on the
+        // thread that owns it, while that thread still runs.
+        mLedgerManager->abortSpeculativeApply();
+    }
     shutdownThread(mLedgerApplyThread, mLedgerApplyWork, "ledger apply");
 
     if (mCommandHandler)
@@ -1160,6 +1166,8 @@ ApplicationImpl::advanceToLedgerBeforeManualCloseTarget(
 {
     if (targetLedgerSeq != getLedgerManager().getLastClosedLedgerNum() + 1)
     {
+        // The LedgerTxn below is opened on the root.
+        getLedgerManager().abortSpeculativeApply();
         LOG_INFO(DEFAULT_LOG,
                  "manually advancing to ledger with sequence number {} to "
                  "prepare to close number {} (last ledger to close was number "

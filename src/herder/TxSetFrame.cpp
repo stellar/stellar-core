@@ -12,6 +12,7 @@
 #include "herder/HerderImpl.h"
 #include "herder/ParallelTxSetBuilder.h"
 #include "herder/SurgePricingUtils.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -30,6 +31,7 @@
 
 #include <Tracy.hpp>
 #include <algorithm>
+#include <limits>
 #include <list>
 #include <numeric>
 #include <variant>
@@ -1923,6 +1925,50 @@ TxSetPhaseFrame::sortedForApply(Hash const& txSetHash) const
     }
 }
 
+TxSetValidationContext
+TxSetValidationContext::forLCL(Application& app)
+{
+    releaseAssert(threadIsMain());
+    auto& lm = app.getLedgerManager();
+    auto const& lcl = lm.getLastClosedLedgerHeader();
+    SorobanNetworkConfig const* sorobanConfig = nullptr;
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        sorobanConfig = &lm.getLastClosedSorobanNetworkConfig();
+    }
+    size_t maxTasks = std::numeric_limits<size_t>::max();
+    // In some cases we might process a transaction set for ledger N while
+    // applying ledger N, in which case we won't be able to re-use the batch
+    // executor and thus need to fall back to single-threaded execution.
+    // This is really an edge case: it requires several tx sets to exist for the
+    // same ledger (which is rare), and the timing must be very specific for
+    // processing to happen after the vote and application start. Thus in
+    // practice we may consider this rare enough to not worry about the
+    // performance impact.
+    // NB: Both this method and `isApplying` must happen on the main thread,
+    // so there is no race condition risk.
+    // The same goes for a ledger that the apply thread is executing
+    // speculatively (e.g. a later round's leader building its set while the
+    // previous round's value is still being executed).
+    if (lm.isApplying() || lm.isSpeculativelyApplying())
+    {
+        maxTasks = 1;
+    }
+#ifdef BUILD_TESTS
+    // In in-memory mode we use a raw LTX in validation, which is not safe to
+    // share across multiple threads. That's avoidable, but requires changes to
+    // LTX and validation logic, so it's not worth for fixing this just for
+    // tests.
+    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        maxTasks = 1;
+    }
+#endif
+    return TxSetValidationContext{
+        lcl, sorobanConfig, [&lm]() { return lm.getLCLView(); }, maxTasks};
+}
+
 bool
 TxSetPhaseFrame::checkValid(Application& app,
                             uint64_t lowerBoundCloseTimeOffset,
@@ -1941,7 +1987,18 @@ TxSetPhaseFrame::checkValidWithResult(
     uint64_t upperBoundCloseTimeOffset, bool txsAreValidated,
     UnorderedMap<AccountID, int64_t>& accountFeeMap) const
 {
-    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    return checkValidWithResult(
+        app, TxSetValidationContext::forLCL(app), lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset, txsAreValidated, accountFeeMap);
+}
+
+TxSetValidationResult
+TxSetPhaseFrame::checkValidWithResult(
+    Application& app, TxSetValidationContext const& ctx,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    bool txsAreValidated, UnorderedMap<AccountID, int64_t>& accountFeeMap) const
+{
+    auto const& lcl = ctx.mLcl;
     // Verify the fee map for the phase. This check is independent of the phase
     // type or contents.
     auto feeMapResult = checkFeeMap(getInclusionFeeMap(), lcl.header);
@@ -1968,12 +2025,16 @@ TxSetPhaseFrame::checkValidWithResult(
 
     // Then check the phase-specific properties. This may rely on transactions
     // belonging to the valid phase.
+    if (isSoroban && ctx.mSorobanConfig == nullptr)
+    {
+        // A Soroban phase can't be valid on top of a ledger that has no
+        // Soroban configuration.
+        CLOG_DEBUG(Herder, "Got bad txSet: Soroban phase before Soroban");
+        return TxSetValidationResult::INVALID_PHASE_TX_TYPE;
+    }
     auto checkPhaseSpecific =
-        isSoroban
-            ? checkValidSoroban(
-                  lcl.header,
-                  app.getLedgerManager().getLastClosedSorobanNetworkConfig())
-            : checkValidClassic(lcl.header);
+        isSoroban ? checkValidSoroban(lcl.header, *ctx.mSorobanConfig)
+                  : checkValidClassic(lcl.header);
     if (checkPhaseSpecific != TxSetValidationResult::VALID)
     {
         return checkPhaseSpecific;
@@ -1985,7 +2046,7 @@ TxSetPhaseFrame::checkValidWithResult(
     }
 
     auto invalid = TxSetUtils::getInvalidTxListWithErrors(
-        *this, app, accountFeeMap, lowerBoundCloseTimeOffset,
+        *this, app, ctx, accountFeeMap, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset);
     if (invalid.first.empty())
     {
@@ -2300,13 +2361,35 @@ ApplicableTxSetFrame::checkValidInternal(Application& app,
 }
 
 TxSetValidationResult
+ApplicableTxSetFrame::checkValidWithResult(
+    Application& app, TxSetValidationContext const& ctx,
+    uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset) const
+{
+    return checkValidInternalWithResult(app, ctx, lowerBoundCloseTimeOffset,
+                                        upperBoundCloseTimeOffset,
+                                        /* txsAreValidated */ false);
+}
+
+TxSetValidationResult
 ApplicableTxSetFrame::checkValidInternalWithResult(
     Application& app, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, bool txsAreValidated) const
 {
-    ZoneScoped;
     releaseAssert(threadIsMain());
-    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    return checkValidInternalWithResult(
+        app, TxSetValidationContext::forLCL(app), lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset, txsAreValidated);
+}
+
+TxSetValidationResult
+ApplicableTxSetFrame::checkValidInternalWithResult(
+    Application& app, TxSetValidationContext const& ctx,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    bool txsAreValidated) const
+{
+    ZoneScoped;
+    auto const& lcl = ctx.mLcl;
 
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)
@@ -2378,7 +2461,7 @@ ApplicableTxSetFrame::checkValidInternalWithResult(
             accountFeeMap.clear();
         }
         auto result = phase.checkValidWithResult(
-            app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+            app, ctx, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
             txsAreValidated, accountFeeMap);
         if (result != TxSetValidationResult::VALID)
         {

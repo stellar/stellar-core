@@ -20,7 +20,9 @@ use tracing::{debug, error, info, warn};
 use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::{Multiaddr, PeerId};
 use stellar_overlay::config::Config;
-use stellar_overlay::flood::{CachedTxSet, Hash256, TxSetCache, TxSetData, UnclaimedSetBudget};
+use stellar_overlay::flood::{
+    CachedTxSet, Hash256, TxSetCache, TxSetData, TxSetStore, UnclaimedSetBudget,
+};
 use stellar_overlay::integrated::{Overlay, OverlayHandle};
 use stellar_overlay::ipc::{CoreIpc, Message, MessageType};
 use stellar_overlay::libp2p_overlay::{
@@ -36,6 +38,7 @@ struct Args {
     socket_path: Option<PathBuf>,
     listen_mode: bool,
     peer_port: Option<u16>,
+    txset_dir: Option<PathBuf>,
 }
 
 impl Args {
@@ -45,6 +48,7 @@ impl Args {
             socket_path: None,
             listen_mode: false,
             peer_port: None,
+            txset_dir: None,
         };
 
         let mut iter = std::env::args().skip(1);
@@ -58,6 +62,9 @@ impl Args {
                 }
                 "--peer-port" | "-p" => {
                     args.peer_port = iter.next().and_then(|s| s.parse().ok());
+                }
+                "--txset-dir" => {
+                    args.txset_dir = iter.next().map(PathBuf::from);
                 }
                 "--listen" | "-l" => {
                     args.listen_mode = true;
@@ -75,6 +82,7 @@ impl Args {
                     eprintln!("  -c, --config <PATH>    Path to config file (TOML)");
                     eprintln!("  -s, --socket <PATH>    Path to Core IPC socket");
                     eprintln!("  -p, --peer-port <PORT> Port for peer TCP connections");
+                    eprintln!("      --txset-dir <PATH> Store TX sets durably in this directory");
                     eprintln!(
                         "  -l, --listen           Listen mode (create socket, wait for Core)"
                     );
@@ -388,12 +396,32 @@ fn cache_tx_set(
     });
 }
 
+/// How many ledgers the TX set cache and the TX set store look back.
+const TX_SET_RETAINED_LEDGERS: u32 = 12;
+
 /// Application state
 struct App {
     core_ipc: CoreIpc,
     overlay_handle: OverlayHandle,
     /// Cache for built TX sets
     tx_set_cache: TxSetCache,
+    /// Durable copies of the TX sets Core holds, if a store directory is
+    /// configured. A set is written here before it is delivered to Core (a
+    /// set from a peer), and before Core's next message is handled (a set
+    /// Core built): Core votes for a value only once it holds the set, and by
+    /// then the set survives a crash. Sets that were only prefetched are not
+    /// stored.
+    tx_set_store: Option<Arc<TxSetStore>>,
+    /// The stored sets, with the newest slot that needs each. Unlike the
+    /// cache, which peers can fill, the store only forgets a set once its
+    /// slot is `TX_SET_RETAINED_LEDGERS` ledgers old.
+    stored_tx_set_slots: HashMap<Hash256, u32>,
+    /// Sets the store held at startup that have not been asked for since.
+    /// Core asks for the ones its restored SCP state names; the rest are
+    /// deleted once the node is `TX_SET_RETAINED_LEDGERS` ledgers further.
+    stale_stored_tx_sets: HashSet<Hash256>,
+    /// Ledgers closed since startup.
+    ledgers_closed_since_start: u32,
     /// Missing sets requested by Core, with the newest slot needing each set.
     /// Prefetches stay in the cache until Core establishes this demand.
     pending_core_tx_sets: HashMap<Hash256, u32>,
@@ -483,10 +511,32 @@ impl App {
             config.libp2p_listen_ip, libp2p_port
         );
 
+        let tx_set_store = match &config.txset_dir {
+            Some(dir) => {
+                let store = TxSetStore::open(dir.clone())
+                    .map_err(|e| format!("Failed to open TX set store {}: {}", dir.display(), e))?;
+                info!(
+                    "TX set store: {} ({} sets from an earlier run)",
+                    dir.display(),
+                    store.hashes().len()
+                );
+                Some(Arc::new(store))
+            }
+            None => None,
+        };
+        let stale_stored_tx_sets = tx_set_store
+            .as_ref()
+            .map(|store| store.hashes().into_iter().collect())
+            .unwrap_or_default();
+
         Ok(Self {
             core_ipc,
             overlay_handle,
             tx_set_cache: TxSetCache::new(100),
+            tx_set_store,
+            stored_tx_set_slots: HashMap::new(),
+            stale_stored_tx_sets,
+            ledgers_closed_since_start: 0,
             pending_core_tx_sets: HashMap::new(),
             unclaimed_tx_sets: UnclaimedSetBudget::default(),
             current_ledger_seq: 0,
@@ -747,7 +797,7 @@ impl App {
                     if already_cached {
                         // Already held (requested earlier, built locally, or
                         // pushed twice): keep the existing entry.
-                        self.send_requested_tx_set(&hash);
+                        self.deliver_requested_tx_set(&hash).await;
                         return;
                     }
                 }
@@ -786,12 +836,24 @@ impl App {
                     self.sync_unclaimed_tx_sets();
                 }
 
-                self.send_requested_tx_set(&hash);
+                self.deliver_requested_tx_set(&hash).await;
             }
             LibP2pOverlayEvent::TxSetRequested { hash, from } => {
                 info!("Peer {} requesting TxSet {:02x?}...", from, &hash[..4]);
                 // Look up in local cache and respond
-                if let Some(cached) = self.tx_set_cache.get(&hash) {
+                if let Some(data) = self.load_stored_tx_set(&hash).await {
+                    // Not cached, but still on disk from before a restart.
+                    info!(
+                        "Serving stored TxSet {:02x?}... ({} bytes) to {}",
+                        &hash[..4],
+                        data.len(),
+                        from
+                    );
+                    let handle = self.libp2p_handle.clone();
+                    tokio::spawn(async move {
+                        handle.send_txset(hash, data, from).await;
+                    });
+                } else if let Some(cached) = self.tx_set_cache.get(&hash) {
                     info!(
                         "Serving TxSet {:02x?}... ({} bytes) to {}",
                         &hash[..4],
@@ -966,6 +1028,100 @@ impl App {
             .retain(|hash| cache.get(hash).is_some());
     }
 
+    /// Makes sure a TX set is in the store (if there is one), for `slot`.
+    /// Returns false if the set could not be stored.
+    ///
+    /// The write runs on a blocking worker but is awaited here, so that the
+    /// App task does not do anything else (deliver the set to Core, or handle
+    /// Core's next message, its proposal for a set it just built) before the
+    /// set is on disk.
+    async fn store_tx_set(&mut self, slot: u32, hash: Hash256, data: &Arc<TxSetData>) -> bool {
+        let Some(store) = &self.tx_set_store else {
+            return true;
+        };
+        if !store.contains(&hash) {
+            let store = Arc::clone(store);
+            let to_store = Arc::clone(data);
+            let started = std::time::Instant::now();
+            match tokio::task::spawn_blocking(move || store.persist(&hash, &to_store)).await {
+                Ok(Ok(())) => {
+                    info!(
+                        "TXSET_PERSIST: Stored TX set {:02x?}... encoded_bytes={} duration_us={}",
+                        &hash[..4],
+                        data.encoded().len(),
+                        started.elapsed().as_micros()
+                    );
+                }
+                result => {
+                    error!(
+                        "TXSET_PERSIST_FAIL: Could not store TX set {:02x?}...: {:?}",
+                        &hash[..4],
+                        result
+                    );
+                    return false;
+                }
+            }
+        }
+        self.stale_stored_tx_sets.remove(&hash);
+        self.stored_tx_set_slots
+            .entry(hash)
+            .and_modify(|needed_slot| *needed_slot = (*needed_slot).max(slot))
+            .or_insert(slot);
+        true
+    }
+
+    /// Deletes a stored set.
+    fn forget_stored_tx_set(&mut self, hash: &Hash256) {
+        if let Some(store) = &self.tx_set_store {
+            store.remove(hash);
+        }
+        self.stored_tx_set_slots.remove(hash);
+        self.stale_stored_tx_sets.remove(hash);
+    }
+
+    /// Delivers a cached set that Core is waiting for, after storing it: a
+    /// set that is not on disk is not handed to Core, which therefore cannot
+    /// vote for it.
+    async fn deliver_requested_tx_set(&mut self, hash: &Hash256) {
+        let Some(slot) = self.pending_core_tx_sets.get(hash).copied() else {
+            return;
+        };
+        let Some(data) = self.tx_set_cache.get(hash).map(|c| Arc::clone(&c.xdr)) else {
+            return;
+        };
+        if self.store_tx_set(slot, *hash, &data).await {
+            self.send_requested_tx_set(hash);
+        }
+    }
+
+    /// Reads back a set that is on disk but not in the cache (stored before
+    /// a restart).
+    async fn load_stored_tx_set(&mut self, hash: &Hash256) -> Option<Arc<TxSetData>> {
+        if self.tx_set_cache.get(hash).is_some() {
+            return None;
+        }
+        let store = Arc::clone(self.tx_set_store.as_ref()?);
+        if !store.contains(hash) {
+            return None;
+        }
+        let hash = *hash;
+        match tokio::task::spawn_blocking(move || store.load(&hash)).await {
+            Ok(Ok(Some(data))) => Some(Arc::new(data)),
+            Ok(Ok(None)) => {
+                self.stale_stored_tx_sets.remove(&hash);
+                None
+            }
+            result => {
+                error!(
+                    "TXSET_LOAD_FAIL: Could not read stored TX set {:02x?}...: {:?}",
+                    &hash[..4],
+                    result.map(|r| r.map(|_| ()))
+                );
+                None
+            }
+        }
+    }
+
     /// Core rejects sets it has not requested. Keep proactive network fetches
     /// cached, and deliver only after RequestTxSet. Both event orderings run
     /// on this App task, so a request racing a prefetch cannot lose its reply.
@@ -1081,6 +1237,18 @@ impl App {
                 // entry, no longer subject to the limits for unclaimed sets.
                 let pushed = self.unclaimed_tx_sets.claim(&hash) == Some(true);
 
+                // A set this node stored before a restart is not in the
+                // cache, but it is on disk: Core asks for the sets its
+                // restored SCP state names.
+                if let Some(data) = self.load_stored_tx_set(&hash).await {
+                    info!(
+                        "TXSET_FROM_STORE: TX set {:02x?}... ({} bytes) read back from disk",
+                        &hash[..4],
+                        data.len()
+                    );
+                    cache_tx_set(&mut self.tx_set_cache, slot, hash, data);
+                }
+
                 // First check local cache
 
                 if let Some(cached) = self.tx_set_cache.get(&hash) {
@@ -1093,7 +1261,7 @@ impl App {
                     if pushed {
                         self.metrics.txset_push_hit.fetch_add(1, Ordering::Relaxed);
                     }
-                    self.send_requested_tx_set(&hash);
+                    self.deliver_requested_tx_set(&hash).await;
                 } else {
                     // Not in local cache - request from peers. Spawn so the main
                     // loop never awaits on the bounded libp2p cmd channel.
@@ -1173,6 +1341,20 @@ impl App {
                         }
                     }
                 };
+                // Core sends its proposal for this set right after this
+                // message, and this task handles Core's messages one at a
+                // time: storing the set here means it is on disk before the
+                // proposal can leave. Core does not store the set itself, so
+                // if that fails the proposal must not leave at all: stop,
+                // which takes this node off the network.
+                if !self.store_tx_set(slot, hash, &data).await {
+                    error!(
+                        "TXSET_PERSIST_FAIL: Shutting down: TX set {:02x?}... built by Core for slot {} is not on stable storage",
+                        &hash[..4],
+                        slot
+                    );
+                    return false;
+                }
                 cache_tx_set(&mut self.tx_set_cache, slot, hash, data);
                 // Core built this set itself: whatever a peer sent under the
                 // same hash is no longer an unclaimed set that the limits may
@@ -1181,7 +1363,7 @@ impl App {
                 // The cache's own capacity limit may have dropped a set.
                 self.sync_unclaimed_tx_sets();
 
-                self.send_requested_tx_set(&hash);
+                self.deliver_requested_tx_set(&hash).await;
             }
 
             MessageType::PushTxSet => {
@@ -1279,16 +1461,33 @@ impl App {
                     // Update current ledger
                     self.current_ledger_seq = ledger_seq;
 
-                    // Evict old TX sets from cache
-                    self.tx_set_cache
-                        .evict_before(ledger_seq.saturating_sub(12));
+                    // Evict old TX sets from the cache and from the store
+                    let min_slot = ledger_seq.saturating_sub(TX_SET_RETAINED_LEDGERS);
+                    self.tx_set_cache.evict_before(min_slot);
+                    let old_stored: Vec<Hash256> = self
+                        .stored_tx_set_slots
+                        .iter()
+                        .filter(|(_, slot)| **slot < min_slot)
+                        .map(|(hash, _)| *hash)
+                        .collect();
+                    for hash in old_stored {
+                        self.forget_stored_tx_set(&hash);
+                    }
+                    self.ledgers_closed_since_start =
+                        self.ledgers_closed_since_start.saturating_add(1);
+                    if self.ledgers_closed_since_start == TX_SET_RETAINED_LEDGERS {
+                        // Whatever an earlier run left on disk and nobody
+                        // asked for is behind us now.
+                        for stale in std::mem::take(&mut self.stale_stored_tx_sets) {
+                            self.forget_stored_tx_set(&stale);
+                        }
+                    }
                     self.pending_core_tx_sets
-                        .retain(|_, slot| *slot >= ledger_seq.saturating_sub(12));
+                        .retain(|_, slot| *slot >= min_slot);
                     self.sync_unclaimed_tx_sets();
                     // Requests that were never answered expire with the same
                     // retained-slot window.
                     let handle = self.libp2p_handle.clone();
-                    let min_slot = ledger_seq.saturating_sub(12);
                     tokio::spawn(async move {
                         handle.prune_txset_requests(min_slot).await;
                     });
@@ -1590,6 +1789,11 @@ async fn main() {
     // Override peer port from command line
     if let Some(port) = args.peer_port {
         config.peer_port = port;
+    }
+
+    // Override the TX set store directory from command line
+    if let Some(dir) = args.txset_dir {
+        config.txset_dir = Some(dir);
     }
 
     // Setup logging
@@ -2107,6 +2311,10 @@ mod tests {
             core_ipc,
             overlay_handle,
             tx_set_cache: TxSetCache::new(100),
+            tx_set_store: None,
+            stored_tx_set_slots: HashMap::new(),
+            stale_stored_tx_sets: HashSet::new(),
+            ledgers_closed_since_start: 0,
             pending_core_tx_sets: HashMap::new(),
             unclaimed_tx_sets: UnclaimedSetBudget::default(),
             current_ledger_seq: 0,
@@ -2316,6 +2524,246 @@ mod tests {
         assert_eq!(response.msg_type, MessageType::TxSetAvailable);
         assert_eq!(&response.payload[..32], hash);
         assert_eq!(&response.payload[32..], data);
+    }
+
+    fn cache_tx_set_payload(hash: &[u8; 32], slot: u32, xdr: &[u8]) -> Vec<u8> {
+        let mut payload = hash.to_vec();
+        payload.extend_from_slice(&slot.to_le_bytes());
+        payload.extend_from_slice(xdr);
+        payload
+    }
+
+    fn with_tx_set_store(app: &mut App, dir: &std::path::Path) {
+        let store = TxSetStore::open(dir.to_path_buf()).unwrap();
+        app.stale_stored_tx_sets = store.hashes().into_iter().collect();
+        app.tx_set_store = Some(Arc::new(store));
+    }
+
+    fn stored_file(dir: &std::path::Path, hash: &Hash256) -> PathBuf {
+        let name: String = hash.iter().map(|b| format!("{:02x}", b)).collect();
+        dir.join(format!("{}.txset", name))
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn tx_sets_are_on_disk_before_core_has_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut app, mut core) = test_app();
+        with_tx_set_store(&mut app, dir.path());
+
+        // A set Core built: by the time the CacheTxSet message has been
+        // handled (and so before the next message from Core, its proposal, is
+        // looked at), the compressed set is on disk.
+        let (local_hash, local_xdr) = test_txset_xdr(41);
+        app.handle_core_message(Message::new(
+            MessageType::CacheTxSet,
+            cache_tx_set_payload(&local_hash, 100, &local_xdr),
+        ))
+        .await;
+        let cached = app.tx_set_cache.get(&local_hash).unwrap().xdr.clone();
+        assert_eq!(
+            std::fs::read(stored_file(dir.path(), &local_hash)).unwrap(),
+            cached.encoded()
+        );
+
+        // A set from a peer that Core is waiting for: it is on disk when Core
+        // receives it.
+        let (peer_hash, peer_xdr) = test_txset_xdr(42);
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&peer_hash, 100),
+        ))
+        .await;
+        assert_no_core_txset(&mut core);
+        let peer_data = Arc::new(TxSetData::from_local(peer_xdr.clone()).unwrap());
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash: peer_hash,
+            data: Arc::clone(&peer_data),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+        assert_eq!(
+            std::fs::read(stored_file(dir.path(), &peer_hash)).unwrap(),
+            peer_data.encoded()
+        );
+        assert_core_txset(&mut core, &peer_hash, &peer_xdr);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_tx_set_that_cannot_be_stored_is_not_used() {
+        // The store directory disappears: nothing can be written.
+        let dir = tempfile::tempdir().unwrap();
+        let store_dir = dir.path().join("txsets");
+        let (mut app, mut core) = test_app();
+        with_tx_set_store(&mut app, &store_dir);
+        std::fs::remove_dir_all(&store_dir).unwrap();
+
+        let (hash, xdr) = test_txset_xdr(43);
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hash, 100),
+        ))
+        .await;
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash,
+            data: Arc::new(TxSetData::from_local(xdr).unwrap()),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+        // Not delivered to Core, which therefore can't vote for it.
+        assert_no_core_txset(&mut core);
+
+        // A set Core built itself is proposed right after it is cached, and
+        // Core does not store it: the overlay stops instead of letting the
+        // proposal out.
+        let (local_hash, local_xdr) = test_txset_xdr(48);
+        let keep_running = app
+            .handle_core_message(Message::new(
+                MessageType::CacheTxSet,
+                cache_tx_set_payload(&local_hash, 100, &local_xdr),
+            ))
+            .await;
+        assert!(!keep_running);
+        assert!(app.tx_set_cache.get(&local_hash).is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn only_sets_core_holds_are_stored_and_peers_cannot_evict_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut app, mut core) = test_app();
+        with_tx_set_store(&mut app, dir.path());
+
+        // A prefetched set that Core has not asked for stays in memory.
+        let (prefetched_hash, prefetched_xdr) = test_txset_xdr(49);
+        app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+            hash: prefetched_hash,
+            data: Arc::new(TxSetData::from_local(prefetched_xdr.clone()).unwrap()),
+            from: PeerId::random(),
+            slot: Some(100),
+        })
+        .await;
+        assert!(app.tx_set_cache.get(&prefetched_hash).is_some());
+        assert!(!stored_file(dir.path(), &prefetched_hash).exists());
+        // It is stored when Core asks for it, before Core gets it.
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&prefetched_hash, 100),
+        ))
+        .await;
+        assert!(stored_file(dir.path(), &prefetched_hash).exists());
+        assert_core_txset(&mut core, &prefetched_hash, &prefetched_xdr);
+
+        // Peers push more sets than the cache holds. The set Core holds
+        // leaves the cache, but not the disk, and Core can still get it.
+        for seed in 100..=200u8 {
+            let (hash, xdr) = test_txset_xdr(seed);
+            app.handle_libp2p_event(LibP2pOverlayEvent::TxSetReceived {
+                hash,
+                data: Arc::new(TxSetData::from_local(xdr).unwrap()),
+                from: PeerId::random(),
+                slot: Some(100),
+            })
+            .await;
+            assert!(!stored_file(dir.path(), &hash).exists());
+        }
+        assert!(app.tx_set_cache.get(&prefetched_hash).is_none());
+        assert!(stored_file(dir.path(), &prefetched_hash).exists());
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&prefetched_hash, 100),
+        ))
+        .await;
+        assert_core_txset(&mut core, &prefetched_hash, &prefetched_xdr);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stored_tx_sets_are_served_to_core_after_a_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let (hash, xdr) = test_txset_xdr(44);
+        let (unused_hash, unused_xdr) = test_txset_xdr(45);
+        {
+            // The first run votes on two sets and stops.
+            let (mut app, _core) = test_app();
+            with_tx_set_store(&mut app, dir.path());
+            for (h, x) in [(&hash, &xdr), (&unused_hash, &unused_xdr)] {
+                app.handle_core_message(Message::new(
+                    MessageType::CacheTxSet,
+                    cache_tx_set_payload(h, 100, x),
+                ))
+                .await;
+            }
+        }
+
+        // The next run starts with an empty cache. Core's restored SCP state
+        // names one of the sets, and Core asks for it.
+        let (mut app, mut core) = test_app();
+        with_tx_set_store(&mut app, dir.path());
+        assert!(app.tx_set_cache.get(&hash).is_none());
+        assert_eq!(app.stale_stored_tx_sets.len(), 2);
+        app.handle_core_message(Message::new(
+            MessageType::RequestTxSet,
+            request_tx_set_payload(&hash, 100),
+        ))
+        .await;
+        assert_core_txset(&mut core, &hash, &xdr);
+        assert_eq!(
+            app.tx_set_cache.get(&hash).unwrap().xdr.as_slice(),
+            xdr.as_slice()
+        );
+        assert_eq!(app.tx_set_cache.get(&hash).unwrap().ledger_seq, 100);
+
+        // The set nobody asked for stays on disk for a while, and is deleted
+        // once the node is far enough past the restart.
+        for seq in 100..100 + TX_SET_RETAINED_LEDGERS - 1 {
+            app.handle_core_message(Message::new(
+                MessageType::LedgerClosed,
+                ledger_closed_payload(seq),
+            ))
+            .await;
+        }
+        assert!(stored_file(dir.path(), &unused_hash).exists());
+        app.handle_core_message(Message::new(
+            MessageType::LedgerClosed,
+            ledger_closed_payload(100 + TX_SET_RETAINED_LEDGERS - 1),
+        ))
+        .await;
+        assert!(!stored_file(dir.path(), &unused_hash).exists());
+        assert!(app.stale_stored_tx_sets.is_empty());
+        // The requested one follows the cache.
+        assert!(stored_file(dir.path(), &hash).exists());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stored_tx_sets_are_deleted_when_their_slot_is_old() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut app, _core) = test_app();
+        with_tx_set_store(&mut app, dir.path());
+        let (old_hash, old_xdr) = test_txset_xdr(46);
+        let (new_hash, new_xdr) = test_txset_xdr(47);
+        app.handle_core_message(Message::new(
+            MessageType::CacheTxSet,
+            cache_tx_set_payload(&old_hash, 100, &old_xdr),
+        ))
+        .await;
+        app.handle_core_message(Message::new(
+            MessageType::CacheTxSet,
+            cache_tx_set_payload(&new_hash, 120, &new_xdr),
+        ))
+        .await;
+        assert!(stored_file(dir.path(), &old_hash).exists());
+        assert!(stored_file(dir.path(), &new_hash).exists());
+
+        // Ledger 113 closes: sets for slots before 101 are dropped.
+        app.handle_core_message(Message::new(
+            MessageType::LedgerClosed,
+            ledger_closed_payload(100 + TX_SET_RETAINED_LEDGERS + 1),
+        ))
+        .await;
+        assert!(app.tx_set_cache.get(&old_hash).is_none());
+        assert!(!stored_file(dir.path(), &old_hash).exists());
+        assert!(app.tx_set_cache.get(&new_hash).is_some());
+        assert!(stored_file(dir.path(), &new_hash).exists());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

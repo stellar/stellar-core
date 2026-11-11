@@ -28,6 +28,7 @@
 #include "ledger/CheckpointRange.h"
 #include "test/Catch2.h"
 #include <random>
+#include <set>
 
 namespace stellar
 {
@@ -225,6 +226,12 @@ class CatchupSimulation
     ProtocolVersion mUpgradeProtocolVersion;
 
   public:
+    // Ledgers that generateRandomLedger closes with a transaction set that is
+    // not valid (the ledger's transactions plus one whose sequence number is
+    // far ahead). From APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION on such
+    // a ledger closes without applying anything.
+    std::set<uint32_t> mInvalidTxSetLedgers;
+
     explicit CatchupSimulation(
         VirtualClock::Mode mode = VirtualClock::VIRTUAL_TIME,
         std::shared_ptr<HistoryConfigurator> cg =
