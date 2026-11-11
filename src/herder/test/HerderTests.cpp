@@ -5499,8 +5499,21 @@ class LeaderBuildTestAccess
     selectLocalFirstLeader(HerderImpl& herder)
     {
         auto& scp = herder.getSCP();
-        auto const& lcl =
-            herder.mApp.getLedgerManager().getLastClosedLedgerHeader();
+        auto& lm = herder.mApp.getLedgerManager();
+        // A node whose own ledger applied nothing has forfeited its term and
+        // comes last in the next ledger's order, whatever the seed. Test
+        // setup reaches such ledgers (upgrade helpers close empty ledgers
+        // under the local node's signature): move on to the start of a term,
+        // where the seeded order is used as it is.
+        for (uint32_t i = 0;
+             i < LEADER_TERM_LEDGERS &&
+             leaderTermOutcome(lm.getLastClosedLedgerHeader().header, true)
+                     .mForfeited == scp.getLocalNodeID();
+             ++i)
+        {
+            txtest::closeLedger(herder.mApp);
+        }
+        auto const& lcl = lm.getLastClosedLedgerHeader();
         auto qset = scp.getLocalQuorumSet();
         REQUIRE(qset.validators.size() == 2);
         for (int i = 0; i < 100; ++i)

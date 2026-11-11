@@ -113,7 +113,9 @@ TEST_CASE("leader schedule drives consensus on a healthy network",
     // Every node computes the same schedule from the previous ledger's
     // header, and the value that externalizes is the one its round 1 leader
     // proposed (unless a round timed out somewhere, e.g. on a busy test
-    // machine). These ledgers are empty, so no leader keeps its term.
+    // machine). These ledgers are empty, so no leader keeps its term: inside
+    // a term the node that closed the previous ledger goes last, and the
+    // order seeded by the ledger before it is otherwise kept.
     std::set<NodeID> proposers;
     int64_t notFirstLeader = 0;
     REQUIRE(closed.size() >= 10);
@@ -121,9 +123,21 @@ TEST_CASE("leader schedule drives consensus on a healthy network",
     {
         auto schedule =
             computeNextLeaderSchedule(c.second.mPrevious, nodeIDs, true);
-        REQUIRE(schedule ==
-                computeLeaderSchedule(c.second.mPrevious.previousLedgerHash,
-                                      nodeIDs));
+        auto expected = computeLeaderSchedule(
+            c.second.mPrevious.previousLedgerHash, nodeIDs);
+        if (c.first % LEADER_TERM_LEDGERS != 0 &&
+            c.second.mPrevious.scpValue.ext.v() != STELLAR_VALUE_BASIC)
+        {
+            auto const previousProposer =
+                getLcValueSignature(c.second.mPrevious.scpValue).nodeID;
+            auto it =
+                std::find(expected.begin(), expected.end(), previousProposer);
+            REQUIRE(it != expected.end());
+            std::rotate(it, it + 1, expected.end());
+            // so two ledgers in a row are never led by the same node here
+            REQUIRE(schedule.front() != previousProposer);
+        }
+        REQUIRE(schedule == expected);
         REQUIRE(schedule.size() == 4);
         REQUIRE(std::find(schedule.begin(), schedule.end(),
                           c.second.mProposer) != schedule.end());
