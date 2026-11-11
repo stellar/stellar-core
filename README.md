@@ -399,7 +399,9 @@ and [`./docs`](./docs).
 Test status of this branch's code (`0c9a02e56`, the same tree as the merge of #5498):
 - The full test suite passes (615 test cases).
 - With `--all-versions` the suite passes on `a33da62c4`, the commit before the IPC fix. On
-  `0c9a02e56` one test case that the fix does not touch ("PendingEnvelopes recvSCPEnvelope", at
-  protocol version 4) failed in one run. It passes alone and fails when it runs after three other
-  test cases in the same process; whether it does the same without this branch's changes is not
-  established.
+  `0c9a02e56` one test case of the leader-schedule change failed ("PendingEnvelopes
+  recvSCPEnvelope", at protocol version 4): its helper tries 100 random peers and needs one that
+  does not lead round 1, and for that day's test seed and that partition's node key the local
+  node sorts last in the schedule, so every peer leads. The binary of #5495 alone fails the same
+  way with the same seed and instance number, and the test passes with any other instance number
+  tried. It is a flaw of that test helper, not of the later changes. Not fixed.
