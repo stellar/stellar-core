@@ -5,7 +5,12 @@
 #include "lib/catch.hpp"
 #include "overlay/IPC.h"
 #include "util/TmpDir.h"
+#include <atomic>
+#include <chrono>
+#include <csignal>
 #include <cstring>
+#include <optional>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
@@ -342,6 +347,71 @@ TEST_CASE("IPCChannel", "[overlay][ipc]")
         REQUIRE(!msg.has_value());
         REQUIRE(!channel2->isConnected());
     }
+}
+
+// stellar-core handles signals (e.g. SIGCHLD for the child processes of a
+// history publish) with handlers that do not restart system calls, and such a
+// signal can be delivered to any thread, including one blocked reading the
+// IPC socket. That read fails with EINTR; it must not be taken for a closed
+// connection.
+TEST_CASE("IPC read survives a signal", "[overlay][ipc]")
+{
+    int sockets[2];
+    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    auto reader = IPCChannel::fromSocket(sockets[0]);
+    auto writer = IPCChannel::fromSocket(sockets[1]);
+
+    struct sigaction action;
+    struct sigaction oldAction;
+    std::memset(&action, 0, sizeof(action));
+    action.sa_handler = [](int) {};
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0; // no SA_RESTART
+    REQUIRE(sigaction(SIGUSR2, &action, &oldAction) == 0);
+
+    std::atomic<bool> reading{false};
+    std::optional<IPCMessage> received;
+    std::thread readerThread([&]() {
+        reading = true;
+        received = reader->receive();
+    });
+    while (!reading)
+    {
+        std::this_thread::yield();
+    }
+    // Interrupt the blocked read several times, then let a message through
+    // with its header and payload separated by more interruptions.
+    for (int i = 0; i < 10; ++i)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        REQUIRE(pthread_kill(readerThread.native_handle(), SIGUSR2) == 0);
+    }
+    REQUIRE(reader->isConnected());
+
+    IPCMessage msg;
+    msg.type = IPCMessageType::BROADCAST_SCP;
+    msg.payload.assign(1000, 7);
+    uint32_t const type = static_cast<uint32_t>(msg.type);
+    uint32_t const len = static_cast<uint32_t>(msg.payload.size());
+    uint8_t header[8];
+    std::memcpy(&header[0], &type, 4);
+    std::memcpy(&header[4], &len, 4);
+    REQUIRE(::send(sockets[1], header, 8, MSG_NOSIGNAL) == 8);
+    for (int i = 0; i < 10; ++i)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        REQUIRE(pthread_kill(readerThread.native_handle(), SIGUSR2) == 0);
+    }
+    REQUIRE(::send(sockets[1], msg.payload.data(), msg.payload.size(),
+                   MSG_NOSIGNAL) == static_cast<ssize_t>(msg.payload.size()));
+
+    readerThread.join();
+    REQUIRE(sigaction(SIGUSR2, &oldAction, nullptr) == 0);
+
+    REQUIRE(received.has_value());
+    REQUIRE(received->type == IPCMessageType::BROADCAST_SCP);
+    REQUIRE(received->payload == msg.payload);
+    REQUIRE(reader->isConnected());
 }
 
 TEST_CASE("IPCServer and connect", "[overlay][ipc]")
