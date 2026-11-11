@@ -20,6 +20,10 @@ pub struct Config {
 
     /// Log level
     pub log_level: String,
+
+    /// Directory in which TX sets are stored durably before they are handed
+    /// to Core (see `flood::TxSetStore`). No store if unset.
+    pub txset_dir: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -29,6 +33,7 @@ impl Default for Config {
             libp2p_listen_ip: "0.0.0.0".to_string(), // Bind to all interfaces for internet operation
             peer_port: 11625,
             log_level: "info".to_string(),
+            txset_dir: None,
         }
     }
 }

@@ -431,6 +431,25 @@ class LedgerManager
 
     virtual bool isApplying() const = 0;
 
+    // Speculative apply (main thread only; requires background ledger apply).
+    //
+    // startSpeculativeApply asks the apply thread to execute `ledgerData`,
+    // the ledger after the LCL with a value this node votes for, before that
+    // value has externalized. Nothing of it is visible until the value
+    // externalizes and the ledger is applied as usual, which then only has to
+    // commit the result. If another value externalizes, or another ledger is
+    // handed in, the execution is dropped. Must not be called while a ledger
+    // is applying.
+    virtual void startSpeculativeApply(LedgerCloseData const& ledgerData) = 0;
+    // True while the apply thread may be executing a ledger speculatively.
+    // Like isApplying(), this tells the main thread that the resources ledger
+    // apply uses (e.g. the batch executor) are taken.
+    virtual bool isSpeculativelyApplying() const = 0;
+    // Drops the speculative execution, if any, and waits for the apply thread
+    // to have done so. For the paths that touch ledger state outside of the
+    // regular apply path.
+    virtual void abortSpeculativeApply() = 0;
+
     // Sets apply state phase to SETTING_UP_STATE. This only changes the phase,
     // but does not actually reset any state. This should be called when
     // anything related to ApplyState, such as the LedgerState database, is

@@ -133,6 +133,11 @@ static_assert(!std::is_convertible_v<ConsensusTime, ApplyTime>);
 static_assert(!std::is_convertible_v<ApplyTime, ConsensusTime>);
 
 bool protocolHasMsCloseTime(uint32_t protocolVersion);
+
+// Whether ledgers on top of a ledger with this protocol version validate
+// their transaction set at apply time instead of before voting (see
+// APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION).
+bool protocolValidatesTxSetsAtApply(uint32_t protocolVersion);
 bool isMsCloseTimeStellarValue(StellarValue const& sv);
 bool hasValidCloseTime(StellarValue const& sv);
 

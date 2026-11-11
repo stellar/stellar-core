@@ -97,7 +97,8 @@ void
 CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
                                         TxSetXDRFrameConstPtr const& txSet,
                                         TransactionResultSet const& resultSet,
-                                        bool skipStartupCheck)
+                                        bool skipStartupCheck,
+                                        bool keepTxSetWithoutResults)
 {
     ZoneScoped;
     TransactionHistoryEntry txs;
@@ -112,14 +113,16 @@ CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
     {
         txSet->toXDR(txs.txSet);
     }
-    appendTransactionSet(ledgerSeq, txs, resultSet);
+    appendTransactionSet(ledgerSeq, txs, resultSet, skipStartupCheck,
+                         keepTxSetWithoutResults);
 }
 
 void
 CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
                                         TransactionHistoryEntry const& txSet,
                                         TransactionResultSet const& resultSet,
-                                        bool skipStartupCheck)
+                                        bool skipStartupCheck,
+                                        bool keepTxSetWithoutResults)
 {
     ZoneScoped;
     if (!mStartupValidationComplete &&
@@ -143,6 +146,15 @@ CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
         results.ledgerSeq = ledgerSeq;
         results.txResultSet = resultSet;
         mTxResults->durableWriteOne(results);
+        mTxs->durableWriteOne(txSet);
+    }
+    else if (keepTxSetWithoutResults)
+    {
+        // A ledger whose transaction set was found invalid at apply time
+        // processes no transaction, but its header still carries the hash of
+        // that set. Replay rebuilds the canonical empty set for a ledger
+        // without a transactions entry, which would not match that hash, so
+        // the set itself is kept (without a results entry).
         mTxs->durableWriteOne(txSet);
     }
 }

@@ -202,6 +202,11 @@ class PendingEnvelopes
         NB: if caller wants to continue using txset after the call, it should
        use the returned value instead
     */
+    // Starts fetching a tx set that no received envelope is waiting for: one
+    // that the SCP state restored after a restart refers to. No-op if the
+    // set is known or already being fetched.
+    void fetchTxSet(Hash const& hash, uint64 slot);
+
     TxSetXDRFrameConstPtr putTxSet(Hash const& hash, uint64 slot,
                                    TxSetXDRFrameConstPtr txset);
 

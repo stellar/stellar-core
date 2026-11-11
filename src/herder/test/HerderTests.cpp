@@ -2896,7 +2896,17 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                         SCPDriver::kFullyValidatedValue;
                     if (!expectValid)
                     {
-                        if (scp.protocolAllowsEmptyTxSetValues())
+                        if (protocolValidatesTxSetsAtApply(
+                                app->getLedgerManager()
+                                    .getLastClosedLedgerHeader()
+                                    .header.ledgerVersion))
+                        {
+                            // The tx set is not validated before voting:
+                            // ledger apply decides what to do with it.
+                            expectedValidationLevel =
+                                SCPDriver::kFullyValidatedValue;
+                        }
+                        else if (scp.protocolAllowsEmptyTxSetValues())
                         {
                             // If CAP-0083 is active, then this StellarValue
                             // is considered structurally valid because only
@@ -2959,8 +2969,14 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         herder.triggerNextLedger(seq, true);
         // All hits during the whole SCP round. One of them is the validity
         // check that determines whether or not to replace the transaction set
-        // with an empty one (CAP-0083).
-        uint64_t const expectedHits = 9;
+        // with an empty one (CAP-0083). Once tx sets are validated at apply
+        // time, SCP never asks.
+        uint64_t const expectedHits =
+            protocolValidatesTxSetsAtApply(app->getLedgerManager()
+                                               .getLastClosedLedgerHeader()
+                                               .header.ledgerVersion)
+                ? 0
+                : 9;
         REQUIRE(cache.getCounters().mHits == expectedHits);
         // One miss from the initial makeTxSetFromTransactions
         REQUIRE(cache.getCounters().mMisses == 1);
@@ -3173,11 +3189,19 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 herder.recvTxSet(malformedTxSetPair.second->getContentsHash(),
                                  malformedTxSetPair.second));
             HerderSCPDriver& scp = herder.getHerderSCPDriver();
+            // From the apply-time validation protocol on, a malformed tx set
+            // is voted for like any other and closes an empty ledger.
+            auto const expected =
+                protocolValidatesTxSetsAtApply(app->getLedgerManager()
+                                                   .getLastClosedLedgerHeader()
+                                                   .header.ledgerVersion)
+                    ? SCPDriver::kFullyValidatedValue
+                    : (scp.protocolAllowsEmptyTxSetValues()
+                           ? SCPDriver::kStructurallyValidValue
+                           : SCPDriver::kInvalidValue);
             REQUIRE(scp.validateValue(herder.trackingConsensusLedgerIndex() + 1,
-                                      malformedTxSetPair.first, false) ==
-                    (scp.protocolAllowsEmptyTxSetValues()
-                         ? SCPDriver::kStructurallyValidValue
-                         : SCPDriver::kInvalidValue));
+                                      malformedTxSetPair.first,
+                                      false) == expected);
         }
     }
 
@@ -3418,12 +3442,19 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
                     // Empty-tx-set values are always allowed at the ms
                     // protocol, so an invalid tx set downgrades the value to
-                    // structurally-valid rather than invalid
+                    // structurally-valid rather than invalid; and once tx
+                    // sets are validated at apply time, it is not looked at
+                    // before voting at all.
                     auto const expected =
-                        expectValid ? SCPDriver::kFullyValidatedValue
-                                    : SCPDriver::kStructurallyValidValue;
+                        (expectValid ||
+                         protocolValidatesTxSetsAtApply(protocolVersion))
+                            ? SCPDriver::kFullyValidatedValue
+                            : SCPDriver::kStructurallyValidValue;
                     REQUIRE(scp.validateValue(zSeq, val.first, true) ==
                             expected);
+                    // What apply decides is what validation used to decide.
+                    REQUIRE(applicableTxSet->checkValid(*app, 0, 0) ==
+                            expectValid);
 
                     TxFrameList removed;
                     UnorderedMap<AccountID, int64_t> accountFeeMap;
@@ -4847,10 +4878,9 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
 // without transactions that isn't encoded as `TxSetXDRFrame::makeEmpty`,
 // which history can't replay) on every ledger. Before the protocol gate the
 // network externalizes it, after the gate it's rejected as invalid.
-TEST_CASE("network does not externalize non-canonical empty tx set",
-          "[herder][txset]")
+TEST_CASE("network externalizes non-canonical empty tx set", "[herder][txset]")
 {
-    auto runTest = [](uint32_t protocolVersion, bool expectExternalized) {
+    auto runTest = [](uint32_t protocolVersion, bool expectSkipped) {
         auto makeConfig = [&](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
             cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
@@ -4905,17 +4935,26 @@ TEST_CASE("network does not externalize non-canonical empty tx set",
             30 * simulation->getExpectedLedgerCloseTime(), false);
 
         CAPTURE(externalized, replaced);
-        if (expectExternalized)
+        // The non-canonical set externalizes on either side of the gate.
+        // Before it, such a set is valid. From it on, it is not, but nobody
+        // validates a tx set before voting any more
+        // (APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION): ledger apply finds
+        // it invalid and closes an empty ledger, which is what the set would
+        // have produced anyway, and history keeps the set itself, so that a
+        // replaying node can match the header's tx set hash.
+        REQUIRE(externalized > 0);
+        auto const skipped =
+            nodes[1]
+                ->getMetrics()
+                .NewCounter({"ledger", "apply", "txset-skipped"})
+                .count();
+        if (expectSkipped)
         {
-            REQUIRE(externalized > 0);
+            REQUIRE(skipped >= externalized);
         }
         else
         {
-            // Honest nodes do not vote for the bad proposal. There is no
-            // nomination to carry it into their ballots (where it used to be
-            // replaced with an empty-tx-set value): the round times out and
-            // the next leader's value closes the ledger.
-            REQUIRE(externalized == 0);
+            REQUIRE(skipped == 0);
         }
     };
 
@@ -4924,12 +4963,12 @@ TEST_CASE("network does not externalize non-canonical empty tx set",
         runTest(static_cast<uint32_t>(
                     CANONICAL_EMPTY_SOROBAN_PHASE_PROTOCOL_VERSION) -
                     1,
-                /*expectExternalized=*/true);
+                /*expectSkipped=*/false);
     }
     SECTION("current protocol")
     {
         runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                /*expectExternalized=*/false);
+                /*expectSkipped=*/true);
     }
 }
 
@@ -6600,6 +6639,14 @@ TEST_CASE("signature prewarm at the ballot covers the next ledger",
         REQUIRE(herder.getHerderSCPDriver().validateValue(slot + 1, leaderValue,
                                                           false) ==
                 SCPDriver::kFullyValidatedValue);
+        if (protocolValidatesTxSetsAtApply(nextLcl.header.ledgerVersion))
+        {
+            // The set is validated when its ledger is applied, not before
+            // the vote: close the ledger with it.
+            herder.externalizeValue(leaderSet, slot + 1, nextCloseTime,
+                                    emptyUpgradeSteps, cfg.NODE_SEED);
+            REQUIRE(lm.getLastClosedLedgerNum() == slot + 1);
+        }
         checkLookups("validate", hits0, misses0, 16);
     }
     // Validation and the build stop the prewarm and record what it did: the

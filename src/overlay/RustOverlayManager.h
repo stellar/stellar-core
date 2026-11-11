@@ -71,7 +71,10 @@ class RustOverlayManager
 
     // Cache a locally-built TX set in Rust overlay. slotIndex is the slot the
     // set is for, used to stamp the Rust-side cache entry.
-    void cacheTxSet(Hash const& txSetHash,
+    // Returns true if the overlay also stores the set durably (see
+    // storesTxSets): it does so before it handles anything Core sends after
+    // this, e.g. the SCP statement that proposes the set.
+    bool cacheTxSet(Hash const& txSetHash,
                     GeneralizedTransactionSet const& txSet, uint32_t slotIndex);
 
     // Send a TX set that was handed to the overlay with cacheTxSet to every
@@ -90,6 +93,13 @@ class RustOverlayManager
         mDropTxSetPushForTesting = drop;
     }
 #endif
+
+    // Whether the overlay process writes every TX set to stable storage
+    // before it hands it to Core (a set received from a peer) or broadcasts
+    // anything that refers to it (a set cached by Core). When it does, Core
+    // does not store those sets itself, and gets them back from the overlay
+    // after a restart.
+    bool storesTxSets() const;
 
     // Get top transactions from Rust overlay's mempool for TX set building.
     // Blocks until the overlay responds, shuts down, or disconnects.

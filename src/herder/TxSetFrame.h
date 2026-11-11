@@ -23,6 +23,8 @@
 namespace stellar
 {
 class Application;
+class AbstractLedgerView;
+class SorobanNetworkConfig;
 class TxSetXDRFrame;
 class ApplicableTxSetFrame;
 using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
@@ -100,6 +102,28 @@ enum class TxSetValidationResult
 
 // Returns a string representation of the validation result for logging.
 std::string toString(TxSetValidationResult result);
+
+// The ledger state a transaction set is validated against: the ledger the
+// set would apply on top of. Validation only reads the state through this
+// context, so it can run wherever the context's views can be used: the main
+// thread validates against the LCL (`forLCL`), ledger apply against its own
+// snapshot of the previous ledger.
+struct TxSetValidationContext
+{
+    // Header of the ledger the set applies on top of.
+    LedgerHeaderHistoryEntry const& mLcl;
+    // Soroban network configuration of that ledger; null before Soroban.
+    SorobanNetworkConfig const* mSorobanConfig;
+    // Creates a read-only view of that ledger. Called once per validation
+    // task; each view is used by one thread only.
+    std::function<std::unique_ptr<AbstractLedgerView const>()> mMakeView;
+    // Upper bound on the number of tasks the per-transaction checks are
+    // split into. 1 runs them on the calling thread.
+    size_t mMaxTasks;
+
+    // The LCL as seen by the main thread. Main thread only.
+    static TxSetValidationContext forLCL(Application& app);
+};
 
 using TxFrameList = std::vector<TransactionFrameBasePtr>;
 using PerPhaseTransactionList = std::vector<TxFrameList>;
@@ -465,6 +489,12 @@ class TxSetPhaseFrame
                          bool txsAreValidated,
                          UnorderedMap<AccountID, int64_t>& accountFeeMap) const;
     TxSetValidationResult
+    checkValidWithResult(Application& app, TxSetValidationContext const& ctx,
+                         uint64_t lowerBoundCloseTimeOffset,
+                         uint64_t upperBoundCloseTimeOffset,
+                         bool txsAreValidated,
+                         UnorderedMap<AccountID, int64_t>& accountFeeMap) const;
+    TxSetValidationResult
     checkValidClassic(LedgerHeader const& lclHeader) const;
     TxSetValidationResult
     checkValidSoroban(LedgerHeader const& lclHeader,
@@ -521,6 +551,13 @@ class ApplicableTxSetFrame
     // Same as checkValid, but returns a specific error code instead of bool.
     TxSetValidationResult
     checkValidWithResult(Application& app, uint64_t lowerBoundCloseTimeOffset,
+                         uint64_t upperBoundCloseTimeOffset) const;
+    // Same as checkValidWithResult, but against the ledger state described by
+    // `ctx` instead of the main thread's LCL. Safe to call off the main
+    // thread as long as `ctx` is.
+    TxSetValidationResult
+    checkValidWithResult(Application& app, TxSetValidationContext const& ctx,
+                         uint64_t lowerBoundCloseTimeOffset,
                          uint64_t upperBoundCloseTimeOffset) const;
 
     // Returns the size of this whole transaction set, or the specified phase
@@ -584,6 +621,10 @@ class ApplicableTxSetFrame
     TxSetValidationResult checkValidInternalWithResult(
         Application& app, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset, bool txsAreValidated) const;
+    TxSetValidationResult checkValidInternalWithResult(
+        Application& app, TxSetValidationContext const& ctx,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        bool txsAreValidated) const;
 
   private:
     friend class TxSetXDRFrame;

@@ -265,6 +265,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewTimer({"scp", "trigger", "lateness"}))
     , mTriggerImmediate(
           app.getMetrics().NewMeter({"scp", "trigger", "immediate"}, "trigger"))
+    , mPersistSCPState(app.getMetrics().NewTimer({"herder", "scp", "persist"}))
 {
 }
 
@@ -840,6 +841,84 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     persistSCPState(slotIndex);
 
     broadcast(envelope);
+
+    maybeStartSpeculativeApply(envelope);
+}
+
+void
+HerderImpl::txSetStoredByOverlay(Hash const& hash)
+{
+    mTxSetsStoredByOverlay.insert(hash);
+}
+
+void
+HerderImpl::maybeStartSpeculativeApply(SCPEnvelope const& envelope)
+{
+    auto const& cfg = mApp.getConfig();
+    if (!cfg.EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY ||
+        !cfg.backgroundLedgerApply())
+    {
+        return;
+    }
+
+    // The value this node is working on: what it votes to prepare, or to
+    // commit. An EXTERNALIZE statement means the real apply is on its way.
+    auto const& st = envelope.statement;
+    Value const* value = nullptr;
+    switch (st.pledges.type())
+    {
+    case SCP_ST_PREPARE:
+        value = &st.pledges.prepare().ballot.value;
+        break;
+    case SCP_ST_CONFIRM:
+        value = &st.pledges.confirm().ballot.value;
+        break;
+    default:
+        return;
+    }
+
+    // Only the ledger right after the LCL can be executed, and only while
+    // nothing else is being applied: the ledger apply thread executes it on
+    // top of the state the LCL left.
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (st.slotIndex != lcl.header.ledgerSeq + 1 ||
+        !protocolValidatesTxSetsAtApply(lcl.header.ledgerVersion) ||
+        !isTracking() || !mLedgerManager.isSynced() ||
+        mLedgerManager.isApplying())
+    {
+        return;
+    }
+    if (mSpeculativeApplyValue &&
+        mSpeculativeApplyValue->first == st.slotIndex &&
+        mSpeculativeApplyValue->second == *value)
+    {
+        // already handed over
+        return;
+    }
+
+    StellarValue sv;
+    if (!toStellarValue(*value, sv) || isEmptyTxSetStellarValue(sv))
+    {
+        // An empty-tx-set value takes no time to apply.
+        return;
+    }
+    auto txSetResult = mPendingEnvelopes.getTxSet(sv.txSetHash);
+    auto const* txSet = std::get_if<TxSetXDRFrameConstPtr>(&txSetResult);
+    if (!txSet || !*txSet || (*txSet)->previousLedgerHash() != lcl.hash)
+    {
+        return;
+    }
+
+    // Executing the ledger starts with validating its transaction set, which
+    // verifies the signatures the prewarm has not reached itself, on all
+    // cores; a prewarm that is still running would only compete with it.
+    if (mSignaturePrewarm && mSignaturePrewarm->ledgerSeq <= st.slotIndex)
+    {
+        stopSignaturePrewarm();
+    }
+    mSpeculativeApplyValue = std::make_pair(st.slotIndex, *value);
+    mLedgerManager.startSpeculativeApply(
+        LedgerCloseData(static_cast<uint32_t>(st.slotIndex), *txSet, sv));
 }
 
 TxSubmitStatus
@@ -2032,8 +2111,12 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
             {
                 // Serialized straight into the IPC message, without copying
                 // the set's XDR first.
-                overlayMgr.cacheTxSet(txSet->getContentsHash(),
-                                      txSet->getGeneralizedXDR(), ledgerSeq);
+                if (overlayMgr.cacheTxSet(txSet->getContentsHash(),
+                                          txSet->getGeneralizedXDR(),
+                                          ledgerSeq))
+                {
+                    mTxSetsStoredByOverlay.insert(txSet->getContentsHash());
+                }
                 // Leader's push: this set is about to be proposed, so send
                 // it to the peers now, while the builder's remaining
                 // validation and the proposal's persistence still run. If
@@ -2569,9 +2652,12 @@ HerderImpl::makeProposalValue(uint32_t ledgerSeqToTrigger)
         // The overlay only cached the set built above; peers fetch this one.
         if (proposedSet->isGeneralizedTxSet())
         {
-            mApp.getOverlayManager().cacheTxSet(
-                proposedSet->getContentsHash(),
-                proposedSet->getGeneralizedXDR(), lcl.header.ledgerSeq + 1);
+            if (mApp.getOverlayManager().cacheTxSet(
+                    proposedSet->getContentsHash(),
+                    proposedSet->getGeneralizedXDR(), lcl.header.ledgerSeq + 1))
+            {
+                mTxSetsStoredByOverlay.insert(proposedSet->getContentsHash());
+            }
         }
     }
 #endif
@@ -3138,6 +3224,9 @@ HerderImpl::persistSCPState(uint64 slot)
     {
         return;
     }
+    // Runs on the main thread in front of every SCP statement this node
+    // broadcasts.
+    auto persistTimer = mSCPMetrics.mPersistSCPState.TimeScope();
 
     mLastSlotSaved = slot;
     // saves SCP messages and related data (transaction sets, quorum sets)
@@ -3155,6 +3244,23 @@ HerderImpl::persistSCPState(uint64 slot)
         // saves transaction sets referred by the statement
         for (auto const& h : getValidatedTxSetHashes(e))
         {
+            if (mTxSetsStoredByOverlay.count(h) &&
+                protocolValidatesTxSetsAtApply(
+                    mLedgerManager.getLastClosedLedgerHeader()
+                        .header.ledgerVersion))
+            {
+                // (Only from the protocol that votes without validating: a
+                // restart gets these sets back from the overlay a moment
+                // after the SCP state is restored, and before that protocol a
+                // restored value whose set is missing may not be valid.)
+                // On disk already, in the compressed form the overlay holds:
+                // it wrote the set before delivering it (a set from a peer),
+                // and writes it before broadcasting the statement that is
+                // being emitted (a set built here). Serializing and
+                // committing it a second time on the main thread, in front
+                // of every first vote, would only add latency.
+                continue;
+            }
             auto result = mPendingEnvelopes.getTxSet(h);
             if (auto* txSetPtr = std::get_if<TxSetXDRFrameConstPtr>(&result))
             {
@@ -3258,6 +3364,7 @@ HerderImpl::restoreSCPState()
                 getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
                 mLastSlotSaved =
                     std::max<uint64>(mLastSlotSaved, e.statement.slotIndex);
+                fetchRestoredTxSets(e);
             }
         }
         catch (std::exception& e)
@@ -3271,6 +3378,37 @@ HerderImpl::restoreSCPState()
                       e.what());
         }
         mPendingEnvelopes.rebuildQuorumTrackerState();
+    }
+}
+
+void
+HerderImpl::fetchRestoredTxSets(SCPEnvelope const& envelope)
+{
+    // The tx sets of the statements this node emitted are not in the
+    // database when the overlay stores them (see persistSCPState): ask the
+    // overlay for the ones an undecided slot refers to. It is not running
+    // yet at this point; the request is repeated until it answers, from its
+    // store or, failing that, from the peers that voted for the same value.
+    if (!mApp.getOverlayManager().storesTxSets())
+    {
+        return;
+    }
+    auto const slot = envelope.statement.slotIndex;
+    if (slot <= mLedgerManager.getLastClosedLedgerNum())
+    {
+        return;
+    }
+    auto const hashes = getTxSetHashes(envelope);
+    if (!hashes)
+    {
+        return;
+    }
+    for (auto const& hash : *hashes)
+    {
+        if (hash != Herder::EMPTY_TX_SET_HASH)
+        {
+            mPendingEnvelopes.fetchTxSet(hash, slot);
+        }
     }
 }
 
@@ -3422,6 +3560,22 @@ void
 HerderImpl::purgeOldPersistedTxSets()
 {
     ZoneScoped;
+
+    // Forget about the overlay-stored sets that are gone from memory.
+    for (auto it = mTxSetsStoredByOverlay.begin();
+         it != mTxSetsStoredByOverlay.end();)
+    {
+        auto txSet = mPendingEnvelopes.getTxSet(*it);
+        auto const* frame = std::get_if<TxSetXDRFrameConstPtr>(&txSet);
+        if (!frame || !*frame)
+        {
+            it = mTxSetsStoredByOverlay.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 
     try
     {

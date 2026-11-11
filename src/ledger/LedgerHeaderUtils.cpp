@@ -49,6 +49,13 @@ protocolHasMsCloseTime(uint32_t protocolVersion)
                                      MS_CLOSE_TIME_PROTOCOL_VERSION);
 }
 
+bool
+protocolValidatesTxSetsAtApply(uint32_t protocolVersion)
+{
+    return protocolVersionStartsFrom(
+        protocolVersion, APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION);
+}
+
 ApplyTimeOffset
 operator-(ApplyTime const& later, ApplyTime const& earlier)
 {

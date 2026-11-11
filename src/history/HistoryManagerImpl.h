@@ -64,7 +64,8 @@ class HistoryManagerImpl : public HistoryManager
                           bool success) override;
     void appendTransactionSet(uint32_t ledgerSeq,
                               TxSetXDRFrameConstPtr const& txSet,
-                              TransactionResultSet const& resultSet) override;
+                              TransactionResultSet const& resultSet,
+                              bool keepTxSetWithoutResults = false) override;
     void appendLedgerHeader(LedgerHeader const& header) override;
     void restoreCheckpoint(uint32_t lcl) override;
 

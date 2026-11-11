@@ -56,9 +56,19 @@ class OverlayIPC
      * @param socketPath Path for Unix domain socket, or empty for default
      * @param overlayBinaryPath Path to the overlay binary, or empty to search
      * @param peerPort Port for peer TCP connections (passed to overlay)
+     * @param txSetDir Directory in which the overlay stores TX sets durably
+     *        before handing them to Core, or empty for no store
      */
     OverlayIPC(std::optional<std::string> socketPath,
-               std::optional<std::string> overlayBinaryPath, uint16_t peerPort);
+               std::optional<std::string> overlayBinaryPath, uint16_t peerPort,
+               std::optional<std::string> txSetDir = std::nullopt);
+
+    /// Whether the overlay process was told to store TX sets durably.
+    bool
+    storesTxSets() const
+    {
+        return mTxSetDir.has_value();
+    }
 
     static std::string defaultSocketPath(uint16_t peerPort);
     static std::optional<std::string> findOverlayBinaryPath();
@@ -190,8 +200,9 @@ class OverlayIPC
      * @param hash The TX set hash
      * @param txSet The TX set, serialized directly into the IPC message
      * @param slotIndex The slot the set is for (stamps the cache entry)
+     * @return whether the set was sent to the overlay
      */
-    void cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
+    bool cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
                     uint32_t slotIndex);
 
     /**
@@ -255,6 +266,7 @@ class OverlayIPC
 
     std::string mSocketPath;
     std::optional<std::string> mOverlayBinaryPath;
+    std::optional<std::string> mTxSetDir;
     uint16_t mPeerPort;
 
     std::unique_ptr<IPCChannel> mChannel;

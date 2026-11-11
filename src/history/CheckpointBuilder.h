@@ -65,14 +65,20 @@ class CheckpointBuilder
 
   public:
     CheckpointBuilder(Application& app);
+    // The transaction set and its results are written when the ledger has
+    // results. `keepTxSetWithoutResults` also writes the set of a ledger with
+    // no results: a set that was found invalid at apply time, whose hash the
+    // ledger header still carries.
     void appendTransactionSet(uint32_t ledgerSeq,
                               TxSetXDRFrameConstPtr const& txSet,
                               TransactionResultSet const& resultSet,
-                              bool skipStartupCheck = false);
+                              bool skipStartupCheck = false,
+                              bool keepTxSetWithoutResults = false);
     void appendTransactionSet(uint32_t ledgerSeq,
                               TransactionHistoryEntry const& txSet,
                               TransactionResultSet const& resultSet,
-                              bool skipStartupCheck = false);
+                              bool skipStartupCheck = false,
+                              bool keepTxSetWithoutResults = false);
     void appendLedgerHeader(LedgerHeader const& header,
                             bool skipStartupCheck = false);
 

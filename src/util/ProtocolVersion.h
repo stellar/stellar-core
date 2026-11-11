@@ -91,6 +91,13 @@ constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
 constexpr ProtocolVersion LOWER_MAX_MESSAGE_SIZE_PROTOCOL_VERSION =
     ProtocolVersion::V_29;
 
+// From this protocol on, a validator votes for a value without validating its
+// transaction set, and ledger apply decides: a transaction set that is not
+// valid against the ledger it applies to is applied as an empty ledger (the
+// header keeps the externalized value, no transaction is processed).
+constexpr ProtocolVersion APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION =
+    ProtocolVersion::V_30;
+
 constexpr ProtocolVersion MS_CLOSE_TIME_PROTOCOL_VERSION =
     ProtocolVersion::V_30;
 

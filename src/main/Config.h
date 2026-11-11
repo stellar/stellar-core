@@ -532,6 +532,14 @@ class Config : public std::enable_shared_from_this<Config>
     // Enable parallel block application
     bool PARALLEL_LEDGER_APPLY;
 
+    // Execute the next ledger on the ledger apply thread as soon as this node
+    // votes for a value for it, instead of when that value externalizes; the
+    // ledger is committed only if that value externalizes (see
+    // LedgerManager::startSpeculativeApply). Only takes effect with background
+    // ledger apply (see backgroundLedgerApply()) and from
+    // APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION on.
+    bool EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY;
+
     // Allow downloading of transaction sets in parallel with SCP (experimental)
     bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
 

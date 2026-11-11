@@ -103,6 +103,12 @@ class HerderImpl : public Herder
                            bool isLatestSlot);
     void emitEnvelope(SCPEnvelope const& envelope);
 
+    // Called with every statement this node emits. If the statement votes
+    // for a value for the ledger after the LCL, hands that ledger to the
+    // apply thread for speculative execution (see
+    // LedgerManager::startSpeculativeApply), unless it was already.
+    void maybeStartSpeculativeApply(SCPEnvelope const& envelope);
+
 #ifdef BUILD_TESTS
     TxSubmitStatus recvTransaction(TransactionFrameBasePtr tx,
                                    bool submittedFromSelf,
@@ -168,6 +174,7 @@ class HerderImpl : public Herder
 
     bool recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset) override;
     bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset) override;
+    void txSetStoredByOverlay(Hash const& hash) override;
     TxSetResult getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
@@ -321,6 +328,17 @@ class HerderImpl : public Herder
                                std::vector<size_t> const& pendingPerPhase);
     std::shared_ptr<SignaturePrewarm> mSignaturePrewarm;
 
+    // Tx sets the overlay holds on stable storage: received from it, or
+    // handed to it after building them. persistSCPState leaves those out of
+    // the database; after a restart they come back from the overlay (see
+    // restoreSCPState).
+    UnorderedSet<Hash> mTxSetsStoredByOverlay;
+
+    // The (slot, value) last handed to the ledger apply thread for speculative
+    // execution, so that further statements for the same value don't restart
+    // it.
+    std::optional<std::pair<uint64, Value>> mSpeculativeApplyValue;
+
   public:
     // Called when slot `slotIndex` starts its ballot protocol with a value
     // whose tx set is `txSetHash`: prewarms the next ledger's candidates while
@@ -383,6 +401,7 @@ class HerderImpl : public Herder
     void persistSCPState(uint64 slot);
     // restores SCP state based on the last messages saved on disk
     void restoreSCPState();
+    void fetchRestoredTxSets(SCPEnvelope const& envelope);
 
     // Map SCP slots to local time of nomination and the time slot was
     // externalized by the network
@@ -442,6 +461,10 @@ class HerderImpl : public Herder
         // Marked when the next trigger is already due when it is scheduled,
         // i.e. the node is behind the target block time
         medida::Meter& mTriggerImmediate;
+
+        // Time spent in persistSCPState, which runs on the main thread in
+        // front of every SCP statement this node broadcasts.
+        medida::Timer& mPersistSCPState;
 
         SCPMetrics(Application& app);
     };

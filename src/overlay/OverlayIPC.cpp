@@ -49,13 +49,18 @@ absoluteIfExecutable(std::string const& path)
 
 OverlayIPC::OverlayIPC(std::optional<std::string> socketPath,
                        std::optional<std::string> overlayBinaryPath,
-                       uint16_t peerPort)
+                       uint16_t peerPort, std::optional<std::string> txSetDir)
     : mSocketPath(socketPath && !socketPath->empty()
                       ? std::move(*socketPath)
                       : defaultSocketPath(peerPort))
     , mOverlayBinaryPath(std::move(overlayBinaryPath))
+    , mTxSetDir(std::move(txSetDir))
     , mPeerPort(peerPort)
 {
+    if (mTxSetDir && mTxSetDir->empty())
+    {
+        mTxSetDir.reset();
+    }
 }
 
 std::string
@@ -260,6 +265,19 @@ OverlayIPC::spawnOverlay()
     }
 
     long const maxFd = sysconf(_SC_OPEN_MAX);
+    // Arguments: <binary> --listen <socket-path> --peer-port <port>
+    //            [--txset-dir <dir>]
+    // Built before fork(): only async-signal-safe calls are allowed after it.
+    std::string const portStr = std::to_string(mPeerPort);
+    std::vector<char const*> args{overlayBinaryPath->c_str(), "--listen",
+                                  mSocketPath.c_str(), "--peer-port",
+                                  portStr.c_str()};
+    if (mTxSetDir)
+    {
+        args.push_back("--txset-dir");
+        args.push_back(mTxSetDir->c_str());
+    }
+    args.push_back(nullptr);
     pid_t pid = fork();
     if (pid < 0)
     {
@@ -288,11 +306,8 @@ OverlayIPC::spawnOverlay()
         }
 
         // Exec overlay binary
-        // Arguments: <binary> --listen <socket-path> --peer-port <port>
-        std::string portStr = std::to_string(mPeerPort);
-        execl(overlayBinaryPath->c_str(), overlayBinaryPath->c_str(),
-              "--listen", mSocketPath.c_str(), "--peer-port", portStr.c_str(),
-              nullptr);
+        execv(overlayBinaryPath->c_str(),
+              const_cast<char* const*>(args.data()));
 
         // exec failed
         _exit(1);
@@ -726,13 +741,13 @@ OverlayIPC::requestTxSet(Hash const& hash, uint32_t slotIndex)
     mChannel->send(msg);
 }
 
-void
+bool
 OverlayIPC::cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
                        uint32_t slotIndex)
 {
     if (!mChannel || !mChannel->isConnected())
     {
-        return;
+        return false;
     }
 
     IPCMessage msg;
@@ -753,7 +768,7 @@ OverlayIPC::cacheTxSet(Hash const& hash, GeneralizedTransactionSet const& txSet,
     CLOG_DEBUG(Overlay, "Caching TX set {} for slot {} ({} bytes)",
                hexAbbrev(hash), slotIndex, xdrSize);
     std::lock_guard<std::mutex> lock(mSendMutex);
-    mChannel->send(msg);
+    return mChannel->send(msg);
 }
 
 void
