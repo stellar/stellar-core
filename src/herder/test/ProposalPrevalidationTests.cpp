@@ -419,11 +419,12 @@ struct PrevalidationFixture
     // speculation of the ledger they close first.
     explicit PrevalidationFixture(
         bool herderSpeculates = false,
-        std::optional<uint32_t> maxTxSetSize = std::nullopt)
+        std::optional<uint32_t> maxTxSetSize = std::nullopt,
+        uint32_t protocol = GATE_PROTOCOL)
         : mCfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT))
     {
-        mCfg.LEDGER_PROTOCOL_VERSION = GATE_PROTOCOL;
-        mCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = GATE_PROTOCOL;
+        mCfg.LEDGER_PROTOCOL_VERSION = protocol;
+        mCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocol;
         if (maxTxSetSize)
         {
             mCfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = *maxTxSetSize;
@@ -2990,5 +2991,37 @@ TEST_CASE("a build checks its selection before the set leaves it",
                                       ApplyTimeOffset::fromSeconds(1), invalid,
                                       false, {}, false, onReady),
             Catch::Matchers::Contains("MULTIPLE_TXS_PER_SOURCE_ACCOUNT"));
+    }
+}
+
+// Before tx sets are validated at apply, the other nodes validate a set
+// before they vote for it, and the leader vouches for its own: there the
+// builder checks the written set before it returns, as it always did.
+TEST_CASE("the check of the written set is deferred only where sets are "
+          "validated at apply",
+          "[herder][txset][early-txset]")
+{
+    auto const deferred = GENERATE(false, true);
+    PrevalidationFixture f(/*herderSpeculates=*/false, std::nullopt,
+                           deferred ? GATE_PROTOCOL : GATE_PROTOCOL - 1);
+    auto& app = *f.mApp;
+    auto& a = *f.mA;
+    REQUIRE(protocolValidatesTxSetsAtApply(
+                f.lm().getLastClosedLedgerHeader().header.ledgerVersion) ==
+            deferred);
+    auto const passedBefore = txsetMeter(app, "self-check-passed");
+    f.mMempool = {paymentWithSeq(app, a, a.getLastSequenceNumber() + 1)};
+    Access::prepareByBuilding(f.herder(), f.nextSeq(), f.nextCloseTime());
+    REQUIRE(Access::prepared(f.herder()));
+    if (deferred)
+    {
+        f.crankUntil([&]() {
+            return txsetMeter(app, "self-check-passed") == passedBefore + 1;
+        });
+    }
+    else
+    {
+        f.crankFor(std::chrono::milliseconds(50));
+        REQUIRE(txsetMeter(app, "self-check-passed") == passedBefore);
     }
 }
