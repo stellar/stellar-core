@@ -5521,7 +5521,11 @@ class LeaderBuildTestAccess
         auto const& lcl = lm.getLastClosedLedgerHeader();
         auto qset = scp.getLocalQuorumSet();
         REQUIRE(qset.validators.size() == 2);
-        for (int i = 0; i < 100; ++i)
+        // The local node's key is fixed (the instance number and the day's
+        // seed decide it) and may sort behind nearly every other key: allow
+        // enough candidates for the absent peer to find one that sorts
+        // behind even such a key.
+        for (int i = 0; i < 2000; ++i)
         {
             qset.validators = {
                 scp.getLocalNodeID(),

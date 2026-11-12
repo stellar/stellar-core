@@ -123,6 +123,23 @@ createAppWithFollowerPeer(Config const& baseCfg)
         FollowerPeerApp res;
         res.mPeer = SecretKey::pseudoRandomForTesting();
         Config cfg(baseCfg);
+        if (i > 0)
+        {
+            // A node's place in the leader order is decided by its key. The
+            // test configuration's key (derived from the instance number and
+            // the day's seed) can be one that sorts behind nearly every
+            // other key: no random peer would ever come after it. Try
+            // another local key as well, not only another peer.
+            auto const oldKey = cfg.NODE_SEED.getPublicKey();
+            cfg.NODE_SEED = SecretKey::pseudoRandomForTesting();
+            for (auto& validator : cfg.QUORUM_SET.validators)
+            {
+                if (validator == oldKey)
+                {
+                    validator = cfg.NODE_SEED.getPublicKey();
+                }
+            }
+        }
         cfg.QUORUM_SET.validators.emplace_back(res.mPeer.getPublicKey());
         res.mClock = std::make_unique<VirtualClock>();
         res.mApp = createTestApplication(*res.mClock, cfg);
