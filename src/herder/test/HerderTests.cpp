@@ -73,6 +73,15 @@ using namespace stellar::txbridge;
 using namespace stellar::txtest;
 using namespace historytestutils;
 
+namespace stellar
+{
+// LeaderBuildTestAccess::selectLocalFirstLeader (defined further down), for
+// the fixtures above it: replaces the second validator of a two-validator
+// quorum set by one that sorts behind the local node in the next slot's
+// leader order.
+void makeLocalNodeFirstLeader(HerderImpl& herder);
+}
+
 static TransactionTestFramePtr
 makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
                  int nbOps, int64 paymentBase, uint32 extraFee, uint32 feeMult)
@@ -2960,6 +2969,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     SECTION("validateValue txSet cached")
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        // Which of this fixture's two validators leads the next slot depends
+        // on the local node's key, i.e. on the test instance number; the
+        // expectations below are for the node that builds and proposes.
+        makeLocalNodeFirstLeader(herder);
         auto seq = herder.trackingConsensusLedgerIndex() + 1;
 
         auto& cache = herder.getHerderSCPDriver().getTxSetValidityCache();
@@ -5544,6 +5557,12 @@ class LeaderBuildTestAccess
         FAIL("Could not select a first-round local leader");
     }
 };
+
+void
+makeLocalNodeFirstLeader(HerderImpl& herder)
+{
+    LeaderBuildTestAccess::selectLocalFirstLeader(herder);
+}
 }
 
 TEST_CASE("trigger fallback credits elapsed time up to the first ballot",
@@ -6008,10 +6027,17 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
     tx->addSignature(alice);
     auto extra = makeTx(bob, alice);
     mempool = {tx->getEnvelope(), extra->getEnvelope()};
-    size_t pulls = 0;
-    herder.mGetTopTransactionsForTesting = [&](size_t) {
-        ++pulls;
-        return mempool;
+    herder.mGetTopTransactionsForTesting = [&](size_t) { return mempool; };
+    // Builds of a tx set since here. (Not pulls of the mempool: the leader
+    // starts executing a prepared set at once, and that execution pulls
+    // candidates for the ledger after it.)
+    auto const buildsBefore =
+        app->getMetrics().NewTimer({"herder", "txset", "build"}).count();
+    auto builds = [&]() {
+        return app->getMetrics()
+                   .NewTimer({"herder", "txset", "build"})
+                   .count() -
+               buildsBefore;
     };
     // Exercise the real post-close hook, including its heartbeat reset after
     // advancing the fixture clock past the upgrade helper's close time.
@@ -6023,7 +6049,7 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         [&]() { return LeaderBuildTestAccess::prepared(herder) != nullptr; },
         std::chrono::seconds(1));
     REQUIRE(clock.now() < trigger);
-    REQUIRE(pulls == 1);
+    REQUIRE(builds() == 1);
     auto prepared = LeaderBuildTestAccess::prepared(herder);
     auto const preparedCloseTime = LeaderBuildTestAccess::closeTime(herder);
     REQUIRE(prepared);
@@ -6042,7 +6068,7 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         testutil::crankUntil(
             app, [&]() { return herder.getSCP().getLeaderRound(seq) != 0; },
             std::chrono::seconds(1));
-        REQUIRE(pulls == 1);
+        REQUIRE(builds() == 1);
         REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         REQUIRE(std::get<TxSetXDRFrameConstPtr>(
                     herder.getTxSet(prepared->getContentsHash())) == prepared);
@@ -6071,7 +6097,7 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         xdr::xdr_from_opaque(ballot.value, value);
         REQUIRE(value.txSetHash == prepared->getContentsHash());
         REQUIRE(getConsensusTime(value) == preparedCloseTime);
-        REQUIRE(pulls == 1);
+        REQUIRE(builds() == 1);
     }
     SECTION("clock regression rejects the prepared future close time")
     {
@@ -6079,7 +6105,7 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         // The fallback builds with today's valid close time, and must not
         // claim that our time-bound transaction is valid for that time.
         herder.triggerNextLedger(seq, true);
-        REQUIRE(pulls == 2);
+        REQUIRE(builds() == 2);
         REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         REQUIRE(std::get<TxSetXDRFrameConstPtr>(
                     herder.getTxSet(prepared->getContentsHash())) == nullptr);
@@ -6089,17 +6115,17 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         herder.externalizeValue(TxSetXDRFrame::makeEmpty(lcl), seq,
                                 preparedCloseTime, {}, cfg.NODE_SEED);
         REQUIRE(LeaderBuildTestAccess::prepared(herder) != prepared);
-        auto const pullsAfterClose = pulls;
-        // A stale timer/caller cannot propose for the old slot or pull again.
+        auto const buildsAfterClose = builds();
+        // A stale timer/caller cannot propose for the old slot or build again.
         herder.triggerNextLedger(seq, true);
-        REQUIRE(pulls == pullsAfterClose);
+        REQUIRE(builds() == buildsAfterClose);
     }
     SECTION("loss of sync discards preparation")
     {
         herder.lostSync();
         REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         herder.triggerNextLedger(seq, true);
-        REQUIRE(pulls == 1);
+        REQUIRE(builds() == 1);
     }
     SECTION("shutdown cancels preparation")
     {
@@ -6958,17 +6984,20 @@ TEST_CASE("the set prepared before the trigger is proposed unchanged",
         // More candidates than capacity, but they cannot fill the ledger.
         mempool = {bad->getEnvelope(), bad->getEnvelope(), bad->getEnvelope()};
     }
-    size_t pulls = 0;
-    herder.mGetTopTransactionsForTesting = [&](size_t) {
-        ++pulls;
-        return mempool;
+    herder.mGetTopTransactionsForTesting = [&](size_t) { return mempool; };
+    // Builds, not pulls of the mempool: the leader starts executing the
+    // prepared set at once, and that execution pulls candidates for the
+    // ledger after it.
+    auto builds = [&]() {
+        return app->getMetrics().NewTimer({"herder", "txset", "build"}).count();
     };
+    REQUIRE(builds() == 0);
     LeaderBuildTestAccess::schedule(herder);
     testutil::crankUntil(
         app,
         [&]() { return LeaderBuildTestAccess::prepared(herder) != nullptr; },
         std::chrono::seconds(1));
-    REQUIRE(pulls == 1);
+    REQUIRE(builds() == 1);
     auto const prepared = LeaderBuildTestAccess::prepared(herder);
     REQUIRE(prepared->sizeTxTotal() == (invalidFirst ? 0 : 1));
     // It was built a short lead time before the trigger, not earlier.
@@ -6982,7 +7011,7 @@ TEST_CASE("the set prepared before the trigger is proposed unchanged",
         app, [&]() { return herder.getSCP().getLeaderRound(seq) != 0; },
         std::chrono::seconds(1));
     // No second build: the proposal names the prepared set.
-    REQUIRE(pulls == 1);
+    REQUIRE(builds() == 1);
     auto messages = herder.getSCP().getLatestMessagesSend(seq);
     REQUIRE(!messages.empty());
     REQUIRE(messages.front().statement.pledges.type() == SCP_ST_PREPARE);
