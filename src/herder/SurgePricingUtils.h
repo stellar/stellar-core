@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <optional>
 #include <set>
 
 #include "transactions/TransactionFrameBase.h"
@@ -153,10 +154,14 @@ class SurgePricingPriorityQueue
     // `hadTxNotFittingLane` is an output parameter that for every lane will
     // identify whether there was a transaction that didn't fit into that lane's
     // limit.
+    // `seed` randomizes the order of transactions with equal fee rates. It
+    // is drawn from the global random engine (main thread only) unless the
+    // caller provides one, which a caller on another thread has to.
     static std::vector<TransactionFrameBasePtr> getMostTopTxsWithinLimits(
         std::vector<TransactionFrameBasePtr> const& txs,
         std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
+        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+        std::optional<size_t> seed = std::nullopt);
 
     // Returns total amount of resources in all the transactions in this queue.
     Resource totalResources() const;
