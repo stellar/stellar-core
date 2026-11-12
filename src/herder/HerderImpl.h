@@ -281,15 +281,27 @@ class HerderImpl : public Herder
     // starts; what arrives in between waits for the next ledger.
     //  * At least a quarter of the target close time, but no more than
     //    250 ms of a long one.
-    //  * Long enough for a build like this node's last one (`lastBuild`,
-    //    with a quarter to spare) plus the time the pushed set needs to reach
-    //    the peers.
+    //  * Long enough for the build this node expects (`expectedBuild`, see
+    //    expectedTxSetBuildDuration; with a quarter to spare) plus the time
+    //    the pushed set needs to reach the peers.
     //  * Never more than half of the target close time.
     static std::chrono::milliseconds
     prepareTxSetLeadTime(std::chrono::milliseconds expectedCloseTime,
-                         std::chrono::milliseconds lastBuild);
-    // How long this node's latest tx set build took (zero before the first).
+                         std::chrono::milliseconds expectedBuild);
+    // How long this node's latest tx set build took (zero before the first),
+    // what it cost per transaction of the set it built (zero until it has
+    // built a set of some size), and how many transactions the last closed
+    // ledger's set held.
     std::chrono::milliseconds mLastTxSetBuildDuration{0};
+    std::chrono::nanoseconds mTxSetBuildCostPerTx{0};
+    size_t mLastClosedTxSetSize{0};
+    // What the next build is expected to take: a build like this node's last
+    // one, or what a set the size of the last closed ledger's costs at this
+    // node's rate, whichever is longer. The second matters for a node that
+    // has not built for a while: its last build may be from before the load
+    // rose (every node's first term under load starts that way), and a lead
+    // time sized for it would make the first ledger of the term late.
+    std::chrono::milliseconds expectedTxSetBuildDuration() const;
     std::optional<PreparedTxSet> mPreparedTxSet;
     // `pushToPeers`: this is the set the node is about to propose as a round
     // leader, so the overlay sends it to every peer as soon as its XDR exists

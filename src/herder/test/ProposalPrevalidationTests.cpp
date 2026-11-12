@@ -113,6 +113,33 @@ class ProposalPrevalidationTestAccess
     {
         return HerderImpl::prepareTxSetLeadTime(expectedCloseTime, lastBuild);
     }
+
+    // What the node expects its next build to take, given what it knows.
+    static std::chrono::milliseconds
+    expectedBuild(HerderImpl& herder)
+    {
+        return herder.expectedTxSetBuildDuration();
+    }
+
+    static void
+    setBuildHistory(HerderImpl& herder, std::chrono::milliseconds lastBuild,
+                    std::chrono::nanoseconds costPerTx)
+    {
+        herder.mLastTxSetBuildDuration = lastBuild;
+        herder.mTxSetBuildCostPerTx = costPerTx;
+    }
+
+    static void
+    setLastClosedTxSetSize(HerderImpl& herder, size_t txs)
+    {
+        herder.mLastClosedTxSetSize = txs;
+    }
+
+    static size_t
+    lastClosedTxSetSize(HerderImpl& herder)
+    {
+        return herder.mLastClosedTxSetSize;
+    }
 };
 }
 
@@ -874,6 +901,76 @@ TEST_CASE("the first-round leader builds shortly before the trigger",
         REQUIRE(lead(800, 400) == milliseconds(400));
         REQUIRE(lead(800, 5000) == milliseconds(400));
         REQUIRE(lead(1000, 500) == milliseconds(500));
+    }
+}
+
+// A node that starts a term has not built for a while: its last build says
+// little about the next one. What the last closed ledger held does.
+TEST_CASE("the lead time of the first build of a term follows the size of the "
+          "last ledger",
+          "[herder][txset][prevalidation]")
+{
+    using namespace std::chrono;
+    PrevalidationFixture f;
+    auto& app = *f.mApp;
+    auto& herder = f.herder();
+    auto& a = *f.mA;
+    auto lead = [&](int closeTimeMs) {
+        return Access::prepareLeadTime(milliseconds(closeTimeMs),
+                                       Access::expectedBuild(herder));
+    };
+
+    SECTION("the herder learns the size of every ledger that closes")
+    {
+        auto const aSeq = a.getLastSequenceNumber();
+        f.externalize(
+            makeUnvalidatedTxSet(app, {paymentWithSeq(app, a, aSeq + 1)}));
+        REQUIRE(Access::lastClosedTxSetSize(herder) == 1);
+        f.externalize(makeUnvalidatedTxSet(app, {}));
+        REQUIRE(Access::lastClosedTxSetSize(herder) == 0);
+    }
+    SECTION("a node that never built under load")
+    {
+        // its last build was of an empty set, long ago
+        Access::setBuildHistory(herder, milliseconds(1), nanoseconds(0));
+        Access::setLastClosedTxSetSize(herder, 0);
+        REQUIRE(Access::expectedBuild(herder) == milliseconds(1));
+        REQUIRE(lead(800) == milliseconds(200));
+        // the network now closes ledgers of 9,300 transactions: at the
+        // default cost per transaction that is a build of 372 ms, more than
+        // the 200 ms a lead time sized for the old build would leave
+        Access::setLastClosedTxSetSize(herder, 9300);
+        REQUIRE(Access::expectedBuild(herder) == milliseconds(372));
+        REQUIRE(lead(800) == milliseconds(400));
+        // smaller ledgers, smaller head start
+        Access::setLastClosedTxSetSize(herder, 2000);
+        REQUIRE(Access::expectedBuild(herder) == milliseconds(80));
+        REQUIRE(lead(800) == milliseconds(200));
+        REQUIRE(lead(2000) == milliseconds(250));
+    }
+    SECTION("a node that has measured its own builds")
+    {
+        // 180 ms for 6,400 transactions: about 28 us each
+        Access::setBuildHistory(herder, milliseconds(180), nanoseconds(28'125));
+        Access::setLastClosedTxSetSize(herder, 6400);
+        REQUIRE(Access::expectedBuild(herder) == milliseconds(180));
+        REQUIRE(lead(800) == milliseconds(325));
+        // ledgers grew since its last build: sized for them, at its own rate
+        Access::setLastClosedTxSetSize(herder, 9600);
+        REQUIRE(Access::expectedBuild(herder) == milliseconds(270));
+        REQUIRE(lead(800) == milliseconds(400));
+        // ledgers shrank: the last build still counts until the next one
+        Access::setLastClosedTxSetSize(herder, 100);
+        REQUIRE(Access::expectedBuild(herder) == milliseconds(180));
+    }
+    SECTION("a build records what it cost per transaction")
+    {
+        // a set too small to say anything leaves the rate alone
+        Access::setBuildHistory(herder, milliseconds(0), nanoseconds(777));
+        f.mMempool = {paymentWithSeq(app, a, a.getLastSequenceNumber() + 1)};
+        REQUIRE(f.build().size() == 1);
+        Access::setLastClosedTxSetSize(herder, 1'000'000);
+        REQUIRE(Access::expectedBuild(herder) == milliseconds(777));
     }
 }
 

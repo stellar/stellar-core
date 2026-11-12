@@ -1249,6 +1249,21 @@ HerderImpl::validationCacheFor(LedgerHeaderHistoryEntry const& lcl)
 }
 
 std::chrono::milliseconds
+HerderImpl::expectedTxSetBuildDuration() const
+{
+    // Until this node has built a set of some size: what a build costs per
+    // transaction on the slower of the machines measured (about 0.17 s for
+    // 4,000 transactions with most candidates validated ahead of time).
+    static std::chrono::nanoseconds const DEFAULT_COST_PER_TX{40'000};
+    auto const perTx = mTxSetBuildCostPerTx > std::chrono::nanoseconds::zero()
+                           ? mTxSetBuildCostPerTx
+                           : DEFAULT_COST_PER_TX;
+    auto const bySize = std::chrono::duration_cast<std::chrono::milliseconds>(
+        perTx * static_cast<int64_t>(mLastClosedTxSetSize));
+    return std::max(mLastTxSetBuildDuration, bySize);
+}
+
+std::chrono::milliseconds
 HerderImpl::prepareTxSetLeadTime(std::chrono::milliseconds expectedCloseTime,
                                  std::chrono::milliseconds lastBuild)
 {
@@ -1841,6 +1856,9 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
 {
     releaseAssert(threadIsMain());
     discardPreparedTxSet();
+    // What the next build has to be ready for (see
+    // expectedTxSetBuildDuration).
+    mLastClosedTxSetSize = txSet ? txSet->sizeTxTotal() : 0;
     {
         // A pre-validation is for the ledger that was executed
         // speculatively; if another one closed, its results are of no use.
@@ -2158,8 +2176,8 @@ HerderImpl::setupTriggerNextLedger()
                 // ledger close before touching its read view.
                 mPrepareTxSetTimer.expires_at(std::max(
                     now, triggerTime -
-                             prepareTxSetLeadTime(milliseconds,
-                                                  mLastTxSetBuildDuration)));
+                             prepareTxSetLeadTime(
+                                 milliseconds, expectedTxSetBuildDuration())));
                 mPrepareTxSetTimer.async_wait(
                     [this, nextIndex, closeTime]() {
                         prepareTxSet(static_cast<uint32_t>(nextIndex),
@@ -2536,6 +2554,13 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
     // like this (see prepareTxSetLeadTime).
     mLastTxSetBuildDuration =
         std::chrono::duration_cast<std::chrono::milliseconds>(buildDuration);
+    if (proposedSet->sizeTxTotal() >= 100)
+    {
+        mTxSetBuildCostPerTx =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                buildDuration) /
+            static_cast<int64_t>(proposedSet->sizeTxTotal());
+    }
     return PreparedTxSet{lcl.hash,
                          ledgerSeq,
                          closeTime,
