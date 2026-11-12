@@ -198,8 +198,10 @@ ledgers led by one of them:
    it ends (the proposal went out within 20 ms of the build's end on half of the ledgers that
    had an early build).
 2. **The leader's set takes 0.19 s to reach a follower's overlay**, 0.13 s of it even within the
-   leader's own region: the leader uploads the full set (5.7 MB on average) to each of its 89
-   peers, 506 MB per ledger. A follower cannot vote before it has the set.
+   leader's own region: the leader sends the full set (5.7 MB of XDR on average, compressed
+   once with zstd) to each of its 89 peers, up to 506 MB per ledger before compression. A
+   follower cannot vote before it has the set. Whether the sender's CPU or its network limits
+   this was not measured.
 3. **The ballot is 0.34-0.36 s** from the set in hand to consensus. It is message delay between
    four regions: proposal to consensus is 0.43 s when the leader is in us-east-1, 0.58 s from
    us-west-2 and 0.60 s from ap-southeast-1, and a ledger led from ap-southeast-1 takes 0.96 s
