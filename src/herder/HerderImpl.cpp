@@ -1249,10 +1249,21 @@ HerderImpl::validationCacheFor(LedgerHeaderHistoryEntry const& lcl)
 }
 
 std::chrono::milliseconds
-HerderImpl::prepareTxSetLeadTime(std::chrono::milliseconds expectedCloseTime)
+HerderImpl::prepareTxSetLeadTime(std::chrono::milliseconds expectedCloseTime,
+                                 std::chrono::milliseconds lastBuild)
 {
-    return std::min<std::chrono::milliseconds>(expectedCloseTime / 4,
-                                               std::chrono::milliseconds(250));
+    using std::chrono::milliseconds;
+    // What a pushed set needs to reach the peers (measured: about 0.1 s
+    // across regions for a 4,000-transaction set).
+    milliseconds const pushAllowance{100};
+    auto lead =
+        std::min<milliseconds>(expectedCloseTime / 4, milliseconds(250));
+    if (lastBuild > milliseconds::zero())
+    {
+        lead = std::max<milliseconds>(lead, lastBuild + lastBuild / 4 +
+                                                pushAllowance);
+    }
+    return std::min<milliseconds>(lead, expectedCloseTime / 2);
 }
 
 TxSubmitStatus
@@ -2146,7 +2157,9 @@ HerderImpl::setupTriggerNextLedger()
                 // starts (see makeProposalValue). This also yields out of
                 // ledger close before touching its read view.
                 mPrepareTxSetTimer.expires_at(std::max(
-                    now, triggerTime - prepareTxSetLeadTime(milliseconds)));
+                    now, triggerTime -
+                             prepareTxSetLeadTime(milliseconds,
+                                                  mLastTxSetBuildDuration)));
                 mPrepareTxSetTimer.async_wait(
                     [this, nextIndex, closeTime]() {
                         prepareTxSet(static_cast<uint32_t>(nextIndex),
@@ -2515,9 +2528,14 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
         }
     }
 
+    auto const buildDuration =
+        std::chrono::steady_clock::now() - txSetBuildStart;
     mSCPMetrics.mTxSetBuild.Update(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now() - txSetBuildStart));
+        std::chrono::duration_cast<std::chrono::nanoseconds>(buildDuration));
+    // The next build is scheduled far enough ahead of its trigger to fit one
+    // like this (see prepareTxSetLeadTime).
+    mLastTxSetBuildDuration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(buildDuration);
     return PreparedTxSet{lcl.hash,
                          ledgerSeq,
                          closeTime,

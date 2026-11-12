@@ -108,9 +108,10 @@ class ProposalPrevalidationTestAccess
     }
 
     static std::chrono::milliseconds
-    prepareLeadTime(std::chrono::milliseconds expectedCloseTime)
+    prepareLeadTime(std::chrono::milliseconds expectedCloseTime,
+                    std::chrono::milliseconds lastBuild)
     {
-        return HerderImpl::prepareTxSetLeadTime(expectedCloseTime);
+        return HerderImpl::prepareTxSetLeadTime(expectedCloseTime, lastBuild);
     }
 };
 }
@@ -844,11 +845,36 @@ TEST_CASE("the first-round leader builds shortly before the trigger",
           "[herder][txset][prevalidation]")
 {
     using namespace std::chrono;
-    REQUIRE(Access::prepareLeadTime(milliseconds(800)) == milliseconds(200));
-    REQUIRE(Access::prepareLeadTime(milliseconds(1000)) == milliseconds(250));
-    // capped: a long close time does not make transactions wait longer
-    REQUIRE(Access::prepareLeadTime(milliseconds(5000)) == milliseconds(250));
-    REQUIRE(Access::prepareLeadTime(milliseconds(0)) == milliseconds(0));
+    auto lead = [](int closeTimeMs, int lastBuildMs) {
+        return Access::prepareLeadTime(milliseconds(closeTimeMs),
+                                       milliseconds(lastBuildMs));
+    };
+    SECTION("before the node has built anything")
+    {
+        // a quarter of the target close time
+        REQUIRE(lead(800, 0) == milliseconds(200));
+        REQUIRE(lead(1000, 0) == milliseconds(250));
+        // capped: a long close time does not make transactions wait longer
+        REQUIRE(lead(5000, 0) == milliseconds(250));
+        REQUIRE(lead(0, 0) == milliseconds(0));
+    }
+    SECTION("long enough for a build like the last one and its push")
+    {
+        // 180 ms + a quarter + 100 ms for the set to reach the peers
+        REQUIRE(lead(800, 180) == milliseconds(325));
+        REQUIRE(lead(1000, 240) == milliseconds(400));
+        // a quick build does not shorten it
+        REQUIRE(lead(800, 20) == milliseconds(200));
+        REQUIRE(lead(5000, 20) == milliseconds(250));
+        // on a long close time a slow build still gets its room
+        REQUIRE(lead(5000, 600) == milliseconds(850));
+    }
+    SECTION("never more than half of the target close time")
+    {
+        REQUIRE(lead(800, 400) == milliseconds(400));
+        REQUIRE(lead(800, 5000) == milliseconds(400));
+        REQUIRE(lead(1000, 500) == milliseconds(500));
+    }
 }
 
 // A network whose ledgers all carry a transaction: the node whose value

@@ -276,12 +276,20 @@ class HerderImpl : public Herder
         ApplicableTxSetFrameConstPtr applicableTxSet;
         std::vector<Hash> invalidTxHashes;
     };
-    // How long before the trigger the first-round leader builds its set: the
-    // set and its push to the peers are then out of the way when consensus
-    // starts, and what arrives in between waits for the next ledger. A
-    // quarter of the target close time, at most 250 ms.
+    // How long before the trigger the first-round leader builds its set, so
+    // that the set is built and on its way to the peers when consensus
+    // starts; what arrives in between waits for the next ledger.
+    //  * At least a quarter of the target close time, but no more than
+    //    250 ms of a long one.
+    //  * Long enough for a build like this node's last one (`lastBuild`,
+    //    with a quarter to spare) plus the time the pushed set needs to reach
+    //    the peers.
+    //  * Never more than half of the target close time.
     static std::chrono::milliseconds
-    prepareTxSetLeadTime(std::chrono::milliseconds expectedCloseTime);
+    prepareTxSetLeadTime(std::chrono::milliseconds expectedCloseTime,
+                         std::chrono::milliseconds lastBuild);
+    // How long this node's latest tx set build took (zero before the first).
+    std::chrono::milliseconds mLastTxSetBuildDuration{0};
     std::optional<PreparedTxSet> mPreparedTxSet;
     // `pushToPeers`: this is the set the node is about to propose as a round
     // leader, so the overlay sends it to every peer as soon as its XDR exists

@@ -5436,7 +5436,8 @@ class LeaderBuildTestAccess
     prepareLeadTime(HerderImpl& herder)
     {
         return HerderImpl::prepareTxSetLeadTime(
-            herder.mLedgerManager.getExpectedLedgerCloseTime());
+            herder.mLedgerManager.getExpectedLedgerCloseTime(),
+            herder.mLastTxSetBuildDuration);
     }
 
     // The leader's full build (mempool pull through final checks).
