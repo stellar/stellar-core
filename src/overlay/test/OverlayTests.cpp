@@ -3776,7 +3776,10 @@ TEST_CASE(
     "unauthenticated peer cannot trigger background signature verification",
     "[overlay]")
 {
-    VirtualClock clock;
+    // The peer is read from a real socket on the overlay thread. A virtual
+    // clock jumps to the peer's idle timeout whenever main has nothing to do,
+    // which can happen before the message read below reaches main.
+    VirtualClock clock(VirtualClock::REAL_TIME);
     auto cfg = getTestConfig();
     // `PeerDoor` only listens when RUN_STANDALONE is false
     cfg.RUN_STANDALONE = false;
