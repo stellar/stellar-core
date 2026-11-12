@@ -410,8 +410,13 @@ TEST_CASE("native SAC setup and payments are applied", "[loadgen][soroban]")
     auto& app = *nodes[0];
     auto& loadGen = app.getLoadGenerator();
 
-    // Limits high enough that every submitted transaction fits in the next
-    // ledger.
+    // Ledger limits high enough that every submitted transaction fits in the
+    // next ledger. The per-transaction limits are the ones perfnet's
+    // block_time_check sets for its SAC load (RESOURCES[SAC] in its plan.py:
+    // 800 read and write bytes, 2 read-only and 2 read-write entries, 1,000
+    // transaction bytes, 200 event bytes; the instruction limit stays at the
+    // network's initial 2,500,000). Both the setup transaction and the
+    // payments must be applied within them.
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
             auto mx = std::numeric_limits<uint32_t>::max();
@@ -422,14 +427,14 @@ TEST_CASE("native SAC setup and payments are applied", "[loadgen][soroban]")
             cfg.mLedgerMaxDiskReadBytes = mx;
             cfg.mLedgerMaxWriteLedgerEntries = mx;
             cfg.mLedgerMaxWriteBytes = mx;
-            cfg.mTxMaxInstructions = mx;
-            cfg.mTxMaxDiskReadEntries = mx;
-            cfg.mTxMaxDiskReadBytes = mx;
-            cfg.mTxMaxWriteLedgerEntries = mx;
-            cfg.mTxMaxWriteBytes = mx;
-            cfg.mTxMaxFootprintEntries = mx;
-            cfg.mTxMaxSizeBytes = mx;
-            cfg.mTxMaxContractEventsSizeBytes = mx;
+            cfg.mTxMaxInstructions = 2'500'000;
+            cfg.mTxMaxDiskReadEntries = 4;
+            cfg.mTxMaxDiskReadBytes = 800;
+            cfg.mTxMaxWriteLedgerEntries = 2;
+            cfg.mTxMaxWriteBytes = 800;
+            cfg.mTxMaxFootprintEntries = 4;
+            cfg.mTxMaxSizeBytes = 1'000;
+            cfg.mTxMaxContractEventsSizeBytes = 200;
         },
         simulation);
 
