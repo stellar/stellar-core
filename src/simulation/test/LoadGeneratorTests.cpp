@@ -13,6 +13,7 @@
 #include "simulation/Topologies.h"
 #include "test/Catch2.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Math.h"
 #include "util/MetricsRegistry.h"
@@ -376,6 +377,196 @@ TEST_CASE("synthetic SAC load recycles source accounts in overlay-only mode",
     REQUIRE(invokes.count() - invokesBefore == nTxs);
     REQUIRE(payments.count() == paymentsBefore);
     REQUIRE(bytes.count() - bytesBefore == nTxs * refMsgBytes);
+}
+
+TEST_CASE("native SAC setup and payments are applied", "[loadgen][soroban]")
+{
+    // SAC_SETUP creates the native asset contract with a real transaction and
+    // SAC_PAYMENT pays through it, with apply on (unlike the MIXED_PREGEN_*
+    // modes, whose synthetic contract only exists in overlay-only mode). The
+    // run has more transactions than source accounts, so it also needs
+    // accounts to return to the pool after their transactions are applied.
+    uint32_t const nAccounts = 300;
+    uint32_t const txRate = 15;
+    uint32_t const nTxs = nAccounts + 100;
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
+        auto cfg = getTestConfig(i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = nAccounts;
+        return cfg;
+    });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0];
+    auto& loadGen = app.getLoadGenerator();
+
+    // Limits high enough that every submitted transaction fits in the next
+    // ledger.
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            auto mx = std::numeric_limits<uint32_t>::max();
+            cfg.mLedgerMaxTxCount = mx;
+            cfg.mLedgerMaxInstructions = mx;
+            cfg.mLedgerMaxTransactionsSizeBytes = mx;
+            cfg.mLedgerMaxDiskReadEntries = mx;
+            cfg.mLedgerMaxDiskReadBytes = mx;
+            cfg.mLedgerMaxWriteLedgerEntries = mx;
+            cfg.mLedgerMaxWriteBytes = mx;
+            cfg.mTxMaxInstructions = mx;
+            cfg.mTxMaxDiskReadEntries = mx;
+            cfg.mTxMaxDiskReadBytes = mx;
+            cfg.mTxMaxWriteLedgerEntries = mx;
+            cfg.mTxMaxWriteBytes = mx;
+            cfg.mTxMaxFootprintEntries = mx;
+            cfg.mTxMaxSizeBytes = mx;
+            cfg.mTxMaxContractEventsSizeBytes = mx;
+        },
+        simulation);
+
+    auto& completed =
+        app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto& failed =
+        app.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+    auto& attempted =
+        app.getMetrics().NewMeter({"loadgen", "txn", "attempted"}, "txn");
+    auto applySuccess = [](Application& node) {
+        return node.getMetrics()
+            .NewCounter({"ledger", "apply-soroban", "success"})
+            .count();
+    };
+    auto applyFailure = [](Application& node) {
+        return node.getMetrics()
+            .NewCounter({"ledger", "apply-soroban", "failure"})
+            .count();
+    };
+    auto runToCompletion = [&](GeneratedLoadConfig cfg) {
+        auto const completedBefore = completed.count();
+        auto const failedBefore = failed.count();
+        loadGen.generateLoad(cfg);
+        simulation->crankUntil(
+            [&]() {
+                return completed.count() == completedBefore + 1 ||
+                       failed.count() != failedBefore;
+            },
+            120 * simulation->getExpectedLedgerCloseTime(), false);
+        REQUIRE(failed.count() == failedBefore);
+        REQUIRE(completed.count() == completedBefore + 1);
+    };
+
+    auto instanceKey = LoadGenerator::getNativeSACInstanceKey(networkID);
+    auto setupCfg = GeneratedLoadConfig::txLoad(LoadGenMode::SAC_SETUP,
+                                                nAccounts, /* nTxs */ 1,
+                                                /* txRate */ 1);
+    auto paymentCfg = GeneratedLoadConfig::txLoad(LoadGenMode::SAC_PAYMENT,
+                                                  nAccounts, nTxs, txRate);
+    // Any payment that fails at apply fails the run.
+    paymentCfg.setMinSorobanPercentSuccess(100);
+
+    // The payments need the contract.
+    REQUIRE(!app.getLedgerManager().getLCLView()->load(instanceKey));
+    REQUIRE_THROWS_WITH(
+        loadGen.generateLoad(paymentCfg),
+        "Before running MODE::SAC_PAYMENT, please run MODE::SAC_SETUP to "
+        "create the native asset contract first.");
+
+    // Neither mode can complete when nothing is applied.
+    app.setRunInOverlayOnlyMode(true);
+    REQUIRE_THROWS_WITH(loadGen.generateLoad(setupCfg),
+                        "SAC_SETUP / SAC_PAYMENT need transactions to be "
+                        "applied, they can not run in overlay only mode");
+    REQUIRE_THROWS_WITH(loadGen.generateLoad(paymentCfg),
+                        "SAC_SETUP / SAC_PAYMENT need transactions to be "
+                        "applied, they can not run in overlay only mode");
+    app.setRunInOverlayOnlyMode(false);
+
+    // Setup: one applied transaction creates the instance on every node.
+    auto successBefore = applySuccess(app);
+    auto attemptedBefore = attempted.count();
+    runToCompletion(setupCfg);
+    REQUIRE(attempted.count() - attemptedBefore == 1);
+    for (auto const& node : nodes)
+    {
+        REQUIRE(static_cast<bool>(
+            node->getLedgerManager().getLCLView()->load(instanceKey)));
+        REQUIRE(applySuccess(*node) == successBefore + 1);
+        REQUIRE(applyFailure(*node) == 0);
+    }
+
+    // Setup again: the instance is there, so nothing is submitted.
+    attemptedBefore = attempted.count();
+    runToCompletion(setupCfg);
+    REQUIRE(attempted.count() == attemptedBefore);
+    REQUIRE(applySuccess(app) == successBefore + 1);
+
+    // Payments: every one is applied successfully on every node.
+    successBefore = applySuccess(app);
+    attemptedBefore = attempted.count();
+    auto const firstLedger =
+        app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    runToCompletion(paymentCfg);
+    auto const lastLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    REQUIRE(attempted.count() - attemptedBefore == nTxs);
+    for (auto const& node : nodes)
+    {
+        REQUIRE(applySuccess(*node) == successBefore + nTxs);
+        REQUIRE(applyFailure(*node) == 0);
+    }
+
+    // The payments moved funds: the destination of the first payment of the
+    // run holds the amount paid. Its name contains the ledger the payment was
+    // generated for, which is one of the ledgers of the run.
+    auto balanceOf = [&](Application& node,
+                         SCAddress const& dest) -> std::optional<uint64_t> {
+        SCVal destVal(SCV_ADDRESS);
+        destVal.address() = dest;
+        LedgerKey balanceKey(CONTRACT_DATA);
+        balanceKey.contractData().contract = instanceKey.contractData().contract;
+        balanceKey.contractData().key =
+            txtest::makeVecSCVal({makeSymbolSCVal("Balance"), destVal});
+        balanceKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
+        auto entry = node.getLedgerManager().getLCLView()->load(balanceKey);
+        if (!entry)
+        {
+            return std::nullopt;
+        }
+        for (auto const& field : *entry.current().data.contractData().val.map())
+        {
+            if (field.key.type() == SCV_SYMBOL && field.key.sym() == "amount")
+            {
+                REQUIRE(field.val.i128().hi == 0);
+                return field.val.i128().lo;
+            }
+        }
+        return std::nullopt;
+    };
+    for (auto const& node : nodes)
+    {
+        uint32_t found = 0;
+        for (auto ledger = firstLedger; ledger <= lastLedger; ++ledger)
+        {
+            auto balance = balanceOf(
+                *node, LoadGenerator::getNativeSACPaymentDestination(
+                           app.getConfig().NODE_SEED.getPublicKey(), ledger,
+                           /* counter */ 0));
+            if (balance)
+            {
+                REQUIRE(*balance == 100);
+                ++found;
+            }
+        }
+        REQUIRE(found == 1);
+    }
 }
 
 TEST_CASE("externalized tx set hashes and sources match transaction frames",

@@ -54,7 +54,17 @@ enum class LoadGenMode
     // is skipped so nothing is actually executed.
     MIXED_PREGEN_SAC_PAYMENT,
     MIXED_PREGEN_OZ_TOKEN_TRANSFER,
-    MIXED_PREGEN_SOROSWAP_SWAP
+    MIXED_PREGEN_SOROSWAP_SWAP,
+    // Create the Stellar Asset Contract instance of the native asset with one
+    // transaction, for SAC_PAYMENT. Completes once the instance is on the
+    // ledger; does nothing if it is already there.
+    SAC_SETUP,
+    // SAC payments of the native asset that are really applied: the same
+    // transaction shape as MIXED_PREGEN_SAC_PAYMENT, but against the instance
+    // SAC_SETUP created, so it needs apply (not overlay only mode). Each
+    // payment goes to a new contract address, so no two transactions write the
+    // same entry.
+    SAC_PAYMENT
 };
 
 struct GeneratedLoadConfig
@@ -135,6 +145,10 @@ struct GeneratedLoadConfig
     // True iff mode generates SOROBAN_UPLOAD load
     bool modeUploads() const;
 
+    // True iff mode works on the native asset's SAC instance (SAC_SETUP and
+    // SAC_PAYMENT).
+    bool modeUsesNativeSAC() const;
+
     bool isDone() const;
     bool areTxsRemaining() const;
     Json::Value getStatus() const;
@@ -178,6 +192,16 @@ class LoadGenerator
     LoadGenerator(Application& app);
 
     static LoadGenMode getMode(std::string const& mode);
+
+    // Ledger key of the native asset's SAC instance (SAC_SETUP creates it,
+    // SAC_PAYMENT pays through it).
+    static LedgerKey getNativeSACInstanceKey(Hash const& networkID);
+
+    // Destination of the `counter`-th SAC_PAYMENT transaction that the node
+    // `node` generated for ledger `ledgerNum`.
+    static SCAddress getNativeSACPaymentDestination(NodeID const& node,
+                                                    uint32_t ledgerNum,
+                                                    uint64_t counter);
 
     // Returns true if loadgen has submitted all required TXs
     bool isDone(GeneratedLoadConfig const& cfg) const;
@@ -336,6 +360,11 @@ class LoadGenerator
     std::optional<TxGenerator::SoroswapState> mSyntheticSoroswapState;
     // Counter for generating unique SAC payment destination addresses.
     uint32_t mSyntheticSACDestCounter{0};
+
+    // SAC_SETUP / SAC_PAYMENT: the native asset's SAC instance, and the
+    // number of payment destinations generated so far in this run.
+    std::optional<TxGenerator::ContractInstance> mNativeSACInstance;
+    uint64_t mNativeSACDestCounter{0};
     // Round-robin counter for Soroswap pair selection + direction.
     uint32_t mSyntheticSoroswapSwapCounter{0};
     // Per-stream submission counters, tracked for every mode. For single-
@@ -390,6 +419,13 @@ class LoadGenerator
     // Lazily initializes the mSynthetic* state on first call.
     std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
     createSyntheticSorobanTransaction(uint32_t ledgerNum,
+                                      uint64_t sourceAccountId,
+                                      GeneratedLoadConfig const& cfg);
+
+    // Build a SAC_PAYMENT transaction: a native asset payment through the
+    // real SAC instance, to a destination no other transaction uses.
+    std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
+    createNativeSACPaymentTransaction(uint32_t ledgerNum,
                                       uint64_t sourceAccountId,
                                       GeneratedLoadConfig const& cfg);
 
