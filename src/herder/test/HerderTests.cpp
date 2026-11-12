@@ -5503,15 +5503,19 @@ class LeaderBuildTestAccess
         // A node whose own ledger applied nothing has forfeited its term and
         // comes last in the next ledger's order, whatever the seed. Test
         // setup reaches such ledgers (upgrade helpers close empty ledgers
-        // under the local node's signature): move on to the start of a term,
-        // where the seeded order is used as it is.
-        for (uint32_t i = 0;
-             i < LEADER_TERM_LEDGERS &&
-             leaderTermOutcome(lm.getLastClosedLedgerHeader().header, true)
-                     .mForfeited == scp.getLocalNodeID();
-             ++i)
+        // under the local node's signature): close one that applies a
+        // transaction, after which the node leads again or, at the start of
+        // a term, takes its place in the seeded order.
+        if (leaderTermOutcome(lm.getLastClosedLedgerHeader().header, true)
+                .mForfeited == scp.getLocalNodeID())
         {
-            txtest::closeLedger(herder.mApp);
+            auto root = herder.mApp.getRoot();
+            txtest::closeLedger(
+                herder.mApp,
+                {root->tx({txtest::payment(root->getPublicKey(), 1)})});
+            REQUIRE(
+                !leaderTermOutcome(lm.getLastClosedLedgerHeader().header, true)
+                     .mForfeited);
         }
         auto const& lcl = lm.getLastClosedLedgerHeader();
         auto qset = scp.getLocalQuorumSet();
@@ -6334,25 +6338,33 @@ TEST_CASE("a follower promoted after losing sync still proposes",
     REQUIRE(checkedFollower);
 }
 
-// A leader whose round times out must not keep its term: the node whose
+// A leader whose round times out should not keep its term: the node whose
 // value closes a ledger leads the next one. So when the leader of a later
 // round puts forward the value it already votes for (the first leader's), it
-// does so under its own signature.
+// does so under its own signature, unless it is already tied to that value.
 TEST_CASE("the leader of a later round signs the value it proposes again",
           "[herder][early-proposal][leader-term]")
 {
-    // Three nodes, any two are a quorum. The first leader's proposal reaches
-    // the local node, the third node stays silent, and the first leader never
-    // gets further: the round times out with the local node next in line.
+    // Three nodes. The first leader's proposal reaches the local node, which
+    // votes for it, and the round times out with the local node next in line.
+    //  * not tied: all three nodes are needed. The third node votes for
+    //    something else, so the first leader's value is not accepted as
+    //    prepared: the local node proposes it again under its own signature.
+    //  * tied: any two nodes are a quorum, so the first leader's and the
+    //    local node's votes make the value accepted as prepared. The first
+    //    leader may have confirmed it: the local node keeps it as it is.
+    auto const tied = GENERATE(false, true);
+    CAPTURE(tied);
     std::vector<SecretKey> keys;
     SCPQuorumSet qset;
-    qset.threshold = 2;
+    qset.threshold = tied ? 2 : 3;
     for (int i = 0; i < 3; ++i)
     {
         keys.push_back(SecretKey::fromSeed(
             sha256(fmt::format("early-proposal-node-{}", i))));
         qset.validators.push_back(keys.back().getPublicKey());
     }
+
     bool checkedSecondLeader = false;
     for (int i = 0; i < 3 && !checkedSecondLeader; ++i)
     {
@@ -6378,12 +6390,23 @@ TEST_CASE("the leader of a later round signs the value it proposes again",
         checkedSecondLeader = true;
         auto const firstLeader = driver.getRoundLeader(seq, 1);
         REQUIRE(firstLeader);
-        auto const firstKey =
-            std::find_if(keys.begin(), keys.end(), [&](SecretKey const& k) {
-                return k.getPublicKey() == *firstLeader;
-            });
-        REQUIRE(firstKey != keys.end());
         REQUIRE(!(*firstLeader == scp.getLocalNodeID()));
+        auto keyOf = [&](NodeID const& id) {
+            auto it =
+                std::find_if(keys.begin(), keys.end(), [&](SecretKey const& k) {
+                    return k.getPublicKey() == id;
+                });
+            REQUIRE(it != keys.end());
+            return *it;
+        };
+        auto const firstKey = keyOf(*firstLeader);
+        auto const thirdKey =
+            *std::find_if(keys.begin(), keys.end(), [&](SecretKey const& k) {
+                return !(k.getPublicKey() == *firstLeader) &&
+                       !(k.getPublicKey() == scp.getLocalNodeID());
+            });
+        auto& resigned =
+            app->getMetrics().NewMeter({"scp", "leader", "resigned"}, "value");
 
         herder.getHerderSCPDriver().recordBallotStart(lcl.header.ledgerSeq);
         size_t pulls = 0;
@@ -6399,8 +6422,8 @@ TEST_CASE("the leader of a later round signs the value it proposes again",
         REQUIRE(scp.getLeaderRound(seq) == 1);
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
 
-        // The first leader's proposal: an empty set (the same on every
-        // node) under the first leader's signature.
+        // An empty set (the same on every node), proposed by `signer` at
+        // counter 1.
         auto txSet =
             makeTxSetFromTransactions(TxFrameList{}, *app, ApplyTimeOffset{})
                 .first;
@@ -6411,18 +6434,24 @@ TEST_CASE("the leader of a later round signs the value it proposes again",
                                                    lcl.header.ledgerVersion),
                      getConsensusTime(lcl.header.scpValue)
                          .next(lcl.header.ledgerVersion));
-        auto const firstValue = herder.makeStellarValue(
-            txSet->getContentsHash(), closeTime, emptyUpgradeSteps, *firstKey);
-        SCPEnvelope proposal;
-        proposal.statement.slotIndex = seq;
-        proposal.statement.nodeID = *firstLeader;
-        proposal.statement.pledges.type(SCP_ST_PREPARE);
-        auto& prep = proposal.statement.pledges.prepare();
-        prep.ballot.counter = 1;
-        prep.ballot.value = xdr::xdr_to_opaque(firstValue);
-        // every node uses the same (normalized) quorum set
-        prep.quorumSetHash = scp.getLocalNode()->getQuorumSetHash();
-        herder.signEnvelope(*firstKey, proposal);
+        auto prepareFrom = [&](SecretKey const& signer, ConsensusTime ct) {
+            auto const value = herder.makeStellarValue(
+                txSet->getContentsHash(), ct, emptyUpgradeSteps, signer);
+            SCPEnvelope env;
+            env.statement.slotIndex = seq;
+            env.statement.nodeID = signer.getPublicKey();
+            env.statement.pledges.type(SCP_ST_PREPARE);
+            auto& prep = env.statement.pledges.prepare();
+            prep.ballot.counter = 1;
+            prep.ballot.value = xdr::xdr_to_opaque(value);
+            // every node uses the same (normalized) quorum set
+            prep.quorumSetHash = scp.getLocalNode()->getQuorumSetHash();
+            herder.signEnvelope(signer, env);
+            return std::make_pair(env, value);
+        };
+        auto const [proposal, firstValue] = prepareFrom(firstKey, closeTime);
+        auto const firstBallotValue =
+            proposal.statement.pledges.prepare().ballot.value;
         REQUIRE(herder.recvSCPEnvelope(proposal) ==
                 Herder::ENVELOPE_STATUS_READY);
 
@@ -6441,11 +6470,20 @@ TEST_CASE("the leader of a later round signs the value it proposes again",
             std::chrono::seconds(1));
         REQUIRE(ballotOf());
         REQUIRE(ballotOf()->counter == 1);
-        REQUIRE(ballotOf()->value == prep.ballot.value);
+        REQUIRE(ballotOf()->value == firstBallotValue);
+        if (!tied)
+        {
+            // The third node is at counter 1 with a value of its own: the
+            // local node has now heard from a quorum, and the first leader's
+            // value has two votes out of the three it needs.
+            auto const [other, otherValue] =
+                prepareFrom(thirdKey, closeTime.next(lcl.header.ledgerVersion));
+            REQUIRE(herder.recvSCPEnvelope(other) ==
+                    Herder::ENVELOPE_STATUS_READY);
+        }
 
-        // Nothing more arrives. The round times out and the local node, as
-        // round 2's leader, proposes: the same transaction set, close time
-        // and upgrades, signed by itself, without building anything.
+        // Nothing more arrives. The round times out and the local node
+        // leads round 2 without building anything.
         testutil::crankUntil(
             app, [&]() { return ballotOf() && ballotOf()->counter == 2; },
             std::chrono::seconds(60));
@@ -6454,20 +6492,38 @@ TEST_CASE("the leader of a later round signs the value it proposes again",
         REQUIRE(scp.getLeaderRound(seq) == 2);
         StellarValue proposed;
         xdr::xdr_from_opaque(ballotOf()->value, proposed);
+        // the same transaction set, close time and upgrades either way
         REQUIRE(proposed.txSetHash == firstValue.txSetHash);
         REQUIRE(getConsensusTime(proposed) == getConsensusTime(firstValue));
         REQUIRE(proposed.upgrades == firstValue.upgrades);
         REQUIRE(getLcValueSignature(firstValue).nodeID == *firstLeader);
-        REQUIRE(getLcValueSignature(proposed).nodeID == scp.getLocalNodeID());
-        REQUIRE(!(ballotOf()->value == prep.ballot.value));
         REQUIRE(driver.validateValue(seq, ballotOf()->value, true) ==
                 SCPDriver::kFullyValidatedValue);
-        // If this value closes the ledger, the local node leads the next
-        // one, and the first leader does not.
         auto const outcome = leaderTermOutcome(seq, proposed, true);
-        if ((seq + 1) % LEADER_TERM_LEDGERS != 0)
+        bool const insideTerm = (seq + 1) % LEADER_TERM_LEDGERS != 0;
+        if (tied)
         {
-            REQUIRE(outcome.mIncumbent == scp.getLocalNodeID());
+            // kept as it is: if it closes the ledger, the first leader
+            // keeps its term
+            REQUIRE(ballotOf()->value == firstBallotValue);
+            REQUIRE(resigned.count() == 0);
+            if (insideTerm)
+            {
+                REQUIRE(outcome.mIncumbent == *firstLeader);
+            }
+        }
+        else
+        {
+            // under the local node's signature: if it closes the ledger, the
+            // local node leads the next one, and the first leader does not
+            REQUIRE(getLcValueSignature(proposed).nodeID ==
+                    scp.getLocalNodeID());
+            REQUIRE(!(ballotOf()->value == firstBallotValue));
+            REQUIRE(resigned.count() == 1);
+            if (insideTerm)
+            {
+                REQUIRE(outcome.mIncumbent == scp.getLocalNodeID());
+            }
         }
         // The mempool was only pulled to pre-verify signatures: no set was
         // built.

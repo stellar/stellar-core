@@ -216,6 +216,14 @@ class TestSCP : public SCPDriver
         mEnteredRounds.emplace_back(round, timedOut);
     }
 
+    ValueWrapperPtr
+    reproposeValue(uint64 slotIndex, uint32 round, Value const& value) override
+    {
+        mReproposeCalls.emplace_back(round, value);
+        return mReproposeValueOverride ? mReproposeValueOverride(round, value)
+                                       : ValueWrapperPtr();
+    }
+
     bool
     isProposalPending(uint64, NodeID const&) const override
     {
@@ -228,6 +236,11 @@ class TestSCP : public SCPDriver
     int mValuesBuilt{0};
     std::vector<std::pair<uint32, Value>> mProposedValues;
     std::vector<std::pair<uint32, bool>> mEnteredRounds;
+    // What the driver's reproposeValue was asked, and what it answers
+    // (nothing by default: the value is proposed as it is).
+    std::vector<std::pair<uint32, Value>> mReproposeCalls;
+    std::function<ValueWrapperPtr(uint32, Value const&)>
+        mReproposeValueOverride;
 
     Hash
     getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override
@@ -3660,6 +3673,31 @@ TEST_CASE("leader rounds core5", "[scp][leaderschedule]")
             // x, not its own z: the transaction set of x is already out
             verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x2);
             REQUIRE(scp.mValuesBuilt == 0);
+            // the application was offered to put an equivalent value forward
+            REQUIRE(scp.mReproposeCalls ==
+                    std::vector<std::pair<uint32, Value>>{{2, xValue}});
+            REQUIRE(scp.mProposedValues.back() ==
+                    std::make_pair(uint32(2), xValue));
+        }
+        SECTION("to the local node, which proposes the application's "
+                "replacement for the value it voted for")
+        {
+            // e.g. the same content under the new leader's signature
+            schedule = {v1NodeID, v0NodeID, v2NodeID, v3NodeID, v4NodeID};
+            scp.mReproposeValueOverride = [&](uint32 round, Value const& v) {
+                REQUIRE(round == 2);
+                REQUIRE(v == xValue);
+                return scp.wrapValue(kValue);
+            };
+            scp.fireTimer(Slot::BALLOT_PROTOCOL_TIMER);
+            REQUIRE(scp.getLeaderRound(0) == 2);
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                          SCPBallot(2, kValue));
+            REQUIRE(scp.mValuesBuilt == 0);
+            REQUIRE(scp.mReproposeCalls.size() == 1);
+            REQUIRE(scp.mProposedValues.back() ==
+                    std::make_pair(uint32(2), kValue));
         }
         SECTION("to the local node, whose current value is not proposable")
         {
@@ -3675,6 +3713,33 @@ TEST_CASE("leader rounds core5", "[scp][leaderschedule]")
             verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, z2);
             REQUIRE(scp.mValuesBuilt == 1);
         }
+    }
+
+    SECTION("a leader tied to a value it accepted as prepared keeps it")
+    {
+        // v2 and v3 vote for the round 1 leader's x as the local node does:
+        // a quorum, so the local node accepts (1, x) as prepared. Other
+        // nodes may confirm it and be bound to x, so when the local node
+        // leads round 2 the application is not offered a replacement.
+        schedule = {v1NodeID, v0NodeID, v2NodeID, v3NodeID, v4NodeID};
+        scp.mReproposeValueOverride = [&](uint32, Value const&) {
+            return scp.wrapValue(kValue);
+        };
+        REQUIRE(!scp.startSlot(0, zValue));
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+        REQUIRE(scp.mEnvs.size() == 1);
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1));
+        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1));
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x1, &x1);
+        REQUIRE(scp.hasBallotTimer());
+
+        scp.fireTimer(Slot::BALLOT_PROTOCOL_TIMER);
+        REQUIRE(scp.getLeaderRound(0) == 2);
+        REQUIRE(scp.mEnvs.size() == 3);
+        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, x2, &x1);
+        REQUIRE(scp.mReproposeCalls.empty());
+        REQUIRE(scp.mValuesBuilt == 0);
     }
 
     SECTION("a confirmed prepared value wins over the leader's")

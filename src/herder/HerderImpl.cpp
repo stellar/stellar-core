@@ -1101,10 +1101,24 @@ HerderImpl::startProposalPrevalidation(
                 try
                 {
                     std::call_once(job->selected, [&]() {
-                        job->candidates = selectPrevalidationCandidates(
-                            OverlayIPC::parseTopTransactions(*payload), windows,
-                            supportsSoroban, networkID, *state->mTxHashes,
-                            job->stop);
+                        // Must not throw out of call_once.
+                        try
+                        {
+                            job->candidates = selectPrevalidationCandidates(
+                                OverlayIPC::parseTopTransactions(*payload),
+                                windows, supportsSoroban, networkID,
+                                *state->mTxHashes, job->stop);
+                        }
+                        catch (std::exception const& e)
+                        {
+                            CLOG_WARNING(Herder,
+                                         "Proposal pre-validation could not "
+                                         "read its candidates: {}",
+                                         e.what());
+                            job->candidates.clear();
+                            std::lock_guard<std::mutex> lock(job->mutex);
+                            job->stop.store(true);
+                        }
                     });
                     auto const& candidates = job->candidates;
                     auto view = state->makeView(metrics);
@@ -1146,11 +1160,15 @@ HerderImpl::startProposalPrevalidation(
                     CLOG_WARNING(Herder, "Proposal pre-validation failed: {}",
                                  e.what());
                     batch.clear();
+                    std::lock_guard<std::mutex> lock(job->mutex);
                     job->stop.store(true);
                 }
                 publish();
                 std::lock_guard<std::mutex> lock(job->mutex);
-                if (--job->activeTasks == 0 && job->pendingTasks == 0)
+                // Complete only if every task ran to its end: a stopped job
+                // (by the build, or by a failure) is not.
+                if (--job->activeTasks == 0 && job->pendingTasks == 0 &&
+                    !job->stop.load())
                 {
                     job->finishedAfterNs =
                         std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -1172,16 +1190,17 @@ HerderImpl::stopProposalPrevalidation(LedgerHeaderHistoryEntry const* lcl)
     auto job = std::move(mProposalPrevalidation);
     mProposalPrevalidation.reset();
     std::vector<std::pair<Hash, TxValidationResult>> results;
+    int64_t finishedAfterNs = -1;
     {
         // Take what the tasks have handed over so far. Nothing is published
         // after this, so there is nothing to wait for: tasks that have not
         // started find `stop` set and leave, running ones after their
         // current transaction.
         std::lock_guard<std::mutex> lock(job->mutex);
+        finishedAfterNs = job->finishedAfterNs.load();
         job->stop.store(true);
         results.swap(job->published);
     }
-    auto const finishedAfterNs = job->finishedAfterNs.load();
     auto& metrics = mApp.getMetrics();
     metrics.NewTimer({"herder", "prevalidate", "duration"})
         .Update(finishedAfterNs >= 0

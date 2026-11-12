@@ -951,7 +951,8 @@ TEST_CASE("leaders keep their term and pre-validate in a network",
                     ++incumbentClosed;
                 }
             }
-            else if (cur.header.ledgerSeq % LEADER_TERM_LEDGERS == 0)
+            else if (cur.header.ledgerSeq % LEADER_TERM_LEDGERS == 0 &&
+                     prevApplied)
             {
                 // a new term: the seeded order, known a ledger early
                 REQUIRE(schedule ==

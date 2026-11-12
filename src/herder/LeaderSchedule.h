@@ -46,13 +46,15 @@ constexpr uint32_t LEADER_TERM_LEDGERS = 5;
 //        That covers a ledger whose transaction set was found invalid at
 //        apply, and an honestly empty ledger: nothing is lost by rotating
 //        after one.
-// Neither is set when the next ledger starts a new term (every multiple of
-// LEADER_TERM_LEDGERS) or `value` is unsigned (the genesis ledger).
+// There is no incumbent when the next ledger starts a new term (every
+// multiple of LEADER_TERM_LEDGERS); a forfeit counts there too. Neither is
+// set when `value` is unsigned (the genesis ledger).
 //
 // A leader whose round times out loses the term as well, without being named
 // here: the leader of the round that closes the ledger signs the value it
-// proposes (see HerderSCPDriver::reproposeValue), and so becomes the
-// incumbent.
+// proposes, and so becomes the incumbent. (Exception: a later round's leader
+// that has already accepted the previous leader's value as prepared keeps
+// that value and its signature, see HerderSCPDriver::reproposeValue.)
 struct LeaderTermOutcome
 {
     std::optional<NodeID> mIncumbent;

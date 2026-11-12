@@ -290,9 +290,13 @@ class SorobanPreApplyLedgerView : public AbstractLedgerView
 // Only what transaction validation reads is kept: the header and the account
 // entries the execution changed. A view of this state refuses (throws on) any
 // other kind of entry rather than answer with the previous ledger's version.
-// The Soroban network configuration is the previous ledger's: it only changes
-// with an upgrade, and upgrades are applied by the commit, so a state
-// captured for a value that carries upgrades must not be used.
+// The Soroban network configuration is the previous ledger's. What
+// validation reads of it only changes with an upgrade, and upgrades are
+// applied by the commit, so a state captured for a value that carries
+// upgrades must not be used. (The commit also rewrites bookkeeping entries of
+// the configuration on every ledger, the state size window and the eviction
+// iterator; validation does not read those: from protocol 23 it uses the flat
+// write fee.)
 struct ExecutedLedgerState
 {
     // Account entries the execution created or changed; nullptr for erased

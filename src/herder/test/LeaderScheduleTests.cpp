@@ -194,10 +194,11 @@ TEST_CASE("leader term outcome", "[herder][leader-schedule][leader-term]")
         // unless ledgers never record results (overlay-only mode)
         REQUIRE(leaderTermOutcome(skipped, false).mIncumbent == proposer);
         REQUIRE(!leaderTermOutcome(skipped, false).mForfeited);
-        // and not at the end of a term, where the leader changes anyway
+        // also at the end of a term: the new term's order is seeded, and
+        // must not start with the node whose ledger applied nothing
         skipped.ledgerSeq = 104;
         REQUIRE(!leaderTermOutcome(skipped, true).mIncumbent);
-        REQUIRE(!leaderTermOutcome(skipped, true).mForfeited);
+        REQUIRE(leaderTermOutcome(skipped, true).mForfeited == proposer);
     }
     SECTION("a consensus-level empty-tx-set value forfeits the term")
     {
@@ -273,8 +274,18 @@ TEST_CASE("next leader schedule", "[herder][leader-schedule][leader-term]")
     }
     SECTION("a new term takes the seeded order as it is")
     {
-        auto last = closedLedger(104, proposer, false, prev);
+        auto last = closedLedger(104, proposer, true, prev);
         REQUIRE(computeNextLeaderSchedule(last, nodes, true) == seeded);
+    }
+    SECTION("unless the last ledger of the old term forfeited")
+    {
+        for (auto const& forfeiter : nodes)
+        {
+            auto last = closedLedger(104, forfeiter, false, prev);
+            auto schedule = computeNextLeaderSchedule(last, nodes, true);
+            REQUIRE(schedule.back() == forfeiter);
+            REQUIRE(schedule.front() != forfeiter);
+        }
     }
     SECTION("an incumbent or forfeiter outside the node set is ignored")
     {

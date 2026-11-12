@@ -255,7 +255,9 @@ class SCPDriver
     // `round`, is about to put forward `value`, the value it already votes
     // for, rather than building a new one. It may return an equivalent value
     // to propose instead (e.g. the same content under the local node's own
-    // signature), or nullptr to propose `value` as it is.
+    // signature), or nullptr to propose `value` as it is. Not called once
+    // the node has accepted a ballot for `value` as prepared: it then keeps
+    // the value, like the nodes that may have confirmed it.
     virtual ValueWrapperPtr
     reproposeValue(uint64 slotIndex, uint32 round, Value const& value)
     {

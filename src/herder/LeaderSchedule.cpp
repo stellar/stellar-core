@@ -42,8 +42,7 @@ leaderTermOutcome(uint32_t ledgerSeq, StellarValue const& value,
                   bool appliedTransactions)
 {
     LeaderTermOutcome outcome;
-    if ((static_cast<uint64_t>(ledgerSeq) + 1) % LEADER_TERM_LEDGERS == 0 ||
-        value.ext.v() == STELLAR_VALUE_BASIC)
+    if (value.ext.v() == STELLAR_VALUE_BASIC)
     {
         return outcome;
     }
@@ -52,7 +51,7 @@ leaderTermOutcome(uint32_t ledgerSeq, StellarValue const& value,
     {
         outcome.mForfeited = signer;
     }
-    else
+    else if ((static_cast<uint64_t>(ledgerSeq) + 1) % LEADER_TERM_LEDGERS != 0)
     {
         outcome.mIncumbent = signer;
     }

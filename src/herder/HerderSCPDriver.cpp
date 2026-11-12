@@ -1230,7 +1230,9 @@ HerderSCPDriver::reproposeValue(uint64_t slotIndex, uint32 round,
     // transaction set is known to the nodes that voted for it), but puts it
     // forward under its own signature: the node whose value closes a ledger
     // leads the next one (see leaderTermOutcome), and a leader whose round
-    // timed out must not be that node.
+    // timed out should not be that node. SCP only asks while the node is
+    // not tied to the value (it has not accepted it as prepared); after
+    // that the value, and with it the term, stays as it is.
     StellarValue sv;
     if (round <= 1 || !toStellarValue(value, sv) ||
         sv.ext.v() == STELLAR_VALUE_BASIC || isEmptyTxSetStellarValue(sv))
@@ -1242,6 +1244,15 @@ HerderSCPDriver::reproposeValue(uint64_t slotIndex, uint32 round,
     {
         return nullptr;
     }
+    // Only a set this node holds: its signature makes it answerable for the
+    // set (a ledger that applies nothing costs the signer its term).
+    auto txSet = mPendingEnvelopes.getTxSet(sv.txSetHash);
+    if (auto const* frame = std::get_if<TxSetXDRFrameConstPtr>(&txSet);
+        !frame || !*frame)
+    {
+        return nullptr;
+    }
+    mApp.getMetrics().NewMeter({"scp", "leader", "resigned"}, "value").Mark();
     auto resigned =
         mHerder.makeStellarValue(sv.txSetHash, getConsensusTime(sv),
                                  sv.upgrades, mApp.getConfig().NODE_SEED);
