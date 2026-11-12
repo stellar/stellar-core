@@ -68,6 +68,49 @@ class HerderImpl : public Herder
 
     void lostSync();
 
+    // A transaction accepted from a client blocks its source account on this
+    // node for this long at most (the overlay stops sending it after the
+    // same time, see LOCAL_TX_MAX_AGE in overlay/src/flood/tx_router.rs).
+    static constexpr std::chrono::seconds LOCAL_TX_PENDING_TIMEOUT{300};
+
+    // THE place that decides which nodes get the transactions this node
+    // accepts. Returns the validators to send them to, or nullopt for
+    // "every peer" (the flood). With the leader schedule: the leaders of the
+    // node's current round and of the next one for the slot after the LCL,
+    // and, when the slot after that starts a new leader term, its expected
+    // first leader.
+    // Everyone if the node is not tracking or not synced, if there is no
+    // schedule, or if the next ledger uses a legacy tx set (which every
+    // validator builds for itself).
+    std::optional<std::vector<NodeID>> computeTxFloodTargets();
+    // Recomputes the targets and tells the overlay if they changed. Called
+    // when a ledger closes, when SCP enters a round, and when sync is lost.
+    void updateTxFloodTargets();
+#ifdef BUILD_TESTS
+    // What the overlay was last told (nullopt = every peer).
+    std::optional<std::vector<NodeID>> const&
+    getTxFloodTargetsForTesting() const
+    {
+        return mTxFloodTargets;
+    }
+    // Every change of the targets sent to the overlay, with all the target
+    // function had to go on: the LCL at that time (the schedule of `slot`,
+    // the slot after it, is a function of its header, and the seeded order
+    // of the slot after that a function of its hash) and the node's round
+    // in `slot` (0 = not started).
+    struct TxFloodTargetUpdate
+    {
+        uint64_t slot;
+        uint32_t round;
+        std::optional<std::vector<NodeID>> targets;
+        LedgerHeaderHistoryEntry lcl;
+    };
+    // `targets` with the node's present state.
+    TxFloodTargetUpdate describeTxFloodTargetsForTesting(
+        std::optional<std::vector<NodeID>> targets);
+    std::deque<TxFloodTargetUpdate> mTxFloodTargetHistoryForTesting;
+#endif
+
     HerderImpl(Application& app);
     ~HerderImpl();
 
@@ -505,6 +548,42 @@ class HerderImpl : public Herder
 
     VirtualTimer mTriggerTimer;
     VirtualTimer mPrepareTxSetTimer;
+
+    // What updateTxFloodTargets last told the overlay (nullopt = everyone,
+    // which is also what the overlay starts with).
+    std::optional<std::vector<NodeID>> mTxFloodTargets;
+
+    // Transactions this node accepted from clients and has not seen
+    // externalized, by source account: one per account at a time. Not used
+    // in overlay-only mode.
+    struct LocalPendingTx
+    {
+        Hash fullHash;
+        SequenceNumber seqNum;
+        VirtualClock::time_point acceptedAt;
+        // The ledger whose set uses up its sequence number, once such a set
+        // externalized (0 before); the record goes when that ledger is
+        // closed.
+        uint32_t externalizedIn;
+    };
+    UnorderedMap<AccountID, LocalPendingTx> mLocalPendingTxs;
+    // The checks a transaction passes before this node takes it and sends it
+    // on: one pending transaction per source account, and checkValid
+    // against the LCL (skipped if `skipValidityCheck`).
+    TxSubmitStatus checkTxAdmission(TransactionFrameBasePtr const& tx,
+                                    bool skipValidityCheck);
+    // Drops the records of accounts whose transaction externalized in
+    // `txSet` or timed out; returns the hashes of pending transactions that
+    // can no longer apply (another transaction of the account used the
+    // sequence number), for the overlay to drop.
+    std::vector<Hash> settleLocalPendingTxs(TxSetXDRFrame const& txSet,
+                                            uint32_t txSetLedgerSeq);
+    // Drops the records settleLocalPendingTxs marked, once the ledger that
+    // settled them is the LCL.
+    void forgetSettledLocalPendingTxs();
+    // Drops the records of these transactions (removed from the mempool
+    // because they failed validation in this node's own build).
+    void forgetLocalPendingTxs(std::vector<Hash> const& txHashes);
 
     VirtualTimer mOutOfSyncTimer;
 

@@ -26,7 +26,8 @@ use stellar_overlay::flood::{
 use stellar_overlay::integrated::{Overlay, OverlayHandle};
 use stellar_overlay::ipc::{CoreIpc, Message, MessageType};
 use stellar_overlay::libp2p_overlay::{
-    create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
+    create_overlay, NodeIdentity, OverlayEvent as LibP2pOverlayEvent,
+    OverlayHandle as LibP2pOverlayHandle,
 };
 use stellar_overlay::metrics::OverlayMetrics;
 use stellar_overlay::wire::ValidatedTx;
@@ -559,6 +560,17 @@ impl App {
     /// Main event loop - process messages from Core and overlay events
     async fn run(mut self) {
         info!("Overlay started, processing Core messages");
+
+        // Ask Core to bind this overlay's peer id to the validator's key;
+        // it answers with `SetNodeIdentity`.
+        let peer_id = self.libp2p_handle.local_peer_id().to_bytes();
+        if let Err(e) = self
+            .core_ipc
+            .sender
+            .send(Message::new(MessageType::OverlayIdentity, peer_id))
+        {
+            error!("Failed to send the overlay identity to Core: {}", e);
+        }
 
         // Safety-net reconnect timer: re-dial all configured peers every 30s.
         // Uses PeerId-based dials for known peers (libp2p skips if already connected).
@@ -1422,11 +1434,60 @@ impl App {
                 // Add to mempool
                 self.overlay_handle.submit_tx(Arc::clone(&tx));
 
-                // Broadcast TX via libp2p QUIC (dedicated stream)
+                // Core accepted this transaction from a client: this node
+                // keeps it and sends it until it is externalized, to the
+                // targets Core named or, without targets, to every peer.
+                // The router is updated here, in the order of Core's
+                // messages; only the sending is left to a task.
+                let plan = self.libp2p_handle.add_local_tx(tx);
                 let handle = self.libp2p_handle.clone();
                 tokio::spawn(async move {
-                    handle.broadcast_tx(tx).await;
+                    handle.send_local_tx(plan).await;
                 });
+            }
+
+            MessageType::SetNodeIdentity => {
+                // Payload: [networkID:32][nodeID:32][signature:64]
+                if msg.payload.len() != 128 {
+                    warn!(
+                        "SetNodeIdentity payload has {} bytes, expected 128",
+                        msg.payload.len()
+                    );
+                    return true;
+                }
+                let mut identity = NodeIdentity {
+                    network_id: [0; 32],
+                    node_id: [0; 32],
+                    signature: [0; 64],
+                };
+                identity.network_id.copy_from_slice(&msg.payload[0..32]);
+                identity.node_id.copy_from_slice(&msg.payload[32..64]);
+                identity.signature.copy_from_slice(&msg.payload[64..128]);
+                let handle = self.libp2p_handle.clone();
+                tokio::spawn(async move {
+                    handle.set_node_identity(identity).await;
+                });
+            }
+
+            MessageType::SetTxTargets => {
+                // Payload: [everyone:1][count:4][nodeID:32]...
+                let Some(targets) = parse_tx_targets(&msg.payload) else {
+                    warn!(
+                        "SetTxTargets payload malformed ({} bytes)",
+                        msg.payload.len()
+                    );
+                    return true;
+                };
+                match &targets {
+                    Some(nodes) => debug!("TX_TARGETS: {} validators get transactions", nodes.len()),
+                    None => debug!("TX_TARGETS: every peer gets transactions"),
+                }
+                if self.libp2p_handle.set_tx_targets(targets) {
+                    let handle = self.libp2p_handle.clone();
+                    tokio::spawn(async move {
+                        handle.flush_local_txs().await;
+                    });
+                }
             }
 
             MessageType::RequestScpState => {
@@ -1518,6 +1579,21 @@ impl App {
                             hash.copy_from_slice(&msg.payload[start..end]);
                             tx_hashes.push(hash);
                         }
+                    }
+
+                    // Nothing is left to send for them. Core uses this
+                    // message with a zero set hash to drop transactions for
+                    // its own reasons; only a real set is a ledger.
+                    if tx_set_hash == [0u8; 32] {
+                        self.libp2p_handle.forget_local_txs(&tx_hashes);
+                    } else {
+                        // Transactions this ledger did not have may now be
+                        // due at targets they were held back from.
+                        self.libp2p_handle.ledger_externalized(&tx_hashes);
+                        let handle = self.libp2p_handle.clone();
+                        tokio::spawn(async move {
+                            handle.flush_local_txs().await;
+                        });
                     }
 
                     // Remove TXs from mempool and WAIT for completion
@@ -1730,6 +1806,31 @@ impl App {
         }
         true
     }
+}
+
+/// Parse a `SetTxTargets` payload: `[everyone:1][count:4][nodeID:32]...`.
+/// Returns `None` if it is malformed, `Some(None)` for "every peer".
+fn parse_tx_targets(payload: &[u8]) -> Option<Option<Vec<[u8; 32]>>> {
+    if payload.len() < 5 {
+        return None;
+    }
+    let everyone = match payload[0] {
+        0 => false,
+        1 => true,
+        _ => return None,
+    };
+    let count = u32::from_le_bytes(payload[1..5].try_into().unwrap()) as usize;
+    if payload.len() != 5 + count.checked_mul(32)? {
+        return None;
+    }
+    if everyone {
+        return Some(None);
+    }
+    let nodes = payload[5..]
+        .chunks_exact(32)
+        .map(|chunk| chunk.try_into().unwrap())
+        .collect();
+    Some(Some(nodes))
 }
 
 fn setup_logging(level: &str) {
@@ -2369,6 +2470,95 @@ mod tests {
         payload.extend_from_slice(&1u32.to_le_bytes());
         payload.extend_from_slice(&tx_hash);
         Message::new(MessageType::TxSetExternalized, payload)
+    }
+
+    fn submit_tx_message(tx: &ValidatedTx) -> Message {
+        let mut payload = tx.fee().to_le_bytes().to_vec();
+        payload.extend_from_slice(&tx.num_ops().to_le_bytes());
+        payload.extend_from_slice(tx.bytes());
+        Message::new(MessageType::SubmitTx, payload)
+    }
+
+    fn tx_targets_payload(everyone: bool, nodes: &[[u8; 32]]) -> Vec<u8> {
+        let mut payload = vec![everyone as u8];
+        payload.extend_from_slice(&(nodes.len() as u32).to_le_bytes());
+        for node in nodes {
+            payload.extend_from_slice(node);
+        }
+        payload
+    }
+
+    #[test]
+    fn tx_targets_payload_is_parsed_strictly() {
+        let (a, b) = ([1u8; 32], [2u8; 32]);
+        assert_eq!(
+            parse_tx_targets(&tx_targets_payload(false, &[a, b])),
+            Some(Some(vec![a, b]))
+        );
+        // "Everyone", with or without a list.
+        assert_eq!(parse_tx_targets(&tx_targets_payload(true, &[])), Some(None));
+        assert_eq!(parse_tx_targets(&tx_targets_payload(true, &[a])), Some(None));
+        // An empty list is a list: nobody else gets the transactions.
+        assert_eq!(
+            parse_tx_targets(&tx_targets_payload(false, &[])),
+            Some(Some(vec![]))
+        );
+        // Malformed: too short, a bad flag, a count that does not match.
+        assert_eq!(parse_tx_targets(&[]), None);
+        assert_eq!(parse_tx_targets(&[0, 0, 0, 0]), None);
+        let mut bad_flag = tx_targets_payload(false, &[a]);
+        bad_flag[0] = 2;
+        assert_eq!(parse_tx_targets(&bad_flag), None);
+        let mut truncated = tx_targets_payload(false, &[a, b]);
+        truncated.pop();
+        assert_eq!(parse_tx_targets(&truncated), None);
+        let mut wrong_count = tx_targets_payload(false, &[a]);
+        wrong_count[1..5].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(parse_tx_targets(&wrong_count), None);
+    }
+
+    #[tokio::test]
+    async fn a_submitted_transaction_is_kept_until_core_reports_it_externalized() {
+        let (mut app, _core) = test_app();
+        let (first, second) = (test_mempool_tx(1), test_mempool_tx(2));
+        assert!(app.handle_core_message(submit_tx_message(&first)).await);
+        assert!(app.handle_core_message(submit_tx_message(&second)).await);
+        // Kept for sending again, and in the mempool for this node's own sets.
+        assert_eq!(app.libp2p_handle.local_tx_count(), 2);
+        assert_eq!(app.overlay_handle.get_top_txs(10).await.unwrap().len(), 2);
+        // Submitting it again changes nothing.
+        assert!(app.handle_core_message(submit_tx_message(&first)).await);
+        assert_eq!(app.libp2p_handle.local_tx_count(), 2);
+
+        app.handle_core_message(remove_tx_message([1; 32], *first.hash()))
+            .await;
+        assert_eq!(app.libp2p_handle.local_tx_count(), 1);
+        let top = app.overlay_handle.get_top_txs(10).await.unwrap();
+        assert_eq!(top.len(), 1);
+        assert_eq!(top[0].hash(), second.hash());
+    }
+
+    #[tokio::test]
+    async fn malformed_identity_and_target_messages_are_ignored() {
+        let (mut app, _core) = test_app();
+        for payload in [vec![], vec![0u8; 127], vec![0u8; 129]] {
+            assert!(
+                app.handle_core_message(Message::new(MessageType::SetNodeIdentity, payload))
+                    .await
+            );
+        }
+        assert!(
+            app.handle_core_message(Message::new(MessageType::SetTxTargets, vec![7, 0, 0]))
+                .await
+        );
+        // A well-formed list is taken; the same list again is not a change.
+        let payload = tx_targets_payload(false, &[[3; 32]]);
+        assert!(
+            app.handle_core_message(Message::new(MessageType::SetTxTargets, payload.clone()))
+                .await
+        );
+        assert!(!app.libp2p_handle.set_tx_targets(Some(vec![[3; 32]])));
+        assert!(app.libp2p_handle.set_tx_targets(None));
     }
 
     #[tokio::test]

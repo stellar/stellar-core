@@ -4,6 +4,8 @@
 
 #include "overlay/RustOverlayManager.h"
 #include "herder/Herder.h"
+#include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "herder/TxSetFrame.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -86,6 +88,19 @@ RustOverlayManager::start()
                     mApp.getHerder().recvTxSet(hash, frame);
                 },
                 "RustOverlayManager: TxSetReceived");
+        });
+
+    mOverlayIPC->setOnOverlayIdentity(
+        [this](std::vector<uint8_t> const& peerId) {
+            // Called from the IPC reader thread. The config is immutable
+            // and signing is a pure function of it, so no hop to the main
+            // thread is needed. The node key itself stays in Core.
+            auto const& nodeSeed = mApp.getConfig().NODE_SEED;
+            auto const binding =
+                overlayIdentityBinding(mApp.getNetworkID(), peerId);
+            mOverlayIPC->setNodeIdentity(mApp.getNetworkID(),
+                                         nodeSeed.getPublicKey(),
+                                         nodeSeed.sign(binding));
         });
 
     if (!mOverlayIPC->start())
@@ -244,6 +259,29 @@ RustOverlayManager::cacheTxSet(Hash const& txSetHash,
                mOverlayIPC->storesTxSets();
     }
     return false;
+}
+
+bool
+RustOverlayManager::setTxFloodTargets(
+    std::optional<std::vector<NodeID>> const& targets)
+{
+    if (mOverlayIPC && !mShuttingDown)
+    {
+        return mOverlayIPC->setTxTargets(targets);
+    }
+    return false;
+}
+
+Hash
+RustOverlayManager::overlayIdentityBinding(Hash const& networkID,
+                                           std::vector<uint8_t> const& peerId)
+{
+    static std::string const tag = "stellar-overlay-peer-id";
+    SHA256 hasher;
+    hasher.add(networkID);
+    hasher.add(ByteSlice(tag.data(), tag.size()));
+    hasher.add(ByteSlice(peerId.data(), peerId.size()));
+    return hasher.finish();
 }
 
 bool
@@ -424,6 +462,19 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mTxSetPushRequestSkipped, "txset_push_request_skipped");
     markDelta(m.mTxSetPushDropped, "txset_push_dropped");
     markDelta(m.mTxSetPushEvicted, "txset_push_evicted");
+
+    // Transactions sent to the target leaders only
+    markDelta(m.mTxDirectSent, "flood_tx_direct_sent");
+    markDelta(m.mTxDirectSentBytes, "flood_tx_direct_sent_bytes");
+    markDelta(m.mTxDirectRecv, "flood_tx_direct_recv");
+    markDelta(m.mTxLateCopy, "flood_tx_late_copy");
+    markDelta(m.mTxLocalFlooded, "flood_tx_local_flooded");
+    markDelta(m.mNodeIdRejected, "node_id_rejected");
+    if (root.isMember("node_id_identified"))
+    {
+        auto val = root["node_id_identified"].asInt64();
+        m.mNodeIdIdentified.inc(val - m.mNodeIdIdentified.count());
+    }
 
     // Connection lifecycle — these aren't registered as medida meters on
     // the C++ side yet, so they'll just be tracked by the existing counters.

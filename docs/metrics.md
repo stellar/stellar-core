@@ -62,6 +62,9 @@ crypto.verify.miss                        | meter     | number of signature cach
 crypto.verify.total                       | meter     | sum of both hits and misses
 crypto.verify.tx-valid-hit                | meter     | signature cache hits that occurred while validating transactions (outside of background signature validation)
 crypto.verify.tx-valid-total              | meter     | sum of both hits and misses during transaction validation (outside of background signature validation)
+herder.tx-admission.account-busy          | meter     | submitted transactions refused because their source account already has a pending transaction accepted by this node
+herder.tx-admission.check                 | timer     | time spent checking a submitted transaction against the last closed ledger before it is sent on
+herder.tx-admission.invalid               | meter     | submitted transactions refused because they are invalid against the last closed ledger
 herder.txset.build                        | timer     | time spent building the tx set proposed at nomination from the transaction queues
 herder.txset.validate                     | timer     | time spent turning a received tx set into an applicable tx set and validating it on a validity-cache miss
 herder.txset.validate-sig-cache-hit       | meter     | signature cache hits while validating a received tx set (herder.txset.validate)
@@ -166,6 +169,11 @@ overlay.flood.broadcast                   | meter     | message sent as broadcas
 overlay.flood.duplicate_recv              | meter     | number of bytes of flooded messages that have already been received
 overlay.flood.unique_recv                 | meter     | number of bytes of flooded messages that have not yet been received
 overlay.flood.tx-batch-size               | histogram | number of transactions in a batch
+overlay.flood.tx-direct-recv              | meter     | transaction bodies received without a demand (sent directly by a peer), kept and not relayed
+overlay.flood.tx-late-copy                | meter     | transactions admitted although one of the last few externalized ledgers already has them (a copy that arrived late)
+overlay.flood.tx-direct-sent              | meter     | transaction bodies sent straight to a target leader, without an advert
+overlay.flood.tx-direct-sent-bytes        | meter     | bytes of those bodies
+overlay.flood.tx-local-flooded            | meter     | own transactions advertised to every peer because no target list was set or a target was not directly connected
 overlay.inbound.attempt                   | meter     | inbound connection attempted (accepted on socket)
 overlay.inbound.drop                      | meter     | inbound connection dropped
 overlay.inbound.establish                 | meter     | inbound connection established (added to pending)
@@ -179,6 +187,8 @@ overlay.message.broadcast                 | meter     | message broadcasted
 overlay.message.read                      | meter     | message received
 overlay.message.write                     | meter     | message sent
 overlay.message.drop                      | meter     | message dropped due to load-shedding
+overlay.node-id.identified                | counter   | connected peers that proved which validator they belong to
+overlay.node-id.rejected                  | meter     | validator identity claims from peers with a signature that does not bind them to the connection
 overlay.outbound.attempt                  | meter     | outbound connection attempted (socket opened)
 overlay.outbound.cancel                   | meter     | outbound connection cancelled
 overlay.outbound.drop                     | meter     | outbound connection dropped

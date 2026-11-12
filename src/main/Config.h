@@ -566,6 +566,31 @@ class Config : public std::enable_shared_from_this<Config>
     // is an emergency fallback and defaults to false.
     bool FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER;
 
+    // How many upcoming round leaders get the transactions this node
+    // accepts: the leader of the node's current round of the next slot and
+    // the ones after it; one slot before a new leader term starts, also
+    // that term's expected first leader (see
+    // HerderImpl::computeTxFloodTargets). The node
+    // sends them the transaction bodies directly instead of advertising them
+    // to every peer. 0 means every validator of the leader schedule: no
+    // adverts either, but every validator holds every transaction before
+    // the leader's set arrives (and can verify its signatures in the
+    // background). Experimental; defaults to 2.
+    uint32_t TX_FLOOD_TARGET_LEADERS;
+
+    // Experimental. true: no target list at all; transactions are advertised
+    // to every peer and fetched on demand, as before TX_FLOOD_TARGET_LEADERS
+    // existed. For comparing the two ways of sending with one build.
+    bool TX_FLOOD_LEGACY_ADVERTS;
+
+    // Experimental. Number of tasks (worker threads) the batch executor
+    // splits CPU-bound work into: transaction validation in the leader's
+    // build, in the apply-time check and in the pre-validation of the next
+    // proposal, and the signature prewarm. 0 (the
+    // default) = one per physical core, minus one. A larger value uses
+    // hyper-thread siblings once the physical cores are taken.
+    uint32_t BATCH_EXECUTOR_TASKS;
+
     // Hostname of an NTP server to periodically query in order to detect drift
     // of this node's local clock. This is detection only: core never adjusts
     // the system clock. Defaults to a pool.ntp.org; set to the empty string to

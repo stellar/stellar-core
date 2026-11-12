@@ -1280,6 +1280,11 @@ HerderSCPDriver::enteredRound(uint64_t slotIndex, uint32 round, bool timedOut)
     {
         it->second.mMaxRound = std::max(it->second.mMaxRound, round);
     }
+    // The transactions this node holds follow the round: its leader and the
+    // next one get them. Not from inside this SCP state change (the schedule
+    // may need a quorum rebuild, see below).
+    mApp.postOnMainThread([this]() { mHerder.updateTxFloodTargets(); },
+                          "Herder: update tx flood targets");
     if (round > 1)
     {
         // Only read the cached schedule here: this is called from inside SCP

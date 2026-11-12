@@ -395,6 +395,22 @@ OverlayIPC::handleMessage(IPCMessage const& msg)
         break;
     }
 
+    case IPCMessageType::OVERLAY_IDENTITY:
+    {
+        if (mOnOverlayIdentity && !msg.payload.empty() &&
+            msg.payload.size() <= 128)
+        {
+            mOnOverlayIdentity(msg.payload);
+        }
+        else
+        {
+            CLOG_WARNING(Overlay,
+                         "Ignoring OVERLAY_IDENTITY ({} bytes payload)",
+                         msg.payload.size());
+        }
+        break;
+    }
+
     case IPCMessageType::TOP_TXS_RESPONSE:
     {
         // Response to getTopTransactions - wake up waiting thread
@@ -845,6 +861,54 @@ OverlayIPC::requestScpState(uint32_t ledgerSeq)
                ledgerSeq);
     std::lock_guard<std::mutex> lock(mSendMutex);
     mChannel->send(msg);
+}
+
+void
+OverlayIPC::setNodeIdentity(Hash const& networkID, NodeID const& nodeID,
+                            Signature const& signature)
+{
+    if (!mChannel || !mChannel->isConnected())
+    {
+        return;
+    }
+    releaseAssert(signature.size() == 64);
+    IPCMessage msg;
+    msg.type = IPCMessageType::SET_NODE_IDENTITY;
+    msg.payload.resize(128);
+    std::memcpy(msg.payload.data(), networkID.data(), 32);
+    std::memcpy(msg.payload.data() + 32, nodeID.ed25519().data(), 32);
+    std::memcpy(msg.payload.data() + 64, signature.data(), 64);
+    std::lock_guard<std::mutex> lock(mSendMutex);
+    mChannel->send(msg);
+}
+
+bool
+OverlayIPC::setTxTargets(std::optional<std::vector<NodeID>> const& targets)
+{
+    if (!mChannel || !mChannel->isConnected())
+    {
+        return false;
+    }
+    IPCMessage msg;
+    msg.type = IPCMessageType::SET_TX_TARGETS;
+    uint32_t const count =
+        targets ? static_cast<uint32_t>(targets->size()) : 0;
+    msg.payload.resize(5 + static_cast<size_t>(count) * 32);
+    msg.payload[0] = targets ? 0 : 1;
+    std::memcpy(msg.payload.data() + 1, &count, 4);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        std::memcpy(msg.payload.data() + 5 + static_cast<size_t>(i) * 32,
+                    (*targets)[i].ed25519().data(), 32);
+    }
+    std::lock_guard<std::mutex> lock(mSendMutex);
+    return mChannel->send(msg);
+}
+
+void
+OverlayIPC::setOnOverlayIdentity(OverlayIdentityCallback cb)
+{
+    mOnOverlayIdentity = std::move(cb);
 }
 
 void

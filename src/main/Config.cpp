@@ -180,6 +180,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DISABLE_TX_META_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
     FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = false;
+    TX_FLOOD_TARGET_LEADERS = 2;
+    TX_FLOOD_LEGACY_ADVERTS = false;
+    BATCH_EXECUTOR_TASKS = 0;
     NTP_DRIFT_CHECK_SERVER = "pool.ntp.org";
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
@@ -1238,6 +1241,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER =
                          readBool(item);
+                 }},
+                {"TX_FLOOD_TARGET_LEADERS",
+                 [&]() {
+                     TX_FLOOD_TARGET_LEADERS = readInt<uint32_t>(item);
+                 }},
+                {"TX_FLOOD_LEGACY_ADVERTS",
+                 [&]() { TX_FLOOD_LEGACY_ADVERTS = readBool(item); }},
+                {"BATCH_EXECUTOR_TASKS",
+                 [&]() {
+                     BATCH_EXECUTOR_TASKS = readInt<uint32_t>(item, 0, 256);
                  }},
                 {"NTP_DRIFT_CHECK_SERVER",
                  [&]() { NTP_DRIFT_CHECK_SERVER = readString(item); }},

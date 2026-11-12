@@ -74,5 +74,14 @@ struct OverlayMetrics
     medida::Meter& mTxSetPushRequestSkipped;
     medida::Meter& mTxSetPushDropped;
     medida::Meter& mTxSetPushEvicted;
+
+    // Transactions sent to the target leaders only (tx-flood-to-leaders)
+    medida::Meter& mTxDirectSent;
+    medida::Meter& mTxDirectSentBytes;
+    medida::Meter& mTxDirectRecv;
+    medida::Meter& mTxLateCopy;
+    medida::Meter& mTxLocalFlooded;
+    medida::Meter& mNodeIdRejected;
+    medida::Counter& mNodeIdIdentified;
 };
 }

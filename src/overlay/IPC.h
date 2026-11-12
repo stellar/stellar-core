@@ -82,6 +82,20 @@ enum class IPCMessageType : uint32_t
     /// Payload: [hash:32][slotSeq:4]
     PUSH_TX_SET = 14,
 
+    /// This node's validator identity, in answer to OVERLAY_IDENTITY: the
+    /// node key's signature over
+    /// SHA256(networkID || "stellar-overlay-peer-id" || peerId). The overlay
+    /// shows it to its peers, which is how a peer connection is tied to a
+    /// NodeID.
+    /// Payload: [networkID:32][nodeID:32][signature:64]
+    SET_NODE_IDENTITY = 15,
+
+    /// The validators that get this node's transactions now (see
+    /// HerderImpl::computeTxFloodTargets).
+    /// Payload: [everyone:1][count:4][nodeID:32]...
+    /// everyone = 1: flood to all peers (the list is ignored).
+    SET_TX_TARGETS = 16,
+
     // ═══ Overlay → Core (Critical Path) ═══
 
     /// Received SCP envelope from network
@@ -106,6 +120,11 @@ enum class IPCMessageType : uint32_t
     /// Overlay metrics snapshot (JSON payload)
     /// Response to REQUEST_OVERLAY_METRICS
     OVERLAY_METRICS_RESPONSE = 105,
+
+    /// The overlay's libp2p peer id, sent once at startup so that Core can
+    /// sign the identity binding (SET_NODE_IDENTITY).
+    /// Payload: [peerId bytes]
+    OVERLAY_IDENTITY = 106,
 };
 
 /**
