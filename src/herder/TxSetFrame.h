@@ -27,6 +27,8 @@ class AbstractLedgerView;
 class SorobanNetworkConfig;
 class TxSetXDRFrame;
 class ApplicableTxSetFrame;
+class TxSetBuilder;
+class TxSetSelfCheck;
 using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
 using TxSetReadyCallback = std::function<void(TxSetXDRFrameConstPtr const&)>;
 using ApplicableTxSetFrameConstPtr =
@@ -152,6 +154,30 @@ struct TxSetValidationContext
     static TxSetValidationContext forLCL(Application& app);
 };
 
+// The limits a transaction set is selected within: those of the ledger it
+// goes on top of. Selection (surge pricing, the Soroban stages) only reads
+// the ledger through this, so it can run for a ledger that is not the main
+// thread's LCL, and on another thread.
+struct TxSetBuildLimits
+{
+    // Header of the ledger the set applies on top of. Selection reads its
+    // protocol version, base fee and maximum tx set size; its hashes are not
+    // used.
+    LedgerHeader mLclHeader;
+    // Soroban network configuration of that ledger; null before Soroban.
+    // Whoever makes the limits keeps it alive.
+    SorobanNetworkConfig const* mSorobanConfig{nullptr};
+
+    // Capacity of the classic phase, in operations.
+    uint32_t maxTxSetSizeOps() const;
+    // Whether a set selected within `other` is selected within these limits
+    // too: everything selection reads is equal.
+    bool sameAs(TxSetBuildLimits const& other) const;
+
+    // The limits of the LCL as seen by the main thread. Main thread only.
+    static TxSetBuildLimits forLCL(Application& app);
+};
+
 using TxFrameList = std::vector<TransactionFrameBasePtr>;
 using PerPhaseTransactionList = std::vector<TxFrameList>;
 
@@ -215,7 +241,16 @@ makeTxSetFromTransactions(
     std::vector<size_t> const& validTxTargets = {},
     // Results of earlier validations against the LCL (see
     // `TxValidationCache`); extended with this build's.
-    TxValidationCache* validationCache = nullptr);
+    TxValidationCache* validationCache = nullptr,
+    // The builder checks every set it makes: it reads the XDR back and
+    // validates the structure of the result (`TxSetSelfCheck`). Without
+    // `deferredSelfCheck` it does so before returning, and throws if the
+    // check fails. With it, only the structure of the selection is validated
+    // before returning (`TxSetBuilder::checkSelection`; a failure throws);
+    // the check of the written set is not run: it is returned here for the
+    // caller to run (on any thread), so that it does not hold up the use of
+    // the set.
+    std::shared_ptr<TxSetSelfCheck const>* deferredSelfCheck = nullptr);
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -480,7 +515,9 @@ class TxSetPhaseFrame
         ,
         TxSetReadyCallback const& onTxSetReady,
         std::vector<size_t> const& validTxTargets,
-        TxValidationCache* validationCache);
+        TxValidationCache* validationCache,
+        std::shared_ptr<TxSetSelfCheck const>* deferredSelfCheck);
+    friend class TxSetBuilder;
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
@@ -674,7 +711,9 @@ class ApplicableTxSetFrame
         ,
         TxSetReadyCallback const& onTxSetReady,
         std::vector<size_t> const& validTxTargets,
-        TxValidationCache* validationCache);
+        TxValidationCache* validationCache,
+        std::shared_ptr<TxSetSelfCheck const>* deferredSelfCheck);
+    friend class TxSetBuilder;
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
     makeTxSetFromTransactions(
@@ -695,6 +734,17 @@ class ApplicableTxSetFrame
     ApplicableTxSetFrame(ApplicableTxSetFrame const&) = default;
     ApplicableTxSetFrame(ApplicableTxSetFrame&&) = default;
 
+    // Everything `checkValidInternalWithResult` checks about the phases of a
+    // set, i.e. all of it but the set's parent and kind: one transaction per
+    // source account across the phases, and each phase's fees, limits and
+    // (unless `txsAreValidated`) transactions. Used on its own for a
+    // selection that has no parent yet.
+    static TxSetValidationResult
+    checkPhasesValid(Application& app, TxSetValidationContext const& ctx,
+                     std::vector<TxSetPhaseFrame> const& phases,
+                     bool isGeneralized, uint64_t lowerBoundCloseTimeOffset,
+                     uint64_t upperBoundCloseTimeOffset, bool txsAreValidated);
+
     void toXDR(TransactionSet& set) const;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const;
 
@@ -714,6 +764,154 @@ class ApplicableTxSetFrame
     mutable std::vector<TxSetPhaseFrame> mApplyOrderPhases;
 
     std::optional<Hash> mContentsHash;
+};
+
+// The check a builder makes of a set it just built, before the set is relied
+// on: the XDR is read back into an applicable set, which must have the shape
+// of the selection it was written from and pass the structural validation of
+// a set on top of the ledger it was built for (limits, fees, order; the
+// transactions themselves were validated by the selection).
+//
+// It holds copies of everything it reads, so it can run on any thread while
+// the main thread goes on with the set.
+class TxSetSelfCheck
+{
+  public:
+    // Runs the check. Returns why the set must not be used, or nullopt if it
+    // passed. `app` is only read for the network ID and the configuration.
+    std::optional<std::string> run(Application& app) const;
+
+    TxSetXDRFrameConstPtr const&
+    getTxSet() const
+    {
+        return mTxSet;
+    }
+
+#ifdef BUILD_TESTS
+    // The same check of another set: for tests that make a builder produce
+    // a broken one.
+    std::shared_ptr<TxSetSelfCheck const>
+    withTxSetForTesting(TxSetXDRFrameConstPtr const& txSet) const
+    {
+        std::shared_ptr<TxSetSelfCheck> res(new TxSetSelfCheck(*this));
+        res->mTxSet = txSet;
+        return res;
+    }
+#endif
+
+  private:
+    friend class TxSetBuilder;
+    TxSetSelfCheck() = default;
+
+    TxSetXDRFrameConstPtr mTxSet;
+    // The ledger the set was built on top of.
+    LedgerHeaderHistoryEntry mLcl;
+    std::shared_ptr<SorobanNetworkConfig const> mSorobanConfig;
+    // Number of transactions per phase of the selection.
+    std::vector<size_t> mPhaseSizes;
+    uint64_t mCloseTimeOffset{0};
+};
+
+// A generalized transaction set that has been selected but does not name the
+// ledger it goes on top of yet: its phases and its XDR with an empty
+// `previousLedgerHash`. A leader selects the set for ledger N+1 while ledger N
+// is still going through consensus, when N's header hash does not exist; the
+// set is completed by `TxSetBuilder::stamp` once N has closed.
+struct UnstampedTxSet
+{
+    std::vector<TxSetPhaseFrame> mPhases;
+    GeneralizedTransactionSet mXDR;
+
+    size_t sizeTxTotal() const;
+};
+
+// The steps `makeTxSetFromTransactions` is made of, for callers that run them
+// apart from each other.
+class TxSetBuilder
+{
+  public:
+    // Trims the invalid transactions of every phase and applies surge
+    // pricing, as `makeTxSetFromTransactions` does, but against an arbitrary
+    // ledger: validity is read through `ctx`, limits from `limits`. Nothing
+    // of the main thread's or of ledger apply's state is read, so this may
+    // run on any thread (`ctx` then has to ask for a single validation task).
+    // `timerPrefix` names the stage timers
+    // (`herder.txset.<timerPrefix>-trim` and `-select`).
+    static std::vector<TxSetPhaseFrame> selectPhases(
+        PerPhaseTransactionList const& txPhases, Application& app,
+        TxSetBuildLimits const& limits, TxSetValidationContext const& ctx,
+        ApplyTimeOffset closeTimeOffset, PerPhaseTransactionList& invalidTxs,
+        std::vector<size_t> const& validTxTargets,
+        std::string const& timerPrefix,
+        // Randomizes the order of transactions with equal fee
+        // rates. Drawn from the global random engine (main thread
+        // only) unless provided.
+        std::optional<size_t> tieBreakSeed
+#ifdef BUILD_TESTS
+        ,
+        bool enforceTxsApplyOrder = false,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+        bool disableTxValidationForLegacyScenario = false
+#endif
+    );
+
+    // The structural validation of a selection (ApplicableTxSetFrame's, less
+    // the parent hash): what a set made of `phases` would be rejected for,
+    // whatever its parent and its bytes. Cheap next to the check of the
+    // written set (TxSetSelfCheck): it reads the frames the selection
+    // already holds. Any thread.
+    static TxSetValidationResult
+    checkSelection(std::vector<TxSetPhaseFrame> const& phases, Application& app,
+                   TxSetValidationContext const& ctx, bool isGeneralized,
+                   ApplyTimeOffset closeTimeOffset);
+
+    // Writes the XDR of a selection, without a parent, and checks its shape
+    // for a ledger of protocol `ledgerVersion` (throws if it is malformed).
+    // Generalized sets only. Any thread.
+    static UnstampedTxSet makeUnstamped(std::vector<TxSetPhaseFrame>&& phases,
+                                        uint32_t ledgerVersion);
+
+    // Completes a set selected ahead of time for the ledger after `lcl`,
+    // which must be the main thread's LCL: names `lcl` as the parent and
+    // computes the set's hash. The self-check of the result is returned in
+    // `selfCheck` and has not been run. Main thread only.
+    static std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+    stamp(UnstampedTxSet&& txSet, Application& app,
+          LedgerHeaderHistoryEntry const& lcl, ApplyTimeOffset closeTimeOffset,
+          std::shared_ptr<TxSetSelfCheck const>& selfCheck);
+
+  private:
+    friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+    makeTxSetFromTransactions(
+        PerPhaseTransactionList const& txPhases, Application& app,
+        ApplyTimeOffset closeTimeOffset,
+        PerPhaseTransactionList& invalidTxsPerPhase
+#ifdef BUILD_TESTS
+        ,
+        bool enforceTxsApplyOrder,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        bool disableTxValidationForLegacyScenario
+#endif
+        ,
+        TxSetReadyCallback const& onTxSetReady,
+        std::vector<size_t> const& validTxTargets,
+        TxValidationCache* validationCache,
+        std::shared_ptr<TxSetSelfCheck const>* deferredSelfCheck);
+    friend class TxSetSelfCheck;
+
+    static std::shared_ptr<TxSetSelfCheck const>
+    makeSelfCheck(Application& app, TxSetXDRFrameConstPtr const& txSet,
+                  LedgerHeaderHistoryEntry const& lcl,
+                  std::vector<TxSetPhaseFrame> const& phases,
+                  ApplyTimeOffset closeTimeOffset);
+    // The check itself. `roundTripped`, if given, receives the applicable
+    // set read back from the XDR.
+    static std::optional<std::string>
+    checkBuiltTxSet(Application& app, TxSetXDRFrame const& txSet,
+                    TxSetValidationContext const& ctx,
+                    std::vector<size_t> const& phaseSizes,
+                    uint64_t closeTimeOffset,
+                    ApplicableTxSetFrameConstPtr* roundTripped);
 };
 
 } // namespace stellar

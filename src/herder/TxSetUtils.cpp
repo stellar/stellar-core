@@ -383,6 +383,18 @@ TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
     releaseAssert(threadIsMain());
     auto ctx = TxSetValidationContext::forLCL(app);
     ctx.mValidationCache = validationCache;
+    return trimInvalid(txs, app, ctx, accountFeeMap, lowerBoundCloseTimeOffset,
+                       upperBoundCloseTimeOffset, invalidTxs);
+}
+
+TxFrameList
+TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
+                        TxSetValidationContext const& ctx,
+                        UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                        uint64_t lowerBoundCloseTimeOffset,
+                        uint64_t upperBoundCloseTimeOffset,
+                        TxFrameList& invalidTxs)
+{
     invalidTxs = getInvalidTxListWithErrors(txs, app, ctx, accountFeeMap,
                                             lowerBoundCloseTimeOffset,
                                             upperBoundCloseTimeOffset)
@@ -397,6 +409,23 @@ TxSetUtils::trimInvalidPrefix(
     Application& app, UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     TxFrameList& invalidTxs, TxValidationCache* validationCache)
+{
+    releaseAssert(threadIsMain());
+    auto ctx = TxSetValidationContext::forLCL(app);
+    ctx.mValidationCache = validationCache;
+    return trimInvalidPrefix(txs, targetValidTxs, countsTowardTarget, app, ctx,
+                             accountFeeMap, lowerBoundCloseTimeOffset,
+                             upperBoundCloseTimeOffset, invalidTxs);
+}
+
+TxFrameList
+TxSetUtils::trimInvalidPrefix(
+    TxFrameList const& txs, size_t targetValidTxs,
+    std::function<bool(TransactionFrameBase const&)> const& countsTowardTarget,
+    Application& app, TxSetValidationContext const& ctx,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    TxFrameList& invalidTxs)
 {
     ZoneScoped;
     TxFrameList validTxs;
@@ -420,8 +449,8 @@ TxSetUtils::trimInvalidPrefix(
         validated += count;
         TxFrameList batchInvalid;
         for (auto const& tx : trimInvalid(
-                 batch, app, accountFeeMap, lowerBoundCloseTimeOffset,
-                 upperBoundCloseTimeOffset, batchInvalid, validationCache))
+                 batch, app, ctx, accountFeeMap, lowerBoundCloseTimeOffset,
+                 upperBoundCloseTimeOffset, batchInvalid))
         {
             if (!countsTowardTarget || countsTowardTarget(*tx))
             {

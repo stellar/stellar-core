@@ -705,7 +705,8 @@ buildSurgePricedParallelSorobanPhase(
     TxFrameList const& txFrames, Config const& cfg,
     SorobanNetworkConfig const& sorobanCfg,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    std::optional<size_t> seed)
 {
     ZoneScoped;
     // We prefer the transaction sets that are well utilized, but we also want
@@ -720,9 +721,11 @@ buildSurgePricedParallelSorobanPhase(
 
     // Sort transactions in decreasing inclusion fee order. Look up each
     // transaction's fee bid and operation count once, not per comparison.
-    TxFeeComparator txComparator(
-        /* isGreater */ true,
-        stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+    size_t const tieBreakSeed =
+        seed ? *seed
+             : stellar::rand_uniform<size_t>(
+                   0, std::numeric_limits<size_t>::max());
+    TxFeeComparator txComparator(/* isGreater */ true, tieBreakSeed);
     std::vector<std::pair<int64_t, uint32_t>> feeBids;
     feeBids.reserve(txFrames.size());
     for (auto const& tx : txFrames)

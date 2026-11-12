@@ -73,6 +73,14 @@ class TxSetUtils
                 uint64_t lowerBoundCloseTimeOffset,
                 uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
                 TxValidationCache* validationCache = nullptr);
+    // Same, against the ledger state described by `ctx` (which also carries
+    // the validation cache, if any) instead of the main thread's LCL.
+    static TxFrameList
+    trimInvalid(TxFrameList const& txs, Application& app,
+                TxSetValidationContext const& ctx,
+                UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                uint64_t lowerBoundCloseTimeOffset,
+                uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs);
 
     // Like `trimInvalid`, for candidates in priority order when only the
     // first `targetValidTxs` valid ones that `countsTowardTarget` accepts are
@@ -88,5 +96,15 @@ class TxSetUtils
         Application& app, UnorderedMap<AccountID, int64_t>& accountFeeMap,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
         TxFrameList& invalidTxs, TxValidationCache* validationCache = nullptr);
+    // Same, against the ledger state described by `ctx`.
+    static TxFrameList
+    trimInvalidPrefix(TxFrameList const& txs, size_t targetValidTxs,
+                      std::function<bool(TransactionFrameBase const&)> const&
+                          countsTowardTarget,
+                      Application& app, TxSetValidationContext const& ctx,
+                      UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                      uint64_t lowerBoundCloseTimeOffset,
+                      uint64_t upperBoundCloseTimeOffset,
+                      TxFrameList& invalidTxs);
 }; // class TxSetUtils
 } // namespace stellar

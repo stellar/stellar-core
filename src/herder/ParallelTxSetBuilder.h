@@ -24,6 +24,9 @@ TxStageFrameList buildSurgePricedParallelSorobanPhase(
     TxFrameList const& txFrames, Config const& cfg,
     SorobanNetworkConfig const& sorobanCfg,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    // Randomizes the order of transactions with equal fee rates. Drawn from
+    // the global random engine (main thread only) unless provided.
+    std::optional<size_t> seed = std::nullopt);
 
 } // namespace stellar
