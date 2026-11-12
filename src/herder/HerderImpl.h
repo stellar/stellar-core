@@ -9,6 +9,7 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/PendingEnvelopes.h"
 #include "herder/QuorumIntersectionChecker.h"
+#include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "overlay/NetworkConstants.h"
@@ -66,6 +67,49 @@ class HerderImpl : public Herder
     }
 
     void lostSync();
+
+    // A transaction accepted from a client blocks its source account on this
+    // node for this long at most (the overlay stops sending it after the
+    // same time, see LOCAL_TX_MAX_AGE in overlay/src/flood/tx_router.rs).
+    static constexpr std::chrono::seconds LOCAL_TX_PENDING_TIMEOUT{300};
+
+    // THE place that decides which nodes get the transactions this node
+    // accepts. Returns the validators to send them to, or nullopt for
+    // "every peer" (the flood). With the leader schedule: the leaders of the
+    // node's current round and of the next one for the slot after the LCL,
+    // and, when the slot after that starts a new leader term, its expected
+    // first leader.
+    // Everyone if the node is not tracking or not synced, if there is no
+    // schedule, or if the next ledger uses a legacy tx set (which every
+    // validator builds for itself).
+    std::optional<std::vector<NodeID>> computeTxFloodTargets();
+    // Recomputes the targets and tells the overlay if they changed. Called
+    // when a ledger closes, when SCP enters a round, and when sync is lost.
+    void updateTxFloodTargets();
+#ifdef BUILD_TESTS
+    // What the overlay was last told (nullopt = every peer).
+    std::optional<std::vector<NodeID>> const&
+    getTxFloodTargetsForTesting() const
+    {
+        return mTxFloodTargets;
+    }
+    // Every change of the targets sent to the overlay, with all the target
+    // function had to go on: the LCL at that time (the schedule of `slot`,
+    // the slot after it, is a function of its header, and the seeded order
+    // of the slot after that a function of its hash) and the node's round
+    // in `slot` (0 = not started).
+    struct TxFloodTargetUpdate
+    {
+        uint64_t slot;
+        uint32_t round;
+        std::optional<std::vector<NodeID>> targets;
+        LedgerHeaderHistoryEntry lcl;
+    };
+    // `targets` with the node's present state.
+    TxFloodTargetUpdate describeTxFloodTargetsForTesting(
+        std::optional<std::vector<NodeID>> targets);
+    std::deque<TxFloodTargetUpdate> mTxFloodTargetHistoryForTesting;
+#endif
 
     HerderImpl(Application& app);
     ~HerderImpl();
@@ -145,6 +189,7 @@ class HerderImpl : public Herder
     std::function<std::vector<TransactionEnvelope>(size_t)>
         mGetTopTransactionsForTesting;
     friend class LeaderBuildTestAccess;
+    friend class ProposalPrevalidationTestAccess;
 
     std::optional<uint32_t> mMaxClassicTxSize;
     std::optional<uint32_t> mMaxTxSizeOverride;
@@ -273,8 +318,33 @@ class HerderImpl : public Herder
         TxSetXDRFrameConstPtr txSet;
         ApplicableTxSetFrameConstPtr applicableTxSet;
         std::vector<Hash> invalidTxHashes;
-        bool capacityLimited;
     };
+    // How long before the trigger the first-round leader builds its set, so
+    // that the set is built and on its way to the peers when consensus
+    // starts; what arrives in between waits for the next ledger.
+    //  * At least a quarter of the target close time, but no more than
+    //    250 ms of a long one.
+    //  * Long enough for the build this node expects (`expectedBuild`, see
+    //    expectedTxSetBuildDuration; with a quarter to spare) plus the time
+    //    the pushed set needs to reach the peers.
+    //  * Never more than half of the target close time.
+    static std::chrono::milliseconds
+    prepareTxSetLeadTime(std::chrono::milliseconds expectedCloseTime,
+                         std::chrono::milliseconds expectedBuild);
+    // How long this node's latest tx set build took (zero before the first),
+    // what it cost per transaction of the set it built (zero until it has
+    // built a set of some size), and how many transactions the last closed
+    // ledger's set held.
+    std::chrono::milliseconds mLastTxSetBuildDuration{0};
+    std::chrono::nanoseconds mTxSetBuildCostPerTx{0};
+    size_t mLastClosedTxSetSize{0};
+    // What the next build is expected to take: a build like this node's last
+    // one, or what a set the size of the last closed ledger's costs at this
+    // node's rate, whichever is longer. The second matters for a node that
+    // has not built for a while: its last build may be from before the load
+    // rose (every node's first term under load starts that way), and a lead
+    // time sized for it would make the first ledger of the term late.
+    std::chrono::milliseconds expectedTxSetBuildDuration() const;
     std::optional<PreparedTxSet> mPreparedTxSet;
     // `pushToPeers`: this is the set the node is about to propose as a round
     // leader, so the overlay sends it to every peer as soon as its XDR exists
@@ -327,6 +397,65 @@ class HerderImpl : public Herder
     void prewarmSignatureCache(uint32_t ledgerSeq,
                                std::vector<size_t> const& pendingPerPhase);
     std::shared_ptr<SignaturePrewarm> mSignaturePrewarm;
+
+    // Pre-validation of the next ledger's candidates.
+    //
+    // A node that expects to lead ledger N+1 (in round 1, or in round 2 if
+    // the first leader times out) starts validating its candidates as soon as
+    // it has executed ledger N speculatively, while N is still going through
+    // consensus: background tasks run `checkValid` on the mempool's top
+    // transactions against the state that execution left (see
+    // ExecutedLedgerState). When N has closed with the value that was
+    // executed, the build of N+1 takes those results instead of validating
+    // the same transactions on the main thread (see mValidationCache).
+    struct ProposalPrevalidation
+    {
+        // The executed ledger (N) and its value: the results hold on top of
+        // N if and only if N closes with this value.
+        uint32_t ledgerSeq{0};
+        StellarValue value;
+        std::chrono::steady_clock::time_point start;
+        std::atomic<bool> stop{false};
+        // Decoded and selected once, by whichever task gets there first.
+        std::once_flag selected;
+        std::vector<TransactionFrameBasePtr> candidates;
+        // Guards everything below. Tasks hand over their results in small
+        // batches, so whoever stops the job takes what is there and never
+        // waits for a task: nothing is published after `stop` is set.
+        std::mutex mutex;
+        std::vector<std::pair<Hash, TxValidationResult>> published;
+        size_t pendingTasks{0};
+        size_t activeTasks{0};
+        // Nanoseconds from `start` until the last task finished, or -1.
+        std::atomic<int64_t> finishedAfterNs{-1};
+    };
+    std::shared_ptr<ProposalPrevalidation> mProposalPrevalidation;
+    // Whether the local node would lead round 1 or 2 of the ledger after
+    // `slotIndex` if `slotIndex` closes with `value`.
+    bool mayLeadAfter(uint64_t slotIndex, StellarValue const& value,
+                      bool appliedTransactions);
+    // Called on the main thread when the speculative execution of a ledger
+    // has finished (`state` is null if it was not executed).
+    void startProposalPrevalidation(
+        std::shared_ptr<ExecutedLedgerState const> state);
+    // Stops the running pre-validation, if any. With `lcl`, its results are
+    // moved into mValidationCache if they hold on top of `lcl`.
+    void stopProposalPrevalidation(LedgerHeaderHistoryEntry const* lcl);
+
+    // Validation results for candidates of the next ledger, computed against
+    // the last closed ledger `lclHash`: by the pre-validation above, and by
+    // every build on that ledger. A later build on the same ledger (the build
+    // at the trigger after an early one, a later round's) only validates what
+    // it has not seen.
+    struct ValidationCache
+    {
+        Hash lclHash;
+        TxValidationCache results;
+    };
+    ValidationCache mValidationCache;
+    // The cache for a build on top of `lcl`, emptied if it was for another
+    // ledger and topped up with the pre-validation's results.
+    TxValidationCache* validationCacheFor(LedgerHeaderHistoryEntry const& lcl);
 
     // Tx sets the overlay holds on stable storage: received from it, or
     // handed to it after building them. persistSCPState leaves those out of
@@ -419,6 +548,42 @@ class HerderImpl : public Herder
 
     VirtualTimer mTriggerTimer;
     VirtualTimer mPrepareTxSetTimer;
+
+    // What updateTxFloodTargets last told the overlay (nullopt = everyone,
+    // which is also what the overlay starts with).
+    std::optional<std::vector<NodeID>> mTxFloodTargets;
+
+    // Transactions this node accepted from clients and has not seen
+    // externalized, by source account: one per account at a time. Not used
+    // in overlay-only mode.
+    struct LocalPendingTx
+    {
+        Hash fullHash;
+        SequenceNumber seqNum;
+        VirtualClock::time_point acceptedAt;
+        // The ledger whose set uses up its sequence number, once such a set
+        // externalized (0 before); the record goes when that ledger is
+        // closed.
+        uint32_t externalizedIn;
+    };
+    UnorderedMap<AccountID, LocalPendingTx> mLocalPendingTxs;
+    // The checks a transaction passes before this node takes it and sends it
+    // on: one pending transaction per source account, and checkValid
+    // against the LCL (skipped if `skipValidityCheck`).
+    TxSubmitStatus checkTxAdmission(TransactionFrameBasePtr const& tx,
+                                    bool skipValidityCheck);
+    // Drops the records of accounts whose transaction externalized in
+    // `txSet` or timed out; returns the hashes of pending transactions that
+    // can no longer apply (another transaction of the account used the
+    // sequence number), for the overlay to drop.
+    std::vector<Hash> settleLocalPendingTxs(TxSetXDRFrame const& txSet,
+                                            uint32_t txSetLedgerSeq);
+    // Drops the records settleLocalPendingTxs marked, once the ledger that
+    // settled them is the LCL.
+    void forgetSettledLocalPendingTxs();
+    // Drops the records of these transactions (removed from the mempool
+    // because they failed validation in this node's own build).
+    void forgetLocalPendingTxs(std::vector<Hash> const& txHashes);
 
     VirtualTimer mOutOfSyncTimer;
 

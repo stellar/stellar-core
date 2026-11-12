@@ -832,6 +832,16 @@ class LedgerTxn : public AbstractLedgerTxn
 
     LedgerTxnDelta getDelta() override;
 
+    // Calls `f` for every ledger entry this LedgerTxn created, changed or
+    // erased, with its key and its current value (nullptr if erased). Unlike
+    // getChanges and getDelta this does not seal the LedgerTxn and does not
+    // update last-modified sequence numbers: it is for looking at the state
+    // of a LedgerTxn that will be worked on further. Requires that there is
+    // no child and that no entry is active.
+    void forEachChangedEntry(
+        std::function<void(LedgerKey const&, LedgerEntry const*)> const& f)
+        const;
+
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;

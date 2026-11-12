@@ -110,9 +110,9 @@ class HerderSCPDriver : public SCPDriver
     void valueExternalized(uint64_t slotIndex, Value const& value) override;
 
     // Deterministic leader schedule: the leader of `round` for `slotIndex`.
-    // The schedule is a permutation of the transitive quorum seeded by the
-    // hash of the last closed ledger header, so it is only defined for the
-    // next ledger to close (LCL+1).
+    // The schedule is derived from the header of the last closed ledger and
+    // the transitive quorum (see computeNextLeaderSchedule), so it is only
+    // defined for the next ledger to close (LCL+1).
     bool isProposalPending(uint64 slotIndex,
                            NodeID const& leader) const override;
     std::optional<NodeID> getRoundLeader(uint64 slotIndex,
@@ -122,6 +122,18 @@ class HerderSCPDriver : public SCPDriver
     std::vector<NodeID> const& getLeaderSchedule(uint64_t slotIndex);
     // True if the local node leads `round` of slotIndex.
     bool isLocalNodeRoundLeader(uint64_t slotIndex, uint32_t round);
+    // The schedule `slotIndex` = LCL+2 will have if LCL+1 closes with
+    // `closingValue` and applies transactions or not. Empty for any other
+    // slot. This is a prediction: nothing in consensus depends on it.
+    std::vector<NodeID>
+    getExpectedLeaderSchedule(uint64_t slotIndex,
+                              StellarValue const& closingValue,
+                              bool appliedTransactions);
+    // False when ledgers close without recording transaction results (the
+    // test-only overlay-only mode).
+    bool ledgersHaveResults() const;
+    ValueWrapperPtr reproposeValue(uint64_t slotIndex, uint32 round,
+                                   Value const& value) override;
 
     // Update metrics indicating that a value was replaced with an empty-tx-set
     // value for slotIndex.
@@ -338,6 +350,7 @@ class HerderSCPDriver : public SCPDriver
         Hash mSeed;
         size_t mQuorumSize{0};
         uint64_t mQuorumRebuildCount{0};
+        bool mLedgersHaveResults{true};
         std::vector<NodeID> mSchedule;
     };
     LeaderScheduleCache mLeaderSchedule;

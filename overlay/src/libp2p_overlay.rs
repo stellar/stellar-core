@@ -12,8 +12,8 @@
 //! QUIC provides independent loss recovery per stream.
 
 use crate::flood::{
-    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, PushRateLimiter,
-    PushRecord, TxBuffer, TxSetData, TxStreamMessage,
+    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, NodeId, PendingRequests, PushRateLimiter,
+    PushRecord, SendPlan, TxBuffer, TxRouter, TxSetData, TxStreamMessage,
 };
 #[cfg(test)]
 use crate::integrated::CoreCommand;
@@ -47,6 +47,100 @@ pub const CONTROL_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/contr
 pub const TX_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/tx/1.0.0");
 // This experimental protocol requires zstd for every transaction-set response.
 pub const TXSET_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/txset/zstd/2.0.0");
+/// One-shot stream on which an overlay tells a peer which validator it
+/// belongs to: one frame, `[nodeID:32][signature:64]` (see `NodeIdentity`),
+/// answered with one byte once it has been read.
+pub const NODE_ID_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/node-id/1.0.0");
+
+/// Domain separator of the identity binding that Core signs.
+const NODE_ID_BINDING_TAG: &[u8] = b"stellar-overlay-peer-id";
+const NODE_ID_FRAME_LEN: usize = 32 + 64;
+
+/// Transaction bodies sent directly to a peer are collected for this long,
+/// so that a burst of submissions (a client or load generator step) becomes
+/// one write per peer instead of one per transaction.
+const DIRECT_SEND_BATCH_INTERVAL: Duration = Duration::from_millis(10);
+
+/// A peer's queue of direct sends is written at once when it reaches this
+/// many transactions.
+const DIRECT_SEND_BATCH_MAX_TXS: usize = 256;
+
+/// At most this many transactions wait for one peer whose stream is not
+/// taking them (one sender per peer writes at a time). What does not fit is
+/// handed back to the router as not sent.
+const DIRECT_SEND_MAX_QUEUED_TXS: usize = 20_000;
+
+/// How often the router is asked whether anything is owed although nothing
+/// changed: a send that failed, a body old enough to be sent again, a flood
+/// that found no peer.
+const DIRECT_REPLAN_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Direct sends per peer: what is queued, and which peers have a sender task
+/// writing right now.
+#[derive(Default)]
+struct DirectOut {
+    queued: HashMap<PeerId, Vec<Arc<ValidatedTx>>>,
+    sending: HashSet<PeerId>,
+}
+
+/// A peer's validator identity claim must arrive within this long of its
+/// stream opening.
+const NODE_ID_READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Acknowledgement bytes on the node id stream: the claim was dealt with
+/// (accepted, kept for later, or refused), or the receiver could not use it
+/// yet and the sender should repeat it.
+const NODE_ID_ACK_TAKEN: u8 = 1;
+const NODE_ID_ACK_RETRY: u8 = 0;
+
+/// Identity claims handled per connection. An honest peer sends one per
+/// connection it establishes (two when both sides dial at once) and one more
+/// if its Core's identity arrives late.
+const MAX_NODE_ID_CLAIMS_PER_PEER: u32 = 8;
+
+/// This node's validator identity, as sent by Core: the node key's signature
+/// over [`node_id_binding`] of this overlay's own peer id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NodeIdentity {
+    pub network_id: [u8; 32],
+    pub node_id: NodeId,
+    pub signature: [u8; 64],
+}
+
+/// What a validator signs to say "the overlay with this peer id is mine":
+/// `SHA256(networkID || tag || peerId)`. The peer id is the one QUIC
+/// authenticated, so the statement cannot be replayed by another peer.
+pub fn node_id_binding(network_id: &[u8; 32], peer: &PeerId) -> [u8; 32] {
+    let peer_bytes = peer.to_bytes();
+    let mut message = Vec::with_capacity(32 + NODE_ID_BINDING_TAG.len() + peer_bytes.len());
+    message.extend_from_slice(network_id);
+    message.extend_from_slice(NODE_ID_BINDING_TAG);
+    message.extend_from_slice(&peer_bytes);
+    crate::xdr::sha256_hash(&message)
+}
+
+/// Whether `signature` is `node_id`'s signature binding it to `peer`.
+fn verify_node_id_binding(
+    network_id: &[u8; 32],
+    peer: &PeerId,
+    node_id: &NodeId,
+    signature: &[u8; 64],
+) -> bool {
+    let Ok(key) = libp2p::identity::ed25519::PublicKey::try_from_bytes(node_id) else {
+        return false;
+    };
+    key.verify(&node_id_binding(network_id, peer), signature)
+}
+
+/// Identity state: ours, and claims from peers that arrived before Core told
+/// us the network id needed to check them.
+#[derive(Default)]
+struct IdentityState {
+    ours: Option<NodeIdentity>,
+    unverified: HashMap<PeerId, (NodeId, [u8; 64])>,
+    /// Claims handled per connected peer (see MAX_NODE_ID_CLAIMS_PER_PEER).
+    claims: HashMap<PeerId, u32>,
+}
 
 /// Message frame: 4-byte length prefix + payload
 /// Max message size: 16MB (for large TX sets)
@@ -120,6 +214,14 @@ pub enum OverlayCommand {
         hash: [u8; 32],
         data: Arc<TxSetData>,
     },
+    /// Core accepted this transaction. The router already holds it; this
+    /// carries out what it decided at that moment.
+    SendLocalTx(SendPlan<PeerId>),
+    /// The targets or the identified peers changed: send what the router now
+    /// says is owed.
+    FlushLocalTxs,
+    /// Core sent this node's validator identity: tell every peer.
+    SetNodeIdentity(NodeIdentity),
     /// Connect to a peer by address (bootstrap — PeerId unknown)
     Dial(Multiaddr),
     /// Connect to a known peer by PeerId (reconnect — deduplicates automatically)
@@ -196,6 +298,11 @@ pub struct OverlayHandle {
     cmd_tx: mpsc::Sender<OverlayCommand>,
     txset_send_slots: Arc<Semaphore>,
     txset_send_bytes: Arc<Semaphore>,
+    /// Shared with the overlay task. The App updates it in the order of
+    /// Core's messages (a transaction accepted, transactions externalized,
+    /// new targets), then sends a command to act on it.
+    tx_router: Arc<std::sync::Mutex<TxRouter<PeerId>>>,
+    local_peer_id: PeerId,
 }
 
 impl OverlayHandle {
@@ -219,6 +326,84 @@ impl OverlayHandle {
                 e
             );
         }
+    }
+
+    /// This overlay's own libp2p peer id (what Core's identity binding signs).
+    pub fn local_peer_id(&self) -> PeerId {
+        self.local_peer_id
+    }
+
+    /// Core accepted `tx`: keep it until it is externalized, and work out
+    /// where it goes now. Synchronous, so that it is ordered with
+    /// [`Self::ledger_externalized`] and [`Self::set_tx_targets`]; the returned
+    /// plan is carried out with [`Self::send_local_tx`].
+    pub fn add_local_tx(&self, tx: Arc<ValidatedTx>) -> SendPlan<PeerId> {
+        self.tx_router
+            .lock()
+            .unwrap()
+            .add_local(tx, Instant::now())
+    }
+
+    /// Carry out a plan from [`Self::add_local_tx`].
+    pub async fn send_local_tx(&self, plan: SendPlan<PeerId>) {
+        if plan.is_empty() {
+            return;
+        }
+        if let Err(e) = self.cmd_tx.send(OverlayCommand::SendLocalTx(plan)).await {
+            warn!(
+                "Overlay command channel closed, failed to send SendLocalTx: {}",
+                e
+            );
+        }
+    }
+
+    /// A ledger externalized with these transactions: stop sending them.
+    /// The caller then calls [`Self::flush_local_txs`]: transactions that
+    /// were held back from new targets may be due.
+    pub fn ledger_externalized(&self, hashes: &[[u8; 32]]) {
+        self.tx_router.lock().unwrap().ledger_externalized(hashes);
+    }
+
+    /// Core dropped these transactions: stop sending them.
+    pub fn forget_local_txs(&self, hashes: &[[u8; 32]]) {
+        self.tx_router.lock().unwrap().remove(hashes);
+    }
+
+    /// Core's list of validators that get transactions now (`None` = every
+    /// peer). Returns whether it changed; if so, call
+    /// [`Self::flush_local_txs`].
+    pub fn set_tx_targets(&self, targets: Option<Vec<NodeId>>) -> bool {
+        self.tx_router.lock().unwrap().set_targets(targets)
+    }
+
+    /// Send whatever the router says is owed after a change.
+    pub async fn flush_local_txs(&self) {
+        if let Err(e) = self.cmd_tx.send(OverlayCommand::FlushLocalTxs).await {
+            warn!(
+                "Overlay command channel closed, failed to send FlushLocalTxs: {}",
+                e
+            );
+        }
+    }
+
+    /// Core sent this node's validator identity.
+    pub async fn set_node_identity(&self, identity: NodeIdentity) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::SetNodeIdentity(identity))
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send SetNodeIdentity: {}",
+                e
+            );
+        }
+    }
+
+    /// Number of transactions kept for sending (accepted from Core, not yet
+    /// externalized).
+    pub fn local_tx_count(&self) -> usize {
+        self.tx_router.lock().unwrap().len()
     }
 
     pub async fn fetch_txset(&self, hash: [u8; 32], slot: u32) {
@@ -447,6 +632,15 @@ struct SharedState {
     pending_getdata: RwLock<PendingRequests>,
     /// TX buffer for responding to GETDATA requests
     tx_buffer: RwLock<TxBuffer>,
+    /// Where this node's own transactions go (shared with the App through
+    /// `OverlayHandle`). Never held across an await.
+    tx_router: Arc<std::sync::Mutex<TxRouter<PeerId>>>,
+    /// Validator identities: ours and unchecked claims. Never held across
+    /// an await.
+    identity: std::sync::Mutex<IdentityState>,
+    /// Transaction bodies queued for a direct send, per peer (see
+    /// DIRECT_SEND_BATCH_INTERVAL). Never held across an await.
+    direct_out: std::sync::Mutex<DirectOut>,
     /// Overlay metrics (shared with App for IPC reporting)
     metrics: Arc<OverlayMetrics>,
 }
@@ -457,6 +651,7 @@ impl SharedState {
         mempool: MempoolHandle,
         control: Control,
         metrics: Arc<OverlayMetrics>,
+        tx_router: Arc<std::sync::Mutex<TxRouter<PeerId>>>,
     ) -> Self {
         Self {
             peer_streams: RwLock::new(HashMap::new()),
@@ -484,6 +679,9 @@ impl SharedState {
             inv_tracker: RwLock::new(InvTracker::new()),
             pending_getdata: RwLock::new(PendingRequests::new()),
             tx_buffer: RwLock::new(TxBuffer::new()),
+            tx_router,
+            identity: std::sync::Mutex::new(IdentityState::default()),
+            direct_out: std::sync::Mutex::new(DirectOut::default()),
             metrics,
         }
     }
@@ -587,11 +785,13 @@ pub fn create_overlay(
     // Unbounded channel for critical events (SCP, TxSet) - never drop
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
+    let tx_router = Arc::new(std::sync::Mutex::new(TxRouter::new()));
     let state = Arc::new(SharedState::new(
         event_tx,
         mempool,
         control.clone(),
         metrics,
+        Arc::clone(&tx_router),
     ));
 
     let overlay = StellarOverlay {
@@ -606,6 +806,8 @@ pub fn create_overlay(
         cmd_tx,
         txset_send_slots: Arc::new(Semaphore::new(MAX_OUTSTANDING_TXSET_SENDS)),
         txset_send_bytes: Arc::new(Semaphore::new(MAX_OUTSTANDING_TXSET_BYTES)),
+        tx_router,
+        local_peer_id: peer_id,
     };
 
     Ok((handle, event_rx, overlay))
@@ -646,13 +848,22 @@ impl StellarOverlay {
             .control
             .accept(TXSET_PROTOCOL)
             .expect("TxSet protocol registered once");
+        let node_id_incoming = self
+            .control
+            .accept(NODE_ID_PROTOCOL)
+            .expect("node id protocol registered once");
         let state = self.state.clone();
+        tokio::spawn(handle_inbound_node_id_streams(
+            node_id_incoming,
+            state.clone(),
+        ));
         tokio::spawn(handle_inbound_scp_streams(control_incoming, state.clone()));
         tokio::spawn(handle_inbound_tx_streams(tx_incoming, state.clone()));
         tokio::spawn(handle_inbound_txset_streams(txset_incoming, state.clone()));
 
         // Spawn INV/GETDATA housekeeping task
         tokio::spawn(inv_getdata_housekeeping_task(state.clone()));
+        tokio::spawn(direct_send_flush_task(state.clone()));
 
         loop {
             tokio::select! {
@@ -693,6 +904,15 @@ impl StellarOverlay {
                         }
                         OverlayCommand::PushTxSet { hash, data } => {
                             self.push_txset(hash, data).await;
+                        }
+                        OverlayCommand::SendLocalTx(plan) => {
+                            self.send_local_tx_plan(plan).await;
+                        }
+                        OverlayCommand::FlushLocalTxs => {
+                            flush_local_txs(&self.state).await;
+                        }
+                        OverlayCommand::SetNodeIdentity(identity) => {
+                            self.set_node_identity(identity).await;
                         }
                         OverlayCommand::Dial(addr) => {
                             info!("Dialing peer at {}", addr);
@@ -827,6 +1047,16 @@ impl StellarOverlay {
                         "Duplicate connection to {} (now {}), skipping stream setup",
                         peer_id, num_established
                     );
+                    // The peer may have seen its side of the earlier
+                    // connection close and forgotten who this node is.
+                    let identity = self.state.identity.lock().unwrap().ours.clone();
+                    if let Some(identity) = identity {
+                        tokio::spawn(send_node_identity(
+                            self.control.clone(),
+                            peer_id,
+                            identity,
+                        ));
+                    }
                 }
             }
 
@@ -877,6 +1107,26 @@ impl StellarOverlay {
                         .lock()
                         .unwrap()
                         .forget_peer(&peer_id);
+                    // The peer is no longer a reachable target, and whatever
+                    // was sent to it may be lost.
+                    {
+                        let mut ids = self.state.identity.lock().unwrap();
+                        ids.unverified.remove(&peer_id);
+                        ids.claims.remove(&peer_id);
+                    }
+                    // Whatever was queued for the peer is not sent; the
+                    // router forgets its sends to the peer just below.
+                    self.state.direct_out.lock().unwrap().queued.remove(&peer_id);
+                    let identified = {
+                        let mut router = self.state.tx_router.lock().unwrap();
+                        router.peer_disconnected(&peer_id);
+                        router.identified_peer_count()
+                    };
+                    self.state
+                        .metrics
+                        .node_id_identified
+                        .store(identified as i64, Ordering::Relaxed);
+                    flush_local_txs(&self.state).await;
                     // Notify main loop to clean up any pending requests for this peer
                     if let Err(e) = self.state.event_tx.send(OverlayEvent::PeerDisconnected {
                         peer_id: peer_id.clone(),
@@ -1014,11 +1264,11 @@ impl StellarOverlay {
         }
     }
 
-    /// Broadcast TX to all connected peers
-    /// Broadcast TX using INV/GETDATA protocol (bandwidth efficient)
+    /// Flood a transaction to all connected peers with the INV/GETDATA
+    /// protocol, unless it was seen before. (Core's own transactions go
+    /// through the router instead, see `send_local_tx_plan`.)
     async fn broadcast_tx(&mut self, tx: Arc<ValidatedTx>) {
         let hash = *tx.hash();
-        let fee_per_op = tx.fee_per_op();
 
         // Dedup check
         {
@@ -1033,34 +1283,57 @@ impl StellarOverlay {
                 .memory_flood_known
                 .store(seen.len() as i64, Ordering::Relaxed);
         }
+        advertise_txs_to_all(&self.state, &[tx]).await;
+    }
 
-        // Store TX in buffer for GETDATA responses
+    /// Carry out the router's plan for transactions Core accepted.
+    async fn send_local_tx_plan(&mut self, plan: SendPlan<PeerId>) {
         {
-            let mut buffer = self.state.tx_buffer.write().await;
-            buffer.insert(Arc::clone(&tx));
+            // A local transaction is known from now on: a copy from a peer
+            // is a duplicate.
+            let mut seen = self.state.tx_seen.write().await;
+            for tx in plan
+                .flood
+                .iter()
+                .chain(plan.direct.iter().flat_map(|(_, txs)| txs.iter()))
+            {
+                seen.put(*tx.hash(), ());
+            }
+            self.state
+                .metrics
+                .memory_flood_known
+                .store(seen.len() as i64, Ordering::Relaxed);
         }
+        execute_send_plan(&self.state, plan).await;
+    }
 
-        let streams = self.state.peer_streams.read().await;
-        let peers: Vec<_> = streams.keys().cloned().collect();
-        drop(streams);
-
-        if peers.is_empty() {
-            debug!("TX_INV: No peers to announce TX {:02x?}...", &hash[..4]);
-            return;
-        }
-
-        debug!(
-            "TX_INV: Announcing TX {:02x?}... ({} bytes) to {} peers via INV",
-            &hash[..4],
-            tx.bytes().len(),
-            peers.len()
+    /// Core told us which validator this overlay belongs to: keep it, check
+    /// the claims that were waiting for the network id, and tell every peer.
+    async fn set_node_identity(&mut self, identity: NodeIdentity) {
+        info!(
+            "NODE_ID: This overlay belongs to validator {:02x?}...",
+            &identity.node_id[..4]
         );
+        let waiting: Vec<(PeerId, (NodeId, [u8; 64]))> = {
+            let mut ids = self.state.identity.lock().unwrap();
+            ids.ours = Some(identity.clone());
+            ids.unverified.drain().collect()
+        };
         self.state
-            .metrics
-            .flood_advertised
-            .fetch_add(peers.len() as u64, Ordering::Relaxed);
-
-        queue_inv(&self.state, &peers, InvEntry { hash, fee_per_op }).await;
+            .tx_router
+            .lock()
+            .unwrap()
+            .set_local_node(identity.node_id);
+        for (peer, (node_id, signature)) in waiting {
+            accept_node_id_claim(&self.state, peer, node_id, signature).await;
+        }
+        let peers: Vec<PeerId> = self.state.peer_streams.read().await.keys().cloned().collect();
+        for peer in peers {
+            let control = self.control.clone();
+            let identity = identity.clone();
+            tokio::spawn(async move { send_node_identity(control, peer, identity).await });
+        }
+        flush_local_txs(&self.state).await;
     }
 
     /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it.
@@ -1402,6 +1675,13 @@ async fn open_streams_to_peer(control: Control, state: Arc<SharedState>, peer_id
         }
     }
 
+    // Tell the peer which validator this overlay belongs to, if Core has
+    // said so already (otherwise `set_node_identity` does it later).
+    let identity = state.identity.lock().unwrap().ours.clone();
+    if let Some(identity) = identity {
+        tokio::spawn(send_node_identity(state.control.clone(), peer_id, identity));
+    }
+
     // Request SCP state from newly connected peer
     info!("Peer {} streams opened, sending SCP state request", peer_id);
     let ledger_seq: u32 = 0;
@@ -1648,6 +1928,411 @@ async fn send_peer_frames(
 /// Write length-prefixed frame to stream
 async fn write_framed(stream: &mut Stream, data: &[u8]) -> io::Result<()> {
     framed_io::write_frame_parts(stream, &[data]).await
+}
+
+/// Advertise `txs` to every connected peer (the INV/GETDATA flood) and keep
+/// them ready for the demands that follow. Returns false if there was no
+/// peer to advertise them to.
+async fn advertise_txs_to_all(state: &Arc<SharedState>, txs: &[Arc<ValidatedTx>]) -> bool {
+    if txs.is_empty() {
+        return true;
+    }
+    {
+        let mut buffer = state.tx_buffer.write().await;
+        for tx in txs {
+            buffer.insert(Arc::clone(tx));
+        }
+    }
+    let peers: Vec<PeerId> = state.peer_streams.read().await.keys().cloned().collect();
+    if peers.is_empty() {
+        debug!("TX_INV: No peers to announce {} TXs to", txs.len());
+        return false;
+    }
+    debug!(
+        "TX_INV: Announcing {} TXs to {} peers via INV",
+        txs.len(),
+        peers.len()
+    );
+    state
+        .metrics
+        .flood_advertised
+        .fetch_add((peers.len() * txs.len()) as u64, Ordering::Relaxed);
+    for tx in txs {
+        let entry = InvEntry {
+            hash: *tx.hash(),
+            fee_per_op: tx.fee_per_op(),
+        };
+        queue_inv(state, &peers, entry).await;
+    }
+    true
+}
+
+/// Carry out a router plan: bodies straight to the target peers, adverts to
+/// everyone for what has to be flooded.
+async fn execute_send_plan(state: &Arc<SharedState>, plan: SendPlan<PeerId>) {
+    let SendPlan { direct, flood } = plan;
+    if !flood.is_empty() {
+        if advertise_txs_to_all(state, &flood).await {
+            state
+                .metrics
+                .flood_tx_local_flooded
+                .fetch_add(flood.len() as u64, Ordering::Relaxed);
+        } else {
+            // Nobody to tell yet: try again when the targets or the peers
+            // change.
+            let hashes: Vec<[u8; 32]> = flood.iter().map(|tx| *tx.hash()).collect();
+            state.tx_router.lock().unwrap().mark_unflooded(&hashes);
+        }
+    }
+    // Queue the bodies per peer; `direct_send_flush_task` writes them a few
+    // milliseconds later, a full queue is written now.
+    let mut overflow: Vec<(PeerId, Vec<[u8; 32]>)> = Vec::new();
+    let mut full: Vec<PeerId> = Vec::new();
+    {
+        let mut out = state.direct_out.lock().unwrap();
+        for (peer, txs) in direct {
+            let queue = out.queued.entry(peer).or_default();
+            let room = DIRECT_SEND_MAX_QUEUED_TXS.saturating_sub(queue.len());
+            if txs.len() > room {
+                overflow.push((peer, txs[room..].iter().map(|tx| *tx.hash()).collect()));
+            }
+            queue.extend(txs.into_iter().take(room));
+            if queue.len() >= DIRECT_SEND_BATCH_MAX_TXS {
+                full.push(peer);
+            }
+        }
+    }
+    if !overflow.is_empty() {
+        // The peer is not reading: these were not sent. The router offers
+        // them again at a later plan.
+        let mut router = state.tx_router.lock().unwrap();
+        for (peer, hashes) in &overflow {
+            router.mark_unsent(peer, hashes);
+        }
+    }
+    for peer in full {
+        start_direct_sender(state, peer);
+    }
+}
+
+/// Starts the sender task of `peer` unless one is running: it writes what is
+/// queued for the peer, batch after batch, and ends when the queue is empty.
+/// One task per peer, so a peer that stops reading holds one task and a
+/// bounded queue, and a slow peer does not delay another one or the caller.
+fn start_direct_sender(state: &Arc<SharedState>, peer: PeerId) {
+    {
+        let mut out = state.direct_out.lock().unwrap();
+        if out.queued.get(&peer).map_or(true, |q| q.is_empty()) || !out.sending.insert(peer) {
+            return;
+        }
+    }
+    let state = Arc::clone(state);
+    tokio::spawn(async move {
+        loop {
+            let txs = {
+                let mut out = state.direct_out.lock().unwrap();
+                match out.queued.remove(&peer) {
+                    Some(txs) if !txs.is_empty() => txs,
+                    _ => {
+                        out.sending.remove(&peer);
+                        return;
+                    }
+                }
+            };
+            send_tx_bodies(&state, peer, txs).await;
+        }
+    });
+}
+
+/// Writes the queued direct sends every DIRECT_SEND_BATCH_INTERVAL, and asks
+/// the router every DIRECT_REPLAN_INTERVAL whether anything is owed.
+async fn direct_send_flush_task(state: Arc<SharedState>) {
+    let mut interval = tokio::time::interval(DIRECT_SEND_BATCH_INTERVAL);
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut last_replan = Instant::now();
+    loop {
+        interval.tick().await;
+        if last_replan.elapsed() >= DIRECT_REPLAN_INTERVAL {
+            last_replan = Instant::now();
+            flush_local_txs(&state).await;
+        }
+        let peers: Vec<PeerId> = {
+            let out = state.direct_out.lock().unwrap();
+            out.queued
+                .iter()
+                .filter(|(peer, queue)| !queue.is_empty() && !out.sending.contains(*peer))
+                .map(|(peer, _)| *peer)
+                .collect()
+        };
+        for peer in peers {
+            start_direct_sender(&state, peer);
+        }
+    }
+}
+
+/// Ask the router what is owed after the targets or the identified peers
+/// changed, and send it.
+async fn flush_local_txs(state: &Arc<SharedState>) {
+    let plan = state.tx_router.lock().unwrap().plan_all(Instant::now());
+    if plan.is_empty() {
+        return;
+    }
+    debug!(
+        "TX_DIRECT_FLUSH: {} peers get bodies, {} TXs flooded",
+        plan.direct.len(),
+        plan.flood.len()
+    );
+    execute_send_plan(state, plan).await;
+}
+
+/// Send transaction bodies straight to `peer`, without adverts, as batches
+/// of complete TX frames (the framing of a GETDATA response). If a write
+/// fails, the router is told that the remaining ones were not delivered.
+async fn send_tx_bodies(state: &SharedState, peer: PeerId, txs: Vec<Arc<ValidatedTx>>) {
+    let mut batch = Vec::new();
+    let mut next = 0;
+    while next < txs.len() {
+        batch.clear();
+        let first = next;
+        let mut payload_bytes = 0;
+        while next < txs.len() {
+            let len = tx_frame_len(&txs[next]);
+            if next > first && batch.len() + len > TX_RESPONSE_BATCH_BYTES {
+                break;
+            }
+            let parts = txs[next].flood_frame_parts();
+            let payload = parts.iter().map(|part| part.len()).sum::<usize>();
+            let Ok(prefix) = u32::try_from(payload) else {
+                warn!("TX_DIRECT: transaction too large to frame, skipping");
+                next += 1;
+                continue;
+            };
+            batch.extend_from_slice(&prefix.to_be_bytes());
+            for part in parts {
+                batch.extend_from_slice(part);
+            }
+            payload_bytes += payload;
+            next += 1;
+        }
+        let count = next - first;
+        let frames = framed_io::Frames::Batch(&batch);
+        let result = send_peer_frames(state, peer, StreamType::Tx, frames).await;
+        if record_tx_response_write(state, peer, result, count, payload_bytes) {
+            state
+                .metrics
+                .flood_tx_direct_sent
+                .fetch_add(count as u64, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_tx_direct_sent_bytes
+                .fetch_add(payload_bytes as u64, Ordering::Relaxed);
+        } else {
+            let unsent: Vec<[u8; 32]> = txs[first..].iter().map(|tx| *tx.hash()).collect();
+            state
+                .tx_router
+                .lock()
+                .unwrap()
+                .mark_unsent(&peer, &unsent);
+            return;
+        }
+    }
+}
+
+/// Tell `peer` which validator this overlay belongs to, and wait for it to
+/// acknowledge the frame. Retried a few times: the stream library drops an
+/// inbound stream when several arrive faster than they are accepted (every
+/// peer identifies itself at the same moment when a network starts), and a
+/// dropped stream is not always an error on the writing side.
+async fn send_node_identity(control: Control, peer: PeerId, identity: NodeIdentity) {
+    const ATTEMPTS: u32 = 12;
+    const MAX_DELAY: Duration = Duration::from_secs(5);
+    let mut delay = Duration::from_millis(100);
+    for attempt in 1..=ATTEMPTS {
+        match try_send_node_identity(control.clone(), peer, &identity).await {
+            Ok(()) => return,
+            Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                // A peer without this protocol never identifies itself
+                // either; transactions are flooded when it is a target.
+                debug!("NODE_ID: {} does not take node ids: {}", peer, e);
+                return;
+            }
+            Err(e) => {
+                debug!(
+                    "NODE_ID: Sending the node id to {} failed (attempt {}): {}",
+                    peer, attempt, e
+                );
+            }
+        }
+        tokio::time::sleep(delay).await;
+        delay = (delay * 2).min(MAX_DELAY);
+    }
+    // About half a minute of trying. If the connection is still up, this
+    // node floods its transactions whenever that validator is a target.
+    warn!(
+        "NODE_ID: Could not tell {} which validator this overlay belongs to",
+        peer
+    );
+}
+
+/// One attempt of [`send_node_identity`].
+async fn try_send_node_identity(
+    mut control: Control,
+    peer: PeerId,
+    identity: &NodeIdentity,
+) -> io::Result<()> {
+    use futures::AsyncWriteExt;
+    let mut stream = control
+        .open_stream(peer, NODE_ID_PROTOCOL)
+        .await
+        .map_err(|e| match e {
+            libp2p_stream::OpenStreamError::UnsupportedProtocol(_) => {
+                io::Error::new(io::ErrorKind::Unsupported, e)
+            }
+            other => io::Error::new(io::ErrorKind::NotConnected, other),
+        })?;
+    let mut frame = [0u8; NODE_ID_FRAME_LEN];
+    frame[..32].copy_from_slice(&identity.node_id);
+    frame[32..].copy_from_slice(&identity.signature);
+    write_framed(&mut stream, &frame).await?;
+    let mut ack = [0u8; 1];
+    tokio::time::timeout(NODE_ID_READ_TIMEOUT, stream.read_exact(&mut ack))
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "no acknowledgement"))??;
+    let _ = stream.close().await;
+    if ack[0] != NODE_ID_ACK_TAKEN {
+        // The peer read the frame but could not use it yet (it had not
+        // registered this connection): send it again.
+        return Err(io::Error::new(io::ErrorKind::WouldBlock, "not taken yet"));
+    }
+    Ok(())
+}
+
+/// Peers telling us which validator they belong to.
+async fn handle_inbound_node_id_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
+    while let Some((peer_id, mut stream)) = incoming.next().await {
+        let state = state.clone();
+        tokio::spawn(async move {
+            let read = tokio::time::timeout(
+                NODE_ID_READ_TIMEOUT,
+                read_framed_with_limit(&mut stream, NODE_ID_FRAME_LEN),
+            );
+            let frame = match read.await {
+                Ok(Ok(frame)) if frame.len() == NODE_ID_FRAME_LEN => frame,
+                Ok(Ok(frame)) => {
+                    debug!(
+                        "NODE_ID: Ignoring a node id frame of {} bytes from {}",
+                        frame.len(),
+                        peer_id
+                    );
+                    return;
+                }
+                Ok(Err(e)) => {
+                    debug!("NODE_ID: Node id stream from {} failed: {}", peer_id, e);
+                    return;
+                }
+                Err(_) => {
+                    debug!("NODE_ID: Node id stream from {} sent nothing", peer_id);
+                    return;
+                }
+            };
+            let mut node_id = [0u8; 32];
+            node_id.copy_from_slice(&frame[..32]);
+            let mut signature = [0u8; 64];
+            signature.copy_from_slice(&frame[32..]);
+            let taken = accept_node_id_claim(&state, peer_id, node_id, signature).await;
+            {
+                use futures::AsyncWriteExt;
+                let ack = if taken {
+                    NODE_ID_ACK_TAKEN
+                } else {
+                    NODE_ID_ACK_RETRY
+                };
+                let _ = stream.write_all(&[ack]).await;
+                let _ = stream.flush().await;
+            }
+        });
+    }
+}
+
+/// A peer claims to be validator `node_id`. Accept it if the signature
+/// binds that validator to the peer id of this connection; keep it for later
+/// if Core has not told us the network id yet.
+/// Returns false if the claim could not be used yet and should be repeated.
+async fn accept_node_id_claim(
+    state: &Arc<SharedState>,
+    peer: PeerId,
+    node_id: NodeId,
+    signature: [u8; 64],
+) -> bool {
+    // Nothing to do for a claim that is already accepted (a peer repeats it
+    // on every connection it establishes).
+    if state.tx_router.lock().unwrap().node_of(&peer) == Some(&node_id) {
+        return true;
+    }
+    // Only a connected peer can be a target. The peer's stream can get here
+    // before this side has registered the connection: the sender repeats the
+    // claim.
+    if !state.peer_streams.read().await.contains_key(&peer) {
+        return false;
+    }
+    let network_id = {
+        let mut ids = state.identity.lock().unwrap();
+        let known = ids.ours.as_ref().map(|ours| ours.network_id);
+        match known {
+            Some(network_id) => {
+                // A signature check, a log line and a pass over the pending
+                // transactions per claim: bound what one connection can ask
+                // for. (A waiting claim is counted when it is checked.)
+                let claims = ids.claims.entry(peer).or_insert(0);
+                if *claims >= MAX_NODE_ID_CLAIMS_PER_PEER {
+                    return true;
+                }
+                *claims += 1;
+                network_id
+            }
+            None => {
+                ids.unverified.insert(peer, (node_id, signature));
+                return true;
+            }
+        }
+    };
+    if !verify_node_id_binding(&network_id, &peer, &node_id, &signature) {
+        state
+            .metrics
+            .node_id_rejected
+            .fetch_add(1, Ordering::Relaxed);
+        warn!(
+            "NODE_ID_REJECT: Peer {} claims validator {:02x?}... with a signature that does not bind it to this connection",
+            peer,
+            &node_id[..4]
+        );
+        return true;
+    }
+    info!(
+        "NODE_ID: Peer {} is validator {:02x?}...",
+        peer,
+        &node_id[..4]
+    );
+    let mut identified = {
+        let mut router = state.tx_router.lock().unwrap();
+        router.peer_identified(peer, node_id);
+        router.identified_peer_count()
+    };
+    // The connection may have closed between the check above and now; its
+    // close handler has then already run and would not undo this.
+    if !state.peer_streams.read().await.contains_key(&peer) {
+        let mut router = state.tx_router.lock().unwrap();
+        router.peer_disconnected(&peer);
+        identified = router.identified_peer_count();
+        state.identity.lock().unwrap().claims.remove(&peer);
+    }
+    state
+        .metrics
+        .node_id_identified
+        .store(identified as i64, Ordering::Relaxed);
+    // The peer may be a target that could not be reached until now.
+    flush_local_txs(state).await;
+    true
 }
 
 /// Flush INV batch for a specific peer
@@ -1960,6 +2645,51 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         peer_id
     );
 
+    // A transaction this node got as a direct send (and so did not relay)
+    // is now being advertised: its origin has fallen back to flooding, which
+    // has to pass through this node too. Advertise it to the other peers,
+    // once.
+    let join_flood: Vec<Arc<ValidatedTx>> = {
+        let mut router = state.tx_router.lock().unwrap();
+        if router.has_direct() {
+            batch
+                .entries
+                .iter()
+                .filter_map(|entry| router.join_flood(&entry.hash))
+                .collect()
+        } else {
+            Vec::new()
+        }
+    };
+    if !join_flood.is_empty() {
+        // Ready for the demands that follow the adverts.
+        {
+            let mut buffer = state.tx_buffer.write().await;
+            for tx in &join_flood {
+                buffer.insert(Arc::clone(tx));
+            }
+        }
+        let peers: Vec<PeerId> = state
+            .peer_streams
+            .read()
+            .await
+            .keys()
+            .filter(|p| *p != peer_id)
+            .cloned()
+            .collect();
+        debug!(
+            "TX_RELAY: Joining the flood of {} TXs received directly earlier",
+            join_flood.len()
+        );
+        for tx in join_flood {
+            let entry = InvEntry {
+                hash: *tx.hash(),
+                fee_per_op: tx.fee_per_op(),
+            };
+            queue_inv(state, &peers, entry).await;
+        }
+    }
+
     // Each structure is locked once per batch rather than once per entry, and
     // the two locks are never held together. Entries keep their batch order.
     // Skip TXs we already have; they are not recorded as sources.
@@ -2093,7 +2823,14 @@ async fn serve_getdata(state: &SharedState, peer: PeerId, hashes: Vec<[u8; 32]>)
         if bytes < TX_RESPONSE_BATCH_BYTES {
             let mut buffer = state.tx_buffer.write().await;
             for hash in hashes.by_ref() {
-                let Some(tx) = buffer.get(&hash) else {
+                // The buffer keeps a flooded transaction for a short time
+                // only. One this node accepted itself, or received directly,
+                // is kept until it is externalized, and may be demanded long
+                // after it arrived (a flood that starts later).
+                let found = buffer
+                    .get(&hash)
+                    .or_else(|| state.tx_router.lock().unwrap().body(&hash));
+                let Some(tx) = found else {
                     state
                         .metrics
                         .flood_unfulfilled_unknown
@@ -2234,9 +2971,22 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
         .metrics
         .flood_unique_recv
         .fetch_add(tx_len, Ordering::Relaxed);
+    // A first copy of a transaction that one of the last ledgers already
+    // has. It is in the mempool now, and stays until a build finds it
+    // invalid (or, where ledgers are not applied, includes it again).
+    if state.tx_router.lock().unwrap().was_finalized(&hash) {
+        state.metrics.flood_tx_late_copy.fetch_add(1, Ordering::Relaxed);
+        debug!(
+            "TX_LATE_COPY: TX {:02x?}... from {} arrived after it externalized",
+            &hash[..4],
+            peer_id
+        );
+    }
 
-    // Remove from pending requests and measure pull latency
-    {
+    // Remove from pending requests and measure pull latency. A body this
+    // node demanded arrived over the flood; one it did not ask for was sent
+    // directly by a node that is sending to its targets only.
+    let solicited = {
         let mut pending = state.pending_getdata.write().await;
         if let Some(req) = pending.remove(&hash) {
             let pull_us = req.first_sent_at.elapsed().as_micros() as u64;
@@ -2248,8 +2998,11 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
                 .metrics
                 .flood_tx_pull_latency_count
                 .fetch_add(1, Ordering::Relaxed);
+            true
+        } else {
+            false
         }
-    }
+    };
 
     // Store in buffer for responding to others' GETDATA
     {
@@ -2263,6 +3016,24 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
         tx.bytes().len(),
         peer_id
     );
+
+    if !solicited {
+        // A direct send: the sender delivers it to every target itself, so
+        // it is kept for this node's own tx sets and not relayed. Remember
+        // it in case its origin floods it later (see `handle_inv_batch`).
+        state
+            .metrics
+            .flood_tx_direct_recv
+            .fetch_add(1, Ordering::Relaxed);
+        state.tx_router.lock().unwrap().note_direct(Arc::clone(&tx));
+        debug!(
+            "TX_DIRECT_RECV: TX {:02x?}... from {} kept, not relayed",
+            &hash[..4],
+            peer_id
+        );
+        record_recv_transaction(state, recv_start);
+        return;
+    }
 
     // RELAY: Announce to other peers via INV
     let peers_to_announce: Vec<PeerId> = {
@@ -2292,7 +3063,11 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
         queue_inv(state, &peers_to_announce, InvEntry { hash, fee_per_op }).await;
     }
 
-    // Record recv-transaction timing
+    record_recv_transaction(state, recv_start);
+}
+
+/// Record recv-transaction timing
+fn record_recv_transaction(state: &SharedState, recv_start: std::time::Instant) {
     let elapsed_us = recv_start.elapsed().as_micros() as u64;
     state
         .metrics
@@ -2645,6 +3420,9 @@ mod quic_window_experiment;
 
 #[cfg(test)]
 mod txset_push_tests;
+
+#[cfg(test)]
+mod tx_direct_tests;
 
 #[cfg(test)]
 mod tests {

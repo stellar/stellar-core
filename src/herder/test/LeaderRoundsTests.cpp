@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 // Network-level tests of consensus without nomination: the leader of each
-// round comes from a deterministic schedule seeded by the hash of the last
-// closed ledger header (see herder/LeaderSchedule.h).
+// round comes from a deterministic schedule derived from the last closed
+// ledger header (see herder/LeaderSchedule.h).
 
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
@@ -38,13 +38,15 @@ acceleratedConfig(int configNum)
 
 struct ClosedLedger
 {
-    Hash mPreviousHash;
+    LedgerHeader mPrevious;
     NodeID mProposer;
+    Hash mResultHash;
 };
 
 // Cranks until `app` closed `lastLedger`, recording for every ledger it
-// closes on the way the hash of the ledger before it and the node that signed
-// the externalized value (its proposer).
+// closes on the way the header of the ledger before it (what its leader
+// schedule is derived from) and the node that signed the externalized value
+// (its proposer).
 std::map<uint32_t, ClosedLedger>
 crankAndRecord(Simulation::pointer const& simulation,
                Application::pointer const& app, uint32_t lastLedger,
@@ -63,7 +65,8 @@ crankAndRecord(Simulation::pointer const& simulation,
         {
             REQUIRE(cur.header.previousLedgerHash == prev.hash);
             res[cur.header.ledgerSeq] = ClosedLedger{
-                prev.hash, getLcValueSignature(cur.header.scpValue).nodeID};
+                prev.header, getLcValueSignature(cur.header.scpValue).nodeID,
+                cur.header.txSetResultHash};
         }
         prev = cur;
     }
@@ -107,15 +110,33 @@ TEST_CASE("leader schedule drives consensus on a healthy network",
         timeouts += leaderTimeouts(n) + ballotTimeouts(n);
     }
 
-    // Every node computes the same schedule from the previous ledger's hash,
-    // and the value that externalizes is the one its round 1 leader proposed
-    // (unless a round timed out somewhere, e.g. on a busy test machine).
+    // Every node computes the same schedule from the previous ledger's
+    // header, and the value that externalizes is the one its round 1 leader
+    // proposed (unless a round timed out somewhere, e.g. on a busy test
+    // machine). These ledgers are empty, so no leader keeps its term: the
+    // node that closed the previous ledger goes last, and the order seeded
+    // by the ledger before it is otherwise kept.
     std::set<NodeID> proposers;
     int64_t notFirstLeader = 0;
     REQUIRE(closed.size() >= 10);
     for (auto const& c : closed)
     {
-        auto schedule = computeLeaderSchedule(c.second.mPreviousHash, nodeIDs);
+        auto schedule =
+            computeNextLeaderSchedule(c.second.mPrevious, nodeIDs, true);
+        auto expected = computeLeaderSchedule(
+            c.second.mPrevious.previousLedgerHash, nodeIDs);
+        if (c.second.mPrevious.scpValue.ext.v() != STELLAR_VALUE_BASIC)
+        {
+            auto const previousProposer =
+                getLcValueSignature(c.second.mPrevious.scpValue).nodeID;
+            auto it =
+                std::find(expected.begin(), expected.end(), previousProposer);
+            REQUIRE(it != expected.end());
+            std::rotate(it, it + 1, expected.end());
+            // so two ledgers in a row are never led by the same node here
+            REQUIRE(schedule.front() != previousProposer);
+        }
+        REQUIRE(schedule == expected);
         REQUIRE(schedule.size() == 4);
         REQUIRE(std::find(schedule.begin(), schedule.end(),
                           c.second.mProposer) != schedule.end());
@@ -200,7 +221,8 @@ TEST_CASE("leader schedule fails over when a validator is down",
     for (auto const& c : closed)
     {
         // the schedule covers the whole quorum set, including the dead node
-        auto schedule = computeLeaderSchedule(c.second.mPreviousHash, allNodes);
+        auto schedule =
+            computeNextLeaderSchedule(c.second.mPrevious, allNodes, true);
         REQUIRE(schedule.size() == 3);
         // every ledger closed anyway, with a live node's proposal
         REQUIRE(c.second.mProposer != dead);

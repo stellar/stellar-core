@@ -16,11 +16,13 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
+#include "medida/meter.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/BatchExecutor.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/UnorderedSet.h"
 #include "util/XDRCereal.h"
@@ -222,11 +224,15 @@ TxSetUtils::getInvalidTxListWithErrors(
     std::vector<std::pair<bool, std::optional<int64_t>>> txValidationResult(
         txs.size());
     auto& appConnector = app.getAppConnector();
+    // The tasks only read the cache; what they validated themselves is
+    // added to it below, by this thread.
+    TxValidationCache const* const cache = ctx.mValidationCache;
+    std::vector<uint8_t> fromCache(cache ? txs.size() : 0, 0);
 
     app.getBatchExecutor().executeBatchOverRanges(
         txs.size(), taskCount,
-        [&appConnector, &txs, &ledgerViews, &txValidationResult,
-         lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+        [&appConnector, &txs, &ledgerViews, &txValidationResult, cache,
+         &fromCache, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
          validationLedgerSeq](size_t begin, size_t end, size_t rangeIndex) {
             auto const& view = *ledgerViews.at(rangeIndex);
             auto const header = view.getLedgerHeader().current();
@@ -238,7 +244,18 @@ TxSetUtils::getInvalidTxListWithErrors(
                 // cache it here, in parallel, rather than there. Each frame
                 // is in one range only, and the batch completes before the
                 // main thread reads it.
-                txs[i]->getFullHash();
+                auto const& fullHash = txs[i]->getFullHash();
+                if (cache)
+                {
+                    auto it = cache->find(fullHash);
+                    if (it != cache->end())
+                    {
+                        txValidationResult[i] = {it->second.mValid,
+                                                 it->second.mFeeSourceBalance};
+                        fromCache[i] = 1;
+                        continue;
+                    }
+                }
                 auto res = txs[i]->checkValid(appConnector, view, 0,
                                               lowerBoundCloseTimeOffset,
                                               upperBoundCloseTimeOffset,
@@ -256,6 +273,30 @@ TxSetUtils::getInvalidTxListWithErrors(
                 }
             }
         });
+
+    if (ctx.mValidationCache)
+    {
+        size_t hits = 0;
+        for (size_t i = 0; i < txs.size(); ++i)
+        {
+            if (fromCache[i])
+            {
+                ++hits;
+            }
+            else if (!txValidityDependsOnCloseTime(txs[i]->getEnvelope()))
+            {
+                ctx.mValidationCache->emplace(
+                    txs[i]->getFullHash(),
+                    TxValidationResult{txValidationResult[i].first,
+                                       txValidationResult[i].second});
+            }
+        }
+        auto& metrics = app.getMetrics();
+        metrics.NewMeter({"herder", "txset", "validation-cache-hit"}, "tx")
+            .Mark(hits);
+        metrics.NewMeter({"herder", "txset", "validation-cache-miss"}, "tx")
+            .Mark(txs.size() - hits);
+    }
 
     TxFrameListWithErrors invalidTxsWithError;
     auto& [invalidTxs, errorCode] = invalidTxsWithError;
@@ -336,9 +377,13 @@ TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
                         UnorderedMap<AccountID, int64_t>& accountFeeMap,
                         uint64_t lowerBoundCloseTimeOffset,
                         uint64_t upperBoundCloseTimeOffset,
-                        TxFrameList& invalidTxs)
+                        TxFrameList& invalidTxs,
+                        TxValidationCache* validationCache)
 {
-    invalidTxs = getInvalidTxListWithErrors(txs, app, accountFeeMap,
+    releaseAssert(threadIsMain());
+    auto ctx = TxSetValidationContext::forLCL(app);
+    ctx.mValidationCache = validationCache;
+    invalidTxs = getInvalidTxListWithErrors(txs, app, ctx, accountFeeMap,
                                             lowerBoundCloseTimeOffset,
                                             upperBoundCloseTimeOffset)
                      .first;
@@ -351,7 +396,7 @@ TxSetUtils::trimInvalidPrefix(
     std::function<bool(TransactionFrameBase const&)> const& countsTowardTarget,
     Application& app, UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    TxFrameList& invalidTxs)
+    TxFrameList& invalidTxs, TxValidationCache* validationCache)
 {
     ZoneScoped;
     TxFrameList validTxs;
@@ -374,9 +419,9 @@ TxSetUtils::trimInvalidPrefix(
                                 txs.begin() + validated + count);
         validated += count;
         TxFrameList batchInvalid;
-        for (auto const& tx :
-             trimInvalid(batch, app, accountFeeMap, lowerBoundCloseTimeOffset,
-                         upperBoundCloseTimeOffset, batchInvalid))
+        for (auto const& tx : trimInvalid(
+                 batch, app, accountFeeMap, lowerBoundCloseTimeOffset,
+                 upperBoundCloseTimeOffset, batchInvalid, validationCache))
         {
             if (!countsTowardTarget || countsTowardTarget(*tx))
             {

@@ -111,6 +111,28 @@ pub struct OverlayMetrics {
     /// overlay.txset-push.evicted — unrequested tx sets evicted by the unclaimed-set limits
     pub txset_push_evicted: AtomicU64,
 
+    // Transactions sent to the target leaders only
+    /// overlay.flood.tx-direct-sent — transaction bodies sent straight to a
+    /// target (no advert)
+    pub flood_tx_direct_sent: AtomicU64,
+    /// overlay.flood.tx-direct-sent-bytes — their bytes
+    pub flood_tx_direct_sent_bytes: AtomicU64,
+    /// overlay.flood.tx-direct-recv — bodies received without a demand (sent
+    /// directly by a peer), kept and not relayed
+    pub flood_tx_direct_recv: AtomicU64,
+    /// overlay.flood.tx-late-copy — transactions admitted although one of
+    /// the last externalized ledgers already has them (a copy that arrived
+    /// late)
+    pub flood_tx_late_copy: AtomicU64,
+    /// overlay.flood.tx-local-flooded — own transactions advertised to every
+    /// peer because a target was not directly reachable or none was known
+    pub flood_tx_local_flooded: AtomicU64,
+    /// overlay.node-id.rejected — identity claims with a bad signature
+    pub node_id_rejected: AtomicU64,
+    /// overlay.node-id.identified — connected peers that proved which
+    /// validator they are (gauge)
+    pub node_id_identified: AtomicI64,
+
     // Receive timers (per message type, tracked as sum_us + count)
     /// overlay.recv.scp-message — time processing SCP messages
     pub recv_scp_sum_us: AtomicU64,
@@ -172,6 +194,13 @@ impl Default for OverlayMetrics {
             txset_push_request_skipped: AtomicU64::new(0),
             txset_push_dropped: AtomicU64::new(0),
             txset_push_evicted: AtomicU64::new(0),
+            flood_tx_direct_sent: AtomicU64::new(0),
+            flood_tx_direct_sent_bytes: AtomicU64::new(0),
+            flood_tx_direct_recv: AtomicU64::new(0),
+            flood_tx_late_copy: AtomicU64::new(0),
+            flood_tx_local_flooded: AtomicU64::new(0),
+            node_id_rejected: AtomicU64::new(0),
+            node_id_identified: AtomicI64::new(0),
             recv_scp_sum_us: AtomicU64::new(0),
             recv_scp_count: AtomicU64::new(0),
             fetch_txset_sum_us: AtomicU64::new(0),
@@ -239,6 +268,13 @@ impl OverlayMetrics {
             txset_push_request_skipped: self.txset_push_request_skipped.load(ORD),
             txset_push_dropped: self.txset_push_dropped.load(ORD),
             txset_push_evicted: self.txset_push_evicted.load(ORD),
+            flood_tx_direct_sent: self.flood_tx_direct_sent.load(ORD),
+            flood_tx_direct_sent_bytes: self.flood_tx_direct_sent_bytes.load(ORD),
+            flood_tx_direct_recv: self.flood_tx_direct_recv.load(ORD),
+            flood_tx_late_copy: self.flood_tx_late_copy.load(ORD),
+            flood_tx_local_flooded: self.flood_tx_local_flooded.load(ORD),
+            node_id_rejected: self.node_id_rejected.load(ORD),
+            node_id_identified: self.node_id_identified.load(ORD),
             recv_scp_sum_us: self.recv_scp_sum_us.load(ORD),
             recv_scp_count: self.recv_scp_count.load(ORD),
             fetch_txset_sum_us: self.fetch_txset_sum_us.load(ORD),
@@ -314,6 +350,13 @@ pub struct MetricsSnapshot {
     pub txset_push_request_skipped: u64,
     pub txset_push_dropped: u64,
     pub txset_push_evicted: u64,
+    pub flood_tx_direct_sent: u64,
+    pub flood_tx_direct_sent_bytes: u64,
+    pub flood_tx_direct_recv: u64,
+    pub flood_tx_late_copy: u64,
+    pub flood_tx_local_flooded: u64,
+    pub node_id_rejected: u64,
+    pub node_id_identified: i64,
     pub recv_scp_sum_us: u64,
     pub recv_scp_count: u64,
     pub fetch_txset_sum_us: u64,

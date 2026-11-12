@@ -62,6 +62,17 @@ pub enum MessageType {
     /// Payload: [hash:32][slotSeq:4]
     PushTxSet = 14,
 
+    /// This node's validator identity, in answer to `OverlayIdentity`: the
+    /// node key's signature over
+    /// `SHA256(networkID || "stellar-overlay-peer-id" || peerId)`.
+    /// Payload: [networkID:32][nodeID:32][signature:64]
+    SetNodeIdentity = 15,
+
+    /// The validators that get this node's transactions now.
+    /// Payload: [everyone:1][count:4][nodeID:32]...
+    /// `everyone` = 1: flood to all peers (the list is ignored).
+    SetTxTargets = 16,
+
     // ═══ Overlay → Core (Critical Path) ═══
     /// Received SCP envelope from network
     ScpReceived = 100,
@@ -80,6 +91,11 @@ pub enum MessageType {
 
     /// Overlay metrics snapshot response (JSON payload)
     OverlayMetricsResponse = 105,
+
+    /// The overlay's libp2p peer id, sent once at startup so that Core can
+    /// sign the identity binding (`SetNodeIdentity`).
+    /// Payload: [peerId bytes]
+    OverlayIdentity = 106,
 }
 
 impl TryFrom<u32> for MessageType {
@@ -100,11 +116,14 @@ impl TryFrom<u32> for MessageType {
             12 => Ok(MessageType::CacheTxSet),
             13 => Ok(MessageType::RequestOverlayMetrics),
             14 => Ok(MessageType::PushTxSet),
+            15 => Ok(MessageType::SetNodeIdentity),
+            16 => Ok(MessageType::SetTxTargets),
             100 => Ok(MessageType::ScpReceived),
             101 => Ok(MessageType::TopTxsResponse),
             102 => Ok(MessageType::PeerRequestsScpState),
             103 => Ok(MessageType::TxSetAvailable),
             105 => Ok(MessageType::OverlayMetricsResponse),
+            106 => Ok(MessageType::OverlayIdentity),
             _ => Err(InvalidMessageType(value)),
         }
     }
@@ -302,6 +321,9 @@ mod tests {
             MessageType::CacheTxSet,
             MessageType::RequestOverlayMetrics,
             MessageType::PushTxSet,
+            MessageType::SetNodeIdentity,
+            MessageType::SetTxTargets,
+            MessageType::OverlayIdentity,
             MessageType::ScpReceived,
             MessageType::TopTxsResponse,
             MessageType::PeerRequestsScpState,
@@ -374,6 +396,15 @@ mod tests {
         );
         assert_eq!(MessageType::try_from(14).unwrap(), MessageType::PushTxSet);
         assert_eq!(
+            MessageType::try_from(15).unwrap(),
+            MessageType::SetNodeIdentity
+        );
+        assert_eq!(MessageType::try_from(16).unwrap(), MessageType::SetTxTargets);
+        assert_eq!(
+            MessageType::try_from(106).unwrap(),
+            MessageType::OverlayIdentity
+        );
+        assert_eq!(
             MessageType::try_from(100).unwrap(),
             MessageType::ScpReceived
         );
@@ -401,7 +432,8 @@ mod tests {
         assert!(MessageType::try_from(9).is_err()); // gap between 8 and 10
         assert!(MessageType::try_from(99).is_err());
         assert!(MessageType::try_from(104).is_err());
-        assert!(MessageType::try_from(106).is_err());
+        assert!(MessageType::try_from(17).is_err());
+        assert!(MessageType::try_from(107).is_err());
         assert!(MessageType::try_from(u32::MAX).is_err());
     }
 }

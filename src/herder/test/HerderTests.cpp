@@ -4,6 +4,7 @@
 
 #include "bucket/BucketIndexUtils.h"
 #include "herder/HerderImpl.h"
+#include "herder/LeaderSchedule.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "main/Application.h"
@@ -5423,6 +5424,22 @@ class LeaderBuildTestAccess
         herder.setupTriggerNextLedger();
     }
 
+    // When the first-round leader builds its set, and how long before the
+    // trigger that is.
+    static VirtualClock::time_point
+    prepareTime(HerderImpl& herder)
+    {
+        return herder.mPrepareTxSetTimer.expiry_time();
+    }
+
+    static std::chrono::milliseconds
+    prepareLeadTime(HerderImpl& herder)
+    {
+        return HerderImpl::prepareTxSetLeadTime(
+            herder.mLedgerManager.getExpectedLedgerCloseTime(),
+            herder.expectedTxSetBuildDuration());
+    }
+
     // The leader's full build (mempool pull through final checks).
     static TxSetXDRFrameConstPtr
     build(HerderImpl& herder, uint32_t ledgerSeq, ConsensusTime closeTime)
@@ -5483,11 +5500,32 @@ class LeaderBuildTestAccess
     selectLocalFirstLeader(HerderImpl& herder)
     {
         auto& scp = herder.getSCP();
-        auto const& lcl =
-            herder.mApp.getLedgerManager().getLastClosedLedgerHeader();
+        auto& lm = herder.mApp.getLedgerManager();
+        // A node whose own ledger applied nothing has forfeited its term and
+        // comes last in the next ledger's order, whatever the seed. Test
+        // setup reaches such ledgers (upgrade helpers close empty ledgers
+        // under the local node's signature): close one that applies a
+        // transaction, after which the node leads again or, at the start of
+        // a term, takes its place in the seeded order.
+        if (leaderTermOutcome(lm.getLastClosedLedgerHeader().header, true)
+                .mForfeited == scp.getLocalNodeID())
+        {
+            auto root = herder.mApp.getRoot();
+            txtest::closeLedger(
+                herder.mApp,
+                {root->tx({txtest::payment(root->getPublicKey(), 1)})});
+            REQUIRE(
+                !leaderTermOutcome(lm.getLastClosedLedgerHeader().header, true)
+                     .mForfeited);
+        }
+        auto const& lcl = lm.getLastClosedLedgerHeader();
         auto qset = scp.getLocalQuorumSet();
         REQUIRE(qset.validators.size() == 2);
-        for (int i = 0; i < 100; ++i)
+        // The local node's key is fixed (the instance number and the day's
+        // seed decide it) and may sort behind nearly every other key: allow
+        // enough candidates for the absent peer to find one that sorts
+        // behind even such a key.
+        for (int i = 0; i < 2000; ++i)
         {
             qset.validators = {
                 scp.getLocalNodeID(),
@@ -6107,7 +6145,7 @@ TEST_CASE("only round leaders construct local proposals",
         auto& scp = herder.getSCP();
         auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto const seq = lcl.header.ledgerSeq + 1;
-        // The schedule is seeded by the hash of the last closed ledger.
+        // The schedule is derived from the last closed ledger.
         if (!previous)
         {
             previous = lcl.hash;
@@ -6147,8 +6185,30 @@ TEST_CASE("only round leaders construct local proposals",
             app, [&]() { return done; }, std::chrono::seconds(1));
         REQUIRE(done);
         REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
+        // Nobody builds right away: the first-round leader does shortly
+        // before the trigger, so that its set holds what arrives until then.
+        REQUIRE(pulls == 0);
+        REQUIRE(!LeaderBuildTestAccess::prepared(herder));
+        if (role == 0)
+        {
+            auto const lead = LeaderBuildTestAccess::prepareLeadTime(herder);
+            REQUIRE(lead > std::chrono::milliseconds(0));
+            REQUIRE(lead <= std::chrono::milliseconds(250));
+            auto const prepareAt = LeaderBuildTestAccess::prepareTime(herder);
+            REQUIRE(prepareAt == herder.getTriggerTimer().expiry_time() - lead);
+            REQUIRE(clock.now() < prepareAt);
+            clock.setCurrentVirtualTime(prepareAt);
+            testutil::crankUntil(
+                app,
+                [&]() {
+                    return LeaderBuildTestAccess::prepared(herder) != nullptr;
+                },
+                std::chrono::seconds(1));
+        }
+        REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
         REQUIRE(pulls == (role == 0 ? 1 : 0));
         REQUIRE(bool(LeaderBuildTestAccess::prepared(herder)) == (role == 0));
+        auto const preparedSet = LeaderBuildTestAccess::prepared(herder);
         REQUIRE(scp.getLeaderRound(seq) == 0);
         REQUIRE(scp.getLatestMessagesSend(seq).empty());
         auto const trigger = herder.getTriggerTimer().expiry_time();
@@ -6158,10 +6218,10 @@ TEST_CASE("only round leaders construct local proposals",
             app, [&]() { return scp.getLeaderRound(seq) != 0; },
             std::chrono::seconds(1));
         REQUIRE(scp.getLeaderRound(seq) == 1);
-        // The first leader refreshes its empty early snapshot. Followers
-        // pull the mempool once, only to pre-verify signatures; they do not
-        // build or publish a set.
-        REQUIRE(pulls == (role == 0 ? 2 : 1));
+        // The first leader proposes the set it prepared, without pulling
+        // again. Followers pull the mempool once, only to pre-verify
+        // signatures; they do not build or publish a set.
+        REQUIRE(pulls == 1);
         REQUIRE(scp.getLatestMessagesSend(seq).empty() == (role != 0));
 
         // With the first leader silent, real leader timers eventually
@@ -6172,13 +6232,18 @@ TEST_CASE("only round leaders construct local proposals",
             std::chrono::seconds(30));
         REQUIRE(scp.getLeaderRound(seq) == static_cast<uint32_t>(role + 1));
         REQUIRE(driver.isLocalNodeRoundLeader(seq, scp.getLeaderRound(seq)));
-        REQUIRE(pulls == 2);
+        REQUIRE(pulls == (role == 0 ? 1 : 2));
         auto messages = scp.getLatestMessagesSend(seq);
         REQUIRE(messages.front().statement.pledges.type() == SCP_ST_PREPARE);
         auto const& proposed =
             messages.front().statement.pledges.prepare().ballot.value;
         StellarValue nominated;
         xdr::xdr_from_opaque(proposed, nominated);
+        if (role == 0)
+        {
+            REQUIRE(preparedSet);
+            REQUIRE(nominated.txSetHash == preparedSet->getContentsHash());
+        }
         auto txSet = std::get<TxSetXDRFrameConstPtr>(
             herder.getTxSet(nominated.txSetHash));
         REQUIRE(txSet);
@@ -6276,6 +6341,204 @@ TEST_CASE("a follower promoted after losing sync still proposes",
         herder.mGetTopTransactionsForTesting = nullptr;
     }
     REQUIRE(checkedFollower);
+}
+
+// A leader whose round times out should not keep its term: the node whose
+// value closes a ledger leads the next one. So when the leader of a later
+// round puts forward the value it already votes for (the first leader's), it
+// does so under its own signature, unless it is already tied to that value.
+TEST_CASE("the leader of a later round signs the value it proposes again",
+          "[herder][early-proposal][leader-term]")
+{
+    // Three nodes. The first leader's proposal reaches the local node, which
+    // votes for it, and the round times out with the local node next in line.
+    //  * not tied: all three nodes are needed. The third node votes for
+    //    something else, so the first leader's value is not accepted as
+    //    prepared: the local node proposes it again under its own signature.
+    //  * tied: any two nodes are a quorum, so the first leader's and the
+    //    local node's votes make the value accepted as prepared. The first
+    //    leader may have confirmed it: the local node keeps it as it is.
+    auto const tied = GENERATE(false, true);
+    CAPTURE(tied);
+    std::vector<SecretKey> keys;
+    SCPQuorumSet qset;
+    qset.threshold = tied ? 2 : 3;
+    for (int i = 0; i < 3; ++i)
+    {
+        keys.push_back(SecretKey::fromSeed(
+            sha256(fmt::format("early-proposal-node-{}", i))));
+        qset.validators.push_back(keys.back().getPublicKey());
+    }
+
+    bool checkedSecondLeader = false;
+    for (int i = 0; i < 3 && !checkedSecondLeader; ++i)
+    {
+        VirtualClock clock;
+        clock.setCurrentVirtualTime(VirtualClock::from_time_t(1000));
+        auto cfg = getTestConfig(i);
+        cfg.HTTP_PORT = 0;
+        cfg.MANUAL_CLOSE = false;
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+        cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = true;
+        cfg.NODE_SEED = keys[i];
+        cfg.QUORUM_SET = qset;
+        auto app = createTestApplication(clock, cfg);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getSCP();
+        auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto const seq = lcl.header.ledgerSeq + 1;
+        auto& driver = herder.getHerderSCPDriver();
+        if (!driver.isLocalNodeRoundLeader(seq, 2))
+        {
+            continue;
+        }
+        checkedSecondLeader = true;
+        auto const firstLeader = driver.getRoundLeader(seq, 1);
+        REQUIRE(firstLeader);
+        REQUIRE(!(*firstLeader == scp.getLocalNodeID()));
+        auto keyOf = [&](NodeID const& id) {
+            auto it =
+                std::find_if(keys.begin(), keys.end(), [&](SecretKey const& k) {
+                    return k.getPublicKey() == id;
+                });
+            REQUIRE(it != keys.end());
+            return *it;
+        };
+        auto const firstKey = keyOf(*firstLeader);
+        auto const thirdKey =
+            *std::find_if(keys.begin(), keys.end(), [&](SecretKey const& k) {
+                return !(k.getPublicKey() == *firstLeader) &&
+                       !(k.getPublicKey() == scp.getLocalNodeID());
+            });
+        auto& resigned =
+            app->getMetrics().NewMeter({"scp", "leader", "resigned"}, "value");
+
+        herder.getHerderSCPDriver().recordBallotStart(lcl.header.ledgerSeq);
+        size_t pulls = 0;
+        herder.mGetTopTransactionsForTesting = [&](size_t) {
+            ++pulls;
+            return std::vector<TransactionEnvelope>{};
+        };
+        LeaderBuildTestAccess::schedule(herder);
+        clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
+        testutil::crankUntil(
+            app, [&]() { return scp.getLeaderRound(seq) != 0; },
+            std::chrono::seconds(1));
+        REQUIRE(scp.getLeaderRound(seq) == 1);
+        REQUIRE(scp.getLatestMessagesSend(seq).empty());
+
+        // An empty set (the same on every node), proposed by `signer` at
+        // counter 1.
+        auto txSet =
+            makeTxSetFromTransactions(TxFrameList{}, *app, ApplyTimeOffset{})
+                .first;
+        herder.getPendingEnvelopes().addTxSet(txSet->getContentsHash(), seq,
+                                              txSet);
+        auto const closeTime =
+            std::max(ConsensusTime::fromSystemTime(clock.system_now(),
+                                                   lcl.header.ledgerVersion),
+                     getConsensusTime(lcl.header.scpValue)
+                         .next(lcl.header.ledgerVersion));
+        auto prepareFrom = [&](SecretKey const& signer, ConsensusTime ct) {
+            auto const value = herder.makeStellarValue(
+                txSet->getContentsHash(), ct, emptyUpgradeSteps, signer);
+            SCPEnvelope env;
+            env.statement.slotIndex = seq;
+            env.statement.nodeID = signer.getPublicKey();
+            env.statement.pledges.type(SCP_ST_PREPARE);
+            auto& prep = env.statement.pledges.prepare();
+            prep.ballot.counter = 1;
+            prep.ballot.value = xdr::xdr_to_opaque(value);
+            // every node uses the same (normalized) quorum set
+            prep.quorumSetHash = scp.getLocalNode()->getQuorumSetHash();
+            herder.signEnvelope(signer, env);
+            return std::make_pair(env, value);
+        };
+        auto const [proposal, firstValue] = prepareFrom(firstKey, closeTime);
+        auto const firstBallotValue =
+            proposal.statement.pledges.prepare().ballot.value;
+        REQUIRE(herder.recvSCPEnvelope(proposal) ==
+                Herder::ENVELOPE_STATUS_READY);
+
+        auto ballotOf = [&]() -> std::optional<SCPBallot> {
+            auto messages = scp.getLatestMessagesSend(seq);
+            if (messages.empty() ||
+                messages.front().statement.pledges.type() != SCP_ST_PREPARE)
+            {
+                return std::nullopt;
+            }
+            return messages.front().statement.pledges.prepare().ballot;
+        };
+        // The local node votes for the first leader's value as it is.
+        testutil::crankUntil(
+            app, [&]() { return ballotOf().has_value(); },
+            std::chrono::seconds(1));
+        REQUIRE(ballotOf());
+        REQUIRE(ballotOf()->counter == 1);
+        REQUIRE(ballotOf()->value == firstBallotValue);
+        if (!tied)
+        {
+            // The third node is at counter 1 with a value of its own: the
+            // local node has now heard from a quorum, and the first leader's
+            // value has two votes out of the three it needs.
+            auto const [other, otherValue] =
+                prepareFrom(thirdKey, closeTime.next(lcl.header.ledgerVersion));
+            REQUIRE(herder.recvSCPEnvelope(other) ==
+                    Herder::ENVELOPE_STATUS_READY);
+        }
+
+        // Nothing more arrives. The round times out and the local node
+        // leads round 2 without building anything.
+        testutil::crankUntil(
+            app, [&]() { return ballotOf() && ballotOf()->counter == 2; },
+            std::chrono::seconds(60));
+        REQUIRE(ballotOf());
+        REQUIRE(ballotOf()->counter == 2);
+        REQUIRE(scp.getLeaderRound(seq) == 2);
+        StellarValue proposed;
+        xdr::xdr_from_opaque(ballotOf()->value, proposed);
+        // the same transaction set, close time and upgrades either way
+        REQUIRE(proposed.txSetHash == firstValue.txSetHash);
+        REQUIRE(getConsensusTime(proposed) == getConsensusTime(firstValue));
+        REQUIRE(proposed.upgrades == firstValue.upgrades);
+        REQUIRE(getLcValueSignature(firstValue).nodeID == *firstLeader);
+        REQUIRE(driver.validateValue(seq, ballotOf()->value, true) ==
+                SCPDriver::kFullyValidatedValue);
+        auto const outcome = leaderTermOutcome(seq, proposed, true);
+        bool const insideTerm = (seq + 1) % LEADER_TERM_LEDGERS != 0;
+        if (tied)
+        {
+            // kept as it is: if it closes the ledger, the first leader
+            // keeps its term
+            REQUIRE(ballotOf()->value == firstBallotValue);
+            REQUIRE(resigned.count() == 0);
+            if (insideTerm)
+            {
+                REQUIRE(outcome.mIncumbent == *firstLeader);
+            }
+        }
+        else
+        {
+            // under the local node's signature: if it closes the ledger, the
+            // local node leads the next one, and the first leader does not
+            REQUIRE(getLcValueSignature(proposed).nodeID ==
+                    scp.getLocalNodeID());
+            REQUIRE(!(ballotOf()->value == firstBallotValue));
+            REQUIRE(resigned.count() == 1);
+            if (insideTerm)
+            {
+                REQUIRE(outcome.mIncumbent == scp.getLocalNodeID());
+            }
+        }
+        // The mempool was only pulled to pre-verify signatures: no set was
+        // built.
+        REQUIRE(pulls >= 1);
+        REQUIRE(
+            app->getMetrics().NewTimer({"herder", "txset", "build"}).count() ==
+            0);
+        herder.mGetTopTransactionsForTesting = nullptr;
+    }
+    REQUIRE(checkedSecondLeader);
 }
 
 TEST_CASE("a leader build that completes a fetch can externalize",
@@ -6658,7 +6921,10 @@ TEST_CASE("signature prewarm at the ballot covers the next ledger",
     herder.mGetTopTransactionsForTesting = nullptr;
 }
 
-TEST_CASE("early underfilled proposals refresh at the trigger",
+// The first-round leader builds once, shortly before the trigger, and
+// proposes that set as it is: what arrives after the build waits for the
+// next ledger, whether or not the set had room for it.
+TEST_CASE("the set prepared before the trigger is proposed unchanged",
           "[herder][early-proposal]")
 {
     auto const invalidFirst = GENERATE(false, true);
@@ -6686,7 +6952,7 @@ TEST_CASE("early underfilled proposals refresh at the trigger",
     auto extra = bob.tx({payment(alice, 100)});
     auto bad = txtest::getGenesisAccount(*app, 2).tx({payment(alice, 100)});
     getSignatures(bad).clear();
-    std::vector<TransactionEnvelope> mempool;
+    std::vector<TransactionEnvelope> mempool{tx->getEnvelope()};
     if (invalidFirst)
     {
         // More candidates than capacity, but they cannot fill the ledger.
@@ -6703,24 +6969,31 @@ TEST_CASE("early underfilled proposals refresh at the trigger",
         [&]() { return LeaderBuildTestAccess::prepared(herder) != nullptr; },
         std::chrono::seconds(1));
     REQUIRE(pulls == 1);
-    REQUIRE(LeaderBuildTestAccess::prepared(herder)->sizeTxTotal() == 0);
-    // Transactions arrive while we are waiting for the normal trigger.
+    auto const prepared = LeaderBuildTestAccess::prepared(herder);
+    REQUIRE(prepared->sizeTxTotal() == (invalidFirst ? 0 : 1));
+    // It was built a short lead time before the trigger, not earlier.
+    REQUIRE(clock.now() >= herder.getTriggerTimer().expiry_time() -
+                               LeaderBuildTestAccess::prepareLeadTime(herder));
+    REQUIRE(clock.now() < herder.getTriggerTimer().expiry_time());
+    // Transactions arrive while we are waiting for the trigger.
     mempool = {tx->getEnvelope(), extra->getEnvelope()};
     clock.setCurrentVirtualTime(herder.getTriggerTimer().expiry_time());
     testutil::crankUntil(
         app, [&]() { return herder.getSCP().getLeaderRound(seq) != 0; },
         std::chrono::seconds(1));
-    REQUIRE(pulls == 2);
-    // Check the actual set cached for the proposal, independently of benchmark
-    // instrumentation. Both newly arrived transactions must be present.
-    auto expected = makeTxSetFromTransactions(TxFrameList{tx, extra}, *app,
-                                              ApplyTimeOffset{})
-                        .first;
-    REQUIRE(expected->sizeTxTotal() == 2);
-    auto nominated = std::get<TxSetXDRFrameConstPtr>(
-        herder.getTxSet(expected->getContentsHash()));
+    // No second build: the proposal names the prepared set.
+    REQUIRE(pulls == 1);
+    auto messages = herder.getSCP().getLatestMessagesSend(seq);
+    REQUIRE(!messages.empty());
+    REQUIRE(messages.front().statement.pledges.type() == SCP_ST_PREPARE);
+    StellarValue proposed;
+    xdr::xdr_from_opaque(
+        messages.front().statement.pledges.prepare().ballot.value, proposed);
+    REQUIRE(proposed.txSetHash == prepared->getContentsHash());
+    auto nominated =
+        std::get<TxSetXDRFrameConstPtr>(herder.getTxSet(proposed.txSetHash));
     REQUIRE(nominated);
-    REQUIRE(nominated->sizeTxTotal() == 2);
+    REQUIRE(nominated->sizeTxTotal() == (invalidFirst ? 0 : 1));
     REQUIRE(!LeaderBuildTestAccess::prepared(herder));
     herder.mGetTopTransactionsForTesting = nullptr;
 }

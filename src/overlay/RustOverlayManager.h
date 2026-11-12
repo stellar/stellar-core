@@ -94,6 +94,19 @@ class RustOverlayManager
     }
 #endif
 
+    // Tell the overlay which validators get this node's transactions now:
+    // it sends the transactions Core accepts (and the ones still pending)
+    // straight to those nodes instead of flooding them. nullopt = every peer
+    // (the flood). Only HerderImpl::updateTxFloodTargets decides this.
+    // Returns whether the overlay was told.
+    bool setTxFloodTargets(std::optional<std::vector<NodeID>> const& targets);
+
+    // What a validator signs to say "the overlay with this libp2p peer id is
+    // mine": SHA256(networkID || "stellar-overlay-peer-id" || peerId). The
+    // tag keeps it apart from everything else the node key signs.
+    static Hash overlayIdentityBinding(Hash const& networkID,
+                                       std::vector<uint8_t> const& peerId);
+
     // Whether the overlay process writes every TX set to stable storage
     // before it hands it to Core (a set received from a peer) or broadcasts
     // anything that refers to it (a set cached by Core). When it does, Core

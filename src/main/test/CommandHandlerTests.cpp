@@ -16,7 +16,9 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
+#include "ledger/LedgerManager.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/marshal.h"
@@ -36,6 +38,19 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
     auto baseFee = app->getLedgerManager().getLastTxFee();
 
     std::string const PENDING_RESULT = "{\"status\":\"PENDING\"}\n";
+    // A node checks a submitted transaction against its last closed ledger
+    // before it takes it (HerderImpl::checkTxAdmission); the endpoint
+    // reports a refusal without the result XDR.
+    std::string const ERROR_RESULT = "{\"status\":\"ERROR\"}\n";
+    // V1 and fee-bump envelopes are valid from protocol 13.
+    auto v1Result = [&]() {
+        return protocolVersionStartsFrom(app->getLedgerManager()
+                                             .getLastClosedLedgerHeader()
+                                             .header.ledgerVersion,
+                                         ProtocolVersion::V_13)
+                   ? PENDING_RESULT
+                   : ERROR_RESULT;
+    };
     auto errorResult = [](TransactionResultCode resultCode, int64_t fee) {
         TransactionResult txRes;
         txRes.feeCharged = fee;
@@ -114,8 +129,21 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
             timeBoundsTest(timeBounds, PENDING_RESULT);
         }
 
-        // Invalid timebounds are not rejected here: the tx endpoint no
-        // longer validates transactions synchronously on submission.
+        SECTION("too early")
+        {
+            xdr::pointer<TimeBounds> timeBounds;
+            timeBounds.activate().minTime = getTestDate(3, 1, 2017);
+            timeBounds.activate().maxTime = getTestDate(4, 1, 2017);
+            timeBoundsTest(timeBounds, ERROR_RESULT);
+        }
+
+        SECTION("too late")
+        {
+            xdr::pointer<TimeBounds> timeBounds;
+            timeBounds.activate().minTime = getTestDate(29, 12, 2016);
+            timeBounds.activate().maxTime = getTestDate(30, 12, 2016);
+            timeBoundsTest(timeBounds, ERROR_RESULT);
+        }
     }
 
     auto createV1 = [&]() {
@@ -132,15 +160,13 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
         return env;
     };
 
-    // The tx endpoint no longer validates transactions synchronously on
-    // submission (the Rust overlay mempool does that asynchronously), so
-    // envelopes are accepted as PENDING at every protocol version, including
-    // versions that would previously have rejected them with txNOT_SUPPORTED.
+    // Checked on submission: refused at the protocol versions that do not
+    // support the envelope type (txNOT_SUPPORTED).
     SECTION("new-style transaction v1")
     {
         for_all_versions(*app, [&]() {
             closeLedgerOn(*app, 2, 1, 1, 2017);
-            REQUIRE(submit(createV1()) == PENDING_RESULT);
+            REQUIRE(submit(createV1()) == v1Result());
         });
     }
 
@@ -163,7 +189,7 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
 
         for_all_versions(*app, [&]() {
             closeLedgerOn(*app, 2, 1, 1, 2017);
-            REQUIRE(submit(createFeeBump()) == PENDING_RESULT);
+            REQUIRE(submit(createFeeBump()) == v1Result());
         });
     }
 }

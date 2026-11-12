@@ -1080,15 +1080,18 @@ HerderSCPDriver::getLeaderSchedule(uint64_t slotIndex)
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     if (slotIndex != static_cast<uint64_t>(lcl.header.ledgerSeq) + 1)
     {
-        // The seed is the hash of the previous ledger's header: unknown for
-        // any slot but the next one.
+        // The schedule is derived from the previous ledger's header (who
+        // closed it, and whether it applied): unknown for any slot but the
+        // next one. See getExpectedLeaderSchedule for the slot after that.
         return empty;
     }
     // Force a pending rebuild of the transitive quorum, if any
     mPendingEnvelopes.isNodeDefinitelyInQuorum(mSCP.getLocalNodeID());
     auto const& quorum = mPendingEnvelopes.getCurrentlyTrackedQuorum();
     auto& cache = mLeaderSchedule;
+    bool const haveResults = ledgersHaveResults();
     if (cache.mSlotIndex != slotIndex || cache.mSeed != lcl.hash ||
+        cache.mLedgersHaveResults != haveResults ||
         cache.mQuorumSize != quorum.size() ||
         cache.mQuorumRebuildCount != mPendingEnvelopes.getQuorumRebuildCount())
     {
@@ -1098,13 +1101,55 @@ HerderSCPDriver::getLeaderSchedule(uint64_t slotIndex)
         {
             nodes.emplace_back(n.first);
         }
-        cache.mSchedule = computeLeaderSchedule(lcl.hash, std::move(nodes));
+        cache.mSchedule = computeNextLeaderSchedule(
+            lcl.header, std::move(nodes), haveResults);
+        cache.mLedgersHaveResults = haveResults;
         cache.mSlotIndex = slotIndex;
         cache.mSeed = lcl.hash;
         cache.mQuorumSize = quorum.size();
         cache.mQuorumRebuildCount = mPendingEnvelopes.getQuorumRebuildCount();
     }
     return cache.mSchedule;
+}
+
+bool
+HerderSCPDriver::ledgersHaveResults() const
+{
+#ifdef BUILD_TESTS
+    // Overlay-only mode closes ledgers without applying them.
+    return !mApp.getRunInOverlayOnlyMode();
+#else
+    return true;
+#endif
+}
+
+std::vector<NodeID>
+HerderSCPDriver::getExpectedLeaderSchedule(uint64_t slotIndex,
+                                           StellarValue const& closingValue,
+                                           bool appliedTransactions)
+{
+    releaseAssert(threadIsMain());
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (slotIndex != static_cast<uint64_t>(lcl.header.ledgerSeq) + 2)
+    {
+        return {};
+    }
+    // The tracked quorum as it is: this is called while SCP emits an
+    // envelope, where a pending rebuild (database reads) does not belong,
+    // and a prediction made on a slightly older node set is still one.
+    auto const& quorum = mPendingEnvelopes.getCurrentlyTrackedQuorum();
+    std::vector<NodeID> nodes;
+    nodes.reserve(quorum.size());
+    for (auto const& n : quorum)
+    {
+        nodes.emplace_back(n.first);
+    }
+    // The ledger in between (LCL+1) will name the LCL's hash as its previous
+    // ledger hash: that is the seed of the slot after it.
+    return computeLeaderSchedule(
+        lcl.hash, std::move(nodes),
+        leaderTermOutcome(lcl.header.ledgerSeq + 1, closingValue,
+                          appliedTransactions || !ledgersHaveResults()));
 }
 
 std::optional<NodeID>
@@ -1177,6 +1222,48 @@ HerderSCPDriver::measureAndRecordBallotBlockedOnTxSet(uint64_t slotIndex,
     mSCPMetrics.mBallotBlockedOnTxSet.Update(std::chrono::milliseconds(0));
 }
 
+ValueWrapperPtr
+HerderSCPDriver::reproposeValue(uint64_t slotIndex, uint32 round,
+                                Value const& value)
+{
+    // The leader of a later round keeps the value it already votes for (its
+    // transaction set is known to the nodes that voted for it), but puts it
+    // forward under its own signature: the node whose value closes a ledger
+    // leads the next one (see leaderTermOutcome), and a leader whose round
+    // timed out should not be that node. SCP only asks while the node is
+    // not tied to the value (it has not accepted it as prepared); after
+    // that the value, and with it the term, stays as it is.
+    StellarValue sv;
+    if (round <= 1 || !toStellarValue(value, sv) ||
+        sv.ext.v() == STELLAR_VALUE_BASIC || isEmptyTxSetStellarValue(sv))
+    {
+        return nullptr;
+    }
+    auto const& self = mSCP.getLocalNodeID();
+    if (getLcValueSignature(sv).nodeID == self)
+    {
+        return nullptr;
+    }
+    // Only a set this node holds: its signature makes it answerable for the
+    // set (a ledger that applies nothing costs the signer its term).
+    auto txSet = mPendingEnvelopes.getTxSet(sv.txSetHash);
+    if (auto const* frame = std::get_if<TxSetXDRFrameConstPtr>(&txSet);
+        !frame || !*frame)
+    {
+        return nullptr;
+    }
+    mApp.getMetrics().NewMeter({"scp", "leader", "resigned"}, "value").Mark();
+    auto resigned =
+        mHerder.makeStellarValue(sv.txSetHash, getConsensusTime(sv),
+                                 sv.upgrades, mApp.getConfig().NODE_SEED);
+    CLOG_INFO(Herder,
+              "Slot {} round {}: proposing the value of {} under our own "
+              "signature",
+              slotIndex, round,
+              mApp.getConfig().toShortString(getLcValueSignature(sv).nodeID));
+    return wrapStellarValue(resigned);
+}
+
 void
 HerderSCPDriver::proposedValue(uint64_t slotIndex, uint32 round,
                                Value const& value)
@@ -1193,6 +1280,11 @@ HerderSCPDriver::enteredRound(uint64_t slotIndex, uint32 round, bool timedOut)
     {
         it->second.mMaxRound = std::max(it->second.mMaxRound, round);
     }
+    // The transactions this node holds follow the round: its leader and the
+    // next one get them. Not from inside this SCP state change (the schedule
+    // may need a quorum rebuild, see below).
+    mApp.postOnMainThread([this]() { mHerder.updateTxFloodTargets(); },
+                          "Herder: update tx flood targets");
     if (round > 1)
     {
         // Only read the cached schedule here: this is called from inside SCP

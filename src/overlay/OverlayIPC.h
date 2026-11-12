@@ -50,6 +50,11 @@ class OverlayIPC
     using TxSetReceivedCallback = std::function<void(
         Hash const& hash, GeneralizedTransactionSet&& txSet)>;
 
+    /// Callback when the overlay reports its libp2p peer id at startup
+    /// (called on the IPC reader thread)
+    using OverlayIdentityCallback =
+        std::function<void(std::vector<uint8_t> const& peerId)>;
+
     /**
      * Create an OverlayIPC instance.
      *
@@ -218,6 +223,24 @@ class OverlayIPC
      */
     void pushTxSet(Hash const& hash, uint32_t slotIndex);
 
+    /**
+     * Tell the overlay which validator it belongs to: `signature` is the
+     * node key's signature binding `nodeID` to the overlay's peer id (see
+     * RustOverlayManager::signOverlayIdentity). The overlay shows it to its
+     * peers.
+     */
+    void setNodeIdentity(Hash const& networkID, NodeID const& nodeID,
+                         Signature const& signature);
+
+    /**
+     * Tell the overlay which validators get this node's transactions now.
+     * nullopt = every peer (flood). Returns whether it was sent.
+     */
+    bool setTxTargets(std::optional<std::vector<NodeID>> const& targets);
+
+    /// Set callback for the overlay's peer id report
+    void setOnOverlayIdentity(OverlayIdentityCallback cb);
+
     /// Set callback for received SCP envelopes
     void setOnSCPReceived(SCPReceivedCallback cb);
 
@@ -281,6 +304,7 @@ class OverlayIPC
     SCPReceivedCallback mOnSCPReceived;
     ScpStateRequestCallback mOnScpStateRequest;
     TxSetReceivedCallback mOnTxSetReceived;
+    OverlayIdentityCallback mOnOverlayIdentity;
 
     // For synchronous request/response (getTopTransactions)
     std::mutex mRequestMutex;

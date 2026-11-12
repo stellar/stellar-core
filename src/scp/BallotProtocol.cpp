@@ -549,6 +549,19 @@ BallotProtocol::progressRoundStep()
                                  /*proposal=*/true) != SCPDriver::kInvalidValue)
         {
             Value v = mCurrentBallot->getBallot().value;
+            // The application may put an equivalent value forward instead,
+            // but only while nothing ties the node to this exact one: once
+            // it has accepted a ballot for it as prepared, other nodes may
+            // have confirmed it and be bound to it, and a replacement could
+            // only split the round between the two.
+            if (!(mPrepared && mPrepared->getBallot().value == v))
+            {
+                if (auto replacement =
+                        driver.reproposeValue(slotIndex, round, v))
+                {
+                    v = replacement->getValue();
+                }
+            }
             driver.proposedValue(slotIndex, round, v);
             return bumpState(v, round);
         }

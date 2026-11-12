@@ -111,7 +111,11 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
               : nullptr)
     , mWorkerThreads()
     , mEvictionThread()
-    , mBatchExecutor(std::make_unique<BatchExecutor>())
+    , mBatchExecutor([&cfg]() {
+        auto executor = std::make_unique<BatchExecutor>();
+        executor->setPreferredTaskCount(cfg.BATCH_EXECUTOR_TASKS);
+        return executor;
+    }())
     , mStopSignals(clock.getIOContext(), SIGINT)
     , mStarted(false)
     , mStopping(false)

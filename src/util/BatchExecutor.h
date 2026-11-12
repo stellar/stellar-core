@@ -84,6 +84,11 @@ class BatchExecutor : private NonMovableOrCopyable
     // oversubscription.
     size_t preferredTaskCount() const;
 
+    // Makes `preferredTaskCount` return `count` (0 restores the default).
+    // More tasks than physical cores run on hyper-thread siblings. Set once,
+    // before the first batch (Config::BATCH_EXECUTOR_TASKS).
+    void setPreferredTaskCount(size_t count);
+
 #ifdef BUILD_TESTS
     // Overrides the value returned by `preferredTaskCount`, so that tests can
     // pin the parallelism independently of the machine they run on.
@@ -118,6 +123,8 @@ class BatchExecutor : private NonMovableOrCopyable
     // First `mPhysicalCoreCount` entries of `mPinCpuOrder` are guaranteed to be
     // on distinct physical cores by the pinning order assignment procedure.
     size_t mPhysicalCoreCount{0};
+    // Config::BATCH_EXECUTOR_TASKS; 0 = one per physical core, minus one.
+    std::atomic<size_t> mPreferredTaskCountOverride{0};
 
     // Task that is being currently executed by the workers.
     std::function<void(size_t)> const* mRunTask{nullptr};

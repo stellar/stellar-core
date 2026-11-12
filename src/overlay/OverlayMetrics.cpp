@@ -69,6 +69,20 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "txset-push", "dropped"}, "txset"))
     , mTxSetPushEvicted(app.getMetrics().NewMeter(
           {"overlay", "txset-push", "evicted"}, "txset"))
+    , mTxDirectSent(app.getMetrics().NewMeter(
+          {"overlay", "flood", "tx-direct-sent"}, "transaction"))
+    , mTxDirectSentBytes(app.getMetrics().NewMeter(
+          {"overlay", "flood", "tx-direct-sent-bytes"}, "byte"))
+    , mTxDirectRecv(app.getMetrics().NewMeter(
+          {"overlay", "flood", "tx-direct-recv"}, "transaction"))
+    , mTxLateCopy(app.getMetrics().NewMeter(
+          {"overlay", "flood", "tx-late-copy"}, "transaction"))
+    , mTxLocalFlooded(app.getMetrics().NewMeter(
+          {"overlay", "flood", "tx-local-flooded"}, "transaction"))
+    , mNodeIdRejected(app.getMetrics().NewMeter(
+          {"overlay", "node-id", "rejected"}, "claim"))
+    , mNodeIdIdentified(
+          app.getMetrics().NewCounter({"overlay", "node-id", "identified"}))
 {
 }
 }

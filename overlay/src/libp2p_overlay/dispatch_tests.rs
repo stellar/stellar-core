@@ -514,6 +514,24 @@ async fn received_tx_is_announced_to_every_peer_except_known_sources() {
         .await
         .record_source(*tx.hash(), advertiser);
 
+    // A body nobody here demanded was sent directly by a node that delivers
+    // to its targets itself: it is kept, and announced to nobody.
+    let direct = test_tx(2);
+    handle_tx_response(&state, &source, Arc::clone(&direct)).await;
+    assert!(state.tx_seen.read().await.contains(direct.hash()));
+    {
+        let mut batcher = state.inv_batcher.write().await;
+        for peer in &others[1..] {
+            assert!(batcher.flush(peer).is_none(), "direct send was relayed");
+        }
+    }
+
+    // A body this node demanded (the flood) is relayed.
+    state
+        .pending_getdata
+        .write()
+        .await
+        .insert(*tx.hash(), source);
     handle_tx_response(&state, &source, Arc::clone(&tx)).await;
 
     let mut batcher = state.inv_batcher.write().await;
@@ -562,7 +580,15 @@ async fn inv_batches_completed_by_relay_or_local_broadcast_reach_the_peer() {
         }
         let tx = test_tx(i64::from(round) + 1);
         if round == 0 {
-            handle_tx_response(&sender.state, &PeerId::random(), tx).await;
+            // A relay: the body answers this node's own demand.
+            let source = PeerId::random();
+            sender
+                .state
+                .pending_getdata
+                .write()
+                .await
+                .insert(*tx.hash(), source);
+            handle_tx_response(&sender.state, &source, tx).await;
         } else {
             sender.handle.broadcast_tx(tx).await;
         }

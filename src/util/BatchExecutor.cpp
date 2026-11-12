@@ -244,6 +244,10 @@ BatchExecutor::preferredTaskCount() const
         return *mPreferredTaskCountForTesting;
     }
 #endif
+    if (auto const configured = mPreferredTaskCountOverride.load())
+    {
+        return configured;
+    }
     // As this is meant to be used for parallelizing CPU-heavy work, we want to
     // only run the tasks on the physical cores (when physical core info is
     // available).
@@ -253,6 +257,12 @@ BatchExecutor::preferredTaskCount() const
     // We want to leave at least one core free to not compete with the main
     // thread and other background work.
     return concurrency > 1 ? concurrency - 1 : 1;
+}
+
+void
+BatchExecutor::setPreferredTaskCount(size_t count)
+{
+    mPreferredTaskCountOverride.store(count);
 }
 
 #ifdef BUILD_TESTS
