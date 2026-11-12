@@ -1,4 +1,4 @@
-# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only (experimental branch)
+# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only, tx sets selected during the previous ballot (experimental branch)
 
 **This branch is an experiment. It is not production code and must not run on a real network.**
 The leader schedule and the tx-set push have no feature flag and no protocol gate, and the branch
@@ -16,13 +16,20 @@ instances**: at 48 validators (16 organizations) and 8,000 TPS, and at the goal 
   ms (limit 960), a ledger every 0.90 s, 15.7 MB/s per node; with leader terms and pre-validation
   alone it is at 1,032 ms, 1.02 s per ledger and 43 MB/s.
 
+**The sixth experiment (tx sets selected during the previous ballot) did not help at the goal
+fixture.** Measured once, on 2026-11-12, at 90 validators and 10,000 TPS on m6id.8xlarge (the
+CPU of c6id.8xlarge; no c6id capacity that evening): the first window is at 1,068 ms, against
+980 ms for the branch without it on c6id.8xlarge. The set was ready in time for 17% of the
+ledgers, and using it left the ledgers unevenly filled. It was not measured at 48 validators.
+Details: [What the sixth experiment did at the goal fixture](#what-the-sixth-experiment-did-at-the-goal-fixture).
+
 The earlier benchmark (48 validators, 5,000 TPS, 1,000 ms, 4-core instances) is kept below.
 
 ## What this branch is
 
 It is the overlay-v2 stack up to [#5459](https://github.com/stellar/stellar-core/pull/5459)
 (Rust overlay over QUIC, millisecond close times, compressed tx-set responses, leader-only tx-set
-construction) plus five experiments:
+construction) plus six experiments:
 
 1. **No nomination** ([#5495](https://github.com/stellar/stellar-core/pull/5495)). The SCP
    nomination phase is deleted and replaced by a leader schedule that every node computes locally.
@@ -45,7 +52,7 @@ construction) plus five experiments:
      leaves in one flight instead of being paced over a round trip.
    - Details and limits: [docs/rust-overlay/txset-fetching.md](docs/rust-overlay/txset-fetching.md).
 3. **Vote without validating the tx set; validate and execute at apply**
-   ([#5498](https://github.com/stellar/stellar-core/pull/5498), the latest experiment). Gated on
+   ([#5498](https://github.com/stellar/stellar-core/pull/5498)). Gated on
    protocol 30; protocol 29 and older behave as before.
    - **Vote.** A node votes for the leader's value as soon as it holds the tx set, without running
      the set's validity check. Still checked before the vote: the value itself (signature, close
@@ -80,8 +87,8 @@ construction) plus five experiments:
    - **One build.** The first-round leader builds once, a lead time before its trigger, pushes
      the set as soon as it exists and proposes it unchanged at the trigger.
 5. **Transactions go to the upcoming leaders only**
-   ([#5501](https://github.com/stellar/stellar-core/pull/5501), the latest experiment). No
-   protocol gate and no version negotiation.
+   ([#5501](https://github.com/stellar/stellar-core/pull/5501)). No protocol gate and no
+   version negotiation.
    - **Targets.** A node that accepts a transaction no longer advertises it to every peer. Its
      overlay sends the body straight to the leaders of the node's current round and of the next
      one for the next ledger and, one ledger before a new leader term starts, to that term's
@@ -97,11 +104,37 @@ construction) plus five experiments:
      connection key, signed by the node key.
    - **Cost.** Followers no longer hold the transactions before the leader's set arrives, so
      they verify signatures when they check the set at apply instead of in the background.
+6. **The leader selects its next set during the previous ballot and executes its own set
+   before the trigger** ([#5503](https://github.com/stellar/stellar-core/pull/5503), the latest
+   experiment). No protocol gate; nothing on the wire changes.
+   - **Why.** A set names the hash of the ledger it goes on top of, so its build could not
+     start before that ledger had closed. At 90 validators the build (0.24 s) was the first
+     0.29 s of every ledger.
+   - **Selection.** The node that expects to lead the next ledger takes the pre-validation of
+     experiment 4 one step further: when its candidates are validated, a background thread
+     trims and surge-prices them against the state its speculative execution left, and writes
+     the set without a parent.
+   - **Completion.** When the ledger has closed with the value that was executed, the leader
+     only names it as the parent, hashes the set and pushes it. It does so only if a build
+     would have to start at once (the trigger is due, or less than a build's lead time away)
+     and a build of that size would take time; otherwise it builds as before, from a fresher
+     mempool. The selection is dropped if the ledger closed with another value, if the limits
+     changed, or if a time-bounded transaction is not valid for the close time the set gets.
+   - **Early execution.** The leader hands its prepared set to its apply thread as soon as the
+     set is ready, instead of at the trigger. If that execution finds the set invalid before
+     the proposal, the set is not proposed.
+   - **Checks.** The builder still validates the structure of what it selected before the set
+     leaves it. Re-reading the written XDR and validating the result now happens on a
+     background thread, after the push.
+   - **Cost.** A set selected early holds what the mempool held when the previous ledger was
+     executed: transactions that arrive during the rest of that ledger's ballot wait for the
+     next set.
 
-Unchanged by all five: the ballot protocol's accept, confirm and commit rules. For a valid tx
+Unchanged by all six: the ballot protocol's accept, confirm and commit rules. For a valid tx
 set, ledger state and meta are also unchanged; experiment 3 changes when a set is validated and
 executed, and what an invalid set does to the ledger; experiment 4 changes who leads; experiment
-5 changes which transactions reach a leader, and which submissions a node refuses.
+5 changes which transactions reach a leader, and which submissions a node refuses; experiment 6
+changes when a leader chooses its transactions and when it starts executing its own set.
 
 ## Performance results
 
@@ -146,28 +179,31 @@ per build, all on 2026-11-12. "Base" is this branch up to experiment 3.
 
 ### 800 ms target at the goal: 90 validators, 10,000 TPS
 
-30 organizations, 22-23 validators per region, the same instances and load shape, 10,080 TPS
-offered. Both runs missed their first window and the load was stopped after it.
+30 organizations, 22-23 validators per region, the same load shape, 10,080 TPS offered. All
+three runs missed their first window and the load was stopped after it. The first two ran on
+c6id.8xlarge; the third, eleven hours later, on m6id.8xlarge (the same CPU model and core
+count, 128 GiB instead of 64, other availability zones), because c6id.8xlarge could not be
+had: it differs from the second in the build **and** in the instance type.
 
-| Window 1 | Leader terms and pre-validation (#5502, `8aa7f6bf0`) | + transactions to leaders only (#5501, `6ab837c27`) |
-|---|---:|---:|
-| p75, average over 90 nodes (limit 960 ms) | 1,032 ms | **980 ms** |
-| p99, average over 90 nodes (limit 1,600 ms) | 1,887 ms (over) | **1,441 ms** (inside) |
-| Time per ledger | 1.02 s | **0.90 s** (median 0.88 s) |
-| The first minute of the load | 802 ms for 30 s, then a backlog | 805 ms over the whole minute |
-| Tx sets at the 10,000 cap | 93% | 39% |
-| Leader builds finished before the trigger | 0 of 40 sampled | 40 of 55 sampled |
-| Leader build; candidates in the mempool | 0.33 s; 20,200 | 0.24 s; 8,350 (median) |
-| Trigger to first ballot | 0.58 s | **0.39 s** |
-| First ballot to externalize | 0.32 s | 0.32 s |
-| Externalize to ledger closed | 0.07 s | 0.07 s |
-| **Trigger to ledger closed** | 0.97 s | **0.77 s** |
-| Tx set at a follower after the proposal | 0.23 s | 0.17 s |
-| Tx-set validation at apply | (not listed) | 0.14 s |
-| **Overlay traffic per node, each way** | 43 MB/s | **15.7 MB/s** |
-| Leader and ballot timeouts, empty tx sets | 0 | 0 |
-| Submitted against included at the end | 49,855 short (backlog) | 81 more (the backlog drained) |
-| Run verdict | FAIL (block time: p75 and p99) | FAIL (block time: p75) |
+| Window 1 | Leader terms and pre-validation (#5502, `8aa7f6bf0`) | + transactions to leaders only (#5501, `6ab837c27`) | + sets selected during the previous ballot (experiment 6, `18a3a0238`), **on m6id.8xlarge** |
+|---|---:|---:|---:|
+| p75, average over 90 nodes (limit 960 ms) | 1,032 ms | **980 ms** | 1,068 ms |
+| p99, average over 90 nodes (limit 1,600 ms) | 1,887 ms (over) | **1,441 ms** (inside) | 1,664 ms (over) |
+| Time per ledger | 1.02 s | **0.90 s** (median 0.88 s) | 1.03 s (median 1.03 s) |
+| The first minute of the load | 802 ms for 30 s, then a backlog | 805 ms over the whole minute | 834 ms (median 806 ms); 23 of 72 sets at the cap |
+| Tx sets at the 10,000 cap | 93% | 39% | 91% |
+| Leader builds finished before the trigger | 0 of 40 sampled | 40 of 55 sampled | 10 of 20 sampled sets ready before the trigger (6 of them selected early) |
+| Leader build; candidates in the mempool | 0.33 s; 20,200 | 0.24 s; 8,350 (median) | 0.30 s; 20,200 (median) |
+| Trigger to first ballot | 0.58 s | **0.39 s** | 0.56 s |
+| First ballot to externalize | 0.32 s | 0.32 s | 0.33 s |
+| Externalize to ledger closed | 0.07 s | 0.07 s | 0.07 s |
+| **Trigger to ledger closed** | 0.97 s | **0.77 s** | 0.95 s |
+| Tx set at a follower after the proposal | 0.23 s | 0.17 s | 0.23 s |
+| Tx-set validation at apply | (not listed) | 0.14 s | 0.16 s |
+| **Overlay traffic per node, each way** | 43 MB/s | **15.7 MB/s** | 14.2 MB/s |
+| Leader and ballot timeouts, empty tx sets | 0 | 0 | 0 |
+| Submitted against included at the end | 49,855 short (backlog) | 81 more (the backlog drained) | not compared (load stopped in a backlog) |
+| Run verdict | FAIL (block time: p75 and p99) | FAIL (block time: p75) | FAIL (block time: p75 and p99) |
 
 - **Neither build holds 800 ms at 90 validators and 10,000 TPS.** With transactions sent to the
   leaders only the miss is 20 ms on the window's p75 instead of 72 ms, p99 stays inside its
@@ -180,6 +216,41 @@ offered. Both runs missed their first window and the load was stopped after it.
 - There is no run of the base (up to experiment 3) at this fixture. In the #5502 column, the
   set's arrival, the build and the traffic are from that PR's first run at this fixture
   (`deec2d87c`, 1,046 ms); its rerun with `8aa7f6bf0` reported the same stage table.
+- **Experiment 6 made this fixture worse in its one run**: 1,068 ms against 980 ms, with the
+  network in a backlog within the first minute. The next section says why. There is no run of
+  experiments 1 to 5 on m6id.8xlarge to separate the instance type from the change.
+
+### What the sixth experiment did at the goal fixture
+
+One run (`18a3a0238`, 90 x m6id.8xlarge, 2026-11-12), read from the logs of twelve nodes and
+the network's metrics. Trigger to first ballot and the other stage rows of the table above are
+means over the window, in which the network was already in a backlog.
+
+| | |
+|---|---|
+| Ledgers for which the leader used a set selected early | 75 of about 433 (17%); 269 times the selection was not finished when the previous ledger closed; none on a term's first ledger |
+| Time the background job needs after the leader's execution | 0.40 s: validation 0.18 s (0.05 s before, when it decoded less), selection 0.22 s |
+| Completing an early set at the close | 0.024 s, against a build of 0.30 s |
+| Leader's cycle (previous close to close), early set / built set | 0.74 s (6 sampled ledgers) / 1.01 s (14) |
+| Transactions in the first early set after a built one | 4,620, 4,875, 4,787, 5,022 on the sampled leaders (a ledger has to carry about 8,060) |
+| Sets found invalid at apply; failed self-checks; dropped executions | 0; 0 of 432; 0 of 39,006 |
+
+1. **The selection was rarely ready.** It can only start when the leader has executed the
+   previous ledger, and it took 0.4 s, about what is left of that ledger's ballot. The estimate
+   it was built on was 0.15 to 0.3 s.
+2. **Where it was ready, it did what it was built for**: the set was pushed when the previous
+   ledger closed, and those ledgers took 0.74 s instead of 1.01 s.
+3. **But a set selected early is short when the ledger before it was built at its close.** It
+   holds what reached the mempool in the 0.3 to 0.5 s between that build's pull and its own.
+   What it leaves behind fills the next built set to the 10,000 cap. A capped set takes longer
+   to push, validate and agree on, so its ledger is late and the next trigger is already due.
+   In the first minute of the load 23 of 72 sets were at the cap and 12 held fewer than 6,000
+   transactions; in the run without experiment 6 that minute had 2 capped sets and ran at
+   805 ms.
+4. **Moving the builder's checks gained little**: the structural check that stays in front of
+   the push takes 0.037 s at these sizes; the two that moved to the background took 0.05 s.
+5. Not built: using an early set only when it is full (which is the backlog, where the build
+   is on the critical path), and a job that fits into the ballot.
 
 ### Where a ledger's time goes at 90 validators and 10,000 TPS
 
@@ -550,6 +621,28 @@ Defaults that matter: validators as generators, `--scp-timeout-ms 2000`,
 
 ## Known limitations of the prototype
 
+Tx sets selected during the previous ballot, and the leader's early execution:
+- A set selected early holds what the mempool held when the previous ledger was executed.
+  Transactions that arrive during the rest of that ledger's ballot wait for the next set.
+  Submit-to-apply latency was not measured.
+- The set still names its parent's header hash, which exists only once the parent is committed
+  (it contains the bucket-list hash), so the set cannot be pushed before the previous ledger
+  closes. Computing that hash earlier means running the commit's bucket-list work on copies
+  before externalize; not attempted.
+- The first ledger of a leader term gains little: its leader executed the previous ledger as a
+  follower, shortly before consensus, and its selection is rarely ready in time.
+- The selection runs on a background thread next to the validation tasks. With real transaction
+  execution it would compete with the apply thread for cores; apply is a sleep in every run
+  here.
+- Time-bounded transactions of a set selected early are validated again on the main thread at
+  the close when the close time's second moved. The load in these runs has no time bounds.
+- Re-reading the written set is no longer done before the push and the proposal. A fault that
+  only that check would catch closes a ledger without transactions and costs the leader its
+  term, where the builder used to stop. The structure of the selection and the shape of the
+  XDR are still checked first.
+- The tie-break among candidates with equal fee rates in a set selected early is seeded from a
+  node secret; no test observes it.
+
 Transactions to the leaders only:
 - No protocol gate and no version negotiation: a node without the change ignores the identity
   stream, and nodes with the change flood toward it.
@@ -616,6 +709,10 @@ Leader schedule:
 
 Unchanged from stellar-core: see [INSTALL.md](./INSTALL.md), [CONTRIBUTING.md](./CONTRIBUTING.md)
 and [`./docs`](./docs).
+
+Test status with experiment 6 (the commit before this README change): the full test suite
+passes (657 test cases), also with `--all-versions`; the new tests also pass under
+AddressSanitizer.
 
 Test status with experiments 4 and 5 (`6ab837c27`, #5501 on top of #5502): the full test suite
 passes, also with `--all-versions`, including the Rust overlay's tests.
