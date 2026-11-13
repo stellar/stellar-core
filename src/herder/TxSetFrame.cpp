@@ -31,6 +31,7 @@
 
 #include <Tracy.hpp>
 #include <algorithm>
+#include <future>
 #include <limits>
 #include <list>
 #include <numeric>
@@ -496,31 +497,27 @@ computeLaneBaseFee(TxSetPhase phase, LedgerHeader const& ledgerHeader,
 }
 
 std::shared_ptr<SurgePricingLaneConfig>
-createSurgePricingLangeConfig(TxSetPhase phase, Application& app)
+createSurgePricingLaneConfig(TxSetPhase phase, Config const& cfg,
+                             TxSetBuildLimits const& limits)
 {
     ZoneScoped;
-    releaseAssert(threadIsMain());
-    releaseAssert(!app.getLedgerManager().isApplying());
 
-    auto const& lclHeader =
-        app.getLedgerManager().getLastClosedLedgerHeader().header;
+    auto const& lclHeader = limits.mLclHeader;
     std::vector<bool> hadTxNotFittingLane;
     std::shared_ptr<SurgePricingLaneConfig> surgePricingLaneConfig;
     if (phase == TxSetPhase::CLASSIC)
     {
-        auto maxOps = Resource(
-            {static_cast<uint32_t>(
-                 app.getLedgerManager().getLastMaxTxSetSizeOps()),
-             static_cast<uint32_t>(app.getConfig().getClassicByteAllowance())});
+        auto maxOps =
+            Resource({limits.maxTxSetSizeOps(),
+                      static_cast<uint32_t>(cfg.getClassicByteAllowance())});
         std::optional<Resource> dexOpsLimit;
-        if (app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET)
+        if (cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET)
         {
             // DEX operations limit implies that DEX transactions should
             // compete with each other in in a separate fee lane, which
             // is only possible with generalized tx set.
-            dexOpsLimit =
-                Resource({*app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET,
-                          MAX_CLASSIC_BYTE_ALLOWANCE});
+            dexOpsLimit = Resource({*cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET,
+                                    MAX_CLASSIC_BYTE_ALLOWANCE});
         }
 
         surgePricingLaneConfig =
@@ -529,9 +526,9 @@ createSurgePricingLangeConfig(TxSetPhase phase, Application& app)
     else
     {
         releaseAssert(phase == TxSetPhase::SOROBAN);
+        releaseAssert(limits.mSorobanConfig);
 
-        auto limits = app.getLedgerManager().maxLedgerResources(
-            /* isSoroban */ true);
+        auto limitsRes = limits.mSorobanConfig->maxLedgerResources();
         // When building Soroban tx sets with parallel execution support,
         // instructions are accounted for by the build logic, not by the surge
         // pricing config, so we need to relax the instruction limit in surge
@@ -539,17 +536,17 @@ createSurgePricingLangeConfig(TxSetPhase phase, Application& app)
         if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
                                       PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
         {
-            limits.setVal(Resource::Type::INSTRUCTIONS,
-                          std::numeric_limits<int64_t>::max());
+            limitsRes.setVal(Resource::Type::INSTRUCTIONS,
+                             std::numeric_limits<int64_t>::max());
         }
 
-        auto byteLimit = std::min(
-            static_cast<int64_t>(app.getConfig().getSorobanByteAllowance()),
-            limits.getVal(Resource::Type::TX_BYTE_SIZE));
-        limits.setVal(Resource::Type::TX_BYTE_SIZE, byteLimit);
+        auto byteLimit =
+            std::min(static_cast<int64_t>(cfg.getSorobanByteAllowance()),
+                     limitsRes.getVal(Resource::Type::TX_BYTE_SIZE));
+        limitsRes.setVal(Resource::Type::TX_BYTE_SIZE, byteLimit);
 
         surgePricingLaneConfig =
-            std::make_shared<SorobanGenericLaneConfig>(limits);
+            std::make_shared<SorobanGenericLaneConfig>(limitsRes);
     }
     return surgePricingLaneConfig;
 }
@@ -558,16 +555,91 @@ TxFrameList
 buildSurgePricedSequentialPhase(
     TxFrameList const& txs,
     std::shared_ptr<SurgePricingLaneConfig> surgePricingLaneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    std::optional<size_t> seed)
 {
     ZoneScoped;
     return SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
-        txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+        txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion, seed);
 }
 
+// The base fee every transaction of a selected phase is included at: per
+// surge pricing lane, the ledger's base fee, or the lowest fee rate included
+// if transactions of the lane (or of the generic lane) were left out.
+std::shared_ptr<InclusionFeeMap>
+computeInclusionFeeMap(
+    TxSetPhase phase,
+    std::variant<TxFrameList, TxStageFrameList> const& includedTxs,
+    SurgePricingLaneConfig const& surgePricingLaneConfig,
+    LedgerHeader const& lclHeader, std::vector<bool> const& hadTxNotFittingLane)
+{
+    auto visitIncludedTxs =
+        [&includedTxs](
+            std::function<void(TransactionFrameBaseConstPtr const&)> visitor) {
+            std::visit(
+                [&visitor](auto const& txs) {
+                    using T = std::decay_t<decltype(txs)>;
+                    if constexpr (std::is_same_v<T, TxFrameList>)
+                    {
+                        for (auto const& tx : txs)
+                        {
+                            visitor(tx);
+                        }
+                    }
+                    else if constexpr (std::is_same_v<T, TxStageFrameList>)
+                    {
+                        for (auto const& stage : txs)
+                        {
+                            for (auto const& thread : stage)
+                            {
+                                for (auto const& tx : thread)
+                                {
+                                    visitor(tx);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // This can't be just `false` as if an assertion is not
+                        // dependent on template argument, it will be
+                        // unconditionally triggered.
+                        static_assert(!std::is_same_v<T, T>,
+                                      "Non-exhaustive visitor");
+                    }
+                },
+                includedTxs);
+        };
+
+    std::vector<int64_t> lowestLaneFee;
+    size_t laneCount = surgePricingLaneConfig.getLaneLimits().size();
+    releaseAssert(hadTxNotFittingLane.size() == laneCount);
+    lowestLaneFee.resize(laneCount, std::numeric_limits<int64_t>::max());
+    visitIncludedTxs(
+        [&lowestLaneFee, &surgePricingLaneConfig, &lclHeader](auto const& tx) {
+            size_t lane = surgePricingLaneConfig.getLane(*tx);
+            auto perOpFee = computePerOpFee(*tx, lclHeader.ledgerVersion);
+            lowestLaneFee[lane] = std::min(lowestLaneFee[lane], perOpFee);
+        });
+    auto laneBaseFee =
+        computeLaneBaseFee(phase, lclHeader, surgePricingLaneConfig,
+                           lowestLaneFee, hadTxNotFittingLane);
+    auto inclusionFeeMapPtr = std::make_shared<InclusionFeeMap>();
+    auto& inclusionFeeMap = *inclusionFeeMapPtr;
+    visitIncludedTxs([&inclusionFeeMap, &laneBaseFee,
+                      &surgePricingLaneConfig](auto const& tx) {
+        inclusionFeeMap[tx] = laneBaseFee[surgePricingLaneConfig.getLane(*tx)];
+    });
+    return inclusionFeeMapPtr;
+}
+
+// `hadTxNotFittingLaneOut`, if given, receives per surge pricing lane of the
+// phase whether a transaction was left out for the lane's limits.
 std::pair<std::variant<TxFrameList, TxStageFrameList>,
           std::shared_ptr<InclusionFeeMap>>
-applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
+applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Config const& cfg,
+                  TxSetBuildLimits const& limits, std::optional<size_t> seed,
+                  std::vector<bool>* hadTxNotFittingLaneOut
 #ifdef BUILD_TESTS
                   ,
                   bool enforceTxsApplyOrder,
@@ -576,10 +648,10 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
 )
 {
     ZoneScoped;
-    auto surgePricingLaneConfig = createSurgePricingLangeConfig(phase, app);
+    auto surgePricingLaneConfig =
+        createSurgePricingLaneConfig(phase, cfg, limits);
     std::vector<bool> hadTxNotFittingLane;
-    uint32_t ledgerVersion =
-        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
+    uint32_t ledgerVersion = limits.mLclHeader.ledgerVersion;
     bool isParallelSoroban =
         phase == TxSetPhase::SOROBAN &&
         protocolVersionStartsFrom(ledgerVersion,
@@ -623,10 +695,10 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
         else
         {
 #endif
+            releaseAssert(limits.mSorobanConfig);
             includedTxs = buildSurgePricedParallelSorobanPhase(
-                txs, app.getConfig(),
-                app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
-                surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+                txs, cfg, *limits.mSorobanConfig, surgePricingLaneConfig,
+                hadTxNotFittingLane, ledgerVersion, seed);
 #ifdef BUILD_TESTS
         }
 #endif
@@ -634,69 +706,17 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
     else
     {
         includedTxs = buildSurgePricedSequentialPhase(
-            txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+            txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion,
+            seed);
     }
 
-    auto visitIncludedTxs =
-        [&includedTxs](
-            std::function<void(TransactionFrameBaseConstPtr const&)> visitor) {
-            std::visit(
-                [&visitor](auto const& txs) {
-                    using T = std::decay_t<decltype(txs)>;
-                    if constexpr (std::is_same_v<T, TxFrameList>)
-                    {
-                        for (auto const& tx : txs)
-                        {
-                            visitor(tx);
-                        }
-                    }
-                    else if constexpr (std::is_same_v<T, TxStageFrameList>)
-                    {
-                        for (auto const& stage : txs)
-                        {
-                            for (auto const& thread : stage)
-                            {
-                                for (auto const& tx : thread)
-                                {
-                                    visitor(tx);
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // This can't be just `false` as if an assertion is not
-                        // dependent on template argument, it will be
-                        // unconditionally triggered.
-                        static_assert(!std::is_same_v<T, T>,
-                                      "Non-exhaustive visitor");
-                    }
-                },
-                includedTxs);
-        };
-
-    std::vector<int64_t> lowestLaneFee;
-    auto const& lclHeader =
-        app.getLedgerManager().getLastClosedLedgerHeader().header;
-
-    size_t laneCount = surgePricingLaneConfig->getLaneLimits().size();
-    lowestLaneFee.resize(laneCount, std::numeric_limits<int64_t>::max());
-    visitIncludedTxs(
-        [&lowestLaneFee, &surgePricingLaneConfig, &lclHeader](auto const& tx) {
-            size_t lane = surgePricingLaneConfig->getLane(*tx);
-            auto perOpFee = computePerOpFee(*tx, lclHeader.ledgerVersion);
-            lowestLaneFee[lane] = std::min(lowestLaneFee[lane], perOpFee);
-        });
-    auto laneBaseFee =
-        computeLaneBaseFee(phase, lclHeader, *surgePricingLaneConfig,
-                           lowestLaneFee, hadTxNotFittingLane);
-    auto inclusionFeeMapPtr = std::make_shared<InclusionFeeMap>();
-    auto& inclusionFeeMap = *inclusionFeeMapPtr;
-    visitIncludedTxs([&inclusionFeeMap, &laneBaseFee,
-                      &surgePricingLaneConfig](auto const& tx) {
-        inclusionFeeMap[tx] = laneBaseFee[surgePricingLaneConfig->getLane(*tx)];
-    });
-
+    auto inclusionFeeMapPtr =
+        computeInclusionFeeMap(phase, includedTxs, *surgePricingLaneConfig,
+                               limits.mLclHeader, hadTxNotFittingLane);
+    if (hadTxNotFittingLaneOut)
+    {
+        *hadTxNotFittingLaneOut = hadTxNotFittingLane;
+    }
     return std::make_pair(includedTxs, inclusionFeeMapPtr);
 }
 
@@ -882,16 +902,264 @@ makeTxSetFromTransactions(
     ,
     TxSetReadyCallback const& onTxSetReady,
     std::vector<size_t> const& validTxTargets,
-    TxValidationCache* validationCache)
+    TxValidationCache* validationCache,
+    std::shared_ptr<TxSetSelfCheck const>* deferredSelfCheck)
 {
     releaseAssert(threadIsMain());
     releaseAssert(!app.getLedgerManager().isApplying());
     releaseAssert(txPhases.size() == invalidTxs.size());
+
+    // Everything is read from the LCL: validity through the context, the
+    // limits of the set from its header and Soroban configuration.
+    auto ctx = TxSetValidationContext::forLCL(app);
+    ctx.mValidationCache = validationCache;
+    auto const validatedPhases = TxSetBuilder::selectPhases(
+        txPhases, app, TxSetBuildLimits::forLCL(app), ctx, closeTimeOffset,
+        invalidTxs, validTxTargets, "build", std::nullopt, nullptr
+#ifdef BUILD_TESTS
+        ,
+        enforceTxsApplyOrder, parallelSorobanOrder,
+        disableTxValidationForLegacyScenario
+#endif
+    );
+
+    return TxSetBuilder::writeSelection(validatedPhases, app, ctx,
+                                        closeTimeOffset, onTxSetReady,
+                                        deferredSelfCheck
+#ifdef BUILD_TESTS
+                                        ,
+                                        enforceTxsApplyOrder
+#endif
+    );
+}
+
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+TxSetBuilder::writeSelection(
+    std::vector<TxSetPhaseFrame> const& validatedPhases, Application& app,
+    TxSetValidationContext const& ctx, ApplyTimeOffset closeTimeOffset,
+    TxSetReadyCallback const& onTxSetReady,
+    std::shared_ptr<TxSetSelfCheck const>* deferredSelfCheck
+#ifdef BUILD_TESTS
+    ,
+    bool enforceTxsApplyOrder
+#endif
+)
+{
+    releaseAssert(threadIsMain());
+    releaseAssert(!app.getLedgerManager().isApplying());
+    auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
+    bool const selfCheckIsDeferred = deferredSelfCheck
+#ifdef BUILD_TESTS
+                                     && !enforceTxsApplyOrder
+#endif
+        ;
+    // The check of the written set comes after the set is in use. What the
+    // selection itself can get wrong (two transactions of one account, fees,
+    // limits, conflicting clusters) is checked before anything leaves this
+    // function, as it always was: on another thread while this one writes
+    // the set (both only read the selection), and waited for before the set
+    // is handed to anyone.
+    std::future<TxSetValidationResult> selectionCheck;
+    if (selfCheckIsDeferred)
+    {
+        bool const isGeneralized = protocolVersionStartsFrom(
+            lclHeader.header.ledgerVersion, SOROBAN_PROTOCOL_VERSION);
+        // The two threads read the same frames. That is safe because the
+        // check reads no lazily computed member of a frame, and the write
+        // only reads full hashes, which every selected frame computed when
+        // it was validated.
+        auto check = [&validatedPhases, &app, &ctx, isGeneralized,
+                      closeTimeOffset]() {
+            return TxSetBuilder::checkSelection(validatedPhases, app, ctx,
+                                                isGeneralized, closeTimeOffset);
+        };
+        try
+        {
+            selectionCheck = std::async(std::launch::async, check);
+        }
+        catch (std::system_error const&)
+        {
+            // No thread to be had: check here.
+            std::promise<TxSetValidationResult> done;
+            done.set_value(check());
+            selectionCheck = done.get_future();
+        }
+    }
+    auto xdrTimer =
+        app.getMetrics().NewTimer({"herder", "txset", "build-xdr"}).TimeScope();
+    // Preliminary applicable frame - we don't know the contents hash yet, but
+    // we also don't return this.
+    std::unique_ptr<ApplicableTxSetFrame> preliminaryApplicableTxSet(
+        new ApplicableTxSetFrame(app, lclHeader, validatedPhases,
+                                 std::nullopt));
+
+    // Do the roundtrip through XDR to ensure we never build an incorrect tx set
+    // for nomination.
+    auto outputTxSet = preliminaryApplicableTxSet->toWireTxSetFrame();
+#ifdef BUILD_TESTS
+    if (enforceTxsApplyOrder)
+    {
+        // Fill in the contents hash if we're skipping the normal roundtrip
+        // and validation flow.
+        preliminaryApplicableTxSet->mContentsHash =
+            outputTxSet->getContentsHash();
+        return std::make_pair(outputTxSet,
+                              std::move(preliminaryApplicableTxSet));
+    }
+#endif
+
+    xdrTimer.Stop();
+    if (selectionCheck.valid())
+    {
+        auto const result = selectionCheck.get();
+        if (result != TxSetValidationResult::VALID)
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING(
+                    "Created invalid tx set frame, validation result: {:s}"),
+                toString(result)));
+        }
+    }
+    // The final XDR is available now. Start proposal encoding while the
+    // roundtrip and final validity checks below run; only the local builder
+    // supplies this callback. The callback must not nominate the set.
+    if (onTxSetReady)
+    {
+        onTxSetReady(outputTxSet);
+    }
+
+    if (deferredSelfCheck)
+    {
+        // What is cheap to check of the written set is checked here: the
+        // shape of its XDR (no empty component, stage or cluster, ...), and
+        // that it holds as many transactions as the selection.
+        if (outputTxSet->isGeneralizedTxSet() &&
+            !validateTxSetXDRStructure(outputTxSet->getGeneralizedXDR(),
+                                       lclHeader.header.ledgerVersion))
+        {
+            throw std::runtime_error(
+                "Couldn't prepare created tx set frame for apply");
+        }
+        size_t selected = 0;
+        for (auto const& phase : validatedPhases)
+        {
+            selected += phase.sizeTx();
+        }
+        if (outputTxSet->sizeTxTotal() != selected)
+        {
+            throw std::runtime_error("Created invalid tx set frame - shape is "
+                                     "mismatched after writing.");
+        }
+        // The caller runs the check (see TxSetSelfCheck) and goes on with
+        // the set as selected, which is what the check compares the XDR
+        // with.
+        *deferredSelfCheck = TxSetBuilder::makeSelfCheck(
+            app, outputTxSet, lclHeader, validatedPhases, closeTimeOffset);
+        preliminaryApplicableTxSet->mContentsHash =
+            outputTxSet->getContentsHash();
+        return std::make_pair(outputTxSet,
+                              std::move(preliminaryApplicableTxSet));
+    }
+
+    std::vector<size_t> phaseSizes;
+    for (auto const& phase : validatedPhases)
+    {
+        phaseSizes.push_back(phase.sizeTx());
+    }
+    ApplicableTxSetFrameConstPtr outputApplicableTxSet;
+    // We already trimmed invalid transactions in an earlier call to
+    // `trimInvalid`, so the check skips transaction validation.
+    auto const failure = TxSetBuilder::checkBuiltTxSet(
+        app, *outputTxSet, TxSetValidationContext::forLCL(app), phaseSizes,
+        closeTimeOffset.seconds(), &outputApplicableTxSet);
+    if (failure)
+    {
+        throw std::runtime_error(*failure);
+    }
+
+    return std::make_pair(outputTxSet, std::move(outputApplicableTxSet));
+}
+
+uint32_t
+TxSetBuildLimits::maxTxSetSizeOps() const
+{
+    // As LedgerManager::getLastMaxTxSetSizeOps.
+    auto const n = mLclHeader.maxTxSetSize;
+    return protocolVersionStartsFrom(mLclHeader.ledgerVersion,
+                                     ProtocolVersion::V_11)
+               ? n
+               : (n * MAX_OPS_PER_TX);
+}
+
+bool
+TxSetBuildLimits::sameAs(TxSetBuildLimits const& other) const
+{
+    auto const& a = mLclHeader;
+    auto const& b = other.mLclHeader;
+    if (a.ledgerVersion != b.ledgerVersion || a.baseFee != b.baseFee ||
+        a.baseReserve != b.baseReserve || a.maxTxSetSize != b.maxTxSetSize)
+    {
+        return false;
+    }
+    if ((mSorobanConfig == nullptr) != (other.mSorobanConfig == nullptr))
+    {
+        return false;
+    }
+    if (!mSorobanConfig)
+    {
+        return true;
+    }
+    auto const& s = *mSorobanConfig;
+    auto const& t = *other.mSorobanConfig;
+    return s.maxLedgerResources() == t.maxLedgerResources() &&
+           s.ledgerMaxInstructions() == t.ledgerMaxInstructions() &&
+           s.ledgerMaxDependentTxClusters() ==
+               t.ledgerMaxDependentTxClusters() &&
+           s.ledgerMaxTxCount() == t.ledgerMaxTxCount();
+}
+
+TxSetBuildLimits
+TxSetBuildLimits::forLCL(Application& app)
+{
+    releaseAssert(threadIsMain());
+    auto& lm = app.getLedgerManager();
+    TxSetBuildLimits limits;
+    limits.mLclHeader = lm.getLastClosedLedgerHeader().header;
+    if (protocolVersionStartsFrom(limits.mLclHeader.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        limits.mSorobanConfig = &lm.getLastClosedSorobanNetworkConfig();
+    }
+    return limits;
+}
+
+std::vector<TxSetPhaseFrame>
+TxSetBuilder::selectPhases(
+    PerPhaseTransactionList const& txPhases, Application& app,
+    TxSetBuildLimits const& limits, TxSetValidationContext const& ctx,
+    ApplyTimeOffset closeTimeOffset, PerPhaseTransactionList& invalidTxs,
+    std::vector<size_t> const& validTxTargets, std::string const& timerPrefix,
+    std::optional<size_t> tieBreakSeed,
+    std::vector<std::vector<bool>>* hadTxNotFittingLane
+#ifdef BUILD_TESTS
+    ,
+    bool enforceTxsApplyOrder,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+    bool disableTxValidationForLegacyScenario
+#endif
+)
+{
+    releaseAssert(txPhases.size() == invalidTxs.size());
+    if (hadTxNotFittingLane)
+    {
+        hadTxNotFittingLane->assign(txPhases.size(), {});
+    }
     releaseAssert(validTxTargets.empty() ||
                   validTxTargets.size() == txPhases.size());
     releaseAssert(txPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 
+    auto const& cfg = app.getConfig();
     std::vector<TxSetPhaseFrame> validatedPhases;
     UnorderedMap<AccountID, int64_t> accountFeeMap;
     for (size_t i = 0; i < txPhases.size(); ++i)
@@ -911,38 +1179,38 @@ makeTxSetFromTransactions(
 #ifdef BUILD_TESTS
         if (disableTxValidationForLegacyScenario)
         {
-            REQUIRE(protocolVersionIsBefore(app.getLedgerManager()
-                                                .getLastClosedLedgerHeader()
-                                                .header.ledgerVersion,
+            REQUIRE(protocolVersionIsBefore(limits.mLclHeader.ledgerVersion,
                                             ProtocolVersion::V_20));
             validatedTxs = phaseTxs;
         }
         else
         {
 #endif
-            auto trimTimer = app.getMetrics()
-                                 .NewTimer({"herder", "txset", "build-trim"})
-                                 .TimeScope();
+            auto trimTimer =
+                app.getMetrics()
+                    .NewTimer({"herder", "txset", timerPrefix + "-trim"})
+                    .TimeScope();
             if (validTxTargets.empty())
             {
-                validatedTxs = TxSetUtils::trimInvalid(
-                    phaseTxs, app, accountFeeMap, closeTimeOffset.seconds(),
-                    closeTimeOffset.seconds(), invalid, validationCache);
+                validatedTxs =
+                    TxSetUtils::trimInvalid(phaseTxs, app, ctx, accountFeeMap,
+                                            closeTimeOffset.seconds(),
+                                            closeTimeOffset.seconds(), invalid);
             }
             else
             {
                 // Transactions of limited lanes (DEX) can't fill the phase,
                 // so only generic lane ones count toward the target.
-                auto laneConfig = createSurgePricingLangeConfig(
-                    static_cast<TxSetPhase>(i), app);
+                auto laneConfig = createSurgePricingLaneConfig(
+                    static_cast<TxSetPhase>(i), cfg, limits);
                 validatedTxs = TxSetUtils::trimInvalidPrefix(
                     phaseTxs, validTxTargets[i],
                     [&laneConfig](TransactionFrameBase const& tx) {
                         return laneConfig->getLane(tx) ==
                                SurgePricingPriorityQueue::GENERIC_LANE;
                     },
-                    app, accountFeeMap, closeTimeOffset.seconds(),
-                    closeTimeOffset.seconds(), invalid, validationCache);
+                    app, ctx, accountFeeMap, closeTimeOffset.seconds(),
+                    closeTimeOffset.seconds(), invalid);
             }
 #ifdef BUILD_TESTS
             // In tests we shouldn't be really trying to close ledgers with
@@ -963,16 +1231,19 @@ makeTxSetFromTransactions(
         }
 #endif
         auto phaseType = static_cast<TxSetPhase>(i);
-        auto selectTimer = app.getMetrics()
-                               .NewTimer({"herder", "txset", "build-select"})
-                               .TimeScope();
-        auto [includedTxs, inclusionFeeMapBinding] =
-            applySurgePricing(phaseType, validatedTxs, app
+        auto selectTimer =
+            app.getMetrics()
+                .NewTimer({"herder", "txset", timerPrefix + "-select"})
+                .TimeScope();
+        auto [includedTxs, inclusionFeeMapBinding] = applySurgePricing(
+            phaseType, validatedTxs, cfg, limits,
+            tieBreakSeed ? std::make_optional(*tieBreakSeed + i) : std::nullopt,
+            hadTxNotFittingLane ? &(*hadTxNotFittingLane)[i] : nullptr
 #ifdef BUILD_TESTS
-                              ,
-                              enforceTxsApplyOrder, parallelSorobanOrder
+            ,
+            enforceTxsApplyOrder, parallelSorobanOrder
 #endif
-            );
+        );
         auto inclusionFeeMap = inclusionFeeMapBinding;
         std::visit(
             [&validatedPhases, phaseType, inclusionFeeMap](auto&& txs) {
@@ -998,88 +1269,526 @@ makeTxSetFromTransactions(
             },
             includedTxs);
     }
+    return validatedPhases;
+}
 
-    auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
-    auto xdrTimer =
-        app.getMetrics().NewTimer({"herder", "txset", "build-xdr"}).TimeScope();
-    // Preliminary applicable frame - we don't know the contents hash yet, but
-    // we also don't return this.
-    std::unique_ptr<ApplicableTxSetFrame> preliminaryApplicableTxSet(
-        new ApplicableTxSetFrame(app, lclHeader, validatedPhases,
-                                 std::nullopt));
+TxSetValidationResult
+TxSetBuilder::checkSelection(std::vector<TxSetPhaseFrame> const& phases,
+                             Application& app,
+                             TxSetValidationContext const& ctx,
+                             bool isGeneralized,
+                             ApplyTimeOffset closeTimeOffset)
+{
+    ZoneScoped;
+    auto timer = app.getMetrics()
+                     .NewTimer({"herder", "txset", "build-selection-check"})
+                     .TimeScope();
+    // The transactions were validated by the selection.
+    return ApplicableTxSetFrame::checkPhasesValid(
+        app, ctx, phases, isGeneralized, closeTimeOffset.seconds(),
+        closeTimeOffset.seconds(), /* txsAreValidated */ true);
+}
 
-    // Do the roundtrip through XDR to ensure we never build an incorrect tx set
-    // for nomination.
-    auto outputTxSet = preliminaryApplicableTxSet->toWireTxSetFrame();
+namespace
+{
+// Removes `gone` from a phase's transactions, and the clusters and stages
+// that are left empty with them.
+template <typename Gone>
+TxStageFrameList
+withoutTxs(TxStageFrameList const& stages, Gone const& gone)
+{
+    TxStageFrameList res;
+    for (auto const& stage : stages)
+    {
+        TxStageFrame keptStage;
+        for (auto const& cluster : stage)
+        {
+            TxClusterFrame keptCluster;
+            for (auto const& tx : cluster)
+            {
+                if (gone.count(tx.get()) == 0)
+                {
+                    keptCluster.push_back(tx);
+                }
+            }
+            if (!keptCluster.empty())
+            {
+                keptStage.emplace_back(std::move(keptCluster));
+            }
+        }
+        if (!keptStage.empty())
+        {
+            res.emplace_back(std::move(keptStage));
+        }
+    }
+    return res;
+}
+}
+
+std::vector<TxSetPhaseFrame>
+TxSetBuilder::completeSelection(
+    std::vector<TxSetPhaseFrame> const& selected,
+    std::vector<std::vector<bool>> const& hadTxNotFittingLane,
+    TxSetCandidateSource const& moreCandidates, Application& app,
+    TxSetBuildLimits const& limits, TxSetValidationContext const& ctx,
+    ApplyTimeOffset closeTimeOffset, PerPhaseTransactionList& invalidTxs,
+    TxSetCompletionStats& stats, std::optional<size_t> tieBreakSeed)
+{
+    ZoneScoped;
+    size_t const phaseCount = selected.size();
+    releaseAssert(phaseCount == static_cast<size_t>(TxSetPhase::PHASE_COUNT));
+    releaseAssert(hadTxNotFittingLane.size() == phaseCount);
+    releaseAssert(invalidTxs.size() == phaseCount);
+    releaseAssert(limits.mSorobanConfig);
+    auto& metrics = app.getMetrics();
+    auto const& cfg = app.getConfig();
+    auto const offset = closeTimeOffset.seconds();
+    auto const ledgerVersion = limits.mLclHeader.ledgerVersion;
+
+    struct PhaseState
+    {
+        std::shared_ptr<SurgePricingLaneConfig> mLaneConfig;
+        bool mParallel{false};
+        // What is selected so far, in one of the two shapes.
+        TxFrameList mSequential;
+        TxStageFrameList mStages;
+        std::optional<ParallelPhaseExtender> mExtender;
+        // What the selection reported, per surge pricing lane.
+        std::vector<bool> mHadTxNotFittingLane;
+        // The same for the completion: a valid candidate was left out.
+        std::vector<bool> mLeftOutLanes;
+        bool mLeftOut{false};
+        // A sequential phase was selected again.
+        bool mReselected{false};
+        size_t mRemoved{0};
+        size_t mAdded{0};
+        // Candidates were looked at for this phase during the completion.
+        bool mExamined{false};
+        // The phase lost transactions or candidates: to the validity pass,
+        // or because a candidate was invalid or of an account that is in
+        // the set already. (Not: a valid candidate that did not fit.)
+        bool mLost{false};
+        // Batches from the mempool the phase has looked at.
+        size_t mMempoolBatches{0};
+        // Nothing more is looked for (see the top-up below).
+        bool mFull{false};
+        bool mStarved{false};
+    };
+    std::vector<PhaseState> states(phaseCount);
+    // One fee-source total for the whole set, as in a build.
+    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    // One transaction per source account, across the phases.
+    UnorderedSet<AccountID> sources;
+
+    auto atCapacity = [&](size_t p) {
+        auto const& state = states[p];
+        auto const limit = state.mLaneConfig->getLaneLimits().at(
+            SurgePricingPriorityQueue::GENERIC_LANE);
+        int64_t ops = 0;
+        if (state.mExtender)
+        {
+            ops = static_cast<int64_t>(state.mExtender->sizeTx());
+        }
+        else if (state.mParallel)
+        {
+            for (auto const& stage : state.mStages)
+            {
+                for (auto const& cluster : stage)
+                {
+                    ops += static_cast<int64_t>(cluster.size());
+                }
+            }
+        }
+        else
+        {
+            ops = static_cast<int64_t>(countOps(state.mSequential));
+        }
+        return ops >= limit.getVal(Resource::Type::OPERATIONS);
+    };
+
+    // 1. The validity pass. Whatever the selection was made on, every one of
+    // its transactions is validated here against the ledger the set goes on
+    // top of, by the function that validates a set a node receives; what
+    // fails leaves the selection.
+    {
+        auto timer = metrics.NewTimer({"herder", "txset", "early-final-pass"})
+                         .TimeScope();
+        for (size_t p = 0; p < phaseCount; ++p)
+        {
+            auto const& phase = selected[p];
+            auto& state = states[p];
+            state.mLaneConfig = createSurgePricingLaneConfig(
+                static_cast<TxSetPhase>(p), cfg, limits);
+            state.mParallel = phase.isParallel();
+            state.mHadTxNotFittingLane = hadTxNotFittingLane[p];
+            releaseAssert(state.mHadTxNotFittingLane.size() ==
+                          state.mLaneConfig->getLaneLimits().size());
+            state.mLeftOutLanes.assign(state.mHadTxNotFittingLane.size(),
+                                       false);
+            stats.mSelected += phase.sizeTx();
+            auto invalid = TxSetUtils::getInvalidTxListWithErrors(
+                               phase, app, ctx, accountFeeMap, offset, offset)
+                               .first;
+            UnorderedSet<TransactionFrameBase const*> gone;
+            for (auto const& tx : invalid)
+            {
+                gone.insert(tx.get());
+            }
+            state.mRemoved = gone.size();
+            stats.mRemoved += gone.size();
+            if (state.mParallel)
+            {
+                state.mStages = withoutTxs(phase.getParallelStages(), gone);
+            }
+            else
+            {
+                for (auto const& tx : phase.getSequentialTxs())
+                {
+                    if (gone.count(tx.get()) == 0)
+                    {
+                        state.mSequential.push_back(tx);
+                    }
+                }
+            }
+            for (auto const& tx : phase)
+            {
+                if (gone.count(tx.get()) == 0)
+                {
+                    sources.insert(tx->getSourceID());
+                }
+            }
+            invalidTxs[p] = std::move(invalid);
+            // Only a phase at its capacity is full from the start. That the
+            // selection left a transaction out says little: one that did
+            // not fit where it had to go (a cluster, a lane of its own)
+            // leaves room for others.
+            state.mFull = atCapacity(p);
+        }
+    }
+
+    // 2. The top-up: while a phase has room, take further candidates, each
+    // validated like the selection's own.
+    //
+    // The rule is a build's: a build looks at the mempool's top (the
+    // capacity plus the margin) and looks deeper only for a phase that is
+    // short and lost candidates. So a phase stops asking when
+    //  - it is at its capacity; or
+    //  - it has seen the mempool's top once and lost nothing (no
+    //    transaction removed by the validity pass, no candidate that was
+    //    invalid or of an account already in the set): it got all that the
+    //    top holds for it; or
+    //  - it lost something, went on to a deeper pull, and that pull held
+    //    nothing new of its kind.
+    // That valid candidates did not fit closes nothing: a transaction that
+    // could not go where it had to (a full cluster, a lane of its own)
+    // leaves room for others, whatever their number.
+    for (size_t p = 0; p < phaseCount; ++p)
+    {
+        states[p].mLost = states[p].mRemoved != 0;
+    }
+    // Selects a sequential phase again, from what it holds and `extra`;
+    // returns how many of `extra` are in.
+    auto reselect = [&](size_t p, TxFrameList const& extra) {
+        auto& state = states[p];
+        TxFrameList all = state.mSequential;
+        all.insert(all.end(), extra.begin(), extra.end());
+        std::vector<bool> flags;
+        auto [included, feeMap] = applySurgePricing(
+            static_cast<TxSetPhase>(p), all, cfg, limits,
+            tieBreakSeed ? std::make_optional(*tieBreakSeed + p) : std::nullopt,
+            &flags
 #ifdef BUILD_TESTS
-    if (enforceTxsApplyOrder)
-    {
-        // Fill in the contents hash if we're skipping the normal roundtrip
-        // and validation flow.
-        preliminaryApplicableTxSet->mContentsHash =
-            outputTxSet->getContentsHash();
-        return std::make_pair(outputTxSet,
-                              std::move(preliminaryApplicableTxSet));
-    }
+            ,
+            false, {}
 #endif
-
-    xdrTimer.Stop();
-    // The final XDR is available now. Start proposal encoding while the
-    // roundtrip and final validity checks below run; only the local builder
-    // supplies this callback. The callback must not nominate the set.
-    if (onTxSetReady)
+        );
+        state.mSequential = std::get<TxFrameList>(included);
+        state.mReselected = true;
+        releaseAssert(flags.size() == state.mLeftOutLanes.size());
+        for (size_t lane = 0; lane < flags.size(); ++lane)
+        {
+            state.mLeftOutLanes[lane] =
+                state.mLeftOutLanes[lane] || flags[lane];
+        }
+        UnorderedSet<TransactionFrameBase const*> in;
+        for (auto const& tx : state.mSequential)
+        {
+            in.insert(tx.get());
+        }
+        size_t added = 0;
+        for (auto const& tx : extra)
+        {
+            if (in.count(tx.get()) != 0)
+            {
+                sources.insert(tx->getSourceID());
+                ++added;
+            }
+        }
+        return added;
+    };
+    auto wantsMore = [&]() {
+        return std::any_of(
+            states.begin(), states.end(),
+            [](PhaseState const& s) { return !s.mFull && !s.mStarved; });
+    };
     {
-        onTxSetReady(outputTxSet);
+        auto timer =
+            metrics.NewTimer({"herder", "txset", "early-top-up"}).TimeScope();
+        while (wantsMore())
+        {
+            auto batch = moreCandidates();
+            if (!batch)
+            {
+                break;
+            }
+            stats.mCandidates += batch->mTxs.size();
+            TxFrameList classicTxs;
+            TxFrameList sorobanTxs;
+            std::vector<size_t> offered(phaseCount, 0);
+            for (auto const& tx : batch->mTxs)
+            {
+                size_t const p = tx->isSoroban() ? 1 : 0;
+                if (states[p].mFull)
+                {
+                    continue;
+                }
+                ++offered[p];
+                if (sources.count(tx->getSourceID()) != 0)
+                {
+                    continue;
+                }
+                (p == 1 ? sorobanTxs : classicTxs).push_back(tx);
+            }
+            TxSetUtils::keepOnePerSourceAccount(classicTxs, sorobanTxs);
+            for (size_t p = 0; p < phaseCount; ++p)
+            {
+                auto& state = states[p];
+                if (state.mFull)
+                {
+                    continue;
+                }
+                // The selection's own verdict on what it left out is void
+                // from here on: the candidates are judged on this ledger.
+                state.mExamined = true;
+                auto const& candidates = p == 1 ? sorobanTxs : classicTxs;
+                size_t valid = 0;
+                size_t added = 0;
+                if (!candidates.empty())
+                {
+                    TxFrameList invalid;
+                    auto const validTxs = TxSetUtils::trimInvalid(
+                        candidates, app, ctx, accountFeeMap, offset, offset,
+                        invalid);
+                    invalidTxs[p].insert(invalidTxs[p].end(), invalid.begin(),
+                                         invalid.end());
+                    valid = validTxs.size();
+                    if (valid != 0 && state.mParallel)
+                    {
+                        if (!state.mExtender)
+                        {
+                            state.mExtender.emplace(
+                                std::move(state.mStages),
+                                *limits.mSorobanConfig,
+                                state.mLaneConfig->getLaneLimits().at(
+                                    SurgePricingPriorityQueue::GENERIC_LANE),
+                                ledgerVersion);
+                        }
+                        for (auto const& tx : validTxs)
+                        {
+                            if (state.mExtender->tryAdd(tx))
+                            {
+                                sources.insert(tx->getSourceID());
+                                ++added;
+                            }
+                        }
+                    }
+                    else if (valid != 0)
+                    {
+                        // A sequential phase is cheap to select: again, by
+                        // the standard surge pricing.
+                        added = reselect(p, validTxs);
+                    }
+                }
+                state.mAdded += added;
+                // A valid candidate that is not in: the phase's
+                // transactions competed for its room.
+                state.mLeftOut = state.mLeftOut || added < valid;
+                state.mLost = state.mLost || valid < offered[p];
+                if (atCapacity(p))
+                {
+                    state.mFull = true;
+                }
+                else if (batch->mFromMempool)
+                {
+                    ++state.mMempoolBatches;
+                    state.mStarved =
+                        !state.mLost ||
+                        (state.mMempoolBatches > 1 && offered[p] == 0);
+                }
+            }
+        }
     }
 
+    // 3. The phases as they are now. Base fees by the rule of a build:
+    // transactions of a lane compete on fees only if a valid one was left
+    // out. For a phase that looked at candidates here, that is what
+    // happened here; otherwise it is what the selection reported.
+    std::vector<TxSetPhaseFrame> res;
+    for (size_t p = 0; p < phaseCount; ++p)
+    {
+        auto& state = states[p];
+        auto const phaseType = static_cast<TxSetPhase>(p);
+        stats.mAdded += state.mAdded;
+        std::vector<bool> flags = state.mHadTxNotFittingLane;
+        if (state.mExamined || state.mRemoved != 0)
+        {
+            flags = state.mLeftOutLanes;
+            if (state.mParallel)
+            {
+                flags.at(SurgePricingPriorityQueue::GENERIC_LANE) =
+                    state.mLeftOut;
+            }
+        }
+        if (state.mRemoved == 0 && state.mAdded == 0 && !state.mReselected &&
+            flags == state.mHadTxNotFittingLane)
+        {
+            // Untouched.
+            res.emplace_back(selected[p]);
+            continue;
+        }
+        if (state.mParallel)
+        {
+            auto stages = state.mExtender ? state.mExtender->getStages()
+                                          : std::move(state.mStages);
+            std::variant<TxFrameList, TxStageFrameList> included = stages;
+            auto feeMap =
+                computeInclusionFeeMap(phaseType, included, *state.mLaneConfig,
+                                       limits.mLclHeader, flags);
+            res.emplace_back(
+                TxSetPhaseFrame(phaseType, std::move(stages), feeMap));
+        }
+        else
+        {
+            if (!state.mReselected)
+            {
+                // Transactions were removed and none added: select what is
+                // left.
+                reselect(p, {});
+                flags = state.mLeftOutLanes;
+            }
+            std::variant<TxFrameList, TxStageFrameList> included =
+                state.mSequential;
+            auto feeMap =
+                computeInclusionFeeMap(phaseType, included, *state.mLaneConfig,
+                                       limits.mLclHeader, flags);
+            res.emplace_back(
+                TxSetPhaseFrame(phaseType, state.mSequential, feeMap));
+        }
+    }
+    return res;
+}
+
+std::shared_ptr<TxSetSelfCheck const>
+TxSetBuilder::makeSelfCheck(Application& app,
+                            TxSetXDRFrameConstPtr const& txSet,
+                            LedgerHeaderHistoryEntry const& lcl,
+                            std::vector<TxSetPhaseFrame> const& phases,
+                            ApplyTimeOffset closeTimeOffset)
+{
+    releaseAssert(threadIsMain());
+    std::shared_ptr<TxSetSelfCheck> check(new TxSetSelfCheck());
+    check->mTxSet = txSet;
+    check->mLcl = lcl;
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        check->mSorobanConfig = std::make_shared<SorobanNetworkConfig const>(
+            app.getLedgerManager().getLastClosedSorobanNetworkConfig());
+    }
+    for (auto const& phase : phases)
+    {
+        check->mPhaseSizes.push_back(phase.sizeTx());
+    }
+    check->mCloseTimeOffset = closeTimeOffset.seconds();
+    return check;
+}
+
+std::optional<std::string>
+TxSetBuilder::checkBuiltTxSet(Application& app, TxSetXDRFrame const& txSet,
+                              TxSetValidationContext const& ctx,
+                              std::vector<size_t> const& phaseSizes,
+                              uint64_t closeTimeOffset,
+                              ApplicableTxSetFrameConstPtr* roundTripped)
+{
+    ZoneScoped;
     auto roundtripTimer = app.getMetrics()
                               .NewTimer({"herder", "txset", "build-roundtrip"})
                               .TimeScope();
-    ApplicableTxSetFrameConstPtr outputApplicableTxSet =
-        outputTxSet->prepareForApply(app, lclHeader.header);
+    ApplicableTxSetFrameConstPtr applicable =
+        txSet.prepareForApply(app, ctx.mLcl.header);
     roundtripTimer.Stop();
 
-    if (!outputApplicableTxSet)
+    if (!applicable)
     {
-        throw std::runtime_error(
-            "Couldn't prepare created tx set frame for apply");
+        return "Couldn't prepare created tx set frame for apply";
     }
 
     // Make sure no transactions were lost during the roundtrip and the output
     // tx set is valid.
-    bool valid = preliminaryApplicableTxSet->numPhases() ==
-                 outputApplicableTxSet->numPhases();
+    bool valid = phaseSizes.size() == applicable->numPhases();
     if (valid)
     {
-        for (size_t i = 0; i < preliminaryApplicableTxSet->numPhases(); ++i)
+        for (size_t i = 0; i < phaseSizes.size(); ++i)
         {
-            valid = valid && preliminaryApplicableTxSet->sizeTx(
-                                 static_cast<TxSetPhase>(i)) ==
-                                 outputApplicableTxSet->sizeTx(
-                                     static_cast<TxSetPhase>(i));
+            valid = valid && phaseSizes[i] ==
+                                 applicable->sizeTx(static_cast<TxSetPhase>(i));
         }
     }
     if (!valid)
     {
-        throw std::runtime_error("Created invalid tx set frame - shape is "
-                                 "mismatched after roundtrip.");
+        return "Created invalid tx set frame - shape is mismatched after "
+               "roundtrip.";
     }
-    // We already trimmed invalid transactions in an earlier call to
-    // `trimInvalid`, so skip transaction validation here
     auto finalTimer = app.getMetrics()
                           .NewTimer({"herder", "txset", "build-final-check"})
                           .TimeScope();
-    auto validationResult = outputApplicableTxSet->checkValidInternalWithResult(
-        app, closeTimeOffset.seconds(), closeTimeOffset.seconds(), true);
+    auto validationResult = applicable->checkValidInternalWithResult(
+        app, ctx, closeTimeOffset, closeTimeOffset, true);
     finalTimer.Stop();
     if (validationResult != TxSetValidationResult::VALID)
     {
-        throw std::runtime_error(fmt::format(
+        return fmt::format(
             FMT_STRING("Created invalid tx set frame, validation result: {:s}"),
-            toString(validationResult)));
+            toString(validationResult));
     }
+    if (roundTripped)
+    {
+        *roundTripped = std::move(applicable);
+    }
+    return std::nullopt;
+}
 
-    return std::make_pair(outputTxSet, std::move(outputApplicableTxSet));
+std::optional<std::string>
+TxSetSelfCheck::run(Application& app) const
+{
+    // The check does not validate transactions, so it never asks for a view
+    // of the ledger.
+    TxSetValidationContext const ctx{
+        mLcl, mSorobanConfig.get(),
+        []() -> std::unique_ptr<AbstractLedgerView const> {
+            throw std::runtime_error(
+                "the tx set self-check does not read the ledger");
+        },
+        1};
+    try
+    {
+        return TxSetBuilder::checkBuiltTxSet(app, *mTxSet, ctx, mPhaseSizes,
+                                             mCloseTimeOffset, nullptr);
+    }
+    catch (std::exception const& e)
+    {
+        return fmt::format(FMT_STRING("tx set self-check threw: {}"), e.what());
+    }
 }
 
 TxSetXDRFrameConstPtr
@@ -2458,7 +3167,20 @@ ApplicableTxSetFrame::checkValidInternalWithResult(
         releaseAssert(mPhases.size() == 1);
     }
 
-    bool enforceUniqueSourceAccount = needGeneralizedTxSet;
+    return checkPhasesValid(app, ctx, mPhases, isGeneralizedTxSet(),
+                            lowerBoundCloseTimeOffset,
+                            upperBoundCloseTimeOffset, txsAreValidated);
+}
+
+TxSetValidationResult
+ApplicableTxSetFrame::checkPhasesValid(
+    Application& app, TxSetValidationContext const& ctx,
+    std::vector<TxSetPhaseFrame> const& phases, bool isGeneralized,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    bool txsAreValidated)
+{
+    auto const& lcl = ctx.mLcl;
+    bool enforceUniqueSourceAccount = isGeneralized;
 #ifdef BUILD_TESTS
     if (app.getRunInOverlayOnlyMode())
     {
@@ -2470,7 +3192,7 @@ ApplicableTxSetFrame::checkValidInternalWithResult(
         // Ensure the tx set does not contain multiple txs per source
         // account
         std::unordered_set<AccountID> seenAccounts;
-        for (auto const& phase : mPhases)
+        for (auto const& phase : phases)
         {
             for (auto const& tx : phase)
             {
@@ -2489,7 +3211,7 @@ ApplicableTxSetFrame::checkValidInternalWithResult(
     bool useCrossPhaseFeeMap = protocolVersionStartsFrom(
         lcl.header.ledgerVersion, ProtocolVersion::V_26);
     UnorderedMap<AccountID, int64_t> accountFeeMap;
-    for (auto const& phase : mPhases)
+    for (auto const& phase : phases)
     {
         if (!useCrossPhaseFeeMap)
         {

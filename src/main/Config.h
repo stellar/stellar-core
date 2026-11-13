@@ -540,6 +540,22 @@ class Config : public std::enable_shared_from_this<Config>
     // APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION on.
     bool EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY;
 
+    // The node that expects to lead the next ledger selects its transaction
+    // set while the current ledger is still in its ballot, from the current
+    // ledger's set and the last closed state, and completes it when the
+    // current ledger has closed: every selected transaction is validated
+    // against the closed ledger and the set is topped up from the mempool
+    // (see herder/EarlyTxSetSelection.h). Without it the set is built when
+    // the current ledger has closed. Only from
+    // APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION on.
+    bool EXPERIMENTAL_EARLY_TX_SET_SELECTION;
+
+    // How much more than a transaction set can hold a leader pulls from the
+    // mempool for a build, in percent of the set's capacity. A build whose
+    // set is short after validation pulls again, so the margin only decides
+    // how often that happens.
+    uint32_t EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT;
+
     // Allow downloading of transaction sets in parallel with SCP (experimental)
     bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
 
