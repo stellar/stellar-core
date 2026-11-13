@@ -1163,8 +1163,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
         // Ledgers to wait, after the last submission, for the load to be
         // applied; 0 keeps the mode's default.
-        cfg.completionTimeoutLedgers = parseOptionalParamOrDefault<uint32_t>(
-            map, "completiontimeout", 0);
+        cfg.completionTimeoutLedgers =
+            parseOptionalParamOrDefault<uint32_t>(map, "completiontimeout", 0);
 
         if (cfg.isSoroban())
         {
