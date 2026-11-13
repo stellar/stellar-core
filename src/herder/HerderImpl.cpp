@@ -3225,12 +3225,10 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
             // and what is left does not fill it: validate what is new for
             // the phases that are not filled yet (the selection below finds
             // the results in the cache). A phase that lost none got all the
-            // mempool's top holds for it. And a deeper pull is only worth
-            // it for a phase the top was dense in (at least its capacity
-            // of candidates), and only as long as each pull brings it
-            // something new: otherwise a single stale transaction of a
-            // kind the mempool holds little of would make every build pull
-            // three times.
+            // mempool's top holds for it. A phase that lost some goes on
+            // as long as each pull brings it something new: a stale
+            // transaction of a kind the mempool holds little of costs one
+            // deeper pull, not all of them.
             auto refillTimer =
                 metrics.NewTimer({"herder", "txset", "build-refill-check"})
                     .TimeScope();
@@ -3260,7 +3258,6 @@ HerderImpl::buildTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
                 shortPhase =
                     shortPhase ||
                     (usable[p] < candidates[p] && filled[p] < capacity[p] &&
-                     candidates[p] >= capacity[p] &&
                      (pull == 0 || !freshPhases[p].empty()));
             }
             if (!shortPhase)
