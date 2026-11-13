@@ -124,17 +124,45 @@ This enables source based code coverage.
 
 More information can be found [here](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html)
 
-Steps (tested on Mac OS):
+Steps:
 
-1. Run `./configure --enable-codecoverage` (include `--enable-next-protocol-version-unsafe-for-production` if testing a future protocol version)
-2. Compile stellar core
-3. Run the desired test, but with the LLVM_PROFILE_FILE environment variable set (ex. `LLVM_PROFILE_FILE="cov.profraw" src/stellar-core test '[liquiditypool]'`). This should generate a cov.profraw file in the current directory.
-4. Run `xcrun llvm-profdata merge -output=cov.profdata cov.profraw`
-   * the llvm tools are only accessible on Mac OS through `xcrun`
-5. Run `xcrun llvm-cov show ./src/stellar-core -instr-profile=cov.profdata -format="html" > cov.html`
+1. Configure with coverage enabled:
+
+  - Recommended flags (coverage-friendly):
+  ```
+  export CFLAGS="-O1 -g -fno-omit-frame-pointer"
+  export CXXFLAGS="$CFLAGS"
+  export CC=clang-20
+  export CXX=clang++-20
+  ```
+
+  - Then run `./configure --enable-codecoverage`
+    - if testing a future protocol version `./configure --enable-codecoverage --enable-next-protocol-version-unsafe-for-production`
+
+2. Compile stellar-core.
+
+##### Generating a single combined profile (traditional LLVM flow)
+
+1. Generate a single combined profile (traditional LLVM flow) by setting `LLVM_PROFILE_FILE`:
+  - Example: `LLVM_PROFILE_FILE="cov.profraw" ./src/stellar-core test '[liquiditypool]'`
+  - This should generate `cov.profraw` in the current directory.
+
+2. Merge and inspect coverage:
+  - Run `llvm-profdata merge -output=cov.profdata cov.profraw`
+    - On Mac OS the llvm tools are often only accessible through `xcrun`.
+  - Run `llvm-cov show ./src/stellar-core -instr-profile=cov.profdata -format="html" > cov.html`
    * The resulting html file can be around ~45MB, so it can be difficult to navigate with a
    browser. You can use the `-ignore-filename-regex` option to remove files/directories that you aren't
    interested in (ex. The following option excludes every directory specified `-ignore-filename-regex='.*lib[/\\].*|.*bucket[/\\].*|.*catchup[/\\].*|.*crypto[/\\].*|.*database[/\\].*|.*herder[/\\].*|.*history[/\\].*|.*historywork[/\\].*|.*overlay[/\\].*|.*xdr[/\\].*|.*sodium[/\\].*|.*work[/\\].*|.*test[/\\].*|.*scp[/\\].*|.*main[/\\].*|.*simulation[/\\].*|.*invariant[/\\].*|.*util[/\\].*'`)
+
+##### Per-test coverage file (covtest reporter)
+
+- When building with `--enable-codecoverage`, you can use the custom Catch2 reporter `covtest` to produce one `.profraw` file per test case, plus a summary CSV.
+- Run: `src/stellar-core test -r covtest --ll FATAL --all-versions "[tx]"`
+  - This generates:
+   - `profraw.csv` (columns: test name, filename, duration in microseconds)
+   - `profraw/test-<sha256(test name)>.profraw` for each executed test case
+- Note: `-r covtest` must appear after the `test` subcommand (i.e. `stellar-core test -r covtest ...`).
 
 
 ### Special configure flags for unreleased protocol versions

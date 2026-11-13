@@ -146,8 +146,8 @@ AS_IF([test "x$enable_codecoverage" = "xyes"], [
   AC_MSG_NOTICE([ enabling codecoverage, see https://clang.llvm.org/docs/SourceBasedCodeCoverage.html ])
 
   LDFLAGS="$LDFLAGS -fprofile-instr-generate -fcoverage-mapping"
-  CXXFLAGS="$CXXFLAGS -fprofile-instr-generate -fcoverage-mapping"
-  CFLAGS="$CFLAGS -fprofile-instr-generate -fcoverage-mapping"
+  CXXFLAGS="$CXXFLAGS -fprofile-instr-generate -fcoverage-mapping -DCOV_LIBS_ENABLED=1"
+  CFLAGS="$CFLAGS -fprofile-instr-generate -fcoverage-mapping -DCOV_LIBS_ENABLED=1"
 ])
 
 AC_ARG_ENABLE([threadsanitizer],
