@@ -224,6 +224,19 @@ class RandomEvictionCache : public NonMovableOrCopyable
         }
     }
 
+    // Returns a pointer to the value if the key exists and nullptr
+    // otherwise, like `maybeGet`, without recording the access: no counter
+    // is touched and the entry does not become any younger for eviction.
+    // That makes it a read: any number of threads may call it at the same
+    // time as long as none changes the cache (`put`, `maybeGet`, ...)
+    // meanwhile. The pointer is good until the cache is changed.
+    V const*
+    peek(K const& k) const
+    {
+        auto it = mValueMap.find(k);
+        return it == mValueMap.end() ? nullptr : &it->second.mValue;
+    }
+
     // `get` offers basic exception safety guarantee.
     V&
     get(K const& k)
