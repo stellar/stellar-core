@@ -16,6 +16,12 @@ instances**: at 48 validators (16 organizations) and 8,000 TPS, and at the goal 
   ms (limit 960), a ledger every 0.90 s, 15.7 MB/s per node; with leader terms and pre-validation
   alone it is at 1,032 ms, 1.02 s per ledger and 43 MB/s.
 
+**With real transaction execution** (2026-11-12 and 13; every result above skips execution and
+sleeps instead), the same 90 validators at 800 ms hold the target at 4,000 TPS (block time p75
+804 ms, p99 835 ms), are 16% over it and drifting at 6,000 TPS, and take 1.16 s per ledger at
+8,000 TPS. One run per point. Results and the ranked bottlenecks:
+[Real apply at 90 validators and 800 ms](#real-apply-at-90-validators-and-800-ms).
+
 The earlier benchmark (48 validators, 5,000 TPS, 1,000 ms, 4-core instances) is kept below.
 
 ## What this branch is
@@ -209,6 +215,161 @@ ledgers led by one of them:
 4. **A follower's execution ends just before consensus**: 0.15 s of validation (signatures
    verified inline) plus the simulated apply, 0.31 s after the set arrived.
 5. The main thread is not saturated (a posted task waits 14 ms on average).
+
+### Real apply at 90 validators and 800 ms
+
+Every result above skips transaction execution ("overlay-only" mode) and sleeps in its place.
+These runs execute the load. One run per point, 2026-11-12 and 13.
+
+- **Load.** Every transaction is a payment of the native asset through its Stellar Asset
+  Contract (one host function call), to a contract address that no other transaction uses. No
+  two payments conflict, so the tx set builder can spread them over all clusters. 300 s of load
+  after a 60 s warm-up (one judged window); the tx set cap is 125% of the offered load per block.
+- **Network.** 30 organizations, 90 validators, 4 regions, 800 ms target, as in the 10,000 TPS
+  runs above.
+- **Instances.** m6id.8xlarge (16 cores, 32 vCPU, the processor of c6id.8xlarge, 128 GiB RAM),
+  with c6id.8xlarge where EC2 had no m6id.8xlarge left. The simulated-apply runs above were on
+  c6id.8xlarge only.
+- **Clusters.** Soroban's limit of parallel clusters per ledger is 16 (the physical cores) or 32
+  (the hyper-threads).
+- **Build.** `e168408bb`: this branch at `5d24d5494` (all five experiments) plus two test-only
+  load generator modes (see [The real-apply runs](#the-real-apply-runs)).
+
+| Offered load | Clusters | Instances: m6id + c6id | Core's data on | Block time p75 / p99 (median node; limits 960 / 1,600 ms) | Time per ledger | Payments per ledger | Execution / commit / whole close, per ledger | Outcome |
+|---|---:|---:|---|---:|---:|---:|---:|---|
+| 2,000 TPS | 16 | 70 + 20 | root volume | 804 / 1,165 ms | 0.80 s | 1,600 | 106 / 70 / 177 ms | on target |
+| 2,000 TPS | 32 | 90 + 0 | root volume | 804 / 1,040 ms | 0.80 s | 1,600 | 101 / 69 / 173 ms | on target |
+| 4,000 TPS | 16 | 90 + 0 | local NVMe | **804 / 835 ms** | 0.80 s | 3,200 | 216 / 111 / 328 ms | **on target** |
+| 6,000 TPS | 16 | 87 + 3 | local NVMe | 927 / 1,164 ms | 0.86 s | 5,150 | 342 / 177 / 517 ms | inside the limits, **16% over the target and rising** (p75 812 ms after one minute, 927 ms at the end) |
+| 6,000 TPS | 32 | 84 + 6 | local NVMe | 906.5 / 1,197 ms | 0.85 s | 5,050 | 325 / 179 / 504 ms | the same; one node's p99 over the limit (1,651 ms) |
+| 8,000 TPS | 16 | 90 + 0 | local NVMe | 1,236 / 1,482 ms | **1.16 s** | 8,000 (the cap) | 515 / 244 / 758 ms | **window missed on all 90 nodes**; about 6,860 TPS included |
+| 8,000 TPS | 32 | 81 + 9 | local NVMe | 1,222.5 / 1,481 ms | 1.16 s | 8,000 (the cap) | 496 / 246 / 742 ms | window missed on all 90 nodes |
+
+- **Every run's verdict is FAIL, also where the block time is on target.** In those runs the
+  only reason is the load generator: 1 to 9 of the 90 generators report a timeout, because their
+  last three payments are included 25 to 70 s after the load ends and a generator waits 20
+  ledgers (16 s) for them. A failed generator also skips the inclusion check. In the 2,000 TPS
+  runs all 720,000 offered payments were applied; no payment failed in any run. Why those last
+  payments arrive late is not explained.
+- **The network holds 800 ms with real apply up to somewhere between 4,000 and 6,000 TPS.** With
+  simulated apply the same fixture was at 980 ms for 10,080 TPS (above). At 4,000 TPS a fifth of
+  the cycle is free; at 6,000 TPS nothing is, and the block time rises within five minutes.
+- **Apply costs about 100 us of wall time per payment** with 16 clusters: about 65 us of
+  execution and 31 to 35 us of commit, both linear in the payments per ledger. The simulated
+  fixture charged 150 ms per ledger in total; real apply of 8,000 payments takes 0.76 s.
+- **Execution is free while it fits inside the ballot.** It runs speculatively from the node's
+  vote on, and its result was used on every ledger of these runs but one. The ballot takes 0.31 s
+  at every load, which is the execution time of about 4,700 payments. The commit always follows
+  externalize.
+- **16 or 32 clusters: no difference these runs can show** (block time equal within 2%,
+  execution 4 to 5% shorter with 32). The cluster workers are not what takes the time: each is
+  busy 2 to 11% of a core and the whole machine uses 4 to 6 of its 32 CPUs. A host call takes 91
+  to 97 us with 16 clusters and 118 to 133 us with 32, where two workers share a core.
+- **Storage.** A first 6,000 TPS run with core's data on the instances' 8 GB root volume (where
+  every earlier run kept it) filled the disk after about 1.3 million payments, and 64 of the 90
+  nodes stopped. From the 4,000 TPS run on, the data directory is on the instance's local NVMe
+  disk. On the root volume the commit was about a third longer and the block time's p99 had
+  spikes (the 2,000 TPS rows).
+
+The leader's cycle next to the simulated-apply run at 10,080 TPS (all five experiments, table
+above). Real apply: medians of the leader's log times over all 90 nodes, 16 clusters.
+
+| Step on the leader | Simulated apply, 10,080 TPS | Real apply, 8,000 TPS | Real apply, 6,000 TPS | Real apply, 4,000 TPS |
+|---|---:|---:|---:|---:|
+| Transactions per ledger | 8,500 | 8,000 | 5,150 | 3,200 |
+| Tx set build | 0.24 s | 0.26 s | 0.14 s | 0.08 s, before the trigger |
+| Proposal to consensus | 0.53 s | 0.51 s | 0.45 s | 0.41 s |
+| Consensus to ledger closed | 0.07 s | **0.33 s** | 0.22 s | 0.14 s |
+| Consensus to ledger closed on a follower | (not listed) | 0.45 s | 0.24 s | 0.14 s |
+| **Time per ledger** | 0.90 s | **1.16 s** | 0.86 s | 0.80 s |
+
+- With about the same number of transactions per ledger, the build and the way to consensus
+  take the same time as with simulated apply. **The difference is after consensus: 0.33 s
+  instead of 0.07 s**, which is the commit (0.24 s) plus the part of the execution that is not
+  finished at externalize (0.08 s on the leader, 0.17 s on a follower).
+- The rest of the cycle (about 0.05 s) is between the previous close and the build and between
+  the build's end and the proposal.
+
+### What limits real apply
+
+A straight line through the three loads: the leader's cycle is **about 315 ms that do not depend
+on the load (the ballot) plus about 98 us per payment in the ledger** (38 us of tx set build,
+22 us between the proposal and the followers' vote, 39 us after consensus). It crosses 800 ms at
+about 4,950 payments per ledger, which is 6,200 TPS.
+
+Ranked by their share of the leader's cycle (90 validators, 16 clusters, local NVMe):
+
+| # | Step | At 8,000 TPS (1.16 s) | At 6,000 TPS (0.86 s) | Grows with the load | Most plausible fix |
+|---|---|---:|---:|---|---|
+| 1 | Ballot, first ballot to externalize | 310 ms, 27% | 307 ms, 36% | no | None found here. It is the floor of the cycle, and the window that speculative execution hides in |
+| 2 | Tx set build on the leader's main thread. It needs the previous ledger closed, and once the cycle has no slack the trigger is already due when it ends | 261 ms, 23% | 137 ms, 16% | yes; between 6,000 and 8,000 TPS faster than the load, because of the backlog | Build the next set while the current ledger is in its ballot. Tried once as [#5503](https://github.com/stellar/stellar-core/pull/5503) with simulated apply (slower than the base in its one run, closed); not measured with real apply |
+| 3 | Commit, always after externalize | 244 ms, 21% | 177 ms, 21% | linear, 31 to 35 us per payment | No debug meta on a validator: **measured, 43% less commit per payment** (below) |
+| 4 | Between the proposal and the followers' vote, beyond the ballot: the set's compression, storage, push, fetch, decoding and hashing, and the main threads' queues | 201 ms, 17% | 142 ms, 17% | yes | Not known. Only the fetch has a timer (88 and 58 ms of it); the rest needs timers first |
+| 5 | Execution beyond the ballot (from about 4,700 payments per ledger on) | 81 ms, 7%; on a follower 167 ms | 46 ms, 5% | linear, 65 us per payment | Meta off and the account cache: measured (below). Then the serial account prefetch and the tx set validation |
+
+Not a bottleneck: the parallel host calls. That is why 32 clusters do not help.
+
+**Where the apply time goes** (Linux `perf` on two nodes of a 6-node network of the same instance
+type at 8,000 TPS; apply cost per node does not depend on the network size):
+
+- **The apply thread does the work, serially**: 74 us of CPU per payment. The 16 cluster
+  workers together spend about 190 us per payment (the host call, one signature check, three
+  account loads), which is 12 us of wall time, and each is 9% busy.
+- **By kind of work**, the apply thread's samples are 39% copying, serializing and destroying
+  XDR values, 18% `malloc` and `free`, 13% the ledger-transaction entry maps.
+- **By step:**
+
+| Step on the apply thread | Share of its CPU | Per 8,000-payment ledger |
+|---|---:|---:|
+| **Execution** | **56%** | **310 ms** (its timer shows 452 ms: the rest is waiting for the workers) |
+| Bulk load of every source account from the bucket list (`prefetchTxSourceIds`), single-threaded | 20% | 110 ms |
+| Tx set validation, serial part (the per-transaction checks and signatures run on the workers) | 9% | 52 ms |
+| Refund, result and meta per transaction (`processPostTxSetApply`) | 7% | 41 ms |
+| Fee and sequence number per transaction (`processFeesSeqNums`) | 5.5% | 30 ms |
+| Parallel phase: setup and writing the clusters' changes back | 9% | 48 ms |
+| Other | 5% | 29 ms |
+| **Commit** | **43%** | **238 ms** |
+| Serializing the ledger's meta to the debug file, and freeing it | 10% | 57 ms |
+| Bucket list add | 9% | 51 ms |
+| A copy of the ledger's meta that only test builds make | 6% | 31 ms |
+| Result set hash and other | 6% | 31 ms |
+| Tx set into the history checkpoint (with two fsyncs) | 5% | 27 ms |
+| Sealing the ledger; ledger-transaction commit | 7.5% | 41 ms |
+
+- **Stacks that build, copy, write or free transaction meta are 27% of the apply thread.** No
+  meta stream was configured. Core builds the meta of every ledger for its debug file whenever
+  `METADATA_DEBUG_LEDGERS` is not 0, and its default is 100.
+
+**Two settings, measured** on the same 6-node fixture (8,000 TPS offered, one run each):
+
+| | Default settings | Meta off | Meta off and a 4 GB account cache |
+|---|---:|---:|---:|
+| Time per ledger | 1,057 ms | **802 ms** | 814 ms |
+| Payments per ledger; offered load included | 8,000 (the cap); no, a backlog | 6,438; **yes, all 2,880,000** | 6,511; yes (two generators timed out on their last payments) |
+| Execution per payment | 56.5 us | 49.8 us | **45.1 us** |
+| Commit per payment | 31.1 us | **17.7 us** | 18.5 us |
+| Whole close per payment | 87.6 us | **67.5 us (-23%)** | 63.6 us (-27%) |
+| Source account prefetch per ledger | 102 ms | 81 ms | **25 ms** |
+| One account load on a worker | 14 us | 14 us | **29 us** |
+| Tx set validation per ledger | 115 ms | 88 ms | 112 ms |
+| Leader's tx set build | 230 ms | 140 ms | 147 ms |
+
+- **Meta off** (`METADATA_DEBUG_LEDGERS=0`; in this test build also
+  `DISABLE_TX_META_FOR_TESTING=true`): 13.4 us less commit and 6.7 us less execution per payment.
+  3.9 us of it is the copy that only test builds make. The 6-node network goes from a backlog at
+  1,057 ms per ledger to 802 ms with everything included; the smaller sets also shorten the
+  build.
+- **Account cache** (`BUCKETLIST_DB_MEMORY_FOR_CACHING=4096`; off by default): the serial
+  prefetch falls by 70%, but an account load on a worker takes twice as long, because a cache
+  hit takes an exclusive lock, and the tx set validation gives back what it gained. Execution is
+  9% shorter and the block time does not move.
+- **Not measured: either setting at 90 validators.** Scaled per payment, meta off would take
+  about 105 ms off the commit at 8,000 TPS and 70 ms at 6,000 TPS (about 30 and 20 ms of that is
+  the test build's copy), which puts 6,000 TPS near 800 ms and leaves 8,000 TPS above 1 s.
+- **At 90 validators one low-priority core thread is busy 100% of a core** in every run,
+  independent of the load (3% at 24 validators). Most likely the quorum intersection checker,
+  which is on by default; inferred from the code, not profiled. It does not sit in the block
+  time.
 
 ### Earlier benchmark: 1,000 ms target, 5,000 TPS, 48 validators, 4-core instances
 
@@ -531,6 +692,49 @@ Defaults that matter: validators as generators, `--scp-timeout-ms 2000`,
   "before" run). The inclusion check is skipped when the load ends early or a generator fails
   (the "before" run and the first run of the change).
 
+### The real-apply runs
+
+They differ from the 90-validator column of the table at the top of this chapter in these
+points:
+
+| | Real apply, 90 validators |
+|---|---|
+| Instance type | m6id.8xlarge: 32 vCPU, 16 cores, the same processor, 128 GiB RAM, local NVMe. EC2 refused a fleet of 90 c6id.8xlarge on that day; where m6id.8xlarge ran short too, single nodes are c6id.8xlarge (the counts are in the results table) |
+| Core's data directory | The instance's local NVMe disk from the 4,000 TPS run on. Before, as in every earlier run, the 8 GB root volume |
+| Offered load | 2,000, 4,000, 6,000 or 8,000 TPS; 22 to 89 per validator |
+| Maximum transactions per ledger | 2,000, 4,000, 6,000 or 8,000 (125% of the offered load per block) |
+| Apply | Real: no "overlay-only" mode and no sleep. One validator creates the native asset's contract instance before the load |
+| Soroban settings | `ledgerMaxDependentTxClusters` 16 or 32. The ledger's instruction limit, which is per cluster, is 250,000 (one payment's declared instructions) times the cap divided by the clusters, so a ledger of exactly the offered load fills 13 of 16 clusters |
+| Cost parameters | `UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING=true`. Without it a network upgraded from genesis keeps protocol 20's first cost parameters and every payment fails for its instruction limit |
+| Load duration | 60 s warm-up, then 300 s: one judged window |
+| Logs | Not saved. Timers from Prometheus (means over the last 5 minutes of the load); log times and per-thread CPU read from all 90 nodes while the network was up |
+| Build | `e168408bb`, package `30.0.1-3689.e168408bb5.noble~perf.loadgen.real.sac~perftests` |
+
+```
+block_time_check.py \
+  --stellar-core-version 30.0.1-3689.e168408bb5.noble~perf.loadgen.real.sac~perftests \
+  --org-count 30 --block-time-ms 800 \
+  --soroban-tps 4000 --soroban-type sac --classic-tps 0 \
+  --simulate-apply-budget-ms 0 --real-apply --soroban-clusters 16 \
+  --load-duration-s 300 --instance-type m6id.8xlarge,c6id.8xlarge
+```
+
+To reproduce:
+
+- **The load is not in this branch.** The two test-only load generator modes, `sac_setup` (creates
+  the contract instance) and `sac_payment` (the payments, each to a fresh contract address), are
+  on the branch `perf/loadgen-real-sac` of `SirTyson/stellar-core` (`e168408bb`, three commits on
+  `5d24d5494`, in `src/simulation/LoadGenerator.cpp`).
+- **The harness flags** (`--real-apply`, `--soroban-clusters`, a list of instance types, the data
+  directory on the local NVMe disk, the cost parameter setting) are in pull request #5 of
+  perfnet's repository (`stellar-experimental/performance-testing`), not merged yet.
+- **The profiles** are from three networks of 6 validators (2 organizations, m6id.8xlarge, local
+  NVMe, 8,000 TPS offered, 16 clusters): default settings; `--cfg METADATA_DEBUG_LEDGERS=0 --cfg
+  DISABLE_TX_META_FOR_TESTING=true`; and those two plus `--cfg
+  BUCKETLIST_DB_MEMORY_FOR_CACHING=4096`. Linux `perf` on two nodes each: all threads at 999 Hz,
+  and call graphs at 199 Hz with DWARF unwinding and the package's debug symbols (the packaged
+  binary has no frame pointers).
+
 ### Limits of these numbers
 
 - One run on each side, plus the first run of the change without the IPC fix. The "before"
@@ -547,6 +751,24 @@ Defaults that matter: validators as generators, `--scp-timeout-ms 2000`,
   region) in the run with the change, and of four nodes in the "before" run.
 - No run has measured an invalid tx set, a dropped speculative execution or a restart from the
   tx-set store on a network; those paths are covered by unit tests only.
+
+Real apply:
+- One run per point. Differences of a few percent (16 against 32 clusters) are not established.
+- Every verdict is FAIL. Where the block time held, the reason is a generator's timeout on
+  payments included 25 to 70 s late; the inclusion check did not run in those runs.
+- The instance type differs from the simulated-apply runs (m6id.8xlarge with a few c6id.8xlarge,
+  against c6id.8xlarge), the load is 300 s instead of 900 s, and the two 2,000 TPS runs had
+  core's data on the root volume. At 6,000 TPS the block time was still rising when the load
+  ended.
+- The load is one kind of transaction without conflicts: the best case for parallel apply.
+- The profiles and the two settings were measured on 6 validators, not on 90. Their apply
+  numbers carry over (per payment they agree with the 90-validator runs within 12%), their
+  consensus numbers do not.
+- Call graphs exist for the apply thread only; the unwinder did not resolve the other threads.
+- The bottleneck table's fixes are estimates, except the two measured settings. The cause of
+  the 100% thread is inferred.
+- After the one dropped speculative execution, `ledger.transaction.count` and the
+  `ledger.apply` success counters had counted that ledger twice.
 
 ## Known limitations of the prototype
 
@@ -587,7 +809,9 @@ Apply-time validation and speculative execution:
   leaves out the time a finished execution waits for externalize.
 - A parked execution keeps a SQL transaction open for the length of the ballot. It is not
   confirmed that no other writer on the main database can make its commit fail.
-- Speculative execution was never measured with real transaction execution.
+- With real transaction execution, speculative execution was measured with valid sets only
+  (one execution dropped in eight 90-validator runs). The metrics a dropped execution updated
+  are not rolled back.
 - There is no compatibility work beyond the protocol gate.
 
 Tx-set push:
