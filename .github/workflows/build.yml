@@ -13,6 +13,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  BATCHSIZE: 1
+  RUST_PROFILE_OVERRIDE: ci
+  SOROBAN_JOBS: 8
+
 jobs:
 
   complete:
@@ -246,9 +251,12 @@ jobs:
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: ./install-rust.sh
 
+      # Pin the same nightly as SANITIZER_RUST_TOOLCHAIN in src/Makefile.am:
+      # LLVM 23 nightlies segfault building compiler-builtins with sancov
+      # coverage instrumentation (rust-lang/rust#161855).
       - name: Install rust nightly and src
         if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: rustup toolchain add nightly --component rust-src
+        run: rustup toolchain add nightly-2026-07-20 --component rust-src
 
       - name: Install rustup components
         if: steps.check-last-tested-commit.outputs.skip != 'true'
