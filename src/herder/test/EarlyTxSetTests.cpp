@@ -1590,6 +1590,109 @@ TEST_CASE("a build pulls the capacity of a set plus a margin and refills",
     }
 }
 
+TEST_CASE("a phase that lost candidates is refilled from below a mempool top "
+          "of the other phase",
+          "[herder][txset][early-txset]")
+{
+    // The mempool has one fee order for both phases. A phase that lost
+    // candidates looks deeper also when the top holds little of its kind:
+    // what it needs may lie below the other phase's transactions.
+    size_t const CAPACITY = 10;
+    size_t const SOROBAN_CAPACITY = 10;
+    SECTION("a completion")
+    {
+        EarlyFixture f(60, CAPACITY);
+        auto& app = *f.mApp;
+        auto& herder = f.herder();
+        overrideSorobanNetworkConfigForTest(app);
+        modifySorobanNetworkConfig(app, [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = SOROBAN_CAPACITY;
+        });
+        size_t const pull = Access::pullCount(herder);
+        REQUIRE(pull >= CAPACITY + SOROBAN_CAPACITY);
+        // The closing set drains accounts 0 and 1. The selection holds
+        // their next payments and two more: four classic candidates, all
+        // there are.
+        std::vector<TransactionFrameBasePtr> previous;
+        std::vector<TransactionFrameBasePtr> candidates;
+        for (size_t i = 0; i < 2; ++i)
+        {
+            auto& account = f.acc(i);
+            previous.push_back(
+                f.pay(account, 1, account.getAvailableBalance() - 100));
+            candidates.push_back(f.pay(account, 2));
+        }
+        candidates.push_back(f.pay(f.acc(2), 1));
+        candidates.push_back(f.pay(f.acc(3), 1));
+        f.mMempool = previous;
+        f.mMempool.insert(f.mMempool.end(), candidates.begin(),
+                          candidates.end());
+        auto closing = f.setOf(previous);
+        f.voteAndSelect(closing);
+        f.close(closing);
+        // During the ballot: more Soroban transactions than a pull holds,
+        // and below them classic ones.
+        for (size_t i = 0; i < pull + 4; ++i)
+        {
+            f.mMempool.push_back(f.upload(f.acc(4 + i), 1, 100 + i));
+        }
+        std::vector<TransactionFrameBasePtr> below;
+        for (size_t i = 0; i < 8; ++i)
+        {
+            below.push_back(f.pay(f.acc(4 + pull + 4 + i), 1));
+        }
+        f.mMempool.insert(f.mMempool.end(), below.begin(), below.end());
+        auto const refills = txsetMeter(app, "refill-pull", "pull");
+        auto const built = f.build();
+        REQUIRE(built.mEarly);
+        REQUIRE(f.validate(built) == TxSetValidationResult::VALID);
+        REQUIRE(!built.holds(candidates[0]));
+        REQUIRE(!built.holds(candidates[1]));
+        REQUIRE(built.holds(candidates[2]));
+        REQUIRE(built.holds(candidates[3]));
+        // The two it lost are made up for from below.
+        REQUIRE(txsetMeter(app, "refill-pull", "pull") > refills);
+        REQUIRE(built.mApplicable->sizeTx(TxSetPhase::CLASSIC) > 2);
+        REQUIRE(built.mApplicable->sizeTx(TxSetPhase::SOROBAN) ==
+                SOROBAN_CAPACITY);
+        f.closeAndCheckApplied(built);
+    }
+    SECTION("a build")
+    {
+        EarlyFixture f(120, CAPACITY, [&](Config& cfg) {
+            cfg.EXPERIMENTAL_EARLY_TX_SET_SELECTION = false;
+        });
+        auto& app = *f.mApp;
+        auto& herder = f.herder();
+        overrideSorobanNetworkConfigForTest(app);
+        modifySorobanNetworkConfig(app, [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = SOROBAN_CAPACITY;
+        });
+        size_t const pull = Access::pullCount(herder);
+        // The top: six classic candidates, four of them with a spent
+        // sequence number, then Soroban transactions to the end of the
+        // pull. Below: valid classic ones.
+        for (size_t i = 0; i < 6; ++i)
+        {
+            f.mMempool.push_back(f.pay(f.acc(i), i < 4 ? 0 : 1));
+        }
+        for (size_t i = 6; i < pull; ++i)
+        {
+            f.mMempool.push_back(f.upload(f.acc(i), 1, 100 + i));
+        }
+        for (size_t i = 0; i < 12; ++i)
+        {
+            f.mMempool.push_back(f.pay(f.acc(pull + i), 1));
+        }
+        auto const built = f.build();
+        REQUIRE(f.validate(built) == TxSetValidationResult::VALID);
+        REQUIRE(f.mPulls.size() == 2);
+        REQUIRE(built.mApplicable->sizeTx(TxSetPhase::CLASSIC) == CAPACITY);
+        REQUIRE(built.mApplicable->sizeTx(TxSetPhase::SOROBAN) ==
+                SOROBAN_CAPACITY);
+    }
+}
+
 TEST_CASE("what the top-up may not add to a set selected early",
           "[herder][txset][early-txset]")
 {
@@ -2140,6 +2243,43 @@ TEST_CASE("a phase the selection could not fill is filled at the close",
         std::vector<TransactionFrameBasePtr> late{
             f.upload(f.acc(4), 1, 8, 100, 5'000'000),
             f.upload(f.acc(5), 1, 9, 100, 5'000'000)};
+        f.mMempool.insert(f.mMempool.end(), late.begin(), late.end());
+        auto const built = f.build();
+        REQUIRE(built.mEarly);
+        REQUIRE(built.holds(late[0]));
+        REQUIRE(built.holds(late[1]));
+        REQUIRE(built.mApplicable->sizeTx(TxSetPhase::SOROBAN) == 4);
+        REQUIRE(f.validate(built) == TxSetValidationResult::VALID);
+        f.closeAndCheckApplied(built);
+    }
+    SECTION("many left-overs with nowhere to go do not close the phase")
+    {
+        // As above, with ten transactions on the one entry: eight valid
+        // left-overs that fit nowhere. The phase is not full for that: two
+        // that write other entries still have the second cluster.
+        modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = 16;
+            cfg.mLedgerMaxDependentTxClusters = 2;
+            cfg.mTxMaxInstructions = 10'000'000;
+            cfg.mLedgerMaxInstructions = 10'000'000;
+        });
+        closingA = f.pay(f.acc(0), 1);
+        closing = f.setOf({closingA});
+        f.mMempool = {closingA};
+        for (size_t i = 1; i <= 10; ++i)
+        {
+            f.mMempool.push_back(f.upload(f.acc(i), 1, 7, 100, 5'000'000));
+        }
+        f.voteAndSelect(closing);
+        {
+            auto job = Access::job(herder);
+            std::lock_guard<std::mutex> lock(job->mMutex);
+            REQUIRE(job->mSelection->mSelected == 2);
+        }
+        f.close(closing);
+        std::vector<TransactionFrameBasePtr> late{
+            f.upload(f.acc(11), 1, 8, 100, 5'000'000),
+            f.upload(f.acc(12), 1, 9, 100, 5'000'000)};
         f.mMempool.insert(f.mMempool.end(), late.begin(), late.end());
         auto const built = f.build();
         REQUIRE(built.mEarly);

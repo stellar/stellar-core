@@ -1364,10 +1364,10 @@ TxSetBuilder::completeSelection(
         size_t mAdded{0};
         // Candidates were looked at for this phase during the completion.
         bool mExamined{false};
-        // The phase lost transactions or candidates.
+        // The phase lost transactions or candidates: to the validity pass,
+        // or because a candidate was invalid or of an account that is in
+        // the set already. (Not: a valid candidate that did not fit.)
         bool mLost{false};
-        // Transactions of this phase seen so far (selected or offered).
-        size_t mSeen{0};
         // Batches from the mempool the phase has looked at.
         size_t mMempoolBatches{0};
         // Nothing more is looked for (see the top-up below).
@@ -1469,30 +1469,22 @@ TxSetBuilder::completeSelection(
     // 2. The top-up: while a phase has room, take further candidates, each
     // validated like the selection's own.
     //
-    // A phase stops asking when
-    //  - it is at its capacity;
-    //  - valid candidates were offered and none could be added (any number
-    //    of them from the mempool, several of the selection's leftovers): the
-    //    room it has left is of no use to what is on offer;
-    //  - it has seen the mempool's top once, unless it lost candidates
-    //    (transactions removed by the validity pass, candidates that were
-    //    invalid, of an account already in the set, or did not fit) and
-    //    that top held at least a phase's capacity of its kind: then it
-    //    goes on to deeper pulls, as long as each brings something new for
-    //    it. A phase that is short without having lost anything got all
-    //    the mempool's top holds for it.
-    size_t const MANY_LEFT_OUT = 8;
-    auto capacityOf = [&](size_t p) {
-        return static_cast<size_t>(std::max<int64_t>(
-            0, states[p]
-                   .mLaneConfig->getLaneLimits()
-                   .at(SurgePricingPriorityQueue::GENERIC_LANE)
-                   .getVal(Resource::Type::OPERATIONS)));
-    };
+    // The rule is a build's: a build looks at the mempool's top (the
+    // capacity plus the margin) and looks deeper only for a phase that is
+    // short and lost candidates. So a phase stops asking when
+    //  - it is at its capacity; or
+    //  - it has seen the mempool's top once and lost nothing (no
+    //    transaction removed by the validity pass, no candidate that was
+    //    invalid or of an account already in the set): it got all that the
+    //    top holds for it; or
+    //  - it lost something, went on to a deeper pull, and that pull held
+    //    nothing new of its kind.
+    // That valid candidates did not fit closes nothing: a transaction that
+    // could not go where it had to (a full cluster, a lane of its own)
+    // leaves room for others, whatever their number.
     for (size_t p = 0; p < phaseCount; ++p)
     {
         states[p].mLost = states[p].mRemoved != 0;
-        states[p].mSeen = selected[p].sizeTx();
     }
     // Selects a sequential phase again, from what it holds and `extra`;
     // returns how many of `extra` are in.
@@ -1578,7 +1570,6 @@ TxSetBuilder::completeSelection(
                 // The selection's own verdict on what it left out is void
                 // from here on: the candidates are judged on this ledger.
                 state.mExamined = true;
-                state.mSeen += offered[p];
                 auto const& candidates = p == 1 ? sorobanTxs : classicTxs;
                 size_t valid = 0;
                 size_t added = 0;
@@ -1622,10 +1613,8 @@ TxSetBuilder::completeSelection(
                 // A valid candidate that is not in: the phase's
                 // transactions competed for its room.
                 state.mLeftOut = state.mLeftOut || added < valid;
-                state.mLost = state.mLost || added < offered[p];
-                if (atCapacity(p) ||
-                    (valid != 0 && added == 0 &&
-                     (batch->mFromMempool || valid >= MANY_LEFT_OUT)))
+                state.mLost = state.mLost || valid < offered[p];
+                if (atCapacity(p))
                 {
                     state.mFull = true;
                 }
@@ -1633,9 +1622,8 @@ TxSetBuilder::completeSelection(
                 {
                     ++state.mMempoolBatches;
                     state.mStarved =
-                        state.mMempoolBatches == 1
-                            ? !(state.mLost && state.mSeen >= capacityOf(p))
-                            : offered[p] == 0;
+                        !state.mLost ||
+                        (state.mMempoolBatches > 1 && offered[p] == 0);
                 }
             }
         }
