@@ -545,172 +545,110 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 }
 
 TEST_CASE("flow control total byte capacity throttles non-flood traffic",
-          "[overlay][flowcontrol][!hide]")
+          "[overlay][flowcontrol]")
 {
-    SCPQuorumSet qSet;
-    qSet.threshold = 1;
-    qSet.validators.resize(4000);
-    std::fill(qSet.validators.begin(), qSet.validators.end(),
-              getTestConfig(0).NODE_SEED.getPublicKey());
+    VirtualClock clock;
 
-    auto scpQSetMsg = std::make_shared<StellarMessage const>([&]() {
-        StellarMessage msg;
-        msg.type(SCP_QUORUMSET);
-        msg.qSet() = qSet;
-        return msg;
-    }());
-    REQUIRE(!OverlayManager::isFloodMessage(*scpQSetMsg));
+    StellarMessage msg;
+    msg.type(SCP_QUORUMSET);
+    msg.qSet().threshold = 1;
+    msg.qSet().validators.push_back(getTestConfig(0).NODE_SEED.getPublicKey());
+    REQUIRE(!OverlayManager::isFloodMessage(msg));
 
-    auto const msgSize = FlowControlCapacity::msgBodySize(*scpQSetMsg);
-    uint64_t constexpr MESSAGES_TO_FLOOR = 3;
-    uint64_t constexpr MESSAGES_PER_BURST = MESSAGES_TO_FLOOR + 1;
-    auto const byteCapacity = msgSize * MESSAGES_TO_FLOOR - 1;
-    auto const totalCapacity =
-        FlowControlByteCapacity::BYTE_CAPACITY_READ_FLOOR + byteCapacity;
-
+    auto const msgSize = FlowControlCapacity::msgBodySize(msg);
     auto cfg1 = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY);
-    cfg2.PEER_READING_CAPACITY = 100000;
+    cfg2.PEER_READING_CAPACITY = 201;
     cfg2.PEER_TOTAL_READING_CAPACITY_BYTES =
-        static_cast<uint32_t>(byteCapacity);
-    cfg1.NODE_IS_VALIDATOR = false;
-    cfg1.FORCE_SCP = false;
-    cfg2.NODE_IS_VALIDATOR = false;
-    cfg2.FORCE_SCP = false;
+        static_cast<uint32_t>(2 * msgSize - 1);
 
-    auto networkID = sha256(cfg1.NETWORK_PASSPHRASE);
-    auto simulation = std::make_shared<Simulation>(
-        Simulation::OVER_TCP, networkID,
-        [](int i) { return getTestConfig(i + 10, Config::TESTDB_IN_MEMORY); });
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    LoopbackPeerConnection conn(*app1, *app2);
+    auto receiver = conn.getAcceptor();
 
-    SCPQuorumSet nodeQSet;
-    nodeQSet.threshold = 1;
-    nodeQSet.validators.push_back(cfg1.NODE_SEED.getPublicKey());
-    nodeQSet.validators.push_back(cfg2.NODE_SEED.getPublicKey());
-
-    auto app1 = simulation->addNode(cfg1.NODE_SEED, nodeQSet, &cfg1);
-    auto app2 = simulation->addNode(cfg2.NODE_SEED, nodeQSet, &cfg2);
-
-    simulation->addPendingConnection(cfg1.NODE_SEED.getPublicKey(),
-                                     cfg2.NODE_SEED.getPublicKey());
-    simulation->startAllNodes();
-
-    Peer::pointer sender;
-    Peer::pointer receiver;
-    simulation->crankUntil(
-        [&]() {
-            sender = app1->getOverlayManager().getConnectedPeer(
-                PeerBareAddress{"127.0.0.1", app2->getConfig().PEER_PORT});
-            receiver = app2->getOverlayManager().getConnectedPeer(
-                PeerBareAddress{"127.0.0.1", app1->getConfig().PEER_PORT});
-            return sender && receiver && sender->isAuthenticatedForTesting() &&
-                   receiver->isAuthenticatedForTesting();
-        },
-        std::chrono::seconds(10), false);
-
-    REQUIRE(sender);
-    REQUIRE(receiver);
-    REQUIRE(sender->isAuthenticatedForTesting());
-    REQUIRE(receiver->isAuthenticatedForTesting());
-
-    auto getReceiverCapacity = [&]() {
-        return receiver->getFlowControl()->getCapacityBytes().getCapacity();
-    };
-    auto getReadThrottleCount = [&]() {
-        return app2->getOverlayManager()
-            .getOverlayMetrics()
-            .mConnectionReadThrottle.count();
-    };
-    auto waitFor = [&](std::string const& phase, auto&& predicate) {
-        auto timeout = std::chrono::seconds(10);
-        auto start = std::chrono::steady_clock::now();
-
-        while (!predicate() &&
-               std::chrono::steady_clock::now() - start <= timeout)
+    auto crankUntil = [&](char const* description, auto const& predicate) {
+        INFO(description);
+        for (size_t i = 0; i < 1000 && !predicate(); ++i)
         {
-            if (simulation->crankAllNodes() == 0)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
+            REQUIRE(clock.crank(false) > 0);
         }
-
-        auto capacity = getReceiverCapacity();
-        CAPTURE(phase);
-        CAPTURE(capacity.mTotalCapacity);
-        CAPTURE(totalCapacity);
-        CAPTURE(capacity.mFloodCapacity);
-        CAPTURE(receiver->getFlowControl()->isThrottled());
-        CAPTURE(receiver->getFlowControl()->canRead());
-        CAPTURE(sender->isConnectedForTesting());
-        CAPTURE(receiver->isConnectedForTesting());
-        CAPTURE(getReadThrottleCount());
-
         REQUIRE(predicate());
     };
-    auto waitForReceiverThrottle = [&]() {
-        auto timeout = std::chrono::seconds(10);
-        auto start = std::chrono::steady_clock::now();
 
-        while (!receiver->getFlowControl()->isThrottled() &&
-               std::chrono::steady_clock::now() - start <= timeout)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+    crankUntil("waiting for peer authentication", [&] {
+        return conn.getInitiator()->isAuthenticatedForTesting() &&
+               receiver->isAuthenticatedForTesting();
+    });
 
-        auto capacity = getReceiverCapacity();
-        CAPTURE(capacity.mTotalCapacity);
-        CAPTURE(totalCapacity);
-        CAPTURE(capacity.mFloodCapacity);
-        CAPTURE(receiver->getFlowControl()->isThrottled());
-        CAPTURE(receiver->getFlowControl()->canRead());
-        CAPTURE(sender->isConnectedForTesting());
-        CAPTURE(receiver->isConnectedForTesting());
-        CAPTURE(getReadThrottleCount());
+    auto flowControl = receiver->getFlowControl();
+    auto const initialByteCapacity =
+        flowControl->getCapacityBytes().getCapacity();
+    auto const initialMessageCapacity =
+        flowControl->getCapacity().getCapacity();
+    auto& recvCount =
+        app2->getOverlayManager().getOverlayMetrics().mRecvSCPQuorumSetTimer;
+    auto& throttleCount =
+        app2->getOverlayManager().getOverlayMetrics().mConnectionReadThrottle;
+    auto const initialRecvCount = recvCount.count();
+    auto const initialThrottleCount = throttleCount.count();
 
-        REQUIRE(receiver->getFlowControl()->isThrottled());
-    };
-    auto drainReceiver = [&]() {
-        waitFor("receiver drains", [&]() {
-            return getReceiverCapacity().mTotalCapacity == totalCapacity &&
-                   !receiver->getFlowControl()->isThrottled();
-        });
-        REQUIRE(getReceiverCapacity().mTotalCapacity == totalCapacity);
-        REQUIRE(!receiver->getFlowControl()->isThrottled());
-    };
+    std::vector<std::shared_ptr<CapacityTrackedMessage>> heldMessages;
+    heldMessages.emplace_back(
+        std::make_shared<CapacityTrackedMessage>(receiver, msg));
+    heldMessages.emplace_back(
+        std::make_shared<CapacityTrackedMessage>(receiver, msg));
 
-    drainReceiver();
-    auto const initialFloodCapacity = getReceiverCapacity().mFloodCapacity;
-    auto requireReceiverTotalCapacity = [&](uint64_t total) {
-        auto capacity = getReceiverCapacity();
-        REQUIRE(capacity.mTotalCapacity == total);
-        REQUIRE(capacity.mFloodCapacity == initialFloodCapacity);
-    };
+    auto msgPtr = std::make_shared<StellarMessage const>(msg);
+    conn.getInitiator()->sendMessage(msgPtr);
+    crankUntil("waiting for receiver throttling",
+               [&] { return flowControl->isThrottled(); });
 
-    requireReceiverTotalCapacity(totalCapacity);
-    REQUIRE(receiver->getFlowControl()->canRead());
-    REQUIRE(!receiver->getFlowControl()->isThrottled());
+    REQUIRE(flowControl->isThrottled());
+    REQUIRE(recvCount.count() == initialRecvCount);
+    auto const throttledByteCapacity =
+        flowControl->getCapacityBytes().getCapacity();
+    auto const throttledMessageCapacity =
+        flowControl->getCapacity().getCapacity();
+    REQUIRE(throttledByteCapacity.mTotalCapacity ==
+            FlowControlByteCapacity::BYTE_CAPACITY_READ_FLOOR - 1);
+    REQUIRE(throttledMessageCapacity.mTotalCapacity ==
+            initialMessageCapacity.mTotalCapacity - 2);
+    REQUIRE(throttledMessageCapacity.mTotalCapacity > 0);
+    REQUIRE(throttledByteCapacity.mFloodCapacity ==
+            initialByteCapacity.mFloodCapacity);
 
-    for (size_t i = 0; i < 100; ++i)
-    {
-        CAPTURE(i);
-        drainReceiver();
-        auto const initialReadThrottleCount = getReadThrottleCount();
-        CAPTURE(initialReadThrottleCount);
-        for (size_t j = 0; j < MESSAGES_PER_BURST; ++j)
-        {
-            sender->sendMessage(scpQSetMsg);
-        }
+    heldMessages.clear();
+    crankUntil("waiting for capacity restoration", [&] {
+        auto const byteCapacity = flowControl->getCapacityBytes().getCapacity();
+        auto const messageCapacity = flowControl->getCapacity().getCapacity();
+        return recvCount.count() == initialRecvCount + 1 &&
+               throttleCount.count() == initialThrottleCount + 1 &&
+               byteCapacity.mTotalCapacity ==
+                   initialByteCapacity.mTotalCapacity &&
+               messageCapacity.mTotalCapacity ==
+                   initialMessageCapacity.mTotalCapacity &&
+               !flowControl->isThrottled();
+    });
 
-        waitForReceiverThrottle();
-        drainReceiver();
-        REQUIRE(getReadThrottleCount() > initialReadThrottleCount);
-        requireReceiverTotalCapacity(totalCapacity);
-        REQUIRE(receiver->getFlowControl()->canRead());
-        REQUIRE(sender->isConnectedForTesting());
-        REQUIRE(receiver->isConnectedForTesting());
-    }
+    auto const finalByteCapacity =
+        flowControl->getCapacityBytes().getCapacity();
+    auto const finalMessageCapacity = flowControl->getCapacity().getCapacity();
+    REQUIRE(recvCount.count() == initialRecvCount + 1);
+    REQUIRE(throttleCount.count() == initialThrottleCount + 1);
+    REQUIRE(finalByteCapacity.mTotalCapacity ==
+            initialByteCapacity.mTotalCapacity);
+    REQUIRE(finalByteCapacity.mFloodCapacity ==
+            initialByteCapacity.mFloodCapacity);
+    REQUIRE(finalMessageCapacity.mTotalCapacity ==
+            initialMessageCapacity.mTotalCapacity);
+    REQUIRE(flowControl->canRead());
+    REQUIRE(!flowControl->isThrottled());
+    REQUIRE(conn.getInitiator()->isConnectedForTesting());
+    REQUIRE(receiver->isConnectedForTesting());
 
-    simulation->stopAllNodes();
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
