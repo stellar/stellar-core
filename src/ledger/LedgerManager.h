@@ -276,6 +276,12 @@ class LedgerManager
     // instead.
     virtual std::unique_ptr<AbstractLedgerView const> getLCLView() const = 0;
 
+    // The immutable state of the last closed ledger itself, for a caller
+    // that reads it from other threads, each through a view of its own, and
+    // needs it to stay the same ledger while the LCL moves on. Callable from
+    // any thread but the apply thread.
+    virtual ImmutableLedgerDataPtr getLastClosedLedgerState() const = 0;
+
     // Create a copy of the canonical ledger snapshot at the current moment in
     // apply flow.
     // The returned snapshot is *not* thread-safe, so every thread  used during
