@@ -72,6 +72,16 @@ uint32_t const LoadGenerator::TX_SUBMIT_MAX_TRIES = 10;
 // After successfully submitting desired load, wait a bit to let it get into the
 // ledger.
 uint32_t const LoadGenerator::TIMEOUT_NUM_LEDGERS = 20;
+uint32_t const LoadGenerator::DEFAULT_COMPLETION_TIMEOUT_NUM_LEDGERS =
+    LoadGenerator::TIMEOUT_NUM_LEDGERS;
+// The payments of SAC_PAYMENT travel to the round leaders only, without an
+// acknowledgement. A node's last few can be included much later than the
+// rest (25 to 70 s were measured on a 90-validator network at 0.8 s per
+// ledger, where 1 to 9 of 90 generators hit it per run): a leader dropped
+// them from its build, and the origin sends them again only by its resend
+// rules. They are applied in the end, so the run is complete, only late;
+// the default wait of 20 ledgers reported such a run as failed.
+uint32_t const LoadGenerator::SAC_PAYMENT_COMPLETION_TIMEOUT_NUM_LEDGERS = 150;
 
 // After successfully submitting desired load, wait for this many ledgers
 // without checking for account consistency.
@@ -1505,6 +1515,18 @@ LoadGenerator::checkMinimumSorobanSuccess(GeneratedLoadConfig const& cfg)
     return (nSuccessful * 100) / nTxns >= cfg.getMinSorobanPercentSuccess();
 }
 
+uint32_t
+LoadGenerator::completionTimeoutLedgers(GeneratedLoadConfig const& cfg)
+{
+    if (cfg.completionTimeoutLedgers != 0)
+    {
+        return cfg.completionTimeoutLedgers;
+    }
+    return cfg.mode == LoadGenMode::SAC_PAYMENT
+               ? SAC_PAYMENT_COMPLETION_TIMEOUT_NUM_LEDGERS
+               : DEFAULT_COMPLETION_TIMEOUT_NUM_LEDGERS;
+}
+
 void
 LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
 {
@@ -1563,7 +1585,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     // If we have an inconsistency, reset the timer and wait for another ledger
     else if (!classicIsDone || !sorobanIsDone)
     {
-        if (++mWaitTillCompleteForLedgers >= TIMEOUT_NUM_LEDGERS)
+        if (++mWaitTillCompleteForLedgers >= completionTimeoutLedgers(cfg))
         {
             emitFailure(!sorobanIsDone);
             return;

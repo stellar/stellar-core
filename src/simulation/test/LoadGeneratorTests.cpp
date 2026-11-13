@@ -484,6 +484,23 @@ TEST_CASE("native SAC setup and payments are applied", "[loadgen][soroban]")
     // Any payment that fails at apply fails the run.
     paymentCfg.setMinSorobanPercentSuccess(100);
 
+    // A node's last payments can be included late (they travel to the round
+    // leaders only), so the payment mode waits longer for them than other
+    // modes wait for theirs, unless the request says how long.
+    REQUIRE(LoadGenerator::completionTimeoutLedgers(setupCfg) ==
+            LoadGenerator::DEFAULT_COMPLETION_TIMEOUT_NUM_LEDGERS);
+    REQUIRE(LoadGenerator::completionTimeoutLedgers(paymentCfg) ==
+            LoadGenerator::SAC_PAYMENT_COMPLETION_TIMEOUT_NUM_LEDGERS);
+    REQUIRE(LoadGenerator::SAC_PAYMENT_COMPLETION_TIMEOUT_NUM_LEDGERS >
+            LoadGenerator::DEFAULT_COMPLETION_TIMEOUT_NUM_LEDGERS);
+    {
+        auto withTimeout = paymentCfg;
+        withTimeout.completionTimeoutLedgers = 7;
+        REQUIRE(LoadGenerator::completionTimeoutLedgers(withTimeout) == 7);
+        withTimeout.mode = LoadGenMode::PAY;
+        REQUIRE(LoadGenerator::completionTimeoutLedgers(withTimeout) == 7);
+    }
+
     // The payments need the contract.
     REQUIRE(!app.getLedgerManager().getLCLView()->load(instanceKey));
     REQUIRE_THROWS_WITH(
