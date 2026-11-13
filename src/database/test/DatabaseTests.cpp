@@ -27,7 +27,6 @@
 #include <algorithm>
 #include <optional>
 #include <random>
-#include <set>
 
 using namespace stellar;
 
@@ -75,7 +74,6 @@ transactionTest(Application::pointer app)
     CHECK(a == b);
     session << "DROP TABLE test";
 }
-
 TEST_CASE("database smoketest", "[db]")
 {
     Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
@@ -150,38 +148,33 @@ checkMVCCIsolation(Application::pointer app)
         sess2 << "SELECT x FROM test", soci::into(s2r3);
         CHECK(s2r3 == v0);
 
-        if (app->getDatabase().isSqlite())
+        // Try to modify through sess2; this _would_ upgrade the read-lock
+        // on the row or page in question to a write lock, but that would
+        // collide with tx1's write-lock via sess1, so it throws.
+
+        CLOG_DEBUG(Database, "Checking failure to upgrade read lock "
+                             "to conflicting write lock");
+        try
         {
-            // Try to modify through sess2; this _would_ upgrade the read-lock
-            // on the row or page in question to a write lock, but that would
-            // collide with tx1's write-lock via sess1, so it throws. On
-            // postgres
-            // this just blocks, so we only check on sqlite.
-
-            CLOG_DEBUG(Database, "Checking failure to upgrade read lock "
-                                 "to conflicting write lock");
-            try
-            {
-                soci::statement st =
-                    (sess2.prepare << "UPDATE test SET x=:v", soci::use(tx2v1));
-                st.execute(true);
-                REQUIRE(false);
-            }
-            catch (soci::soci_error& e)
-            {
-                CLOG_DEBUG(Database, "Got {}", e.what());
-            }
-            catch (...)
-            {
-                REQUIRE(false);
-            }
-
-            // Check that sess1 didn't see a write via sess2
-            CLOG_DEBUG(Database, "Checking sess1 did not observe write "
-                                 "on failed sess2 write-lock upgrade");
-            sess1 << "SELECT x FROM test", soci::into(s1r2);
-            CHECK(s1r2 == tx1v1);
+            soci::statement st =
+                (sess2.prepare << "UPDATE test SET x=:v", soci::use(tx2v1));
+            st.execute(true);
+            REQUIRE(false);
         }
+        catch (soci::soci_error& e)
+        {
+            CLOG_DEBUG(Database, "Got {}", e.what());
+        }
+        catch (...)
+        {
+            REQUIRE(false);
+        }
+
+        // Check that sess1 didn't see a write via sess2
+        CLOG_DEBUG(Database, "Checking sess1 did not observe write "
+                             "on failed sess2 write-lock upgrade");
+        sess1 << "SELECT x FROM test", soci::into(s1r2);
+        CHECK(s1r2 == tx1v1);
 
         // Do another write in tx1
         CLOG_DEBUG(Database, "Writing through sess1/tx1 again");
@@ -212,146 +205,6 @@ TEST_CASE("sqlite MVCC test", "[db]")
     Application::pointer app = createTestApplication(clock, cfg, true, false);
     checkMVCCIsolation(app);
 }
-
-#ifdef USE_POSTGRES
-TEST_CASE("postgres smoketest", "[db]")
-{
-    Config const& cfg = getTestConfig(0, Config::TESTDB_POSTGRESQL);
-    VirtualClock clock;
-    try
-    {
-        Application::pointer app = createTestApplication(clock, cfg);
-        int a = 10, b = 0;
-
-        auto& session = app->getDatabase().getRawSession();
-
-        SECTION("round trip")
-        {
-            transactionTest(app);
-        }
-
-        SECTION("blob storage")
-        {
-            soci::transaction tx(session);
-            std::vector<uint8_t> x = {0, 1, 2, 3, 4, 5, 6}, y;
-            soci::blob blobX(session);
-            blobX.append(reinterpret_cast<char const*>(x.data()), x.size());
-            session << "drop table if exists test";
-            session << "create table test (a integer, b oid)";
-            session << "insert into test (a, b) values (:aa, :bb)",
-                soci::use(a, "aa"), soci::use(blobX, "bb");
-
-            soci::blob blobY(session);
-            session << "select a, b from test", soci::into(b),
-                soci::into(blobY);
-            y.resize(blobY.get_len());
-            blobY.read(0, reinterpret_cast<char*>(y.data()), y.size());
-            CHECK(x == y);
-            LOG_DEBUG(DEFAULT_LOG,
-                      "blob round trip with postgresql database: {} == {}",
-                      binToHex(x), binToHex(y));
-            tx.commit();
-        }
-
-        SECTION("postgres MVCC test")
-        {
-            app->getDatabase().getRawSession() << "drop table if exists test";
-            checkMVCCIsolation(app);
-        }
-    }
-    catch (soci::soci_error& err)
-    {
-        std::string what(err.what());
-
-        if (what.find("Cannot establish connection") != std::string::npos)
-        {
-            LOG_WARNING(DEFAULT_LOG, "Cannot connect to postgres server {}",
-                        what);
-        }
-        else
-        {
-            LOG_ERROR(DEFAULT_LOG, "DB error: {}", what);
-            REQUIRE(0);
-        }
-    }
-}
-
-TEST_CASE("postgres performance", "[db][pgperf][!hide]")
-{
-    Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
-    VirtualClock clock;
-    stellar::uniform_int_distribution<uint64_t> dist;
-
-    try
-    {
-        Application::pointer app = createTestApplication(clock, cfg);
-        auto& session = app->getDatabase().getRawSession();
-
-        session << "drop table if exists txtest;";
-        session << "create table txtest (a bigint, b bigint, c bigint, primary "
-                   "key (a, b));";
-
-        int64_t pk = 0;
-        int64_t sz = 10000;
-        int64_t div = 100;
-
-        LOG_INFO(DEFAULT_LOG, "timing 10 inserts of {} rows", sz);
-        {
-            for (int64_t i = 0; i < 10; ++i)
-            {
-                soci::transaction sqltx(session);
-                for (int64_t j = 0; j < sz; ++j)
-                {
-                    int64_t r = dist(getGlobalRandomEngine());
-                    session << "insert into txtest (a,b,c) values (:a,:b,:c)",
-                        soci::use(r), soci::use(pk), soci::use(j);
-                }
-                sqltx.commit();
-            }
-        }
-
-        LOG_INFO(DEFAULT_LOG,
-                 "retiming 10 inserts of {} rows batched into {} "
-                 "subtransactions of {} inserts each",
-                 sz, sz / div, div);
-        soci::transaction sqltx(session);
-        for (int64_t i = 0; i < 10; ++i)
-        {
-            for (int64_t j = 0; j < sz / div; ++j)
-            {
-                soci::transaction subtx(session);
-                for (int64_t k = 0; k < div; ++k)
-                {
-                    int64_t r = dist(getGlobalRandomEngine());
-                    pk++;
-                    session << "insert into txtest (a,b,c) values (:a,:b,:c)",
-                        soci::use(r), soci::use(pk), soci::use(k);
-                }
-                subtx.commit();
-            }
-        }
-        {
-            sqltx.commit();
-        }
-    }
-    catch (soci::soci_error& err)
-    {
-        std::string what(err.what());
-
-        if (what.find("Cannot establish connection") != std::string::npos)
-        {
-            LOG_WARNING(DEFAULT_LOG, "Cannot connect to postgres server {}",
-                        what);
-        }
-        else
-        {
-            LOG_ERROR(DEFAULT_LOG, "DB error: {}", what);
-            REQUIRE(0);
-        }
-    }
-}
-
-#endif
 
 TEST_CASE("schema test", "[db]")
 {
@@ -591,18 +444,7 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
 
 TEST_CASE("ledgerheaders migration works correctly", "[db]")
 {
-#ifdef USE_POSTGRES
-    Config::TestDbMode mode = GENERATE(Config::TESTDB_BUCKET_DB_PERSISTENT,
-                                       Config::TESTDB_POSTGRESQL);
-#else
     Config::TestDbMode mode = GENERATE(Config::TESTDB_BUCKET_DB_PERSISTENT);
-#endif
-
-#ifdef USE_POSTGRES
-    INFO("Testing mode: " << (mode == Config::TESTDB_POSTGRESQL
-                                  ? "PostgreSQL"
-                                  : "Persistent"));
-#endif
     Config cfg = getTestConfig(0, mode);
 
     VirtualClock clock;
@@ -673,120 +515,3 @@ TEST_CASE("ledgerheaders migration works correctly", "[db]")
         checkMigration(headerEncoded);
     }
 }
-
-#ifdef USE_POSTGRES
-TEST_CASE("schema parity across DB backends", "[db][schematest]")
-{
-    // This test verifies that after initialization, persistent SQLite (with
-    // main + misc DB split) and PostgreSQL end up with the exact same set of
-    // tables and the same row counts. It catches bugs where a table or schema
-    // upgrade is applied for one backend but not the other.
-
-    // Helper: get sorted table names from a SQLite session.
-    auto getSqliteTables = [](Database& db, SessionWrapper& session) {
-        std::set<std::string> tables;
-        std::string name;
-        auto prep = db.getPreparedStatement(
-            "SELECT name FROM sqlite_master WHERE type='table' "
-            "AND name NOT LIKE 'sqlite_%' ORDER BY name",
-            session);
-        auto& st = prep.statement();
-        st.exchange(soci::into(name));
-        st.define_and_bind();
-        st.execute(false);
-        while (st.fetch())
-        {
-            tables.insert(name);
-        }
-        return tables;
-    };
-
-    // Helper: count rows in a table.
-    auto countRows = [](soci::session& sess, std::string const& table) {
-        int count = 0;
-        soci::statement st = (sess.prepare << "SELECT COUNT(*) FROM " + table,
-                              soci::into(count));
-        st.execute(true);
-        return count;
-    };
-
-    // ---- Build the SQLite persistent reference (main + misc split) ----
-    TmpDir tmpDir("schema-parity-test");
-    Config cfg1 = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
-    cfg1.DATABASE = SecretValue{"sqlite3://" + tmpDir.getName() + "/test.db"};
-
-    VirtualClock clock1;
-    Application::pointer app1 = createTestApplication(clock1, cfg1);
-    auto& db1 = app1->getDatabase();
-
-    REQUIRE(db1.canUseMiscDB());
-    REQUIRE(db1.getMainDBSchemaVersion() == SCHEMA_VERSION);
-    REQUIRE(db1.getMiscDBSchemaVersion() == MISC_SCHEMA_VERSION);
-
-    // Union of main + misc tables is the full set
-    auto mainTables = getSqliteTables(db1, db1.getSession());
-    auto miscTables = getSqliteTables(db1, db1.getMiscSession());
-
-    // Main and misc must not overlap
-    for (auto const& t : mainTables)
-    {
-        INFO("Table in both main and misc: " << t);
-        REQUIRE(miscTables.count(t) == 0);
-    }
-
-    std::set<std::string> allSqliteTables = mainTables;
-    allSqliteTables.insert(miscTables.begin(), miscTables.end());
-
-    // ---- PostgreSQL: compare tables and row counts ----
-    Config cfg2 = getTestConfig(1, Config::TESTDB_POSTGRESQL);
-
-    VirtualClock clock2;
-    Application::pointer app2 = createTestApplication(clock2, cfg2);
-    auto& db2 = app2->getDatabase();
-
-    REQUIRE_FALSE(db2.canUseMiscDB());
-    REQUIRE(db2.getMainDBSchemaVersion() == SCHEMA_VERSION);
-
-    // Get Postgres table names
-    std::set<std::string> pgTables;
-    {
-        std::string name;
-        soci::statement st =
-            (db2.getRawSession().prepare << "SELECT tablename FROM pg_tables "
-                                            "WHERE schemaname = 'public' "
-                                            "ORDER BY tablename",
-             soci::into(name));
-        st.execute(false);
-        while (st.fetch())
-        {
-            pgTables.insert(name);
-        }
-    }
-
-    // Must have the exact same tables
-    CHECK(pgTables == allSqliteTables);
-
-    // Verify every table has the same row count across both backends.
-    // slotstate has an extra row in SQLite misc DB for the misc schema
-    // version, which doesn't exist in Postgres (it uses storestate).
-    for (auto const& table : allSqliteTables)
-    {
-        // For SQLite, query the right session (main or misc)
-        auto& sqliteSess = miscTables.count(table) ? db1.getRawMiscSession()
-                                                   : db1.getRawSession();
-        int sqliteRows = countRows(sqliteSess, table);
-        int pgRows = countRows(db2.getRawSession(), table);
-
-        INFO("Table: " << table);
-        if (table == "slotstate")
-        {
-            // SQLite misc DB has one extra row for miscdatabaseschema
-            CHECK(sqliteRows == pgRows + 1);
-        }
-        else
-        {
-            CHECK(sqliteRows == pgRows);
-        }
-    }
-}
-#endif

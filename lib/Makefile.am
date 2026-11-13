@@ -21,9 +21,6 @@ endif # LIBMEDIDA_INTERNAL
 include $(srcdir)/lib.mk
 
 libsoci_a_SOURCES = $(SOCI_FILES)
-if USE_POSTGRES
-libsoci_a_SOURCES += $(SOCI_PG_FILES)
-endif # USE_POSTGRES
 
 lib3rdparty_a_SOURCES = $(UTIL_FILES) $(ASIO_CXX_FILES) $(JSON_FILES) $(SQLITE3_FILES)
 if USE_SPDLOG

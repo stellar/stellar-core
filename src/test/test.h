@@ -33,7 +33,6 @@ void recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMeta);
 int runTest(CommandLineArgs const& args);
 
 extern int gBaseInstance;
-extern bool force_sqlite;
 
 // Returns true if --capture-lcm or --check-lcm was passed to the test
 // command. When enabled, LedgerCloseMeta from closeLedger/closeLedgerOn is

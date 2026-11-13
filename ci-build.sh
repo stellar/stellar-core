@@ -9,10 +9,8 @@ set -ev
 CACHE_MAX_DAYS=30
 
 WITH_TESTS=1
-export TEMP_POSTGRES=0
 
 PROTOCOL_CONFIG=""
-DISABLE_POSTGRES=""
 
 while [[ -n "$1" ]]; do
     COMMAND="$1"
@@ -22,14 +20,6 @@ while [[ -n "$1" ]]; do
     "--disable-tests")
             WITH_TESTS=0
             echo Disabling tests
-            ;;
-    "--use-temp-db")
-            export TEMP_POSTGRES=1
-            echo Using temp database
-            ;;
-    "--disable-postgres")
-            export DISABLE_POSTGRES='--disable-postgres'
-            echo Disabling postgres
             ;;
     "--protocol")
             PROTOCOL="$1"
@@ -51,7 +41,7 @@ while [[ -n "$1" ]]; do
             ;;
     *)
             echo Unknown parameter ${COMMAND}
-            echo Usage: $0 "[--disable-tests][--use-temp-db][--disable-postgres]"
+            echo Usage: $0 "[--disable-tests] [--protocol current|next]"
             exit 1
             ;;
     esac
@@ -118,7 +108,7 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
+config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG}"
 # NB: use `-gdwarf-3` (not -g or -gdwarf-4 or later) specifically as
 # it produces the highest-fidelity backtraces with our current
 # rust/gimli-backed backtrace system. pass -g1 to limit the size of
@@ -186,21 +176,6 @@ ccache -s
 if [ $WITH_TESTS -eq 0 ] ; then
     echo "Build done, skipping tests"
     exit 0
-fi
-
-if [ $DISABLE_POSTGRES != '--disable-postgres' ] ; then
-    if [ $TEMP_POSTGRES -eq 0 ] ; then
-	# Create postgres databases
-	export PGUSER=postgres
-	psql -c "create database test;"
-	# we run NPROCS jobs in parallel
-	for j in $(seq 0 $((NPROCS-1))); do
-            base_instance=$((j*50))
-            for i in $(seq $base_instance $((base_instance+15))); do
-		psql -c "create database test$i;"
-            done
-	done
-    fi
 fi
 
 export ALL_VERSIONS=1
