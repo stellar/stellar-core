@@ -9,11 +9,11 @@
 // (HerderImpl::startProposalPrevalidation), and the build of the next set
 // takes those results instead of validating again (TxValidationCache).
 //
-// And of what the first in line does beyond that: it selects the next set on
-// that state while the ledger is still in its ballot, completes it when the
-// ledger has closed (HerderImpl::prepareEarlyTxSet), executes its own set as
-// soon as it is prepared (HerderImpl::executePreparedTxSet), and checks the
-// sets it builds in the background (TxSetSelfCheck).
+// And of what the leader does beyond that: it executes its own set as soon
+// as it is prepared (HerderImpl::executePreparedTxSet), and checks the sets
+// it builds in the background (TxSetSelfCheck). The selection of the next
+// set ahead of time has its own tests (EarlyTxSetTests.cpp); here it only
+// serves as one of the two ways a set gets prepared.
 
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
@@ -148,77 +148,39 @@ class ProposalPrevalidationTestAccess
         return herder.mLastClosedTxSetSize;
     }
 
-    // Whether the running pre-validation goes on to select a set.
-    static bool
-    selectsEarly(HerderImpl& herder)
-    {
-        return herder.mProposalPrevalidation &&
-               herder.mProposalPrevalidation->selectEarly;
-    }
-
-    // Waits until the running pre-validation has selected its set, or has
-    // given up on it.
+    // What the herder does with a statement this node emits, as far as the
+    // early selection of the next set goes.
     static void
-    waitUntilSelected(HerderImpl& herder)
+    voted(HerderImpl& herder, SCPEnvelope const& envelope)
     {
-        auto job = herder.mProposalPrevalidation;
-        REQUIRE(job);
-        REQUIRE(job->selectEarly);
-        auto const deadline =
-            std::chrono::steady_clock::now() + std::chrono::seconds(60);
-        while (!job->selectionDone.load())
-        {
-            REQUIRE(std::chrono::steady_clock::now() < deadline);
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+        herder.maybeScheduleEarlyTxSetSelection(envelope);
     }
 
     static bool
-    hasEarlySet(HerderImpl& herder)
+    earlySelectionPlanned(HerderImpl& herder)
     {
-        auto job = herder.mProposalPrevalidation;
-        if (!job)
-        {
-            return false;
-        }
-        std::lock_guard<std::mutex> lock(job->mutex);
-        return job->early != nullptr;
+        return herder.mEarlyTxSetPlan && herder.mEarlyTxSetPlan->planned;
     }
 
-    // Lets `f` change the selected set before the node looks at it.
-    template <typename F>
-    static void
-    withEarlySet(HerderImpl& herder, F&& f)
+    // The running or finished early selection job, if any.
+    static std::shared_ptr<EarlyTxSetJob>
+    earlyJob(HerderImpl& herder)
     {
-        auto job = herder.mProposalPrevalidation;
-        REQUIRE(job);
-        std::lock_guard<std::mutex> lock(job->mutex);
-        REQUIRE(job->early);
-        f(*job->early);
+        return herder.mEarlyTxSet;
     }
 
-    // The transactions the running job decoded as candidates of a set.
-    static size_t
-    pulledByJob(HerderImpl& herder)
-    {
-        REQUIRE(herder.mProposalPrevalidation);
-        return herder.mProposalPrevalidation->pulled.size();
-    }
-
-    // The close time the running job's set is validated for, as an offset
-    // from the executed ledger's.
-    static uint64_t
-    assumedCloseTimeOffset(HerderImpl& herder)
-    {
-        REQUIRE(herder.mProposalPrevalidation);
-        return herder.mProposalPrevalidation->assumedCloseTimeOffset;
-    }
-
+    // Prepares the set for `ledgerSeq` as the first-round leader does a lead
+    // time before the trigger; returns whether the set is a completed early
+    // selection (and not a build).
     static bool
     prepareEarly(HerderImpl& herder, uint32_t ledgerSeq,
                  ConsensusTime closeTime)
     {
-        return herder.prepareEarlyTxSet(ledgerSeq, closeTime);
+        auto& completed = herder.mApp.getMetrics().NewMeter(
+            {"herder", "txset", "early-completed"}, "txset");
+        auto const before = completed.count();
+        herder.prepareTxSet(ledgerSeq, closeTime);
+        return herder.mPreparedTxSet && completed.count() == before + 1;
     }
 
     // What the first-round leader does a lead time before the trigger.
@@ -263,29 +225,18 @@ class ProposalPrevalidationTestAccess
         herder.maybeStartSpeculativeApply(envelope);
     }
 
+    // What the herder does about a set it built once it has emitted a
+    // statement.
+    static void
+    statementEmitted(HerderImpl& herder)
+    {
+        herder.resolvePendingTxSetSelfCheck();
+    }
+
     static bool
     selfCheckHasFailed(HerderImpl& herder)
     {
         return herder.mTxSetSelfCheckFailed;
-    }
-
-    static bool
-    buildMustStartNow(bool triggerDue, VirtualClock::time_point prepareAt,
-                      VirtualClock::time_point now)
-    {
-        return HerderImpl::buildMustStartNow(triggerDue, prepareAt, now);
-    }
-
-    // What setupTriggerNextLedger does for the first-round leader once it
-    // knows the trigger's time.
-    static void
-    schedulePreparation(HerderImpl& herder, uint32_t ledgerSeq,
-                        VirtualClock::time_point triggerTime, bool triggerDue,
-                        ConsensusTime minCloseTime)
-    {
-        herder.scheduleTxSetPreparation(
-            ledgerSeq, triggerTime, triggerDue, herder.mApp.getClock().now(),
-            herder.mLedgerManager.getExpectedLedgerCloseTime(), minCloseTime);
     }
 
     // Whether a build is scheduled for a lead time before the trigger.
@@ -299,20 +250,6 @@ class ProposalPrevalidationTestAccess
     discardPrepared(HerderImpl& herder)
     {
         herder.discardPreparedTxSet();
-    }
-
-    static std::chrono::milliseconds
-    prepareLeadTime(HerderImpl& herder)
-    {
-        return HerderImpl::prepareTxSetLeadTime(
-            herder.mLedgerManager.getExpectedLedgerCloseTime(),
-            herder.expectedTxSetBuildDuration());
-    }
-
-    static std::chrono::milliseconds
-    minBuildSaving()
-    {
-        return HerderImpl::EARLY_TX_SET_MIN_BUILD_SAVING;
     }
 };
 }
@@ -441,10 +378,8 @@ struct PrevalidationFixture
         mC.emplace(root->create("C", balance));
         mD.emplace(root->create("D", balance));
         mE.emplace(root->create("E", balance));
-        // The sets of these tests hold a few transactions: use them even
-        // though a build of that size would be quick.
-        herder().mEarlyTxSetMinBuildSavingForTesting =
-            std::chrono::milliseconds(0);
+        // An early selection starts as soon as the node has voted.
+        herder().mEarlyTxSetStartDelayForTesting = std::chrono::milliseconds(0);
         herder().mGetTopTransactionsForTesting = [this](size_t) {
             ++mPulls;
             std::vector<TransactionEnvelope> envelopes;
@@ -489,16 +424,43 @@ struct PrevalidationFixture
         }
     }
 
-    // Speculates on `closing` as the next ledger, lets the node select the
-    // set for the ledger after it, and closes the ledger with `closing`.
+    // The node votes for `closing` as the next ledger and, being first in
+    // line for the one after, selects that one's set ahead of time: waits
+    // for the selection.
+    void
+    selectEarly(TxSetXDRFrameConstPtr const& closing, bool wait = true)
+    {
+        auto const value = valueFor(closing);
+        // By the time a node votes, SCP has asked for the slot's leaders,
+        // which brings the tracked quorum (the node set) up to date.
+        REQUIRE(herder().getHerderSCPDriver().getLeaderSchedule(nextSeq()) ==
+                std::vector<NodeID>{mCfg.NODE_SEED.getPublicKey()});
+        herder().getPendingEnvelopes().putTxSet(closing->getContentsHash(),
+                                                nextSeq(), closing);
+        SCPEnvelope vote;
+        vote.statement.slotIndex = nextSeq();
+        vote.statement.pledges.type(SCP_ST_PREPARE);
+        vote.statement.pledges.prepare().ballot.counter = 1;
+        vote.statement.pledges.prepare().ballot.value =
+            xdr::xdr_to_opaque(value);
+        Access::voted(herder(), vote);
+        REQUIRE(Access::earlySelectionPlanned(herder()));
+        crankUntil([&]() { return Access::earlyJob(herder()) != nullptr; });
+        if (!wait)
+        {
+            return;
+        }
+        auto job = Access::earlyJob(herder());
+        crankUntil([&]() { return job->mDone.load(); });
+        std::lock_guard<std::mutex> lock(job->mMutex);
+        REQUIRE(job->mSelection);
+    }
+
+    // The same, and then the ledger closes with `closing`.
     void
     closeWithEarlySelection(TxSetXDRFrameConstPtr const& closing)
     {
-        REQUIRE(speculate(closing, true));
-        REQUIRE(Access::selectsEarly(herder()));
-        Access::waitUntilFinished(herder());
-        Access::waitUntilSelected(herder());
-        REQUIRE(Access::hasEarlySet(herder()));
+        selectEarly(closing);
         externalize(closing);
     }
 
@@ -1218,6 +1180,9 @@ TEST_CASE("leaders keep their term and pre-validate in a network",
         cfg.LEDGER_PROTOCOL_VERSION = GATE_PROTOCOL;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = GATE_PROTOCOL;
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        // This test is about the pre-validation, which the node first in
+        // line skips when it selects the next set ahead of time.
+        cfg.EXPERIMENTAL_EARLY_TX_SET_SELECTION = false;
         return cfg;
     });
     auto nodes = simulation->getNodes();
@@ -1399,377 +1364,6 @@ stellarValueOf(ValueWrapperPtr const& value)
     return sv;
 }
 }
-
-TEST_CASE("the set selected during the previous ballot is proposed unchanged",
-          "[herder][txset][prevalidation][early-txset]")
-{
-    PrevalidationFixture f;
-    auto& app = *f.mApp;
-    auto& herder = f.herder();
-    auto& lm = f.lm();
-    auto& a = *f.mA;
-    auto& b = *f.mB;
-    auto& c = *f.mC;
-    auto& d = *f.mD;
-    auto const aSeq = a.getLastSequenceNumber();
-    auto const bSeq = b.getLastSequenceNumber();
-    auto const cSeq = c.getLastSequenceNumber();
-    auto const dSeq = d.getLastSequenceNumber();
-
-    // Ledger N and the candidates for N+1 of the pre-validation test above:
-    // A's next payment is only valid once N has applied, D's other payment
-    // only before, B's either way, C's never.
-    auto closingA = paymentWithSeq(app, a, aSeq + 1);
-    auto closingD = paymentWithSeq(app, d, dSeq + 1);
-    auto nextA = paymentWithSeq(app, a, aSeq + 2);
-    auto staleD = paymentWithSeq(app, d, dSeq + 1, 2);
-    auto plainB = paymentWithSeq(app, b, bSeq + 1);
-    auto futureC = paymentWithSeq(app, c, cSeq + 5);
-    auto closing = makeUnvalidatedTxSet(app, {closingA, closingD});
-    f.mMempool = {closingA, closingD, nextA, staleD, plainB, futureC};
-
-    auto const selectedBefore = txsetMeter(app, "early-selected");
-    auto const finalizedBefore = txsetMeter(app, "early-finalized");
-    REQUIRE(f.speculate(closing, true));
-    REQUIRE(Access::selectsEarly(herder));
-    Access::waitUntilFinished(herder);
-    Access::waitUntilSelected(herder);
-    REQUIRE(Access::hasEarlySet(herder));
-    REQUIRE(txsetMeter(app, "early-selected") == selectedBefore + 1);
-    // N's own transactions, still in the mempool, are not candidates.
-    REQUIRE(Access::pulledByJob(herder) == 4);
-    // Nothing of this touched the last closed ledger or prepared a set.
-    REQUIRE(!Access::prepared(herder));
-    auto const pulls = f.mPulls;
-
-    f.externalize(closing);
-    auto const lcl = lm.getLastClosedLedgerHeader();
-    // What reaches the mempool after the job's pull waits for a later set.
-    auto lateC = paymentWithSeq(app, c, cSeq + 1);
-    f.mMempool = {nextA, staleD, plainB, futureC, lateC};
-    auto const closeTime = f.nextCloseTime();
-    REQUIRE(Access::prepareEarly(herder, f.nextSeq(), closeTime));
-    REQUIRE(txsetMeter(app, "early-finalized") == finalizedBefore + 1);
-
-    auto prepared = Access::prepared(herder);
-    REQUIRE(prepared);
-    // It names the ledger that closed meanwhile as its parent...
-    REQUIRE(prepared->previousLedgerHash() == lcl.hash);
-    // ... holds what is valid after that ledger, and nothing of it ...
-    auto applicable = prepared->prepareForApply(app, lcl.header);
-    REQUIRE(applicable);
-    REQUIRE(txHashes(applicable) == hashesOf({nextA, plainB}));
-    // ... and is a valid set on top of it, transactions included.
-    REQUIRE(applicable->checkValid(app, 1, 1));
-    // D's stale payment leaves the mempool with the proposal; C's waits
-    // behind its account's sequence number.
-    REQUIRE(Access::preparedInvalidTxs(herder) ==
-            std::vector<Hash>{staleD->getFullHash()});
-    // The mempool was not pulled again, and the job's results are there for
-    // a later build on this ledger.
-    REQUIRE(f.mPulls == pulls);
-    REQUIRE(!Access::running(herder));
-    REQUIRE(Access::cachedResults(herder) == 4);
-
-    // The trigger proposes that very set, for the close time it was
-    // completed for, without building.
-    auto const proposed = stellarValueOf(Access::propose(herder, f.nextSeq()));
-    REQUIRE(proposed.txSetHash == prepared->getContentsHash());
-    REQUIRE(getConsensusTime(proposed) == closeTime);
-    REQUIRE(f.mPulls == pulls);
-
-    // And the ledger applies it.
-    auto const skipped = applyCounter(app, "txset-skipped");
-    f.externalize(prepared);
-    REQUIRE(applyCounter(app, "txset-skipped") == skipped);
-    REQUIRE(a.getLastSequenceNumber() == aSeq + 2);
-    REQUIRE(b.getLastSequenceNumber() == bSeq + 1);
-    REQUIRE(c.getLastSequenceNumber() == cSeq);
-}
-
-// What ledger N does to a candidate's accounts decides whether the candidate
-// can go into N+1. A set selected on N's executed state must hold what a build
-// on the closed ledger N holds.
-TEST_CASE("a set selected early holds what a build on the closed ledger does",
-          "[herder][txset][prevalidation][early-txset]")
-{
-    PrevalidationFixture f;
-    auto& app = *f.mApp;
-    auto& herder = f.herder();
-    auto& a = *f.mA;
-    auto& b = *f.mB;
-    auto& c = *f.mC;
-    auto& d = *f.mD;
-    auto& e = *f.mE;
-    auto const root = app.getRoot()->getPublicKey();
-    auto const aSeq = a.getLastSequenceNumber();
-    auto const bSeq = b.getLastSequenceNumber();
-    auto const dSeq = d.getLastSequenceNumber();
-    auto const eSeq = e.getLastSequenceNumber();
-
-    // Ledger N: A pays; D pays away all it can spare; E merges into the root.
-    auto closingA = paymentWithSeq(app, a, aSeq + 1);
-    auto const spare =
-        d.getBalance() - app.getLedgerManager().getLastMinBalance(0) - 100;
-    REQUIRE(spare > 0);
-    auto drainD = paymentWithSeq(app, d, dSeq + 1, spare);
-    auto mergeE = transactionFromOperations(app, e.getSecretKey(), eSeq + 1,
-                                            {accountMerge(root)}, 100);
-    auto closing = makeUnvalidatedTxSet(app, {closingA, drainD, mergeE});
-    // Candidates for N+1: A's next two payments (chained), D's next payment
-    // (D cannot pay the fee after N), E's (E is gone after N), and B's payment
-    // with C paying the fee.
-    auto nextA = paymentWithSeq(app, a, aSeq + 2);
-    auto laterA = paymentWithSeq(app, a, aSeq + 3);
-    auto brokeD = paymentWithSeq(app, d, dSeq + 2);
-    auto goneE = paymentWithSeq(app, e, eSeq + 2);
-    auto bumped = feeBump(app, c, paymentWithSeq(app, b, bSeq + 1), 1000);
-    f.mMempool = {closingA, drainD, mergeE, nextA,
-                  laterA,   brokeD, goneE,  bumped};
-
-    f.closeWithEarlySelection(closing);
-    auto const lcl = f.lm().getLastClosedLedgerHeader();
-    REQUIRE(Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-    auto prepared = Access::prepared(herder);
-    REQUIRE(prepared);
-    auto applicable = prepared->prepareForApply(app, lcl.header);
-    REQUIRE(applicable);
-    auto const early = txHashes(applicable);
-    REQUIRE(early == hashesOf({nextA, bumped}));
-    REQUIRE(applicable->checkValid(app, 1, 1));
-
-    // The build on the closed ledger, validating everything itself.
-    Access::clearCache(herder);
-    f.mMempool = {nextA, laterA, brokeD, goneE, bumped};
-    REQUIRE(f.build() == early);
-}
-
-TEST_CASE("a set selected early is not used when it does not hold",
-          "[herder][txset][prevalidation][early-txset]")
-{
-    PrevalidationFixture f;
-    auto& app = *f.mApp;
-    auto& herder = f.herder();
-    auto& a = *f.mA;
-    auto& b = *f.mB;
-    auto const aSeq = a.getLastSequenceNumber();
-    auto const bSeq = b.getLastSequenceNumber();
-    auto closingA = paymentWithSeq(app, a, aSeq + 1);
-    auto nextA = paymentWithSeq(app, a, aSeq + 2);
-    auto plainB = paymentWithSeq(app, b, bSeq + 1);
-    auto closing = makeUnvalidatedTxSet(app, {closingA});
-    f.mMempool = {closingA, nextA, plainB};
-    auto const discardedBefore = txsetMeter(app, "early-discarded");
-    auto const finalizedBefore = txsetMeter(app, "early-finalized");
-    auto const seq = f.nextSeq();
-    auto const closeTime = f.nextCloseTime();
-
-    auto selectFor = [&](TxSetXDRFrameConstPtr const& txSet) {
-        REQUIRE(f.speculate(txSet, true));
-        Access::waitUntilFinished(herder);
-        Access::waitUntilSelected(herder);
-        REQUIRE(Access::hasEarlySet(herder));
-    };
-
-    SECTION("another set closes the ledger")
-    {
-        selectFor(closing);
-        // B's payment closes the ledger instead: A did not move.
-        f.externalize(makeUnvalidatedTxSet(app, {plainB}));
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-        // The selected set held A's second payment and B's, neither of which
-        // is valid on the ledger that closed.
-        f.mMempool = {closingA, nextA, plainB};
-        REQUIRE(f.build() == hashesOf({closingA}));
-    }
-    SECTION("the same set closes the ledger with another close time")
-    {
-        // Another value: not the ledger that was executed.
-        selectFor(closing);
-        auto later = ConsensusTime::fromApplyTime(ApplyTime::fromTimePoint(
-            f.lm().getLastClosedLedgerHeader().header.scpValue.closeTime + 2));
-        app.getHerder().externalizeValue(closing, seq, later,
-                                         emptyUpgradeSteps);
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-    }
-    SECTION("the executed set was invalid")
-    {
-        // The ledger applies nothing, and its leader forfeits its term.
-        auto bad = paymentWithSeq(app, b, bSeq + 10);
-        auto invalid = makeUnvalidatedTxSet(app, {closingA, bad});
-        auto state = f.speculate(invalid, true);
-        REQUIRE(state);
-        REQUIRE(state->mTxSetSkipped);
-        REQUIRE(!Access::running(herder));
-        f.externalize(invalid);
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-    }
-    SECTION("the executed value carries upgrades")
-    {
-        LedgerUpgrade upgrade(LEDGER_UPGRADE_BASE_FEE);
-        upgrade.newBaseFee() = 200;
-        xdr::xvector<UpgradeType, 6> upgrades;
-        upgrades.emplace_back(LedgerTestUtils::toUpgradeType(upgrade));
-        REQUIRE(f.speculate(closing, true, upgrades));
-        REQUIRE(!Access::running(herder));
-        app.getHerder().externalizeValue(closing, seq, closeTime, upgrades);
-        REQUIRE(f.lm().getLastClosedLedgerHeader().header.baseFee == 200);
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-    }
-    SECTION("the limits of the closed ledger are not the ones it assumed")
-    {
-        selectFor(closing);
-        Access::withEarlySet(herder, [](auto& early) {
-            early.limits.mLclHeader.maxTxSetSize += 1;
-        });
-        f.externalize(closing);
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-        REQUIRE(txsetMeter(app, "early-discarded") == discardedBefore + 1);
-        // The job's validation results are still good for the build.
-        f.mMempool = {nextA, plainB};
-        auto const before = cacheCounts(app);
-        REQUIRE(f.build() == hashesOf({nextA, plainB}));
-        auto const after = cacheCounts(app);
-        REQUIRE(after.mHit - before.mHit == 2);
-        REQUIRE(after.mMiss - before.mMiss == 0);
-    }
-    SECTION("it is for the ledger after the executed one only")
-    {
-        selectFor(closing);
-        f.externalize(closing);
-        REQUIRE(
-            !Access::prepareEarly(herder, f.nextSeq() + 1, f.nextCloseTime()));
-        // Another ledger closes on top before the node gets to use it.
-        f.externalize(makeUnvalidatedTxSet(app, {plainB}));
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-    }
-    SECTION("it can only be taken once")
-    {
-        selectFor(closing);
-        f.externalize(closing);
-        REQUIRE(Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(txsetMeter(app, "early-finalized") == finalizedBefore + 1);
-    }
-    SECTION("nothing is selected by a job that was stopped")
-    {
-        // Enough candidates to keep the background tasks busy for a moment.
-        f.mMempool = {closingA};
-        for (int i = 0; i < 400; ++i)
-        {
-            f.mMempool.push_back(nextA);
-        }
-        REQUIRE(f.speculate(closing, true));
-        f.externalize(closing);
-        // Whether or not the selection got done in time, the node either
-        // has a valid prepared set or none.
-        bool const used =
-            Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime());
-        REQUIRE(used == (Access::prepared(herder) != nullptr));
-        f.mMempool = {nextA};
-        REQUIRE(f.build() == hashesOf({nextA}));
-        REQUIRE(!Access::running(herder));
-    }
-}
-
-TEST_CASE("time-dependent transactions of a set selected early follow its "
-          "close time",
-          "[herder][txset][prevalidation][early-txset]")
-{
-    PrevalidationFixture f;
-    auto& app = *f.mApp;
-    auto& herder = f.herder();
-    auto& a = *f.mA;
-    auto& b = *f.mB;
-    auto& c = *f.mC;
-    auto const aSeq = a.getLastSequenceNumber();
-    auto closing =
-        makeUnvalidatedTxSet(app, {paymentWithSeq(app, a, aSeq + 1)});
-    auto plain = paymentWithSeq(app, a, aSeq + 2);
-
-    // The ledger being closed gets the last close time plus one second. The
-    // set for the ledger after it is validated for the close time its
-    // trigger is expected to have: some seconds later.
-    auto const executedCloseTime =
-        f.lm().getLastClosedLedgerHeader().header.scpValue.closeTime + 1;
-    auto closeTimeAt = [&](uint64_t offset) {
-        return ConsensusTime::fromApplyTime(
-            ApplyTime::fromTimePoint(executedCloseTime + offset));
-    };
-    // B's payment is valid for an hour from now; C's only from an hour on.
-    PreconditionsV2 untilLater;
-    untilLater.timeBounds.activate().maxTime = executedCloseTime + 3600;
-    auto bounded = transactionWithV2Precondition(app, b, 1, 100, untilLater);
-    PreconditionsV2 notYet;
-    notYet.timeBounds.activate().minTime = executedCloseTime + 3600;
-    auto tooEarly = transactionWithV2Precondition(app, c, 1, 100, notYet);
-    REQUIRE(txValidityDependsOnCloseTime(bounded->getEnvelope()));
-    REQUIRE(txValidityDependsOnCloseTime(tooEarly->getEnvelope()));
-    f.mMempool = {plain, bounded, tooEarly};
-
-    REQUIRE(f.speculate(closing, true));
-    Access::waitUntilFinished(herder);
-    Access::waitUntilSelected(herder);
-    REQUIRE(Access::hasEarlySet(herder));
-    auto const assumed = Access::assumedCloseTimeOffset(herder);
-    REQUIRE(assumed >= 1);
-    REQUIRE(assumed < 3600);
-    f.externalize(closing);
-    auto const lcl = f.lm().getLastClosedLedgerHeader();
-    auto const discardedBefore = txsetMeter(app, "early-discarded");
-
-    auto preparedTxs = [&]() {
-        auto prepared = Access::prepared(herder);
-        REQUIRE(prepared);
-        auto applicable = prepared->prepareForApply(app, lcl.header);
-        REQUIRE(applicable);
-        return txHashes(applicable);
-    };
-
-    SECTION("the close time it was validated for")
-    {
-        REQUIRE(
-            Access::prepareEarly(herder, f.nextSeq(), closeTimeAt(assumed)));
-        REQUIRE(preparedTxs() == hashesOf({plain, bounded}));
-        // C's payment was not valid for that close time. It is not removed
-        // from the mempool for it: the set could have got another one.
-        REQUIRE(Access::preparedInvalidTxs(herder).empty());
-    }
-    SECTION("another close time at which they are still valid")
-    {
-        REQUIRE(Access::prepareEarly(herder, f.nextSeq(),
-                                     closeTimeAt(assumed + 7)));
-        REQUIRE(preparedTxs() == hashesOf({plain, bounded}));
-        auto applicable =
-            Access::prepared(herder)->prepareForApply(app, lcl.header);
-        REQUIRE(applicable->checkValid(app, assumed + 7, assumed + 7));
-    }
-    SECTION("a close time at which one of them is not valid any more")
-    {
-        // The set is not used as it is ...
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), closeTimeAt(3601)));
-        REQUIRE(!Access::prepared(herder));
-        REQUIRE(txsetMeter(app, "early-discarded") == discardedBefore + 1);
-        // ... and the build for that close time leaves B's payment out and
-        // takes C's.
-        auto built = Access::build(herder, f.nextSeq(), closeTimeAt(3601));
-        REQUIRE(built.second);
-        REQUIRE(txHashes(built.second) == hashesOf({plain, tooEarly}));
-    }
-    // Results for a particular close time never reach the cache that later
-    // builds on this ledger share.
-    REQUIRE(Access::cachedResults(herder) <= 1);
-}
-
-// ---------------------------------------------------------------------------
-// The leader executes its own set as soon as it is prepared.
-// ---------------------------------------------------------------------------
 
 TEST_CASE("the leader executes its prepared set before the trigger",
           "[herder][txset][speculative-apply][early-txset]")
@@ -2090,297 +1684,30 @@ TEST_CASE("a set that fails its self-check after it was handed out",
         f.externalize(broken);
         REQUIRE(applyCounter(app, "txset-skipped") == skipped + 1);
         REQUIRE(c.getLastSequenceNumber() == cSeq);
-        // From now on a set selected early is checked before it is used:
-        // a broken one is dropped there.
+        // From now on a set selected early is checked in line when it is
+        // completed, like a build: no check in the background.
         auto nextNextA = paymentWithSeq(app, a, aSeq + 3);
         f.mMempool = {nextA, nextNextA, plainB};
         f.closeWithEarlySelection(makeUnvalidatedTxSet(app, {nextA}));
-        broken = makeUnvalidatedTxSet(app, {paymentWithSeq(app, c, cSeq + 5)});
-        buildBroken();
-        auto const discarded = txsetMeter(app, "early-discarded");
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-        REQUIRE(txsetMeter(app, "early-discarded") == discarded + 1);
-        REQUIRE(txsetMeter(app, "self-check-failed") == failedBefore + 2);
-        herder.mBuiltTxSetOverrideForTesting = nullptr;
+        f.mMempool = {nextNextA, plainB};
+        REQUIRE(Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
+        REQUIRE(Access::prepared(herder));
+        {
+            auto applicable = Access::prepared(herder)->prepareForApply(
+                app, f.lm().getLastClosedLedgerHeader().header);
+            REQUIRE(applicable);
+            REQUIRE(txHashes(applicable) == hashesOf({nextNextA, plainB}));
+        }
+        f.crankFor(std::chrono::milliseconds(50));
+        REQUIRE(txsetMeter(app, "self-check-passed") == passedBefore);
+        REQUIRE(txsetMeter(app, "self-check-failed") == failedBefore + 1);
+        Access::discardPrepared(herder);
         // The build that takes its place checks its own result.
         f.mMempool = {nextNextA, plainB};
         REQUIRE(f.build() == hashesOf({nextNextA, plainB}));
     }
 }
 
-// A network in which every build has to start when the previous ledger
-// closes (the lead time is as long as the target), so that leaders use the
-// sets they selected during the previous ballot whenever they have one, and
-// in which every ledger carries a payment that is only valid once the
-// previous one has applied.
-TEST_CASE("leaders propose sets selected during the previous ballot in a "
-          "network",
-          "[herder][leader-schedule][leader-term][prevalidation][early-txset]"
-          "[simulation]")
-{
-    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation = Topologies::core(4, 0.75, networkID, [](int i) {
-        auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
-        cfg.LEDGER_PROTOCOL_VERSION = GATE_PROTOCOL;
-        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = GATE_PROTOCOL;
-        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        // Leaves the background selection the time a real ballot does: the
-        // commit of every ledger takes a moment of real time.
-        cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
-            std::chrono::milliseconds(30);
-        return cfg;
-    });
-    auto nodes = simulation->getNodes();
-    auto nodeIDs = simulation->getNodeIDs();
-    simulation->startAllNodes();
-
-    auto const rootKey = nodes[0]->getRoot()->getSecretKey();
-    auto const rootID = rootKey.getPublicKey();
-    auto const firstSeq = nodes[0]->getRoot()->getLastSequenceNumber();
-    std::vector<TransactionEnvelope> payments;
-    for (int i = 1; i <= 400; ++i)
-    {
-        payments.push_back(transactionFromOperations(*nodes[0], rootKey,
-                                                     firstSeq + i,
-                                                     {payment(rootID, 1)}, 100)
-                               ->getEnvelope());
-    }
-    auto rootSeq = [&](Application& app) {
-        auto root = app.getLedgerManager().getLCLView()->getAccount(rootID);
-        REQUIRE(root);
-        return root.current().data.account().seqNum;
-    };
-    for (auto const& node : nodes)
-    {
-        auto* app = node.get();
-        auto& herder = static_cast<HerderImpl&>(app->getHerder());
-        herder.mPrepareLeadTimeForTesting = std::chrono::seconds(3600);
-        herder.mEarlyTxSetMinBuildSavingForTesting =
-            std::chrono::milliseconds(0);
-        // The mempool as the overlay keeps it: a closed ledger's payments
-        // are gone, the next few are there. While a ledger is in its
-        // ballot its own payment is still the first one.
-        herder.mGetTopTransactionsForTesting = [&, app](size_t) {
-            std::vector<TransactionEnvelope> top;
-            auto const next = static_cast<size_t>(rootSeq(*app) - firstSeq);
-            for (size_t i = next; i < next + 4 && i < payments.size(); ++i)
-            {
-                top.push_back(payments[i]);
-            }
-            return top;
-        };
-    }
-
-    auto& lm = nodes[1]->getLedgerManager();
-    auto prev = lm.getLastClosedLedgerHeader();
-    uint32_t const target = prev.header.ledgerSeq + 40;
-    Hash const emptyResults = xdrSha256(TransactionResultSet{});
-    size_t withTransactions = 0;
-    size_t termStartsWithTransactions = 0;
-    simulation->crankUntil(
-        [&]() {
-            auto const cur = lm.getLastClosedLedgerHeader();
-            if (cur.header.ledgerSeq == prev.header.ledgerSeq)
-            {
-                return false;
-            }
-            REQUIRE(cur.header.ledgerSeq == prev.header.ledgerSeq + 1);
-            if (cur.header.txSetResultHash != emptyResults)
-            {
-                ++withTransactions;
-                if (cur.header.ledgerSeq % LEADER_TERM_LEDGERS == 0)
-                {
-                    ++termStartsWithTransactions;
-                }
-            }
-            prev = cur;
-            return cur.header.ledgerSeq >= target;
-        },
-        60 * simulation->getExpectedLedgerCloseTime(), false);
-    REQUIRE(prev.header.ledgerSeq >= target);
-    auto const paid = rootSeq(*nodes[1]) - firstSeq;
-    simulation->crankUntil(
-        [&]() { return simulation->haveAllExternalized(target, 2); },
-        10 * simulation->getExpectedLedgerCloseTime(), false);
-
-    int64_t selected = 0;
-    int64_t finalized = 0;
-    int64_t notReady = 0;
-    int64_t discarded = 0;
-    int64_t checksPassed = 0;
-    int64_t speculationHits = 0;
-    int64_t speculationMisses = 0;
-    int64_t timeouts = 0;
-    for (auto const& node : nodes)
-    {
-        selected += txsetMeter(*node, "early-selected");
-        finalized += txsetMeter(*node, "early-finalized");
-        notReady += txsetMeter(*node, "early-not-ready");
-        discarded += txsetMeter(*node, "early-discarded");
-        checksPassed += txsetMeter(*node, "self-check-passed");
-        speculationHits += applyCounter(*node, "speculation-hit");
-        speculationMisses += applyCounter(*node, "speculation-miss");
-        timeouts += static_cast<int64_t>(
-            node->getMetrics()
-                .NewHistogram({"scp", "timeout", "leader"})
-                .sum() +
-            node->getMetrics()
-                .NewHistogram({"scp", "timeout", "prepare"})
-                .sum());
-        // No leader proposed a set that apply found invalid, and no set
-        // failed its builder's check.
-        REQUIRE(applyCounter(*node, "txset-skipped") == 0);
-        REQUIRE(txsetMeter(*node, "self-check-failed") == 0);
-    }
-    INFO(fmt::format("ledgers with txs {} (term starts {}), sets selected "
-                     "early {}, used {}, not ready {}, discarded {}, checks "
-                     "passed {}, speculation hits {} misses {}, timeouts {}",
-                     withTransactions, termStartsWithTransactions, selected,
-                     finalized, notReady, discarded, checksPassed,
-                     speculationHits, speculationMisses, timeouts));
-    // Every ledger that carried transactions carried exactly the one
-    // payment that was valid on top of the ledger before it: a set selected
-    // on the executed state of the previous ledger is a set for the closed
-    // one. That includes the first ledger of each term, whose leader
-    // executed the previous ledger as a follower.
-    REQUIRE(withTransactions >= 30);
-    REQUIRE(paid == static_cast<int64_t>(withTransactions));
-    REQUIRE(termStartsWithTransactions >= 4);
-    // Leaders did use sets they had selected early, and none had to be
-    // thrown away: nothing changes limits or close-time validity here.
-    REQUIRE(finalized >= 10);
-    REQUIRE(finalized <= selected);
-    REQUIRE(discarded == 0);
-    REQUIRE(checksPassed > 0);
-    // Leaders executed their own sets ahead of their proposal, and those
-    // executions were committed.
-    REQUIRE(speculationHits > 0);
-
-    for (auto const& node : nodes)
-    {
-        auto& herder = static_cast<HerderImpl&>(node->getHerder());
-        herder.mGetTopTransactionsForTesting = nullptr;
-        herder.mPrepareLeadTimeForTesting.reset();
-        herder.mEarlyTxSetMinBuildSavingForTesting.reset();
-    }
-}
-
-// ---------------------------------------------------------------------------
-// More of the early selection: capacity, the Soroban phase, one account in
-// both phases, limits, and when it is used.
-// ---------------------------------------------------------------------------
-
-TEST_CASE("a set selected early is surge priced and validated past the "
-          "pre-validation window",
-          "[herder][txset][prevalidation][early-txset]")
-{
-    // Room for two operations per ledger: a build validates the first three
-    // candidates (5/4 of the capacity) and goes on only if some are invalid.
-    PrevalidationFixture f(/*herderSpeculates=*/false, /*maxTxSetSize=*/2);
-    auto& app = *f.mApp;
-    auto& herder = f.herder();
-    auto& a = *f.mA;
-    auto& b = *f.mB;
-    auto& c = *f.mC;
-    auto& d = *f.mD;
-    auto& e = *f.mE;
-    REQUIRE(f.lm().getLastMaxTxSetSizeOps() == 2);
-    auto const root = app.getRoot()->getPublicKey();
-    auto pay = [&](TestAccount& from, int64_t seqDelta, uint32_t fee) {
-        return transactionFromOperations(
-            app, from.getSecretKey(), from.getLastSequenceNumber() + seqDelta,
-            {payment(root, 1)}, fee);
-    };
-    auto closingA = pay(a, 1, 100);
-    auto closing = makeUnvalidatedTxSet(app, {closingA});
-    // After the closing ledger's own transaction, the mempool holds B's
-    // payment with a sequence number too far ahead, then three valid
-    // payments with different fees. The pre-validation window ends before
-    // the last (and best paying) one.
-    auto futureB = pay(b, 5, 500);
-    auto payC = pay(c, 1, 300);
-    auto payD = pay(d, 1, 200);
-    auto payE = pay(e, 1, 400);
-    f.mMempool = {closingA, futureB, payC, payD, payE};
-    auto const validatedBefore =
-        meter(app, "prevalidate", "txs", "transaction");
-
-    f.closeWithEarlySelection(closing);
-    REQUIRE(Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-    // The tasks validated the window; E's payment was validated by the
-    // selection itself, when B's turned out invalid.
-    REQUIRE(meter(app, "prevalidate", "txs", "transaction") ==
-            validatedBefore + 3);
-    auto prepared = Access::prepared(herder);
-    REQUIRE(prepared);
-    auto const lcl = f.lm().getLastClosedLedgerHeader();
-    auto applicable = prepared->prepareForApply(app, lcl.header);
-    REQUIRE(applicable);
-    // The two best paying ones fit.
-    auto const early = txHashes(applicable);
-    REQUIRE(early == hashesOf({payC, payE}));
-    REQUIRE(applicable->checkValid(app, 1, 1));
-    // B's payment waits behind its account's sequence number.
-    REQUIRE(Access::preparedInvalidTxs(herder).empty());
-
-    // The same set as a build on the closed ledger selects.
-    Access::clearCache(herder);
-    f.mMempool = {futureB, payC, payD, payE};
-    REQUIRE(f.build() == early);
-}
-
-TEST_CASE("a set selected early can hold Soroban transactions",
-          "[herder][txset][prevalidation][early-txset][soroban]")
-{
-    PrevalidationFixture f;
-    auto& app = *f.mApp;
-    auto& herder = f.herder();
-    auto& a = *f.mA;
-    auto& b = *f.mB;
-    auto const aSeq = a.getLastSequenceNumber();
-    auto uploader = app.getRoot()->create(
-        "S", app.getLedgerManager().getLastMinBalance(2) + 1'000'000'000);
-    auto const sSeq = uploader.getLastSequenceNumber();
-    SorobanResources resources;
-    resources.instructions = 1'000'000;
-    resources.diskReadBytes = 1000;
-    resources.writeBytes = 1000;
-    auto upload = createUploadWasmTx(app, uploader, 100,
-                                     DEFAULT_TEST_RESOURCE_FEE, resources);
-    REQUIRE(upload->isSoroban());
-    auto closingA = paymentWithSeq(app, a, aSeq + 1);
-    auto plainB = paymentWithSeq(app, b, b.getLastSequenceNumber() + 1);
-    auto closing = makeUnvalidatedTxSet(app, {closingA});
-    f.mMempool = {closingA, upload, plainB};
-
-    f.closeWithEarlySelection(closing);
-    REQUIRE(Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-    auto prepared = Access::prepared(herder);
-    REQUIRE(prepared);
-    auto const lcl = f.lm().getLastClosedLedgerHeader();
-    auto applicable = prepared->prepareForApply(app, lcl.header);
-    REQUIRE(applicable);
-    REQUIRE(applicable->sizeTx(TxSetPhase::CLASSIC) == 1);
-    REQUIRE(applicable->sizeTx(TxSetPhase::SOROBAN) == 1);
-    auto const early = txHashes(applicable);
-    REQUIRE(early == hashesOf({upload, plainB}));
-    REQUIRE(applicable->checkValid(app, 1, 1));
-
-    // The build on the closed ledger agrees ...
-    Access::clearCache(herder);
-    f.mMempool = {upload, plainB};
-    REQUIRE(f.build() == early);
-    // ... and the ledger applies the set.
-    auto const skipped = applyCounter(app, "txset-skipped");
-    f.externalize(prepared);
-    REQUIRE(applyCounter(app, "txset-skipped") == skipped);
-    REQUIRE(uploader.getLastSequenceNumber() == sSeq + 1);
-}
-
-// A set holds one transaction per source account, across its phases. The
-// mempool can hold an account's classic and Soroban transaction side by side
-// (two nodes accepted one each).
 TEST_CASE("candidates of one account in both phases",
           "[herder][txset][prevalidation][early-txset][soroban]")
 {
@@ -2505,25 +1832,6 @@ TEST_CASE("the limits a tx set is selected within",
     })));
 }
 
-TEST_CASE("a set selected early replaces only a build that has to start at "
-          "once",
-          "[herder][txset][early-txset]")
-{
-    VirtualClock clock;
-    auto const now = clock.now();
-    auto const ms = [](int n) { return std::chrono::milliseconds(n); };
-    // The trigger is due when the previous ledger closes.
-    REQUIRE(Access::buildMustStartNow(true, now, now));
-    REQUIRE(Access::buildMustStartNow(true, now + ms(100), now));
-    // The trigger is ahead, but less than a build's lead time away.
-    REQUIRE(Access::buildMustStartNow(false, now, now));
-    REQUIRE(Access::buildMustStartNow(false, now - ms(1), now));
-    // There is time for a build before the trigger: it holds what arrives
-    // in the meantime, and is preferred.
-    REQUIRE(!Access::buildMustStartNow(false, now + ms(1), now));
-    REQUIRE(!Access::buildMustStartNow(false, now + ms(500), now));
-}
-
 TEST_CASE("the upgrades due are part of the value the leader executes early",
           "[herder][txset][speculative-apply][early-txset]")
 {
@@ -2588,9 +1896,13 @@ TEST_CASE("a prepared set that the leader finds invalid when executing it "
     REQUIRE(Access::prepared(herder) == invalid);
 
     f.crankUntil([&]() {
-        return txsetMeter(app, "self-check-failed") == failedBefore + 1 &&
-               txsetMeter(app, "self-check-passed") == passedBefore + 1;
+        return txsetMeter(app, "self-check-failed") == failedBefore + 1;
     });
+    // The verdict is the execution's: a node that executes its own value
+    // leaves the re-read of the written set to that execution, so no check
+    // ran in the background beside it.
+    f.crankFor(std::chrono::milliseconds(50));
+    REQUIRE(txsetMeter(app, "self-check-passed") == passedBefore);
     // The apply thread skipped the set, and the herder dropped it.
     REQUIRE(applyCounter(app, "txset-skipped") == skippedBefore + 1);
     REQUIRE(!Access::prepared(herder));
@@ -2607,6 +1919,92 @@ TEST_CASE("a prepared set that the leader finds invalid when executing it "
         app, f.lm().getLastClosedLedgerHeader().header);
     REQUIRE(applicable);
     REQUIRE(txHashes(applicable) == hashesOf({nextA, plainB}));
+}
+
+// The check of the written set (TxSetSelfCheck) reads the set back and
+// validates what it read. A node that executes the value it votes for does
+// that on its apply thread, on the same bytes, as soon as it proposes: there
+// the check is not run a second time in the background.
+TEST_CASE("the check of a written set is left to the execution of the vote "
+          "where the node executes it",
+          "[herder][txset][speculative-apply][early-txset]")
+{
+    auto run = [](bool herderSpeculates) {
+        PrevalidationFixture f(herderSpeculates);
+        auto& app = *f.mApp;
+        auto& herder = f.herder();
+        auto& a = *f.mA;
+        f.mMempool = {paymentWithSeq(app, a, a.getLastSequenceNumber() + 1)};
+        auto const passedBefore = txsetMeter(app, "self-check-passed");
+        auto const failedBefore = txsetMeter(app, "self-check-failed");
+        auto const started = applyCounter(app, "speculation-started");
+        Access::prepareByBuilding(herder, f.nextSeq(), f.nextCloseTime());
+        REQUIRE(Access::prepared(herder));
+        if (herderSpeculates)
+        {
+            // The apply thread has the ledger: it validates the set in
+            // full, starting with reading it back.
+            REQUIRE(applyCounter(app, "speculation-started") == started + 1);
+            while (f.lm().isSpeculativelyApplying())
+            {
+                f.mClock.crank(true);
+            }
+            // Also once the node has emitted its statement: the apply
+            // thread was handed this very set.
+            Access::statementEmitted(herder);
+            f.crankFor(std::chrono::milliseconds(50));
+            REQUIRE(txsetMeter(app, "self-check-passed") == passedBefore);
+        }
+        else
+        {
+            REQUIRE(applyCounter(app, "speculation-started") == started);
+            f.crankUntil([&]() {
+                return txsetMeter(app, "self-check-passed") == passedBefore + 1;
+            });
+        }
+        REQUIRE(txsetMeter(app, "self-check-failed") == failedBefore);
+        REQUIRE(Access::prepared(herder));
+        REQUIRE(!Access::selfCheckHasFailed(herder));
+    };
+    SECTION("a node that executes its vote")
+    {
+        run(true);
+    }
+    SECTION("a node that does not")
+    {
+        run(false);
+    }
+    SECTION("a node that executes its votes, but not this set")
+    {
+        // The node built a set and then emits a statement without its
+        // apply thread having been handed that set (here: the trigger
+        // proposes another one; a node that is not tracking, or is still
+        // applying, gets there too): the check runs in the background
+        // after all.
+        PrevalidationFixture f(/*herderSpeculates=*/true);
+        auto& app = *f.mApp;
+        auto& herder = f.herder();
+        auto& a = *f.mA;
+        f.mMempool = {paymentWithSeq(app, a, a.getLastSequenceNumber() + 1)};
+        auto const passedBefore = txsetMeter(app, "self-check-passed");
+        herder.mProposedTxSetOverride =
+            [&](LedgerHeaderHistoryEntry const& lcl) {
+                return TxSetXDRFrame::makeEmpty(lcl);
+            };
+        // (with the override the prepared set is not executed early)
+        Access::prepareByBuilding(herder, f.nextSeq(), f.nextCloseTime());
+        herder.mProposedTxSetOverride = nullptr;
+        REQUIRE(Access::prepared(herder));
+        REQUIRE(!Access::speculativeValue(herder));
+        Access::statementEmitted(herder);
+        f.crankUntil([&]() {
+            return txsetMeter(app, "self-check-passed") == passedBefore + 1;
+        });
+        // Once only.
+        Access::statementEmitted(herder);
+        f.crankFor(std::chrono::milliseconds(50));
+        REQUIRE(txsetMeter(app, "self-check-passed") == passedBefore + 1);
+    }
 }
 
 TEST_CASE("the application shuts down while a set is being checked or "
@@ -2635,10 +2033,8 @@ TEST_CASE("the application shuts down while a set is being checked or "
         {
             f->mMempool.push_back(nextA);
         }
-        REQUIRE(f->speculate(makeUnvalidatedTxSet(app, {closingA}), true));
-        REQUIRE(Access::selectsEarly(herder));
-        Access::waitUntilFinished(herder);
-        // The validation is done; the selection may still be running.
+        // The job has started; its tasks may be anywhere.
+        f->selectEarly(makeUnvalidatedTxSet(app, {closingA}), /*wait=*/false);
         f.reset();
     }
     SECTION("the self-check of a set selected early")
@@ -2654,177 +2050,6 @@ TEST_CASE("the application shuts down while a set is being checked or "
 // When a set selected early is used.
 // ---------------------------------------------------------------------------
 
-TEST_CASE("a set selected early is used only if a build of its size takes "
-          "time",
-          "[herder][txset][prevalidation][early-txset]")
-{
-    PrevalidationFixture f;
-    auto& app = *f.mApp;
-    auto& herder = f.herder();
-    auto& a = *f.mA;
-    auto& b = *f.mB;
-    auto const aSeq = a.getLastSequenceNumber();
-    auto closingA = paymentWithSeq(app, a, aSeq + 1);
-    auto nextA = paymentWithSeq(app, a, aSeq + 2);
-    auto plainB = paymentWithSeq(app, b, b.getLastSequenceNumber() + 1);
-    auto closing = makeUnvalidatedTxSet(app, {closingA});
-    auto const smallBefore = txsetMeter(app, "early-small");
-    auto const discardedBefore = txsetMeter(app, "early-discarded");
-    // The rule as the node applies it, not the tests' override.
-    herder.mEarlyTxSetMinBuildSavingForTesting.reset();
-    REQUIRE(Access::minBuildSaving() > std::chrono::milliseconds(0));
-
-    SECTION("an empty selection is never proposed")
-    {
-        // All the mempool held when the previous ledger was executed were
-        // that ledger's own transactions.
-        f.mMempool = {closingA};
-        herder.mEarlyTxSetMinBuildSavingForTesting =
-            std::chrono::milliseconds(0);
-        f.closeWithEarlySelection(closing);
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-        REQUIRE(txsetMeter(app, "early-small") == smallBefore + 1);
-        // What arrived during the ballot goes into the build.
-        f.mMempool = {nextA, plainB};
-        REQUIRE(f.build() == hashesOf({nextA, plainB}));
-    }
-    SECTION("a selection of a few transactions is left to a build")
-    {
-        f.mMempool = {closingA, nextA, plainB};
-        f.closeWithEarlySelection(closing);
-        // A build of two transactions costs next to nothing at this node's
-        // rate (or at the rate assumed before it has built anything).
-        Access::setBuildHistory(herder, std::chrono::milliseconds(1),
-                                std::chrono::microseconds(40));
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(!Access::prepared(herder));
-        REQUIRE(txsetMeter(app, "early-small") == smallBefore + 1);
-        REQUIRE(txsetMeter(app, "early-discarded") == discardedBefore + 1);
-        // The build still has the job's validation results.
-        f.mMempool = {nextA, plainB};
-        auto const before = cacheCounts(app);
-        REQUIRE(f.build() == hashesOf({nextA, plainB}));
-        auto const after = cacheCounts(app);
-        REQUIRE(after.mHit - before.mHit == 2);
-    }
-    SECTION("a selection whose build would take time is used")
-    {
-        f.mMempool = {closingA, nextA, plainB};
-        f.closeWithEarlySelection(closing);
-        // At 10 ms per transaction, two transactions are worth it ...
-        Access::setBuildHistory(herder, std::chrono::milliseconds(1),
-                                Access::minBuildSaving() / 2);
-        REQUIRE(Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(Access::prepared(herder));
-        REQUIRE(txsetMeter(app, "early-small") == smallBefore);
-    }
-    SECTION("just below the threshold it is not")
-    {
-        f.mMempool = {closingA, nextA, plainB};
-        f.closeWithEarlySelection(closing);
-        Access::setBuildHistory(herder, std::chrono::milliseconds(1),
-                                Access::minBuildSaving() / 2 -
-                                    std::chrono::milliseconds(1));
-        REQUIRE(!Access::prepareEarly(herder, f.nextSeq(), f.nextCloseTime()));
-        REQUIRE(txsetMeter(app, "early-small") == smallBefore + 1);
-    }
-}
-
-// HerderImpl::scheduleTxSetPreparation is what setupTriggerNextLedger does
-// for the first-round leader once the previous ledger has closed and the next
-// trigger's time is known.
-TEST_CASE("how the leader gets its set ready after the previous ledger closed",
-          "[herder][txset][prevalidation][early-txset]")
-{
-    PrevalidationFixture f;
-    auto& app = *f.mApp;
-    auto& herder = f.herder();
-    auto& a = *f.mA;
-    auto& b = *f.mB;
-    auto const aSeq = a.getLastSequenceNumber();
-    auto closingA = paymentWithSeq(app, a, aSeq + 1);
-    auto nextA = paymentWithSeq(app, a, aSeq + 2);
-    auto plainB = paymentWithSeq(app, b, b.getLastSequenceNumber() + 1);
-    auto closing = makeUnvalidatedTxSet(app, {closingA});
-    f.mMempool = {closingA, nextA, plainB};
-    auto const finalizedBefore = txsetMeter(app, "early-finalized");
-    auto const lead = Access::prepareLeadTime(herder);
-    REQUIRE(lead > std::chrono::milliseconds(0));
-    auto now = [&]() { return f.mClock.now(); };
-
-    SECTION("with a set selected during the previous ballot")
-    {
-        f.closeWithEarlySelection(closing);
-        auto const pulls = f.mPulls;
-        SECTION("the trigger is already due: the set is completed at once")
-        {
-            Access::schedulePreparation(herder, f.nextSeq(), now(), true,
-                                        f.nextCloseTime());
-            REQUIRE(Access::prepared(herder));
-            REQUIRE(!Access::buildScheduled(herder));
-            REQUIRE(txsetMeter(app, "early-finalized") == finalizedBefore + 1);
-            REQUIRE(f.mPulls == pulls);
-        }
-        SECTION("the trigger is less than a lead time away: the same")
-        {
-            Access::schedulePreparation(herder, f.nextSeq(), now() + lead / 2,
-                                        false, f.nextCloseTime());
-            REQUIRE(Access::prepared(herder));
-            REQUIRE(!Access::buildScheduled(herder));
-            REQUIRE(txsetMeter(app, "early-finalized") == finalizedBefore + 1);
-        }
-        SECTION("there is time for a build before the trigger: it is "
-                "scheduled, a lead time ahead")
-        {
-            Access::schedulePreparation(herder, f.nextSeq(),
-                                        now() + lead + std::chrono::seconds(1),
-                                        false, f.nextCloseTime());
-            REQUIRE(!Access::prepared(herder));
-            REQUIRE(Access::buildScheduled(herder));
-            REQUIRE(txsetMeter(app, "early-finalized") == finalizedBefore);
-            // Nothing was built yet.
-            REQUIRE(f.mPulls == pulls);
-        }
-        Access::discardPrepared(herder);
-    }
-    SECTION("without one")
-    {
-        f.externalize(closing);
-        SECTION("a due trigger builds by itself: nothing is prepared or "
-                "scheduled")
-        {
-            Access::schedulePreparation(herder, f.nextSeq(), now(), true,
-                                        f.nextCloseTime());
-            REQUIRE(!Access::prepared(herder));
-            REQUIRE(!Access::buildScheduled(herder));
-        }
-        SECTION("a trigger ahead: a build is scheduled")
-        {
-            Access::schedulePreparation(herder, f.nextSeq(), now() + lead / 2,
-                                        false, f.nextCloseTime());
-            REQUIRE(!Access::prepared(herder));
-            REQUIRE(Access::buildScheduled(herder));
-        }
-        Access::discardPrepared(herder);
-    }
-    SECTION("the selection is not usable: a build is scheduled as before")
-    {
-        // (the ledger closed with another set)
-        REQUIRE(f.speculate(closing, true));
-        Access::waitUntilFinished(herder);
-        Access::waitUntilSelected(herder);
-        f.externalize(makeUnvalidatedTxSet(app, {plainB}));
-        Access::schedulePreparation(herder, f.nextSeq(), now() + lead / 2,
-                                    false, f.nextCloseTime());
-        REQUIRE(!Access::prepared(herder));
-        REQUIRE(Access::buildScheduled(herder));
-        Access::discardPrepared(herder);
-    }
-}
-
-// The verdict of the node's own execution is about a set this node built,
-// for the close time it built it for.
 TEST_CASE("the verdict of the leader on its own set",
           "[herder][txset][speculative-apply][early-txset]")
 {

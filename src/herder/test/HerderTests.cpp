@@ -5400,6 +5400,12 @@ namespace stellar
 class LeaderBuildTestAccess
 {
   public:
+    static void
+    checkInLine(HerderImpl& herder)
+    {
+        herder.mTxSetSelfCheckFailed = true;
+    }
+
     static VirtualClock::time_point
     triggerAnchor(HerderImpl& herder, uint64_t slot)
     {
@@ -7487,9 +7493,9 @@ TEST_CASE("leader builds validate only the top of the mempool pull",
         mempool.push_back(tx->getEnvelope());
         hashes.push_back(tx->getFullHash());
     }
-    size_t requested = 0;
+    std::vector<size_t> requested;
     herder.mGetTopTransactionsForTesting = [&](size_t count) {
-        requested = count;
+        requested.push_back(count);
         return std::vector<TransactionEnvelope>(
             mempool.begin(), mempool.begin() + std::min(count, mempool.size()));
     };
@@ -7500,10 +7506,13 @@ TEST_CASE("leader builds validate only the top of the mempool pull",
         getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion));
     herder.mGetTopTransactionsForTesting = nullptr;
 
-    // The pull is unchanged: twice the capacity of both phases.
-    REQUIRE(
-        requested ==
-        2 * (10 + lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount()));
+    // The pull is the capacity of both phases plus the margin of 10%. Five
+    // of its candidates are invalid, which leaves the set short while the
+    // mempool has more: the build pulls again, twice as much.
+    size_t const capacity =
+        10 + lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+    size_t const pull = capacity + (capacity * 10 + 99) / 100;
+    REQUIRE(requested == std::vector<size_t>{pull, 2 * pull});
     // The invalid top candidates were replaced: the set is full, with the
     // best valid ones.
     auto applicable = txSet->prepareForApply(*app, lcl.header);
@@ -7515,7 +7524,7 @@ TEST_CASE("leader builds validate only the top of the mempool pull",
     }
     REQUIRE(included ==
             std::set<Hash>(hashes.begin() + 5, hashes.begin() + 15));
-    // #40 is past the validated candidates (0-22): it stays in the mempool
+    // #40 is past the candidates the build pulled: it stays in the mempool
     // until it reaches them.
     REQUIRE(std::set<Hash>(invalid.begin(), invalid.end()) ==
             std::set<Hash>(hashes.begin(), hashes.begin() + 5));
@@ -7595,7 +7604,29 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
     herder.mGetTopTransactionsForTesting = [&](size_t) {
         return OverlayIPC::parseTopTransactions(payload);
     };
+    // A build takes the payload itself, and only as many transactions as
+    // it asks for.
+    std::vector<size_t> ends{4};
+    for (uint32_t i = 0; i < pull; ++i)
+    {
+        uint32_t len = 0;
+        std::memcpy(&len, payload.data() + ends.back(), 4);
+        ends.push_back(ends.back() + 4 + len);
+    }
+    herder.mGetTopTransactionsPayloadForTesting = [&](size_t n) {
+        uint32_t const given = static_cast<uint32_t>(std::min<size_t>(n, pull));
+        std::vector<uint8_t> res(payload.begin(),
+                                 payload.begin() + ends[given]);
+        std::memcpy(res.data(), &given, 4);
+        return res;
+    };
 
+    // BENCH_INLINE_CHECK=1: the build checks its written set before it
+    // returns (as it does once a background check has failed).
+    if (envInt("BENCH_INLINE_CHECK", 0) != 0)
+    {
+        LeaderBuildTestAccess::checkInLine(herder);
+    }
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     auto const seq = lcl.header.ledgerSeq + 1;
     auto const closeTime =
@@ -7666,6 +7697,11 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
             // against perfnet's herder.txset.validate).
             auto const& lastSet =
                 LeaderBuildTestAccess::build(herder, seq, closeTime);
+            if (envInt("BENCH_SETTLE_MS", 0) != 0)
+            {
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(envInt("BENCH_SETTLE_MS", 0)));
+            }
             for (uint32_t rep = 0; rep < reps; ++rep)
             {
                 auto received = TxSetXDRFrame::makeFromWire(
@@ -7676,6 +7712,10 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
                 }
                 auto const start = std::chrono::steady_clock::now();
                 auto applicable = received->prepareForApply(*app, lcl.header);
+                samples["received-set-prepare"].push_back(
+                    std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() - start)
+                        .count());
                 REQUIRE(applicable);
                 REQUIRE(applicable->checkValid(*app, 0, 0));
                 samples["received-set-validate"].push_back(
@@ -7762,5 +7802,6 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
                       << ", n=" << v.size() << ")" << std::endl;
         }
     }
+    herder.mGetTopTransactionsPayloadForTesting = nullptr;
     herder.mGetTopTransactionsForTesting = nullptr;
 }

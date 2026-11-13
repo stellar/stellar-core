@@ -106,5 +106,16 @@ class TxSetUtils
                       uint64_t lowerBoundCloseTimeOffset,
                       uint64_t upperBoundCloseTimeOffset,
                       TxFrameList& invalidTxs);
+
+    // The mempool is fee-ordered and sequence-number-oblivious, so it can
+    // hand out several transactions of one source account (e.g. a chained
+    // pair). A tx set may hold one transaction per source account: keeps
+    // the one with the lowest sequence number, in the place of the first.
+    static void keepOnePerSourceAccount(TxFrameList& txs);
+    // The same across the two phases of a set: of an account's classic and
+    // Soroban candidates, the one with the lower sequence number stays (the
+    // classic one if they are equal).
+    static void keepOnePerSourceAccount(TxFrameList& classicTxs,
+                                        TxFrameList& sorobanTxs);
 }; // class TxSetUtils
 } // namespace stellar

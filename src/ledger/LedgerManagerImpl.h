@@ -731,6 +731,7 @@ class LedgerManagerImpl : public LedgerManager
 
   public:
     std::unique_ptr<AbstractLedgerView const> getLCLView() const override;
+    ImmutableLedgerDataPtr getLastClosedLedgerState() const override;
     ApplyLedgerView copyApplyLedgerView() const override;
     void syncWithLCLView(
         std::unique_ptr<ImmutableLedgerView const>& ledgerView) const override;

@@ -2975,6 +2975,15 @@ LedgerManagerImpl::getLCLView() const
     return std::make_unique<ImmutableLedgerView>(copyImmutableLedgerView());
 }
 
+ImmutableLedgerDataPtr
+LedgerManagerImpl::getLastClosedLedgerState() const
+{
+    releaseAssert(!mApp.threadIsType(Application::ThreadType::APPLY));
+    SharedLockShared guard(mLastClosedLedgerStateMutex);
+    releaseAssert(mLastClosedLedgerState);
+    return mLastClosedLedgerState;
+}
+
 ApplyLedgerView
 LedgerManagerImpl::copyApplyLedgerView() const
 {

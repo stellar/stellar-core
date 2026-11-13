@@ -812,4 +812,202 @@ buildSurgePricedParallelSorobanPhase(
     return std::move(bestResult.mStages);
 }
 
+ParallelPhaseExtender::ParallelPhaseExtender(
+    TxStageFrameList stages, SorobanNetworkConfig const& sorobanCfg,
+    Resource const& laneLimit, uint32_t ledgerVersion)
+    : mStages(std::move(stages))
+    , mLaneLimit(laneLimit)
+    , mTotal(Resource::makeEmptySoroban())
+    , mLedgerVersion(ledgerVersion)
+    , mMaxClusters(sorobanCfg.ledgerMaxDependentTxClusters())
+    , mMaxInstructions(sorobanCfg.ledgerMaxInstructions())
+{
+    ZoneScoped;
+    mState.resize(mStages.size());
+    for (size_t s = 0; s < mStages.size(); ++s)
+    {
+        auto& state = mState[s];
+        auto const& stage = mStages[s];
+        state.mClusterInstructions.resize(stage.size(), 0);
+        for (size_t c = 0; c < stage.size(); ++c)
+        {
+            for (auto const& tx : stage[c])
+            {
+                state.mClusterInstructions[c] +=
+                    tx->sorobanResources().instructions;
+                index(state, static_cast<uint32_t>(c), *tx);
+                mTotal += tx->getResources(/* useByteLimitInClassic */ false,
+                                           mLedgerVersion);
+                ++mTxCount;
+            }
+            state.mMaxClusterInstructions = std::max(
+                state.mMaxClusterInstructions, state.mClusterInstructions[c]);
+        }
+        mSequentialInstructions += state.mMaxClusterInstructions;
+    }
+}
+
+void
+ParallelPhaseExtender::index(StageState& stage, uint32_t cluster,
+                             TransactionFrameBase const& tx)
+{
+    std::hash<LedgerKey> keyHasher;
+    auto const& footprint = tx.sorobanResources().footprint;
+    for (auto const& key : footprint.readWrite)
+    {
+        stage.mWriters[keyHasher(key)] = cluster;
+    }
+    for (auto const& key : footprint.readOnly)
+    {
+        auto& readers = stage.mReaders[keyHasher(key)];
+        if (std::find(readers.begin(), readers.end(), cluster) == readers.end())
+        {
+            readers.push_back(cluster);
+        }
+    }
+}
+
+std::optional<std::optional<uint32_t>>
+ParallelPhaseExtender::conflictingCluster(StageState const& stage,
+                                          TransactionFrameBase const& tx) const
+{
+    // Keys are compared by hash, as the builder of a phase does: a collision
+    // makes a conflict of two transactions that have none, which only costs
+    // the transaction its place.
+    std::hash<LedgerKey> keyHasher;
+    std::optional<uint32_t> conflict;
+    // Returns false once a second cluster conflicts.
+    auto add = [&conflict](uint32_t cluster) {
+        if (conflict && *conflict != cluster)
+        {
+            return false;
+        }
+        conflict = cluster;
+        return true;
+    };
+    auto const& footprint = tx.sorobanResources().footprint;
+    for (auto const& key : footprint.readWrite)
+    {
+        auto const h = keyHasher(key);
+        if (auto it = stage.mWriters.find(h); it != stage.mWriters.end())
+        {
+            if (!add(it->second))
+            {
+                return std::nullopt;
+            }
+        }
+        if (auto it = stage.mReaders.find(h); it != stage.mReaders.end())
+        {
+            for (auto cluster : it->second)
+            {
+                if (!add(cluster))
+                {
+                    return std::nullopt;
+                }
+            }
+        }
+    }
+    for (auto const& key : footprint.readOnly)
+    {
+        if (auto it = stage.mWriters.find(keyHasher(key));
+            it != stage.mWriters.end())
+        {
+            if (!add(it->second))
+            {
+                return std::nullopt;
+            }
+        }
+    }
+    return std::make_optional(conflict);
+}
+
+bool
+ParallelPhaseExtender::withinInstructionLimit(
+    StageState const& stage, uint64_t clusterInstructions) const
+{
+    // What TxSetPhaseFrame::checkValidSoroban checks: stages run one after
+    // another, each as long as its largest cluster.
+    auto const stageMax =
+        std::max(stage.mMaxClusterInstructions, clusterInstructions);
+    return mSequentialInstructions - stage.mMaxClusterInstructions + stageMax <=
+           mMaxInstructions;
+}
+
+bool
+ParallelPhaseExtender::tryAdd(TransactionFrameBasePtr const& tx)
+{
+    releaseAssert(tx->isSoroban());
+    auto const resources =
+        tx->getResources(/* useByteLimitInClassic */ false, mLedgerVersion);
+    if (!mTotal.canAdd(resources) || anyGreater(mTotal + resources, mLaneLimit))
+    {
+        return false;
+    }
+    uint64_t const instructions = tx->sorobanResources().instructions;
+    if (mStages.empty())
+    {
+        // The first transaction of the phase: one stage, one cluster, if
+        // that is allowed. (No stage is left behind without a
+        // transaction.)
+        if (mMaxClusters == 0 || instructions > mMaxInstructions)
+        {
+            return false;
+        }
+        mStages.emplace_back();
+        mState.emplace_back();
+    }
+    for (size_t s = 0; s < mStages.size(); ++s)
+    {
+        auto& state = mState[s];
+        auto& stage = mStages[s];
+        auto const conflict = conflictingCluster(state, *tx);
+        if (!conflict)
+        {
+            // It would join two clusters of this stage.
+            continue;
+        }
+        std::optional<uint32_t> cluster = *conflict;
+        if (!cluster)
+        {
+            // Free to go anywhere: the emptiest cluster, counting one that
+            // does not exist yet.
+            if (stage.size() < mMaxClusters)
+            {
+                cluster = static_cast<uint32_t>(stage.size());
+            }
+            else
+            {
+                auto const least =
+                    std::min_element(state.mClusterInstructions.begin(),
+                                     state.mClusterInstructions.end());
+                cluster = static_cast<uint32_t>(
+                    least - state.mClusterInstructions.begin());
+            }
+        }
+        bool const isNew = *cluster == stage.size();
+        uint64_t const clusterInstructions =
+            (isNew ? 0 : state.mClusterInstructions[*cluster]) + instructions;
+        if (!withinInstructionLimit(state, clusterInstructions))
+        {
+            continue;
+        }
+        if (isNew)
+        {
+            stage.emplace_back();
+            state.mClusterInstructions.push_back(0);
+        }
+        stage[*cluster].push_back(tx);
+        state.mClusterInstructions[*cluster] = clusterInstructions;
+        mSequentialInstructions -= state.mMaxClusterInstructions;
+        state.mMaxClusterInstructions =
+            std::max(state.mMaxClusterInstructions, clusterInstructions);
+        mSequentialInstructions += state.mMaxClusterInstructions;
+        index(state, *cluster, *tx);
+        mTotal += resources;
+        ++mTxCount;
+        return true;
+    }
+    return false;
+}
+
 } // namespace stellar

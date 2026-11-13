@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "herder/EarlyTxSetSelection.h"
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
 #include "herder/LedgerCloseData.h"
@@ -195,17 +196,24 @@ class HerderImpl : public Herder
     // still run through their production paths.
     std::function<std::vector<TransactionEnvelope>(size_t)>
         mGetTopTransactionsForTesting;
+    // The same for callers that take the pull as the overlay encodes it
+    // (pullTopTransactionsPayload); when not set, the envelopes of
+    // mGetTopTransactionsForTesting are encoded.
+    std::function<std::vector<uint8_t>(size_t)>
+        mGetTopTransactionsPayloadForTesting;
     friend class LeaderBuildTestAccess;
     friend class ProposalPrevalidationTestAccess;
-    // When set, replaces the lead time before the trigger at which the
-    // first-round leader builds (prepareTxSetLeadTime): a lead time as long
-    // as the target makes every build one that has to start at the close,
-    // which is when a set selected early is used.
-    std::optional<std::chrono::milliseconds> mPrepareLeadTimeForTesting;
-    // When set, replaces EARLY_TX_SET_MIN_BUILD_SAVING: zero lets a test use
-    // a set of a few transactions that was selected early.
-    std::optional<std::chrono::milliseconds>
-        mEarlyTxSetMinBuildSavingForTesting;
+    friend class EarlyTxSetTestAccess;
+    // When set, replaces the delay between this node's vote for a ledger
+    // and the start of its early selection for the next one
+    // (earlyTxSetStartDelay).
+    std::optional<std::chrono::milliseconds> mEarlyTxSetStartDelayForTesting;
+    // When set, the validity pass over an early selection on the closed
+    // ledger is skipped: for the tests that show what that pass is for.
+    bool mSkipEarlyTxSetFinalPassForTesting{false};
+    // Handed to every early selection job that starts (see
+    // EarlyTxSetJob::mHoldForTesting).
+    std::shared_ptr<std::atomic<bool>> mEarlyTxSetHoldForTesting;
 
     // When set, a set this node just built as a leader is replaced by what
     // this returns, for the proposal and for the builder's self-check alike:
@@ -405,11 +413,33 @@ class HerderImpl : public Herder
     void executePreparedTxSet();
 
     // The builder's self-check (see TxSetSelfCheck) of a set built by this
-    // node as a leader runs on a background thread, so that it holds up
-    // neither the push of the set nor its proposal. If it fails, the set may
-    // already be proposed: see txSetSelfCheckFailed.
+    // node as a leader does not hold up the push of the set or its proposal.
+    // It re-reads the written set and validates the structure of what it
+    // read. A node that executes its own value speculatively does exactly
+    // that, and more, on its apply thread as soon as it proposes (or as soon
+    // as the set is prepared, see executePreparedTxSet), and the verdict of
+    // that execution on a set this node built takes the same path as a
+    // failed self-check (see startSpeculativeApply): there the check would
+    // be done twice, so it is left to the execution. Otherwise it runs on a
+    // background thread. Either way, if it fails the set may already be
+    // proposed: see txSetSelfCheckFailed.
     void startTxSetSelfCheck(std::shared_ptr<TxSetSelfCheck const> check,
                              uint32_t ledgerSeq);
+    // Whether this node hands the ledger after `lcl` to its apply thread
+    // when it votes for a value (see maybeStartSpeculativeApply).
+    bool executesVotedValues(LedgerHeaderHistoryEntry const& lcl) const;
+    // Runs the check on a background thread.
+    void runTxSetSelfCheck(std::shared_ptr<TxSetSelfCheck const> check,
+                           uint32_t ledgerSeq);
+    // A check that was left to the node's own execution of the set, and the
+    // ledger the set is for, until it is known whether that execution
+    // happens. Called when the node has emitted a statement: the check is
+    // dropped if the apply thread was handed the ledger with this set, and
+    // run in the background otherwise (the node was not tracking, was
+    // applying, or voted for another value).
+    void resolvePendingTxSetSelfCheck();
+    std::optional<std::pair<std::shared_ptr<TxSetSelfCheck const>, uint32_t>>
+        mPendingTxSetSelfCheck;
     // Called on the main thread when a self-check failed, or when this
     // node's own execution of a set it built found the set invalid. The
     // failure is logged and counted. A set that has not been proposed yet is
@@ -486,40 +516,6 @@ class HerderImpl : public Herder
     // ExecutedLedgerState). When N has closed with the value that was
     // executed, the build of N+1 takes those results instead of validating
     // the same transactions on the main thread (see mValidationCache).
-    //
-    // Early selection. The node that expects to lead round 1 of N+1 goes one
-    // step further: when the validation tasks are done, the last of them
-    // selects the set for N+1 on its own thread, from everything the job
-    // pulled, against the executed state of N (validity) and the limits of
-    // N-1 (which are N's: the executed value carries no upgrades). The
-    // result (EarlyTxSet) lacks only what does not exist before N closes:
-    // the hash of N as the set's parent, and with it the set's own hash.
-    // When N has closed with the executed value and the build of N+1 would
-    // have to start at once, the node completes the selection instead of
-    // building (prepareEarlyTxSet): the build is off the critical path of
-    // the ledger. Transactions that reach the mempool after the job's pull
-    // wait for the next ledger.
-    struct EarlyTxSet
-    {
-        // The ledger the set is for (N+1).
-        uint32_t ledgerSeq{0};
-        UnstampedTxSet txSet;
-        // The state the set was selected on; keeps `limits` alive.
-        std::shared_ptr<ExecutedLedgerState const> state;
-        // The limits the selection assumed. They are compared with those of
-        // the closed ledger before the set is used.
-        TxSetBuildLimits limits;
-        // The close time the set was validated for, as an apply-time offset
-        // from the executed ledger.
-        uint64_t closeTimeOffset{0};
-        // The transactions of the set whose validity depends on the close
-        // time: validated again if the set gets another one.
-        std::vector<TransactionFrameBasePtr> timeDependentTxs;
-        // Candidates found invalid, to remove from the mempool if the set
-        // is proposed.
-        std::vector<Hash> invalidTxHashes;
-        std::chrono::steady_clock::time_point selectedAt;
-    };
     struct ProposalPrevalidation
     {
         // The executed ledger (N) and its value: the results hold on top of
@@ -531,75 +527,106 @@ class HerderImpl : public Herder
         // Decoded and selected once, by whichever task gets there first.
         std::once_flag selected;
         std::vector<TransactionFrameBasePtr> candidates;
-        // Early selection only. Whether this job selects a set, the close
-        // time it assumes for it (as an apply-time offset from N), how many
-        // valid candidates per phase the selection validates, and every
-        // pulled transaction that is not in N, in mempool order (written
-        // with `candidates`).
-        bool selectEarly{false};
-        uint64_t assumedCloseTimeOffset{0};
-        // Drawn on the main thread: randomizes the order of candidates
-        // with equal fee rates in the selection.
-        size_t selectionSeed{0};
-        std::vector<size_t> validTxTargets;
-        std::vector<TransactionFrameBasePtr> pulled;
         // Guards everything below. Tasks hand over their results in small
         // batches, so whoever stops the job takes what is there and never
         // waits for a task: nothing is published after `stop` is set.
         std::mutex mutex;
         std::vector<std::pair<Hash, TxValidationResult>> published;
-        // Results for candidates whose validity depends on the close time,
-        // validated for the assumed one. Only the early selection uses
-        // them; they never enter mValidationCache.
-        std::vector<std::pair<Hash, TxValidationResult>> publishedTimeDependent;
         size_t pendingTasks{0};
         size_t activeTasks{0};
-        // The selected set, once it exists and until it is taken.
-        std::shared_ptr<EarlyTxSet> early;
         // Nanoseconds from `start` until the last task finished, or -1.
         std::atomic<int64_t> finishedAfterNs{-1};
-        // Set when the selection has run to its end, with or without a
-        // result.
-        std::atomic<bool> selectionDone{false};
     };
-    // Runs on the thread of the job's last validation task. Returns null if
-    // the job was stopped meanwhile.
-    static std::shared_ptr<EarlyTxSet>
-    selectEarlyTxSet(Application& app, ProposalPrevalidation& job,
-                     std::shared_ptr<ExecutedLedgerState const> const& state);
-    // Called when the previous ledger has closed and this node leads round 1
-    // of `ledgerSeq`: if the running pre-validation job selected a set for
-    // it, and the selection holds on top of the LCL (the LCL closed with the
-    // executed value, the limits are the ones assumed, the time-dependent
-    // transactions are valid for `closeTime`), names the LCL as its parent,
-    // hands it to the overlay and the peers and keeps it as the prepared
-    // set. Returns false, and leaves the build to the usual path, otherwise.
-    bool prepareEarlyTxSet(uint32_t ledgerSeq, ConsensusTime closeTime);
-    // A set selected early is used only if building a set of its size is
-    // expected to take at least this long (see prepareEarlyTxSet).
-    static constexpr std::chrono::milliseconds EARLY_TX_SET_MIN_BUILD_SAVING{
-        20};
-    // The part of setupTriggerNextLedger that decides how the first-round
-    // leader of `nextIndex` gets its set ready before the trigger at
-    // `triggerTime`: by completing a set it selected early, or by arming
-    // the timer for a build a lead time ahead; neither if the trigger is
-    // due and there is no early set (the trigger then builds).
+    // The part of setupTriggerNextLedger that arms the timer for the
+    // first-round leader's build a lead time ahead of the trigger at
+    // `triggerTime`; nothing if the trigger is due (it builds itself).
     void scheduleTxSetPreparation(uint64_t nextIndex,
                                   VirtualClock::time_point triggerTime,
                                   bool triggerDue, VirtualClock::time_point now,
                                   std::chrono::milliseconds expectedCloseTime,
                                   ConsensusTime minCandidateCt);
-    // Whether the build of the next set has to start as soon as the previous
-    // ledger has closed: its trigger is already due, or the time to start a
-    // build of the usual lead time (`prepareAt`) has come. Only then does a
-    // set selected early replace the build; a build that still fits before
-    // the trigger holds what arrived since the selection.
-    static bool
-    buildMustStartNow(bool triggerDue, VirtualClock::time_point prepareAt,
-                      VirtualClock::time_point now)
+    // Early selection of the next transaction set (see
+    // herder/EarlyTxSetSelection.h).
+    //
+    // When this node votes for a value for ledger N and expects to lead
+    // round 1 of N+1 if N closes with it, it plans a background selection of
+    // the set for N+1 (maybeScheduleEarlyTxSetSelection), started as late
+    // as it can be and still finish before the set is needed
+    // (earlyTxSetStartDelay): the candidates of N+1 arrive while N is in its
+    // ballot. The selection is made on N-1's state and a prediction of what
+    // N's set does to it.
+    //
+    // The build of N+1 (buildTxSet) uses the selection if the job has
+    // finished and N closed with exactly the value the job was for
+    // (completeEarlyTxSet): every transaction of the selection is validated
+    // against N as it closed, what is not valid is removed, and the set is
+    // topped up from what the job left and from the mempool. Otherwise the
+    // set is built as always.
+    struct EarlyTxSetPlan
     {
-        return triggerDue || prepareAt <= now;
-    }
+        // The ledger in its ballot (N) and the value this node votes for.
+        uint64_t slotIndex{0};
+        Value value;
+        StellarValue stellarValue;
+        // False if the vote was looked at and no selection is to be made
+        // for it (this node is not first in line, the value has upgrades,
+        // ...).
+        bool planned{false};
+    };
+    std::optional<EarlyTxSetPlan> mEarlyTxSetPlan;
+    // The running or finished selection of the plan.
+    std::shared_ptr<EarlyTxSetJob> mEarlyTxSet;
+    // Called with every statement this node emits.
+    void maybeScheduleEarlyTxSetSelection(SCPEnvelope const& envelope);
+    void startEarlyTxSetSelection(uint64_t slotIndex, Value const& value,
+                                  TxSetXDRFrameConstPtr const& txSet);
+    // Drops the plan, its timer and its job.
+    void stopEarlyTxSetSelection();
+    // How long after its vote for a ledger this node starts the selection
+    // for the next one: so that it is expected to finish a little before
+    // the build that uses it. Zero until the node has measured both (how
+    // long after its vote it builds, and how long a selection takes).
+    std::chrono::milliseconds earlyTxSetStartDelay() const;
+    // When this node first voted for a value of the ledger after the LCL.
+    std::optional<std::pair<uint64_t, VirtualClock::time_point>> mFirstVote;
+    // From that vote to the start of the build of the ledger after: a
+    // running average and the last sample; zero before the first.
+    std::chrono::milliseconds mVoteToBuild{0};
+    std::chrono::milliseconds mLastVoteToBuild{0};
+    // How long a selection job takes (pull to result), likewise.
+    std::chrono::milliseconds mEarlyTxSetJobDuration{0};
+    std::chrono::milliseconds mLastEarlyTxSetJobDuration{0};
+    // Completes the early selection for `ledgerSeq` on top of `lcl`, as
+    // buildTxSet builds a set; nullopt if there is none that can be used
+    // (the caller then builds). Always ends the plan.
+    std::optional<PreparedTxSet>
+    completeEarlyTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
+                       bool pushToPeers, LedgerHeaderHistoryEntry const& lcl);
+
+    // How many transactions one pull of the mempool asks for: the capacity
+    // of a set plus EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT. A set that is
+    // short after validation pulls again, twice as much each time, at most
+    // MAX_TX_SET_PULLS times.
+    size_t txSetPullCount() const;
+    static constexpr size_t MAX_TX_SET_PULLS{3};
+    // Pulls the top `count` transactions of the mempool and returns those
+    // not in `seen` (by hashPulledTx; they are added to it), decoded, in
+    // mempool order. `full` tells whether the mempool had `count`
+    // transactions to give, i.e. may hold more.
+    TxFrameList pullNewCandidates(size_t count, UnorderedSet<uint64_t>& seen,
+                                  bool& full);
+    // The transactions of `invalidTxs` (found invalid on the LCL by a build
+    // or a completion) to remove from the mempool: all but those with a
+    // future sequence number, which wait for a pending transaction of their
+    // account.
+    std::vector<Hash>
+    invalidTxsToRemove(PerPhaseTransactionList const& invalidTxs);
+    // Records a set this node is about to use: its size against the
+    // capacity of the phases, and whether it is short although the mempool
+    // had more to give.
+    void recordTxSetFill(ApplicableTxSetFrame const& txSet,
+                         bool mempoolExhausted);
+
     std::shared_ptr<ProposalPrevalidation> mProposalPrevalidation;
     // Whether the local node would lead round 1 or 2 of the ledger after
     // `slotIndex` if `slotIndex` closes with `value`.
@@ -719,6 +746,8 @@ class HerderImpl : public Herder
 
     VirtualTimer mTriggerTimer;
     VirtualTimer mPrepareTxSetTimer;
+    // Fires when the planned early selection is to start (mEarlyTxSetPlan).
+    VirtualTimer mEarlyTxSetTimer;
 
     // What updateTxFloodTargets last told the overlay (nullopt = everyone,
     // which is also what the overlay starts with).

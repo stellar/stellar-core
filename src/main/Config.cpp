@@ -175,6 +175,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKGROUND_OVERLAY_PROCESSING = true;
     PARALLEL_LEDGER_APPLY = true;
     EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = true;
+    EXPERIMENTAL_EARLY_TX_SET_SELECTION = true;
+    EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT = 10;
     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     DISABLE_TX_META_FOR_TESTING = false;
@@ -1218,6 +1220,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = readBool(item);
                  }},
+                {"EXPERIMENTAL_EARLY_TX_SET_SELECTION",
+                 [&]() {
+                     EXPERIMENTAL_EARLY_TX_SET_SELECTION = readBool(item);
+                 }},
+                {"EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT",
+                 [&]() {
+                     EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT =
+                         readInt<uint32_t>(item, 0, 1000);
+                 }},
                 {"EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD",
                  [&]() {
                      EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = readBool(item);
@@ -1243,9 +1254,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readBool(item);
                  }},
                 {"TX_FLOOD_TARGET_LEADERS",
-                 [&]() {
-                     TX_FLOOD_TARGET_LEADERS = readInt<uint32_t>(item);
-                 }},
+                 [&]() { TX_FLOOD_TARGET_LEADERS = readInt<uint32_t>(item); }},
                 {"TX_FLOOD_LEGACY_ADVERTS",
                  [&]() { TX_FLOOD_LEGACY_ADVERTS = readBool(item); }},
                 {"BATCH_EXECUTOR_TASKS",
@@ -2401,6 +2410,11 @@ Config::logBasicInfo() const
              "EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY="
              "{}",
              EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY ? "true" : "false");
+    LOG_INFO(DEFAULT_LOG,
+             "EXPERIMENTAL_EARLY_TX_SET_SELECTION={}, "
+             "EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT={}",
+             EXPERIMENTAL_EARLY_TX_SET_SELECTION ? "true" : "false",
+             EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT);
 }
 
 void
