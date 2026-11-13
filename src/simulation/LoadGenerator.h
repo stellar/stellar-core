@@ -172,6 +172,10 @@ struct GeneratedLoadConfig
     // to `TxQueueLimiter` limiting the operation count per ledger). Otherwise,
     // the load generation will fail after a couple of retries.
     bool skipLowFeeTxs = false;
+    // How many ledgers a completed submission waits for its transactions to
+    // be applied before the run is reported as failed. 0: the default of the
+    // mode (see LoadGenerator::completionTimeoutLedgers).
+    uint32_t completionTimeoutLedgers = 0;
     // Path to the pre-generated transactions file for PAY_PREGENERATED mode
     std::filesystem::path preloadedTransactionsFile;
 
@@ -189,6 +193,15 @@ struct GeneratedLoadConfig
 class LoadGenerator
 {
   public:
+    // How long a run waits, after its last submission, for its
+    // transactions to be applied, unless its config says otherwise: 20
+    // ledgers, and for SAC_PAYMENT, whose last payments can be included
+    // late, 150.
+    static uint32_t const DEFAULT_COMPLETION_TIMEOUT_NUM_LEDGERS;
+    static uint32_t const SAC_PAYMENT_COMPLETION_TIMEOUT_NUM_LEDGERS;
+    // The ledgers a run of `cfg` waits.
+    static uint32_t completionTimeoutLedgers(GeneratedLoadConfig const& cfg);
+
     LoadGenerator(Application& app);
 
     static LoadGenMode getMode(std::string const& mode);
