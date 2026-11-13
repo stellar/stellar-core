@@ -559,7 +559,8 @@ TEST_CASE("native SAC setup and payments are applied", "[loadgen][soroban]")
         SCVal destVal(SCV_ADDRESS);
         destVal.address() = dest;
         LedgerKey balanceKey(CONTRACT_DATA);
-        balanceKey.contractData().contract = instanceKey.contractData().contract;
+        balanceKey.contractData().contract =
+            instanceKey.contractData().contract;
         balanceKey.contractData().key =
             txtest::makeVecSCVal({makeSymbolSCVal("Balance"), destVal});
         balanceKey.contractData().durability =
