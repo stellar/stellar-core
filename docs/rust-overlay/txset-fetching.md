@@ -174,9 +174,10 @@ XDR, which is at most 16 MiB, so no ordinary frame starts with it. Kinds: 1
 star (to every peer, never relayed), 2 hash (the tree above), 3 explicit (the
 order is in the header, see `rtt`).
 
-Pushing. `PushTxSet` now makes the leader's overlay write the set to its
-children in the slot's tree. If it does not know the slot's tree, or a child
-has no identified connection, it writes a star to every peer instead. If a
+Pushing. `PushTxSet` makes the leader's overlay write the set to its
+children in the slot's tree. If it does not know the slot's tree, is not one
+of the leaders its Core named for the slot, or a child has no identified
+connection, it writes a star to every peer instead. If a
 child is left out because an earlier push to it is still in flight, the nodes
 below that child get a star from the leader directly.
 
@@ -232,9 +233,9 @@ The leaves of the Merkle tree are `SHA256(0x00 || index || piece)`, inner nodes
 `SHA256(0x01 || left || right)`, padded with zero leaves to a power of two. The
 root signature is the leader's overlay (libp2p Ed25519) key over
 `SHA256("stellar-overlay tx set pieces v1" || network || seed || slot || leader || k || m || frame length || root)`
-(`seed` is the seed of the slot's layout, a hash of the chain just before the
+(`seed` is the seed of the slot's layout, the hash of the ledger two before the
 slot: a signature from another history of a network with the same name and
-keys is of no use);
+keys is of no use once the two histories differ at that ledger);
 the binding signature is the validator's over the peer id of that overlay key,
 as nodes exchange it as their identity. So a piece can be checked against the
 leader's node ID alone, without a connection to the leader.
@@ -255,13 +256,14 @@ a root the leader signed.
 
 A node that its Core does not name as a leader of the slot (the leader of a
 fourth or later round, a node with another view) does not code: every node
-would refuse its pieces. It pushes its set to everyone, as in `star` (the same
-now holds for `hash` and `rtt`).
+would refuse its pieces. It pushes its set to everyone, as in `star`, and logs
+`TXSET_CODED_STAR` (in `hash` and `rtt`: `TXSET_TREE_STAR`).
 
 With k pieces under one root the frame is rebuilt (no decoding if they are
 the k data pieces) and goes the way of every received frame: decompress,
-strict parse, content hash, cache. It counts as received from its leader (if
-connected), not from the sender of the piece that completed it. Afterwards the node encodes the frame again
+strict parse, content hash, cache. It counts as received from the overlay that
+signed its root (the leader's, connected or not), not from the sender of the
+piece that completed it. Afterwards the node encodes the frame again
 and compares the root: a leader whose pieces do not fit together is counted
 (`sets-inconsistent`); the set is still what its content hash says. A node
 waits for pieces as it does for a tree frame (300 ms) before it asks.
@@ -296,10 +298,10 @@ Limits of the prototype:
   hash only: it does not use round-trip times.
 - A piece a relay could not write (the receiver has four in flight, or no
   identified connection) is not sent later; the code absorbs the gap.
-- `coded`: the only bound on a frame's size is the general one (16 MiB). A
-  leader that signs frames of that size has the network write 180 times its
-  own 10 frame sizes' worth per root (two roots per slot); Core does not yet
-  tell the overlay how large a set can be.
+- `coded`: the only bound on a frame's size is the general one (16 MiB). For
+  a frame a leader signs, it writes 10 frame sizes itself and the network about
+  178 in all (18 times the leader's own), per root, two roots per slot; Core
+  does not yet tell the overlay how large a set can be.
 - `coded`: a node connected to fewer than k of its senders (a sparse mesh), or
   with another list of nodes, waits 300 ms for every set and then asks. The
   request goes to the peer the SCP statement came from, which may not hold
@@ -308,7 +310,7 @@ Limits of the prototype:
 - The delay metric compares two hosts' clocks and only counts tagged frames
   that arrived.
 - A leader of a fourth or later round is not one of the named leaders: its set
-  is not relayed, and the nodes ask for it.
+  goes to every peer as a star, in every mode.
 - Relays have no write timeout (neither has the leader's push).
 
 ## Core requests and network prefetches

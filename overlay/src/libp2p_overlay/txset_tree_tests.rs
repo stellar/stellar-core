@@ -885,3 +885,46 @@ async fn a_node_without_the_tree_reads_tagged_frames() {
     assert!(asked_at.elapsed() < TREE_FETCH_GRACE);
     assert_eq!(nodes[second].count(|m| &m.txset_tree_fetch_deferred), 0);
 }
+
+/// A node that the others do not expect to lead the slot does not root a
+/// tree, whose frames every relay would refuse: it pushes its set to every
+/// peer as a star.
+#[tokio::test]
+async fn a_leader_nobody_expects_pushes_a_star() {
+    let mut nodes = full_mesh(25601, 7).await;
+    let expected = nodes[2].node_id();
+    for node in &nodes {
+        node.handle.set_txset_tree(
+            config(&nodes, TreeMode::Hash, 2).with_leaders(vec![Some(vec![expected])]),
+        );
+    }
+    let leader = 5;
+    let (hash, data) = test_set(61);
+    nodes[leader]
+        .handle
+        .push_txset_for_slot(hash, data, SLOT)
+        .await;
+    let leader_peer = nodes[leader].peer_id;
+    for i in (0..nodes.len()).filter(|i| *i != leader) {
+        let (slot, from) = expect_set(&mut nodes[i], hash).await;
+        assert_eq!(slot, None);
+        assert_eq!(from, leader_peer, "node {i} gets it from the leader itself");
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(nodes[leader].count(|m| &m.txset_push_sent), 6);
+    let sum = |pick: fn(&OverlayMetrics) -> &AtomicU64| -> u64 {
+        nodes.iter().map(|n| n.count(pick)).sum()
+    };
+    assert_eq!(sum(|m| &m.txset_tree_relayed), 0);
+    assert_eq!(sum(|m| &m.txset_tree_refused), 0);
+    // The expected leader roots its tree: two copies, four relayed.
+    let (hash, data) = test_set(62);
+    nodes[2].handle.push_txset_for_slot(hash, data, SLOT).await;
+    for i in (0..nodes.len()).filter(|i| *i != 2) {
+        expect_set(&mut nodes[i], hash).await;
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(nodes[2].count(|m| &m.txset_push_sent), 2);
+    let relayed: u64 = nodes.iter().map(|n| n.count(|m| &m.txset_tree_relayed)).sum();
+    assert_eq!(relayed, 4);
+}

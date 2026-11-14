@@ -142,8 +142,10 @@ async fn a_coded_set_reaches_every_node_as_pieces() {
         .push_txset_for_slot(hash, Arc::clone(&data), SLOT)
         .await;
     for i in (0..NODES).filter(|i| *i != leader) {
-        let (slot, _) = expect_set(&mut nodes[i], hash).await;
+        let (slot, from) = expect_set(&mut nodes[i], hash).await;
         assert_eq!(slot, None, "node {i} had not asked");
+        // The set counts as its leader's, whoever sent the fourth piece.
+        assert_eq!(from, leader_peer, "node {i}");
     }
     // Let the pieces nobody needed any more arrive, and the waits end.
     tokio::time::sleep(TREE_FETCH_GRACE + Duration::from_millis(300)).await;
@@ -674,6 +676,34 @@ async fn a_leader_nobody_expects_pushes_to_everyone() {
     for i in (0..NODES).filter(|i| *i != 3) {
         expect_set(&mut nodes[i], hash).await;
     }
+    // (A node has the set after four pieces: give the leader's other
+    // writes time to be counted.)
+    tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(nodes[3].count(|m| &m.txset_coded_pieces_sent), PIECES);
     assert_eq!(nodes[3].count(|m| &m.txset_push_sent), 0);
+}
+
+/// A set rebuilt from pieces counts as received from the overlay whose key
+/// signed its root, also at a node that got none of its pieces from the
+/// leader: the leader cannot have a relay charged for its set by sending that
+/// relay's piece last.
+#[tokio::test]
+async fn a_rebuilt_set_counts_as_its_leaders() {
+    let mut nodes = coded_mesh(27701).await;
+    for node in &nodes {
+        node.handle.set_txset_tree(coded_config(&nodes));
+    }
+    let leader = 0;
+    let layout = layout_of(&nodes, leader);
+    let (hash, data) = test_set(80);
+    let signed = pieces_of(&nodes[leader], &data, layout.params, |_| {});
+    // The relay of piece 7 gets four pieces, every one through a relay.
+    let target = index_of(&nodes, &layout.relays_of(7)[0]);
+    for index in 0..DATA {
+        deliver_piece(&nodes, &layout, &signed, index, target).await;
+    }
+    let (slot, from) = expect_set(&mut nodes[target], hash).await;
+    assert_eq!(slot, None);
+    assert_eq!(from, nodes[leader].peer_id);
+    assert_eq!(nodes[target].count(|m| &m.txset_coded_sets_rebuilt), 1);
 }

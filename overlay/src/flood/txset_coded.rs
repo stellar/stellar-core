@@ -318,10 +318,11 @@ pub fn merkle_root_from(leaf: [u8; 32], index: usize, path: &[[u8; 32]]) -> [u8;
 }
 
 /// What the leader's overlay key signs for a set it cut into pieces: the
-/// network, the slot and the seed of its layout (a hash of the chain just
+/// network, the slot and the seed of its layout (the hash of the ledger two
 /// before the slot, so that a signature from another history of a network
-/// with the same name and keys is of no use), the leader, the shape of the
-/// code, the frame's length and the root of its pieces.
+/// with the same name and keys is of no use once the histories differ
+/// there), the leader, the shape of the code, the frame's length and the
+/// root of its pieces.
 pub fn root_message(
     network_id: &[u8; 32],
     seed: &[u8; 32],
@@ -499,6 +500,9 @@ struct Assembly {
     /// Indices seen, also after the pieces were handed out.
     seen: Vec<bool>,
     done: bool,
+    /// The overlay key that signed the root (the leader's, as checked when
+    /// the root was added).
+    origin: [u8; 32],
 }
 
 /// Enough pieces of a set to rebuild it.
@@ -507,6 +511,8 @@ pub struct ReadySet {
     pub pieces: Vec<Option<PieceBytes>>,
     pub params: CodedParams,
     pub total_len: u32,
+    /// The overlay key of the leader that signed the set's root.
+    pub origin: [u8; 32],
 }
 
 /// What became of a valid piece.
@@ -606,9 +612,16 @@ impl CodedState {
     }
 
     /// Start keeping pieces for a root whose signature by the slot's leader
-    /// was checked. False: the leader has [`MAX_ROOTS_PER_SLOT_AND_LEADER`]
-    /// other roots for that slot already.
-    pub fn add_root(&mut self, key: RootKey, params: CodedParams, total_len: u32) -> bool {
+    /// was checked; `origin` is the overlay key that signed it. False: the
+    /// leader has [`MAX_ROOTS_PER_SLOT_AND_LEADER`] other roots for that slot
+    /// already.
+    pub fn add_root(
+        &mut self,
+        key: RootKey,
+        params: CodedParams,
+        total_len: u32,
+        origin: [u8; 32],
+    ) -> bool {
         if self.assemblies.contains(&key) {
             return true;
         }
@@ -625,6 +638,7 @@ impl CodedState {
                 pieces: vec![None; params.pieces],
                 seen: vec![false; params.pieces],
                 done: false,
+                origin,
             },
         );
         true
@@ -658,6 +672,7 @@ impl CodedState {
                 relays: 0,
             },
             total_len: assembly.total_len,
+            origin: assembly.origin,
             pieces,
         })
     }
@@ -1047,7 +1062,7 @@ mod tests {
             PieceOutcome::Unknown
         ));
         assert_eq!(state.knows_root(&key, p, 20), None);
-        assert!(state.add_root(key, p, 20));
+        assert!(state.add_root(key, p, 20, [5u8; 32]));
         assert_eq!(state.knows_root(&key, p, 20), Some(true));
         assert_eq!(state.knows_root(&key, p, 21), Some(false));
         assert_eq!(state.knows_root(&key, params(2, 6), 20), Some(false));
@@ -1108,14 +1123,14 @@ mod tests {
         let mut state = CodedState::new();
         let p = params(3, 6);
         // Two roots per slot and leader.
-        assert!(state.add_root((10, node(1), [1u8; 32]), p, 20));
-        assert!(state.add_root((10, node(1), [2u8; 32]), p, 20));
-        assert!(state.add_root((10, node(1), [1u8; 32]), p, 20));
-        assert!(!state.add_root((10, node(1), [3u8; 32]), p, 20));
+        assert!(state.add_root((10, node(1), [1u8; 32]), p, 20, [5u8; 32]));
+        assert!(state.add_root((10, node(1), [2u8; 32]), p, 20, [5u8; 32]));
+        assert!(state.add_root((10, node(1), [1u8; 32]), p, 20, [5u8; 32]));
+        assert!(!state.add_root((10, node(1), [3u8; 32]), p, 20, [5u8; 32]));
         assert_eq!(state.knows_root(&(10, node(1), [3u8; 32]), p, 20), None);
         // Another leader or slot has its own.
-        assert!(state.add_root((10, node(2), [3u8; 32]), p, 20));
-        assert!(state.add_root((11, node(1), [3u8; 32]), p, 20));
+        assert!(state.add_root((10, node(2), [3u8; 32]), p, 20, [5u8; 32]));
+        assert!(state.add_root((11, node(1), [3u8; 32]), p, 20, [5u8; 32]));
         // A sender is listened to a few times per slot and leader.
         for _ in 0..MAX_FRAMES_PER_SENDER {
             assert!(state.admit_frame(10, node(1), node(7)));

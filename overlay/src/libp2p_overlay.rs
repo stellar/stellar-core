@@ -1581,10 +1581,11 @@ impl StellarOverlay {
     /// * No tree configured, or mode off: every connected peer, no header.
     /// * Star: every connected peer, with a header.
     /// * Hash, rtt: this node's children in the tree. If the tree of the slot
-    ///   is not known here, or a child has no identified connection (right
-    ///   after a start, before the peers proved who they are), the set goes
-    ///   to every peer as a star instead: a subtree must not depend on a
-    ///   child the root cannot reach.
+    ///   is not known here, this node is not one of the leaders its Core
+    ///   named for the slot (every relay would refuse its frame), or a child
+    ///   has no identified connection (right after a start, before the peers
+    ///   proved who they are), the set goes to every peer as a star instead:
+    ///   a subtree must not depend on a child the root cannot reach.
     fn tree_push_plan(&self, slot: Option<u32>, connected: &[PeerId]) -> TreePushPlan {
         let everyone = |header: Option<TreeHeader>| TreePushPlan {
             header,
@@ -1650,6 +1651,12 @@ impl StellarOverlay {
         let known = config.seed_of(slot).is_some()
             && config.contains(&me)
             && config.may_lead(slot, &me);
+        if config.mode.relays() && config.seed_of(slot).is_some() && !config.may_lead(slot, &me) {
+            info!(
+                "TXSET_TREE_STAR: This node is not one of the leaders its Core named for slot {}, pushing to every peer",
+                slot
+            );
+        }
         let (kind, order, indices) = match config.mode {
             TreeMode::Off => return everyone(None),
             // Coded: `coded_push` did not take the set (see there).
@@ -1725,9 +1732,10 @@ impl StellarOverlay {
 
     /// In coded mode, cut the set of `slot` into pieces and write every piece
     /// to its relays (see `txset_coded`). False: the set is not coded (another
-    /// mode, the slot's layout is not known here, too few nodes, or more than
-    /// a quarter of the relays have no identified connection, as right after
-    /// a start), and the caller pushes it as before, to every peer.
+    /// mode, the slot's layout is not known here, this node is not one of the
+    /// leaders its Core named for the slot, too few nodes, or more than a
+    /// quarter of the relays have no identified connection, as right after a
+    /// start), and the caller pushes it as before, to every peer.
     ///
     /// The pieces are not registered as a push of the set to their receivers
     /// (`PushRecord`): no peer gets the whole set from this node, so a
@@ -1745,20 +1753,29 @@ impl StellarOverlay {
         let me = identity.node_id;
         // One lock at a time. A node the others do not expect to lead the
         // slot would have its pieces refused by every node: it does not code.
-        let planned = {
+        let (planned, unexpected) = {
             let mut tree = self.state.txset_tree.lock().unwrap();
-            let seed = match tree.config() {
-                Some(config)
-                    if config.mode == TreeMode::Coded
-                        && config.contains(&me)
-                        && config.may_lead(slot, &me) =>
-                {
-                    config.seed_of(slot).copied()
+            let (seed, unexpected) = match tree.config() {
+                Some(config) if config.mode == TreeMode::Coded && config.contains(&me) => {
+                    let named = config.may_lead(slot, &me);
+                    (
+                        config.seed_of(slot).copied().filter(|_| named),
+                        config.seed_of(slot).is_some() && !named,
+                    )
                 }
-                _ => None,
+                _ => (None, false),
             };
-            seed.and_then(|seed| tree.coded_layout(slot, &me).map(|layout| (seed, layout)))
+            (
+                seed.and_then(|seed| tree.coded_layout(slot, &me).map(|layout| (seed, layout))),
+                unexpected,
+            )
         };
+        if unexpected {
+            info!(
+                "TXSET_CODED_STAR: This node is not one of the leaders its Core named for slot {}, pushing to every peer",
+                slot
+            );
+        }
         let Some((seed, layout)) = planned else {
             return false;
         };
@@ -3923,6 +3940,7 @@ struct SignedPieces {
 /// Sign the root of the Merkle tree over `pieces` with this overlay's key,
 /// and make every piece its header (hop 1). `None`: the overlay's key is not
 /// an Ed25519 key, or the signing failed.
+#[allow(clippy::too_many_arguments)]
 fn sign_pieces(
     keypair: &Keypair,
     identity: &NodeIdentity,
@@ -4133,7 +4151,9 @@ fn handle_piece_frame(state: &Arc<SharedState>, peer_id: PeerId, frame: Vec<u8>)
             Some(config) if !config.may_lead(header.slot, &header.leader) => {
                 Err("unknown slot, or not a leader of it")
             }
-            Some(config) if !config.contains(&me) => Err("this node is not in the layout"),
+            Some(config) if !config.contains(&me) || !config.contains(&header.leader) => {
+                Err("this node or the leader is not in the layout")
+            }
             Some(config) => config
                 .seed_of(header.slot)
                 .map(|seed| (*seed, config.withhold))
@@ -4181,11 +4201,20 @@ fn handle_piece_frame(state: &Arc<SharedState>, peer_id: PeerId, frame: Vec<u8>)
     let frame = Arc::new(frame);
     let (outcome, relay) = {
         let mut tree = state.txset_tree.lock().unwrap();
-        if !tree.coded.add_root(key, layout.params, header.total_len) {
+        // A root gets its place only from a frame whose signatures were
+        // checked just now (`known` was none): the key that signed it is kept
+        // with it.
+        if known.is_none()
+            && !tree
+                .coded
+                .add_root(key, layout.params, header.total_len, header.overlay_key)
+        {
             return refuse("the leader has two other roots for the slot already");
         }
-        if tree.coded.knows_root(&key, layout.params, header.total_len) != Some(true) {
-            return invalid("its root is known with another shape or length");
+        match tree.coded.knows_root(&key, layout.params, header.total_len) {
+            Some(true) => {}
+            Some(false) => return invalid("its root is known with another shape or length"),
+            None => return refuse("its root is no longer kept"),
         }
         let outcome = tree.coded.add_piece(
             &key,
@@ -4236,14 +4265,11 @@ fn handle_piece_frame(state: &Arc<SharedState>, peer_id: PeerId, frame: Vec<u8>)
         metrics.txset_tree_received.fetch_add(1, Ordering::Relaxed);
         // The set is its leader's, whoever sent the piece that completed
         // it: what a peer may have this node keep unclaimed is counted
-        // against the leader, if it is connected.
-        let from = state
-            .tx_router
-            .lock()
-            .unwrap()
-            .identified_peers()
-            .get(&header.leader)
-            .copied()
+        // against the overlay that signed the root (the leader's, connected
+        // to this node or not), not against a relay the leader could pick by
+        // sending that relay's piece last.
+        let from = libp2p::identity::ed25519::PublicKey::try_from_bytes(&ready.origin)
+            .map(|key| libp2p::identity::PublicKey::from(key).to_peer_id())
             .unwrap_or(peer_id);
         tokio::spawn(rebuild_coded_set(
             Arc::clone(state),

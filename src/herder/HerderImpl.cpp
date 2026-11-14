@@ -457,8 +457,8 @@ HerderImpl::updateTxSetTree()
     }
     // Who may root a tree: the leaders of the slot's first rounds. A node
     // relays only for those, so that no other validator can have its frames
-    // passed on. (A set pushed by the leader of a later round is not
-    // relayed; the nodes ask for it after their wait.)
+    // passed on. (The leader of a later round is not named: its overlay
+    // pushes its set to every peer instead.)
     size_t const ROUNDS = 3;
     std::vector<NodeID> nextLeaders;
     for (uint32_t round = 1; round <= ROUNDS; ++round)
