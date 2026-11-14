@@ -214,6 +214,9 @@ class BucketManager : NonMovableOrCopyable
     std::atomic<bool> mDelayMergesForTesting{false};
 #endif
 
+    // Writes the files of level 0's buckets (see ShardedTopBucket).
+    friend class ShardedTopBucket;
+
   protected:
     BucketManager(AppConnector& appConnector);
     void calculateSkipValues(LedgerHeader& currentHeader);
@@ -263,6 +266,16 @@ class BucketManager : NonMovableOrCopyable
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
         std::shared_ptr<typename BucketT::IndexT const> index,
         std::unique_ptr<std::vector<BucketEntry>> inMemoryState = nullptr);
+
+    // Registers a live bucket whose file is still being written (see
+    // ShardedTopBucket): it will be at `bucketFilename(hash)` when
+    // `fileReady` is. Returns the bucket that already has this hash, if there
+    // is one (its file is then there, or on its way), and sets `created` to
+    // whether the bucket is a new one, whose file the caller has to write.
+    std::shared_ptr<LiveBucket> adoptLiveBucketAheadOfItsFile(
+        uint256 const& hash, std::shared_ptr<LiveBucketIndex const> index,
+        size_t fileSize, std::shared_future<void> fileReady,
+        uint32_t bucketVersion, bool& created);
 
     // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method

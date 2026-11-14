@@ -356,6 +356,8 @@ namespace testutil
 template <class BucketT> class BucketListDepthModifier;
 }
 
+class ShardedTopBucket;
+
 template <class BucketT> class BucketLevel
 {
     BUCKET_TYPE_ASSERT(BucketT);
@@ -366,6 +368,10 @@ template <class BucketT> class BucketLevel
     std::variant<FutureBucket<BucketT>, std::shared_ptr<BucketT>> mNextCurr;
     std::shared_ptr<BucketT> mCurr;
     std::shared_ptr<BucketT> mSnap;
+
+    // Level 0 of the live bucket list with EXPERIMENTAL_SHARDED_TOP_BUCKET:
+    // the shards of mCurr.
+    std::shared_ptr<ShardedTopBucket> mShardedTop;
 
     void setNextInMemory(std::shared_ptr<BucketT>&& b);
 

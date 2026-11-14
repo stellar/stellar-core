@@ -592,6 +592,19 @@ class Config : public std::enable_shared_from_this<Config>
     // Allow downloading of transaction sets in parallel with SCP (experimental)
     bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
 
+    // Experimental: level 0 of the live bucket list is hashed with a
+    // commutative hash (LtHash16 over the bucket's records) instead of the
+    // SHA-256 of its file, and a ledger's entries are written as shards, in
+    // parallel; the bucket's file is written afterwards, off the path of the
+    // ledger close (see bucket/ShardedTopBucket.h). 0 = off. N > 0: N shards
+    // for contract data and code, N for TTL entries and N for all other
+    // entries.
+    //
+    // This changes the bucket list hash in the ledger header: every node of
+    // a network must have it on, or every node off. The number of shards is
+    // each node's own choice and changes no hash.
+    uint32_t EXPERIMENTAL_SHARDED_TOP_BUCKET;
+
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
 

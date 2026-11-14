@@ -91,6 +91,15 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
 {
 }
 
+LiveBucketIndex::LiveBucketIndex(
+    BucketManager& bm, std::unique_ptr<InMemoryIndex const> inMemoryIndex)
+    : mInMemoryIndex(std::move(inMemoryIndex))
+    , mCacheHitMeter(bm.getCacheHitMeter())
+    , mCacheMissMeter(bm.getCacheMissMeter())
+{
+    releaseAssertOrThrow(mInMemoryIndex);
+}
+
 void
 LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
                                       Config const& cfg) const

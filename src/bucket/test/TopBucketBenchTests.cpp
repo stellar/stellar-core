@@ -17,13 +17,16 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "medida/timer.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/Timer.h"
 #include <chrono>
 #include <fmt/format.h>
+#include <thread>
 
 using namespace stellar;
 
@@ -156,7 +159,8 @@ TEST_CASE("top bucket add by step with payment-shaped batches",
         meta.ext.bucketListType() = BucketListType::LIVE;
 
         t = Clock::now();
-        auto index = std::make_shared<LiveBucketIndex const>(bm, entries1, meta);
+        auto index =
+            std::make_shared<LiveBucketIndex const>(bm, entries1, meta);
         double indexMs = msSince(t);
 
         t = Clock::now();
@@ -213,5 +217,71 @@ TEST_CASE("top bucket add by step with payment-shaped batches",
                  indexMs, put, close, serialize, bytes, adds[0], adds[1],
                  adds[2], adds[3], adds[4], adds[5]);
         REQUIRE(!b1->isEmpty());
+    }
+}
+
+TEST_CASE("top bucket add as shards with payment-shaped batches",
+          "[.][bucketbench]")
+{
+    using namespace TopBucketBench;
+    for (uint32_t shardsPerGroup : {0u, 4u, 8u, 16u, 32u})
+    {
+        VirtualClock clock;
+        Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
+        // TOPBUCKET_NO_FSYNC=1 shows what the syncs cost.
+        cfg.DISABLE_XDR_FSYNC = getenv("TOPBUCKET_NO_FSYNC") != nullptr;
+        cfg.EXPERIMENTAL_SHARDED_TOP_BUCKET = shardsPerGroup;
+        auto app = createTestApplication(clock, cfg);
+        auto version = app->getConfig().LEDGER_PROTOCOL_VERSION;
+        for (uint32_t payments : {6400u, 10000u})
+        {
+            LiveBucketList bl;
+            std::vector<LedgerKey> dead;
+            std::vector<double> adds;
+            // Ledgers 2 to 21. A level-0 spill at every even ledger; the
+            // first ledgers warm the threads up and are left out.
+            for (uint32_t ledger = 2; ledger < 22; ++ledger)
+            {
+                std::vector<LedgerEntry> init, live;
+                makeBatch(ledger, payments, init, live);
+                auto t = Clock::now();
+                bl.addBatch(*app, ledger, version, init, live, dead);
+                adds.push_back(msSince(t));
+                // As a validator between two closes: let the background
+                // work (the bucket's file, the level-1 merge) get on.
+                std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            }
+            double odd = 0, even = 0;
+            size_t nOdd = 0, nEven = 0;
+            for (size_t i = 4; i < adds.size(); ++i)
+            {
+                // adds[i] is ledger i + 2: an even ledger adds to an empty
+                // level 0 (it spilled), an odd one to one ledger.
+                if ((i + 2) % 2 == 0)
+                {
+                    even += adds[i];
+                    ++nEven;
+                }
+                else
+                {
+                    odd += adds[i];
+                    ++nOdd;
+                }
+            }
+            auto timer = [&](char const* name) {
+                auto& t =
+                    app->getMetrics().NewTimer({"bucket", "top-shard", name});
+                return t.count() ? t.sum() / t.count() : 0.0;
+            };
+            LOG_INFO(DEFAULT_LOG,
+                     "TOPSHARD {} shards per group, {} payments ({} "
+                     "entries): addBatch mean {:.1f} ms after a spill, {:.1f} "
+                     "ms onto one ledger | cut {:.1f} shards {:.1f} finish "
+                     "{:.1f} file wait {:.2f} ms; the file (background) "
+                     "{:.1f} ms",
+                     shardsPerGroup, payments, 3 * payments, even / nEven,
+                     odd / nOdd, timer("cut"), timer("shards"), timer("finish"),
+                     timer("file-wait"), timer("file"));
+        }
     }
 }

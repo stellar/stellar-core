@@ -3,7 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 // Tests of level 0 of the live bucket list written as shards under the
-// commutative hash (EXPERIMENTAL_SHARDED_TOP_BUCKET, bucket/ShardedTopBucket.h).
+// commutative hash (EXPERIMENTAL_SHARDED_TOP_BUCKET,
+// bucket/ShardedTopBucket.h).
 
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
@@ -14,18 +15,31 @@
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/LtHash.h"
+#include "crypto/SHA.h"
+#include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "medida/counter.h"
+#include "medida/meter.h"
+#include "medida/timer.h"
+#include "simulation/LoadGenerator.h"
+#include "simulation/Simulation.h"
+#include "simulation/Topologies.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Fs.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/Timer.h"
+#include <fmt/format.h>
 #include <fstream>
 #include <map>
 #include <sstream>
+#include <unordered_set>
 
 using namespace stellar;
 
@@ -51,6 +65,13 @@ struct BatchMaker
     std::map<LedgerKey, LedgerEntry> mLive;
     std::vector<LedgerEntry> mDeleted;
     std::vector<LedgerKey> mCreatedLastLedger;
+    // The types of the entries that are created, changed and deleted freely.
+    std::unordered_set<LedgerEntryType> mTypes{
+        ACCOUNT, TRUSTLINE, OFFER, DATA, CONTRACT_DATA, CONTRACT_CODE, TTL};
+    // For a ledger manager, which keeps contract data with its TTL: so many
+    // new contract data entries per ledger, each with its TTL entry (while
+    // mTypes holds the classic types only).
+    size_t mContractDataWithTTL{0};
 
     void
     make(uint32_t ledger, size_t size, std::vector<LedgerEntry>& init,
@@ -105,9 +126,7 @@ struct BatchMaker
         // New entries of every group.
         for (size_t i = 0; i < size; ++i)
         {
-            auto e = LedgerTestUtils::generateValidLedgerEntryWithTypes(
-                {ACCOUNT, TRUSTLINE, OFFER, DATA, CONTRACT_DATA, CONTRACT_CODE,
-                 TTL});
+            auto e = LedgerTestUtils::generateValidLedgerEntryWithTypes(mTypes);
             auto key = LedgerEntryKey(e);
             if (mLive.count(key) || !touched.insert(key).second)
             {
@@ -117,6 +136,23 @@ struct BatchMaker
             mLive[key] = e;
             init.emplace_back(e);
             mCreatedLastLedger.emplace_back(key);
+        }
+        for (size_t i = 0; i < mContractDataWithTTL; ++i)
+        {
+            auto e = LedgerTestUtils::generateValidLedgerEntryWithTypes(
+                {CONTRACT_DATA});
+            if (!touched.insert(LedgerEntryKey(e)).second)
+            {
+                continue;
+            }
+            e.lastModifiedLedgerSeq = ledger;
+            LedgerEntry ttl;
+            ttl.lastModifiedLedgerSeq = ledger;
+            ttl.data.type(TTL);
+            ttl.data.ttl().keyHash = getTTLKey(e).ttl().keyHash;
+            ttl.data.ttl().liveUntilLedgerSeq = ledger + 10'000;
+            init.emplace_back(e);
+            init.emplace_back(ttl);
         }
 
         // Change and delete some older entries.
@@ -168,8 +204,7 @@ TEST_CASE("sharded level 0 is the same buckets under another hash",
     std::vector<std::unique_ptr<LiveBucketList>> lists;
     for (size_t i = 0; i < shardCounts.size(); ++i)
     {
-        apps.emplace_back(
-            makeApp(clock, static_cast<int>(i), shardCounts[i]));
+        apps.emplace_back(makeApp(clock, static_cast<int>(i), shardCounts[i]));
         lists.emplace_back(std::make_unique<LiveBucketList>());
     }
     auto version = apps[0]->getConfig().LEDGER_PROTOCOL_VERSION;
@@ -271,8 +306,7 @@ TEST_CASE("sharded level 0 is the same buckets under another hash",
                     auto got = index.lookup(key);
                     auto want = offIndex.lookup(key);
                     REQUIRE(got.getState() == want.getState());
-                    if (want.getState() ==
-                        IndexReturnState::CACHE_HIT)
+                    if (want.getState() == IndexReturnState::CACHE_HIT)
                     {
                         REQUIRE(*got.cacheHit() == *want.cacheHit());
                     }
@@ -307,4 +341,201 @@ TEST_CASE("sharded level 0 is the same buckets under another hash",
         }
     }
     REQUIRE(sawTwoLedgerBuckets > 20);
+}
+
+TEST_CASE("level 0 is rebuilt from the shard files after a stop",
+          "[bucket][bucketlist][sharded-top-bucket]")
+{
+    using BucketTestUtils::BucketTestApplication;
+    // The ledger after which the node stops: one whose batch went into an
+    // empty level 0 (it spilled), and one whose batch was merged with the
+    // ledger before.
+    for (uint32_t stopAt : {12u, 13u})
+    {
+        INFO("the node stops after ledger " << stopAt);
+        Config cfgA(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
+        cfgA.EXPERIMENTAL_SHARDED_TOP_BUCKET = 3;
+        // A node that stops there has not dropped the bucket of the ledger
+        // before: that happens once the file is written.
+        cfgA.DISABLE_BUCKET_GC = true;
+        // The control: the same ledgers without a stop.
+        Config cfgB(getTestConfig(1, Config::TESTDB_BUCKET_DB_PERSISTENT));
+        cfgB.EXPERIMENTAL_SHARDED_TOP_BUCKET = 5;
+
+        auto clockA = std::make_unique<VirtualClock>();
+        VirtualClock clockB;
+        auto appA = createTestApplication<BucketTestApplication>(*clockA, cfgA);
+        auto appB = createTestApplication<BucketTestApplication>(clockB, cfgB);
+
+        BatchMaker maker;
+        // (No offers: those the ledger manager also keeps in SQL, where
+        // entries put straight into the bucket list are not.)
+        maker.mTypes = {ACCOUNT, TRUSTLINE, DATA};
+        maker.mContractDataWithTTL = 10;
+        std::vector<LedgerEntry> init, live;
+        std::vector<LedgerKey> dead;
+        auto close = [&](BucketTestApplication& app) {
+            app.getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                init, live, dead);
+            BucketTestUtils::closeLedger(app);
+        };
+        auto bucketListHash = [](Application& app) {
+            return app.getLedgerManager()
+                .getLastClosedLedgerHeader()
+                .header.bucketListHash;
+        };
+        auto shardFiles = [](Application& app) {
+            auto dir = app.getBucketManager().getBucketDir() + "/topshards";
+            return fs::findfiles(
+                dir, [](std::string const& name) { return name[0] == 's'; });
+        };
+
+        uint32_t ledger = appA->getLedgerManager().getLastClosedLedgerNum();
+        REQUIRE(ledger == appB->getLedgerManager().getLastClosedLedgerNum());
+        while (++ledger < stopAt)
+        {
+            maker.make(ledger, 40, init, live, dead);
+            close(*appA);
+            close(*appB);
+            REQUIRE(bucketListHash(*appA) == bucketListHash(*appB));
+        }
+
+        maker.make(stopAt, 40, init, live, dead);
+        ShardedTopBucket::loseFileForTesting(true);
+        close(*appA);
+        ShardedTopBucket::loseFileForTesting(false);
+        close(*appB);
+        REQUIRE(appA->getLedgerManager().getLastClosedLedgerNum() == stopAt);
+        REQUIRE(bucketListHash(*appA) == bucketListHash(*appB));
+
+        Hash const lost = appA->getBucketManager()
+                              .getLiveBucketList()
+                              .getLevel(0)
+                              .getCurr()
+                              ->getHash();
+        std::string const lostFile = fmt::format(
+            "{}/bucket-{}.xdr", appA->getBucketManager().getBucketDir(),
+            binToHex(lost));
+        REQUIRE(!isZero(lost));
+        REQUIRE(!fs::exists(lostFile));
+        REQUIRE(!shardFiles(*appA).empty());
+
+        // The restart.
+        appA.reset();
+        clockA = std::make_unique<VirtualClock>();
+        appA =
+            createTestApplication<BucketTestApplication>(*clockA, cfgA, false);
+        REQUIRE(appA->getLedgerManager().getLastClosedLedgerNum() == stopAt);
+        REQUIRE(fs::exists(lostFile));
+        REQUIRE(shardFiles(*appA).empty());
+        REQUIRE(ShardedTopBucket::bucketHash(
+                    ShardedTopBucket::hashOfFile(lostFile)) == lost);
+        auto currB =
+            appB->getBucketManager().getLiveBucketList().getLevel(0).getCurr();
+        REQUIRE(currB->getHash() == lost);
+        REQUIRE(fileBytes(lostFile) == fileBytes(currB->getFilename()));
+        REQUIRE(bucketListHash(*appA) == bucketListHash(*appB));
+
+        // And on from there, through the next spills.
+        for (uint32_t i = 0; i < 9; ++i)
+        {
+            maker.make(++ledger, 40, init, live, dead);
+            close(*appA);
+            close(*appB);
+            REQUIRE(bucketListHash(*appA) == bucketListHash(*appB));
+        }
+        REQUIRE(shardFiles(*appB).size() <= 15);
+    }
+}
+
+TEST_CASE("nodes with different shard counts close the same ledgers",
+          "[bucket][sharded-top-bucket][simulation]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    // How many shards a node uses is its own business.
+    std::vector<uint32_t> const shardCounts{1, 2, 4, 7};
+    // Threshold 1: every node votes, so every node computed the hash.
+    auto simulation = Topologies::core(4, 1, networkID, [&](int i) {
+        auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
+        cfg.EXPERIMENTAL_SHARDED_TOP_BUCKET =
+            shardCounts.at(static_cast<size_t>(i) % shardCounts.size());
+        return cfg;
+    });
+    simulation->startAllNodes();
+    auto nodes = simulation->getNodes();
+    std::set<uint32_t> used;
+    for (auto const& n : nodes)
+    {
+        used.insert(n->getConfig().EXPERIMENTAL_SHARDED_TOP_BUCKET);
+    }
+    REQUIRE(used.size() == shardCounts.size());
+
+    uint32_t const desiredTxRate = 1;
+    uint32_t const ledgerWideLimit = static_cast<uint32>(
+        desiredTxRate * simulation->getExpectedLedgerCloseTime().count() * 2);
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            setSorobanNetworkConfigForTest(cfg);
+            cfg.mLedgerMaxTxCount = ledgerWideLimit;
+        },
+        simulation);
+
+    // Classic entries from one node, contract code and TTL entries from
+    // another: all three groups of shards get entries.
+    auto& loadGen = nodes[0]->getLoadGenerator();
+    auto& loadGenDone =
+        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto& secondLoadGen = nodes[1]->getLoadGenerator();
+    auto& secondLoadGenDone =
+        nodes[1]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto count = loadGenDone.count();
+    auto secondCount = secondLoadGenDone.count();
+    uint32_t const txCount = 30;
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::SOROBAN_UPLOAD, 50, txCount, desiredTxRate, 0));
+    secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, 50, txCount, desiredTxRate, 50));
+    simulation->crankUntil(
+        [&]() {
+            return loadGenDone.count() > count &&
+                   secondLoadGenDone.count() > secondCount;
+        },
+        200 * simulation->getExpectedLedgerCloseTime(), false);
+    REQUIRE(nodes[0]
+                ->getMetrics()
+                .NewMeter({"loadgen", "run", "failed"}, "run")
+                .count() == 0);
+    REQUIRE(nodes[1]
+                ->getMetrics()
+                .NewMeter({"loadgen", "run", "failed"}, "run")
+                .count() == 0);
+
+    uint32_t const target =
+        nodes[0]->getLedgerManager().getLastClosedLedgerNum() + 2;
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(target, 1); },
+        50 * simulation->getExpectedLedgerCloseTime(), false);
+
+    // The same ledger at every node: the header holds the bucket list hash.
+    // And the ledgers were not empty.
+    uint32_t const seq =
+        std::min({nodes[0]->getLedgerManager().getLastClosedLedgerNum(),
+                  nodes[1]->getLedgerManager().getLastClosedLedgerNum(),
+                  nodes[2]->getLedgerManager().getLastClosedLedgerNum(),
+                  nodes[3]->getLedgerManager().getLastClosedLedgerNum()});
+    REQUIRE(seq >= target - 1);
+    for (auto const& n : nodes)
+    {
+        auto& shardTimer =
+            n->getMetrics().NewTimer({"bucket", "top-shard", "shards"});
+        REQUIRE(shardTimer.count() >= seq - 1);
+        auto& applied =
+            n->getMetrics().NewCounter({"ledger", "apply", "success"});
+        REQUIRE(applied.count() >= 2 * txCount);
+    }
+    // (haveAllExternalized compares the ledgers' hashes: a node that
+    // computed another bucket list hash would have stopped at its first
+    // non-empty ledger.)
 }

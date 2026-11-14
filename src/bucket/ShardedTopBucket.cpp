@@ -10,6 +10,8 @@
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucketIndex.h"
 #include "crypto/Hex.h"
+#include "crypto/Random.h"
+#include "history/HistoryArchive.h"
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
@@ -21,10 +23,16 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
 #include <Tracy.hpp>
+#include <atomic>
+#include <chrono>
 #include <cstring>
+#include <fcntl.h>
 #include <filesystem>
 #include <fmt/format.h>
+#include <map>
+#include <optional>
 #include <queue>
+#include <unistd.h>
 #include <xdrpp/marshal.h>
 
 namespace stellar
@@ -189,7 +197,86 @@ writeBucketFile(
     }
     out.close();
 }
+
+// Makes the names of the files created in `dir` durable.
+void
+syncDir(std::string const& dir)
+{
+    ZoneScoped;
+    int fd = ::open(dir.c_str(), O_RDONLY);
+    if (fd == -1)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("could not open {}: {}"), dir, strerror(errno)));
+    }
+    int rc = ::fsync(fd);
+    int err = errno;
+    ::close(fd);
+    if (rc == -1)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("could not sync {}: {}"), dir, strerror(err)));
+    }
 }
+
+// A ledger's shard file is "shard-<ledger>-<hash of the bucket the ledger was
+// added to, in hex>-<instance>-<shard>.xdr".
+bool
+isShardFile(std::string const& name)
+{
+    return name.size() > 10 && name.compare(0, 6, "shard-") == 0 &&
+           name.compare(name.size() - 4, 4, ".xdr") == 0;
+}
+
+struct ShardFileName
+{
+    uint32_t ledger{0};
+    std::string prevHex;
+    std::string instance;
+};
+
+std::optional<ShardFileName>
+parseShardFileName(std::string const& name)
+{
+    if (!isShardFile(name))
+    {
+        return std::nullopt;
+    }
+    std::vector<std::string> parts;
+    size_t begin = 0;
+    for (size_t i = 0; i <= name.size(); ++i)
+    {
+        if (i == name.size() || name[i] == '-')
+        {
+            parts.emplace_back(name.substr(begin, i - begin));
+            begin = i + 1;
+        }
+    }
+    if (parts.size() != 5 || parts[2].size() != 64 || parts[1].empty() ||
+        parts[1].size() > 10 ||
+        parts[1].find_first_not_of("0123456789") != std::string::npos)
+    {
+        return std::nullopt;
+    }
+    ShardFileName res;
+    res.ledger = static_cast<uint32_t>(std::stoull(parts[1]));
+    res.prevHex = parts[2];
+    res.instance = parts[3];
+    return res;
+}
+
+#ifdef BUILD_TESTS
+std::atomic<bool> gLoseFileForTesting{false};
+#endif
+}
+
+#ifdef BUILD_TESTS
+void
+ShardedTopBucket::loseFileForTesting(bool lose)
+{
+    gLoseFileForTesting = lose;
+}
+#endif
 
 void
 ShardedTopBucket::Shard::append(BucketEntry&& entry)
@@ -205,11 +292,10 @@ ShardedTopBucket::ShardedTopBucket(Application& app, uint32_t shardsPerGroup)
     : mShardsPerGroup(shardsPerGroup)
     , mNumShards(static_cast<size_t>(NUM_GROUPS) * shardsPerGroup)
     , mShardDir(app.getBucketManager().getBucketDir() + "/topshards")
+    , mInstance(binToHex(randomBytes(4)))
     , mCutTimer(app.getMetrics().NewTimer({"bucket", "top-shard", "cut"}))
-    , mShardsTimer(
-          app.getMetrics().NewTimer({"bucket", "top-shard", "shards"}))
-    , mFinishTimer(
-          app.getMetrics().NewTimer({"bucket", "top-shard", "finish"}))
+    , mShardsTimer(app.getMetrics().NewTimer({"bucket", "top-shard", "shards"}))
+    , mFinishTimer(app.getMetrics().NewTimer({"bucket", "top-shard", "finish"}))
     , mFileTimer(app.getMetrics().NewTimer({"bucket", "top-shard", "file"}))
     , mFileWaitTimer(
           app.getMetrics().NewTimer({"bucket", "top-shard", "file-wait"}))
@@ -219,16 +305,15 @@ ShardedTopBucket::ShardedTopBucket(Application& app, uint32_t shardsPerGroup)
     {
         mShards.emplace_back(std::make_shared<Shard const>());
     }
-    // Shard files of an earlier run are of no use to this one.
-    std::error_code ec;
-    std::filesystem::remove_all(mShardDir, ec);
     fs::mkpath(mShardDir);
 }
 
 ShardedTopBucket::~ShardedTopBucket()
 {
-    // Let the file's writer finish (it holds nothing of this object but the
-    // timers and the io context, which outlive it).
+    // Let the file's writer finish. It uses the bucket manager, which owns
+    // this object, and the clock's io context, which outlives the
+    // application; nothing else of the application, parts of which (the
+    // metrics) are gone by now.
     if (mFileWriter.valid())
     {
         mFileWriter.wait();
@@ -319,6 +404,12 @@ ShardedTopBucket::waitForFile()
     {
         mFileReady.get();
     }
+    if (mFileWriter.valid())
+    {
+        // The writer reports its time here and not by itself: it may outlive
+        // the application's metrics (see the destructor).
+        mFileTimer.Update(mFileWriter.get());
+    }
 }
 
 void
@@ -386,6 +477,11 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
         auto timer = mFileWaitTimer.TimeScope();
         waitForFile();
     }
+    // What goes out of use in this call (the shards of the bucket that
+    // spilled, of the bucket that is merged into a new one): tens of thousands
+    // of entries, which the file's writer frees, off this thread.
+    std::vector<std::vector<std::shared_ptr<Shard const>>> garbage;
+    garbage.emplace_back(mShards);
     if (curr->getHash() != mCurrHash)
     {
         // A bucket this object did not make: the empty one after a spill, or
@@ -393,6 +489,9 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
         rebuildFrom(curr);
     }
     auto prevShards = mShards;
+    // What a restart needs to know of this ledger's shard files: the bucket
+    // they were added to.
+    std::string const prevHex = binToHex(curr->getHash());
 
     bool const useInit = protocolVersionStartsFrom(
         protocolVersion,
@@ -419,14 +518,12 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
                     if (i < initEnd)
                     {
                         LedgerEntry const& e = initEntries[i].get();
-                        mine[shardOfEntry(e, n)].push_back(
-                            Item{ITEM_INIT, &e});
+                        mine[shardOfEntry(e, n)].push_back(Item{ITEM_INIT, &e});
                     }
                     else if (i < liveEnd)
                     {
                         LedgerEntry const& e = liveEntries[i - initEnd].get();
-                        mine[shardOfEntry(e, n)].push_back(
-                            Item{ITEM_LIVE, &e});
+                        mine[shardOfEntry(e, n)].push_back(Item{ITEM_LIVE, &e});
                     }
                     else
                     {
@@ -453,10 +550,14 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
         auto timer = mShardsTimer.TimeScope();
         size_t const shardTasks = std::max<size_t>(
             1, std::min<size_t>(mExecutor.preferredTaskCount(), mNumShards));
+        // A task takes the next shard that no task has taken: shards differ
+        // in size, and there may be fewer or more of them than tasks.
+        std::atomic<size_t> nextShard{0};
         mExecutor.executeBatchOverRanges(
-            mNumShards, shardTasks, [&](size_t begin, size_t end, size_t) {
+            shardTasks, shardTasks, [&](size_t, size_t, size_t) {
                 BucketEntryIdCmp<LiveBucket> idCmp;
-                for (size_t s = begin; s < end; ++s)
+                for (size_t s = nextShard.fetch_add(1); s < mNumShards;
+                     s = nextShard.fetch_add(1))
                 {
                     auto& out = outputs[s];
                     size_t count = 0;
@@ -512,8 +613,9 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
                     // bucket's file.
                     if (!freshShard->entries.empty())
                     {
-                        out.file = fmt::format(FMT_STRING("{}/shard-{}-{}.xdr"),
-                                               mShardDir, ledgerSeq, s);
+                        out.file = fmt::format(
+                            FMT_STRING("{}/shard-{}-{}-{}-{}.xdr"), mShardDir,
+                            ledgerSeq, prevHex, mInstance, s);
                         std::string fileBytes;
                         fileBytes.reserve(freshShard->records.size() +
                                           4 * freshShard->entries.size());
@@ -579,8 +681,7 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
     for (auto& out : outputs)
     {
         hashState += out.shard->hash;
-        fileSize +=
-            out.shard->records.size() + 4 * out.shard->entries.size();
+        fileSize += out.shard->records.size() + 4 * out.shard->entries.size();
         entryCount += out.shard->entries.size();
         shards.emplace_back(out.shard);
         indexShards.emplace_back(std::move(out.index));
@@ -593,6 +694,10 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
     if (countMergeEvents)
     {
         bm.incrMergeCounters<LiveBucket>(mc);
+    }
+    if (doFsync && !shardFiles.empty())
+    {
+        syncDir(mShardDir);
     }
 
     bool const hasMeta = hasMetaEntry(protocolVersion);
@@ -646,16 +751,25 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
     // 4. The bucket's file, off this thread.
     std::string tmpName = LiveBucket::randomBucketName(bm.getTmpDir());
     std::string canonicalName = bm.bucketFilename(hash);
-    auto* fileTimer = &mFileTimer;
     auto* bmPtr = &bm;
     mFileReady = ready;
+    garbage.emplace_back(std::move(prevShards));
     mFileWriter = std::async(
-        std::launch::async,
-        [promise, shards, metaRecord, hasMeta, tmpName, canonicalName,
-         shardFiles, fileTimer, bmPtr, &ctx, doFsync]() {
+        std::launch::async, [promise, shards, metaRecord, hasMeta, tmpName,
+                             canonicalName, shardFiles, bmPtr, &ctx, doFsync,
+                             garbage = std::move(garbage)]() mutable {
+            auto const start = std::chrono::steady_clock::now();
             try
             {
-                auto fileScope = fileTimer->TimeScope();
+#ifdef BUILD_TESTS
+                if (gLoseFileForTesting)
+                {
+                    // As if the node stopped here: the ledger's shard files
+                    // are there, the bucket's file is not.
+                    promise->set_value();
+                    return std::chrono::nanoseconds(0);
+                }
+#endif
                 writeBucketFile(shards, hasMeta ? metaRecord.get() : nullptr,
                                 tmpName, ctx, doFsync);
                 if (!bmPtr->renameBucketDirFile(tmpName, canonicalName))
@@ -675,7 +789,159 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
             {
                 promise->set_exception(std::current_exception());
             }
+            auto const elapsed =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now() - start);
+            // Here, and not where the next writer is started.
+            garbage.clear();
+            shards.clear();
+            return elapsed;
         });
+    if (shardFiles.empty())
+    {
+        // A new bucket without a new entry (the batch was empty and the
+        // metadata entry changed): there are no shard files that a restart
+        // could rebuild it from, so its file is written before the ledger
+        // goes on.
+        waitForFile();
+    }
     return bucket;
+}
+
+void
+ShardedTopBucket::removeShardFiles(std::string const& shardDir)
+{
+    if (!fs::exists(shardDir))
+    {
+        return;
+    }
+    for (auto const& f : fs::findfiles(shardDir, isShardFile))
+    {
+        std::remove((shardDir + "/" + f).c_str());
+    }
+}
+
+void
+ShardedTopBucket::prepareForRestart(Application& app,
+                                    HistoryArchiveState const& has,
+                                    uint32_t protocolVersion)
+{
+    ZoneScoped;
+    auto& bm = app.getBucketManager();
+    std::string const shardDir = bm.getBucketDir() + "/topshards";
+    Hash const hash = hexToBin256(has.currentBuckets.at(0).curr);
+    if (auto b = bm.getBucketIfExists<LiveBucket>(hash))
+    {
+        // Made by this process: its file is there or on its way.
+        b->waitForFile();
+    }
+    if (isZero(hash) || fs::exists(bm.bucketFilename(hash)))
+    {
+        removeShardFiles(shardDir);
+        return;
+    }
+
+    // The node stopped between the ledger's commit and the end of the
+    // bucket's file. The ledger's entries are in its shard files.
+    std::map<std::pair<std::string, std::string>, std::vector<std::string>>
+        candidates;
+    if (fs::exists(shardDir))
+    {
+        for (auto const& f : fs::findfiles(shardDir, isShardFile))
+        {
+            auto parsed = parseShardFileName(f);
+            if (parsed && parsed->ledger == has.currentLedger)
+            {
+                candidates[{parsed->prevHex, parsed->instance}].emplace_back(
+                    shardDir + "/" + f);
+            }
+        }
+    }
+    bool const doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
+    bool const hasMeta = hasMetaEntry(protocolVersion);
+    BucketEntry const bme = metaEntry(protocolVersion);
+    auto const metaRecord = xdr::xdr_to_opaque(bme);
+    BucketEntryIdCmp<LiveBucket> idCmp;
+    for (auto const& [id, files] : candidates)
+    {
+        std::vector<BucketEntry> fresh;
+        for (auto const& f : files)
+        {
+            XDRInputFileStream in;
+            in.open(f);
+            BucketEntry be;
+            while (in && in.readOne(be))
+            {
+                fresh.emplace_back(be);
+            }
+        }
+        std::sort(fresh.begin(), fresh.end(), idCmp);
+
+        std::vector<BucketEntry> entries;
+        Hash const prev = hexToBin256(id.first);
+        if (isZero(prev))
+        {
+            entries = std::move(fresh);
+        }
+        else
+        {
+            auto prevBucket = bm.getBucketByHash<LiveBucket>(prev);
+            if (!prevBucket)
+            {
+                CLOG_WARNING(Bucket,
+                             "Shard files of ledger {} were added to bucket "
+                             "{}, which is not there",
+                             has.currentLedger, id.first);
+                continue;
+            }
+            std::vector<BucketEntry> old;
+            for (LiveBucketInputIterator it(prevBucket); it; ++it)
+            {
+                old.emplace_back(*it);
+            }
+            MergeCounters mc;
+            entries = LiveBucket::mergeEntriesInMemory(bm, protocolVersion, old,
+                                                       fresh, mc);
+        }
+
+        auto shard = std::make_shared<Shard>();
+        for (auto& be : entries)
+        {
+            shard->append(std::move(be));
+        }
+        LtHash16 h = hashOfRecords(*shard);
+        if (hasMeta)
+        {
+            h.add(ByteSlice(metaRecord.data(), metaRecord.size()));
+        }
+        if (bucketHash(h) != hash)
+        {
+            CLOG_WARNING(Bucket,
+                         "Shard files of ledger {} (instance {}) do not make "
+                         "bucket {}",
+                         has.currentLedger, id.second, binToHex(hash));
+            continue;
+        }
+        std::string tmpName = LiveBucket::randomBucketName(bm.getTmpDir());
+        writeBucketFile({shard}, hasMeta ? &metaRecord : nullptr, tmpName,
+                        app.getClock().getIOContext(), doFsync);
+        if (!bm.renameBucketDirFile(tmpName, bm.bucketFilename(hash)))
+        {
+            throw std::runtime_error(
+                fmt::format(FMT_STRING("could not rename {} to {}: {}"),
+                            tmpName, bm.bucketFilename(hash), strerror(errno)));
+        }
+        CLOG_INFO(Bucket,
+                  "Rebuilt level 0's bucket {} of ledger {} from {} shard "
+                  "files",
+                  binToHex(hash), has.currentLedger, files.size());
+        removeShardFiles(shardDir);
+        return;
+    }
+    // Not rebuilt: the caller's check for missing bucket files reports it.
+    CLOG_ERROR(Bucket,
+               "Level 0's bucket {} of ledger {} is missing and could not be "
+               "rebuilt from shard files",
+               binToHex(hash), has.currentLedger);
 }
 }

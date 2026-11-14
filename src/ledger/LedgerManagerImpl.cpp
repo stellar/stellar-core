@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
+#include "bucket/ShardedTopBucket.h"
 #include "catchup/AssumeStateWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -619,6 +620,11 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
     releaseAssert(latestLedgerHeader.has_value());
 
+    if (mApp.getConfig().EXPERIMENTAL_SHARDED_TOP_BUCKET > 0)
+    {
+        ShardedTopBucket::prepareForRestart(mApp, has,
+                                            latestLedgerHeader->ledgerVersion);
+    }
     auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
     auto pubmissing =
         mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();

@@ -182,6 +182,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_TX_SET_TREE_FANOUT = 0;
     EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING = 0;
     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
+    EXPERIMENTAL_SHARDED_TOP_BUCKET = 0;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     DISABLE_TX_META_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
@@ -1261,6 +1262,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD",
                  [&]() {
                      EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = readBool(item);
+                 }},
+                {"EXPERIMENTAL_SHARDED_TOP_BUCKET",
+                 [&]() {
+                     EXPERIMENTAL_SHARDED_TOP_BUCKET =
+                         readInt<uint32_t>(item, 0, 256);
                  }},
                 {"DISABLE_SOROBAN_METRICS_FOR_TESTING",
                  [&]() {
@@ -2449,6 +2455,8 @@ Config::logBasicInfo() const
              "testing {})",
              EXPERIMENTAL_TX_SET_TREE, EXPERIMENTAL_TX_SET_TREE_FANOUT,
              EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING);
+    LOG_INFO(DEFAULT_LOG, "EXPERIMENTAL_SHARDED_TOP_BUCKET={}",
+             EXPERIMENTAL_SHARDED_TOP_BUCKET);
 }
 
 uint8_t

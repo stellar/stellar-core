@@ -11,6 +11,7 @@
 #include "util/NonCopyable.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
+#include <chrono>
 #include <future>
 #include <memory>
 #include <string>
@@ -26,6 +27,7 @@ namespace stellar
 
 class Application;
 class BucketManager;
+struct HistoryArchiveState;
 
 // Level 0 of the live bucket list, written as shards
 // (EXPERIMENTAL_SHARDED_TOP_BUCKET).
@@ -116,6 +118,15 @@ class ShardedTopBucket : public NonMovableOrCopyable
     // The LtHash of the records of a bucket file.
     static LtHash16 hashOfFile(std::string const& filename);
 
+    // At startup, before the bucket files of the last closed ledger are
+    // checked: makes sure that level 0's current bucket of `has` has its
+    // file. If the node stopped after the ledger's commit and before the
+    // file was written, the file is rebuilt from the ledger's shard files
+    // and the bucket they were added to. Removes all shard files left.
+    static void prepareForRestart(Application& app,
+                                  HistoryArchiveState const& has,
+                                  uint32_t protocolVersion);
+
     // The metadata entry of a live bucket of that protocol version, and
     // whether such a bucket has one.
     static BucketEntry metaEntry(uint32_t protocolVersion);
@@ -127,6 +138,10 @@ class ShardedTopBucket : public NonMovableOrCopyable
     {
         return mShards;
     }
+    // While set, in every application of the process: a bucket's file is not
+    // written and the ledger's shard files stay, as on a node that stops
+    // before the file's writer is done.
+    static void loseFileForTesting(bool lose);
 #endif
 
   private:
@@ -140,10 +155,13 @@ class ShardedTopBucket : public NonMovableOrCopyable
     std::vector<std::shared_ptr<Shard const>> mShards;
 
     // The writer of that bucket's file, and what tells that it is done.
-    std::future<void> mFileWriter;
+    std::future<std::chrono::nanoseconds> mFileWriter;
     std::shared_future<void> mFileReady;
 
+    // Where a ledger's shard files go, and what tells this object's files
+    // from another's in the same directory.
     std::string mShardDir;
+    std::string mInstance;
     BatchExecutor mExecutor;
 
     medida::Timer& mCutTimer;
@@ -151,6 +169,8 @@ class ShardedTopBucket : public NonMovableOrCopyable
     medida::Timer& mFinishTimer;
     medida::Timer& mFileTimer;
     medida::Timer& mFileWaitTimer;
+
+    static void removeShardFiles(std::string const& shardDir);
 
     // Takes the shards from `curr`, a bucket this object did not make (after
     // a restart, or a bucket list assumed from a history archive state).
