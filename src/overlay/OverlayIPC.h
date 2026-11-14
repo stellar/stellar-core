@@ -238,13 +238,22 @@ class OverlayIPC
      */
     bool setTxTargets(std::optional<std::vector<NodeID>> const& targets);
 
+    // One slot of setTxSetTree: the seed of its trees and the nodes that may
+    // lead it (the leaders of its first rounds, as this node expects them).
+    struct TxSetTreeSlot
+    {
+        uint32_t mSlot;
+        Hash mSeed;
+        std::vector<NodeID> mLeaders;
+    };
+
     /**
      * Describe the spanning trees of the next slots to the overlay: the mode
-     * and fanout, the seed of each slot's tree, and the nodes of the trees.
-     * Returns whether it was sent.
+     * and fanout, each slot's seed and possible leaders, and the nodes of the
+     * trees. Returns whether it was sent.
      */
     bool setTxSetTree(uint8_t mode, uint8_t fanout,
-                      std::vector<std::pair<uint32_t, Hash>> const& slots,
+                      std::vector<TxSetTreeSlot> const& slots,
                       std::vector<NodeID> const& nodes);
 
     /// Set callback for the overlay's peer id report

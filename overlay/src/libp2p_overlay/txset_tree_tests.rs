@@ -282,6 +282,7 @@ async fn a_node_waits_for_the_tree_and_asks_if_it_fails() {
     let (hash, data) = test_set(52);
     // The proposal reaches every follower first (it names the hash and comes
     // from the leader), then the leader pushes.
+    let asked_at = Instant::now();
     for i in starved.iter().chain(fed.iter()) {
         nodes[*i]
             .handle
@@ -291,7 +292,6 @@ async fn a_node_waits_for_the_tree_and_asks_if_it_fails() {
         // Core asks too; that changes nothing while the wait runs.
         nodes[*i].handle.fetch_txset(hash, SLOT).await;
     }
-    let asked_at = Instant::now();
     nodes[leader]
         .handle
         .push_txset_for_slot(hash, Arc::clone(&data), SLOT)
@@ -364,6 +364,7 @@ async fn a_frame_from_a_node_that_is_not_the_parent_is_not_relayed() {
         leader: leader_id,
         sent_unix_ms: unix_ms_now(),
         order: Vec::new(),
+        nodes_digest: [0; txset_tree::TREE_NODES_DIGEST],
     }
     .encode();
     send_to_peer_stream_parts(
@@ -395,6 +396,7 @@ async fn a_frame_from_a_node_that_is_not_the_parent_is_not_relayed() {
         leader: leader_id,
         sent_unix_ms: unix_ms_now(),
         order: Vec::new(),
+        nodes_digest: [0; txset_tree::TREE_NODES_DIGEST],
     }
     .encode();
     send_to_peer_stream_parts(
@@ -482,6 +484,12 @@ async fn an_order_chosen_by_the_leader_is_followed() {
     // Two places: nodes 0..2 near (1 ms), nodes 3..5 far (80 ms).
     {
         let mut tree = nodes[leader].state.txset_tree.lock().unwrap();
+        // The times are set by hand; real probes on loopback would be
+        // shorter and take their place.
+        tree.pause_probing();
+        for i in 0..6 {
+            tree.forget_rtt(&nodes[i].node_id());
+        }
         for i in 0..6 {
             let rtt = if i < 3 { 1 } else { 80 };
             tree.note_rtt(
@@ -572,6 +580,251 @@ async fn round_trips_are_measured_in_rtt_mode_only() {
         assert_eq!(node.count(|m| &m.txset_push_dropped), 0);
         assert_eq!(node.count(|m| &m.txset_push_received), 0);
     }
+}
+
+/// The cached frame of a set with a tree header in front, sent by `from` to
+/// `to` as if `from` had pushed it.
+async fn send_tagged(from: &Node, to: &Node, header: &TreeHeader, data: &Arc<TxSetData>) {
+    let header = header.encode();
+    send_to_peer_stream_parts(
+        &from.state,
+        to.peer_id,
+        StreamType::TxSet,
+        &[header.as_slice(), data.encoded()],
+    )
+    .await
+    .unwrap();
+}
+
+/// Only a node that this node's Core expects to lead the slot can root a
+/// tree: a frame that names another validator as leader is filed and not
+/// passed on, also when it comes from that validator and the receiver is
+/// its child in the tree it claims.
+#[tokio::test]
+async fn a_validator_that_does_not_lead_the_slot_cannot_root_a_tree() {
+    let mut nodes = full_mesh(24901, 7).await;
+    let true_leader = nodes[0].node_id();
+    for node in &nodes {
+        node.handle.set_txset_tree(
+            config(&nodes, TreeMode::Hash, 2).with_leaders(vec![Some(vec![true_leader])]),
+        );
+    }
+    // Node 5 roots a tree at itself and pushes down it.
+    let pretender = 5;
+    let pretender_id = nodes[pretender].node_id();
+    let order = config(&nodes, TreeMode::Hash, 2)
+        .hash_order(SLOT, &pretender_id)
+        .unwrap();
+    let relay = index_of(&nodes, &order[1]);
+    let child = index_of(&nodes, &children_of(&order, &order[1], 2)[0]);
+    let (hash, data) = test_set(61);
+    let header = TreeHeader {
+        kind: FrameKind::Hash,
+        fanout: 2,
+        hop: 1,
+        slot: SLOT,
+        leader: pretender_id,
+        sent_unix_ms: unix_ms_now(),
+        order: Vec::new(),
+        nodes_digest: [0; txset_tree::TREE_NODES_DIGEST],
+    };
+    send_tagged(&nodes[pretender], &nodes[relay], &header, &data).await;
+    expect_set(&mut nodes[relay], hash).await;
+    let (received, _) = set_events_within(&mut nodes[child], Duration::from_millis(400)).await;
+    assert!(
+        received.is_empty(),
+        "a tree rooted at a non-leader was relayed"
+    );
+    assert_eq!(nodes[relay].count(|m| &m.txset_tree_refused), 1);
+    assert_eq!(nodes[relay].count(|m| &m.txset_tree_relayed), 0);
+    // The real leader's push still travels down its tree.
+    let (hash, data) = test_set(62);
+    nodes[0].handle.push_txset_for_slot(hash, data, SLOT).await;
+    for i in 1..7 {
+        expect_set(&mut nodes[i], hash).await;
+    }
+    let relayed: u64 = nodes
+        .iter()
+        .map(|n| n.count(|m| &m.txset_tree_relayed))
+        .sum();
+    assert_eq!(relayed, 4);
+}
+
+/// A node in hash mode does not follow an order a sender chose, and a node
+/// in rtt mode does not follow one that makes a chain.
+#[tokio::test]
+async fn an_order_from_the_sender_is_followed_in_rtt_mode_and_two_levels_only() {
+    let mut nodes = full_mesh(25001, 7).await;
+    configure(&nodes, TreeMode::Hash, 2);
+    let cfg = config(&nodes, TreeMode::Hash, 2);
+    let sender = 0;
+    // The sender first, then the others as they come: node 1 would relay to
+    // nodes 3 and 4.
+    let order: Vec<NodeId> = node_ids(&nodes);
+    let mut header = TreeHeader {
+        kind: FrameKind::Explicit,
+        fanout: 2,
+        hop: 1,
+        slot: SLOT,
+        leader: nodes[sender].node_id(),
+        sent_unix_ms: unix_ms_now(),
+        order: cfg.indices_of(&order).unwrap(),
+        nodes_digest: cfg.nodes_digest(),
+    };
+    let (hash, data) = test_set(63);
+    send_tagged(&nodes[sender], &nodes[1], &header, &data).await;
+    expect_set(&mut nodes[1], hash).await;
+    let (received, _) = set_events_within(&mut nodes[3], Duration::from_millis(400)).await;
+    assert!(
+        received.is_empty(),
+        "a node in hash mode followed a sender's order"
+    );
+    assert_eq!(nodes[1].count(|m| &m.txset_tree_refused), 1);
+
+    // In rtt mode the same order is followed ...
+    configure(&nodes, TreeMode::Rtt, 2);
+    let (hash, data) = test_set(64);
+    send_tagged(&nodes[sender], &nodes[1], &header, &data).await;
+    expect_set(&mut nodes[1], hash).await;
+    expect_set(&mut nodes[3], hash).await;
+    expect_set(&mut nodes[4], hash).await;
+    assert_eq!(nodes[1].count(|m| &m.txset_tree_relayed), 2);
+    // ... but not as a chain (fanout 1: six levels).
+    header.fanout = 1;
+    let (hash, data) = test_set(65);
+    send_tagged(&nodes[sender], &nodes[1], &header, &data).await;
+    expect_set(&mut nodes[1], hash).await;
+    let (received, _) = set_events_within(&mut nodes[2], Duration::from_millis(400)).await;
+    assert!(received.is_empty(), "a chain was followed");
+    assert_eq!(nodes[1].count(|m| &m.txset_tree_refused), 2);
+    assert_eq!(nodes[1].count(|m| &m.txset_tree_relayed), 2);
+}
+
+/// A relay passes on two different frames of a slot and leader, not a third:
+/// a parent cannot use it to multiply traffic by varying the bytes.
+#[tokio::test]
+async fn a_relay_passes_on_two_frames_per_slot_and_leader() {
+    let mut nodes = full_mesh(25101, 7).await;
+    configure(&nodes, TreeMode::Hash, 2);
+    let leader = 0;
+    let leader_id = nodes[leader].node_id();
+    let order = config(&nodes, TreeMode::Hash, 2)
+        .hash_order(SLOT, &leader_id)
+        .unwrap();
+    let relay = index_of(&nodes, &order[1]);
+    let child = index_of(&nodes, &children_of(&order, &order[1], 2)[0]);
+    let header = TreeHeader {
+        kind: FrameKind::Hash,
+        fanout: 2,
+        hop: 1,
+        slot: SLOT,
+        leader: leader_id,
+        sent_unix_ms: unix_ms_now(),
+        order: Vec::new(),
+        nodes_digest: [0; txset_tree::TREE_NODES_DIGEST],
+    };
+    let mut hashes = Vec::new();
+    for seed in [66u8, 67, 68] {
+        let (hash, data) = test_set(seed);
+        send_tagged(&nodes[leader], &nodes[relay], &header, &data).await;
+        expect_set(&mut nodes[relay], hash).await;
+        hashes.push(hash);
+    }
+    let (received, _) = set_events_within(&mut nodes[child], Duration::from_millis(500)).await;
+    assert_eq!(received.len(), 2, "the child got {:?}", received.len());
+    assert!(received.iter().all(|h| hashes[..2].contains(h)));
+    assert_eq!(nodes[relay].count(|m| &m.txset_tree_relayed), 4);
+    assert_eq!(nodes[relay].count(|m| &m.txset_tree_relay_limited), 1);
+    // A second copy of a frame it relayed is a duplicate, not a third frame.
+    let (_, again) = test_set(66);
+    send_tagged(&nodes[leader], &nodes[relay], &header, &again).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(nodes[relay].count(|m| &m.txset_tree_duplicate), 1);
+    assert_eq!(nodes[relay].count(|m| &m.txset_tree_relayed), 4);
+}
+
+/// If the leader cannot send a child the set now (an earlier push to it is
+/// still in flight), the nodes below that child get it from the leader
+/// directly.
+#[tokio::test]
+async fn the_nodes_below_a_busy_child_get_the_set_from_the_leader() {
+    let mut nodes = full_mesh(25201, 7).await;
+    configure(&nodes, TreeMode::Hash, 2);
+    let leader = 2;
+    let leader_id = nodes[leader].node_id();
+    let leader_peer = nodes[leader].peer_id;
+    let order = config(&nodes, TreeMode::Hash, 2)
+        .hash_order(SLOT, &leader_id)
+        .unwrap();
+    let busy_child = index_of(&nodes, &order[1]);
+    let below: Vec<usize> = children_of(&order, &order[1], 2)
+        .iter()
+        .map(|id| index_of(&nodes, id))
+        .collect();
+    // An earlier push to that child is still in flight.
+    let (earlier, _) = test_set(69);
+    let started = nodes[leader]
+        .state
+        .txset_pushes
+        .lock()
+        .unwrap()
+        .start_push(earlier, vec![nodes[busy_child].peer_id]);
+    assert_eq!(started.len(), 1);
+
+    let (hash, data) = test_set(70);
+    nodes[leader]
+        .handle
+        .push_txset_for_slot(hash, data, SLOT)
+        .await;
+    for i in &below {
+        let (slot, from) = expect_set(&mut nodes[*i], hash).await;
+        assert_eq!((slot, from), (None, leader_peer), "node {i}");
+    }
+    // The other child and its subtree are served through the tree.
+    let other = index_of(&nodes, &order[2]);
+    expect_set(&mut nodes[other], hash).await;
+    for id in children_of(&order, &order[2], 2) {
+        let i = index_of(&nodes, &id);
+        let (_, from) = expect_set(&mut nodes[i], hash).await;
+        assert_eq!(from, nodes[other].peer_id);
+    }
+    // The busy child itself got nothing (it asks when it sees the proposal).
+    let (received, _) = set_events_within(&mut nodes[busy_child], Duration::from_millis(300)).await;
+    assert!(received.is_empty());
+    assert_eq!(nodes[leader].count(|m| &m.txset_tree_child_busy), 1);
+    // One child and the two nodes below the busy one.
+    assert_eq!(nodes[leader].count(|m| &m.txset_tree_root_sent), 3);
+}
+
+/// An answer to a probe this node did not send is not a measurement.
+#[tokio::test]
+async fn an_unsolicited_probe_answer_is_ignored() {
+    let nodes = full_mesh(25301, 2).await;
+    configure(&nodes, TreeMode::Rtt, 0);
+    nodes[0].state.txset_tree.lock().unwrap().pause_probing();
+    nodes[1].state.txset_tree.lock().unwrap().pause_probing();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    {
+        let mut tree = nodes[0].state.txset_tree.lock().unwrap();
+        tree.forget_rtt(&nodes[1].node_id());
+    }
+    // Node 1 claims a round trip of nothing: an answer "sent" in the future.
+    for value in [u64::MAX, 0, monotonic_micros()] {
+        let pong = Probe::Pong(value).encode();
+        send_to_peer_stream(&nodes[1].state, nodes[0].peer_id, StreamType::TxSet, &pong)
+            .await
+            .unwrap();
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(
+        nodes[0]
+            .state
+            .txset_tree
+            .lock()
+            .unwrap()
+            .rtt_of(&nodes[1].node_id()),
+        None
+    );
 }
 
 /// A node whose mode is off still reads tagged frames (and files the set);

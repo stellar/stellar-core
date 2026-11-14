@@ -75,10 +75,12 @@ pub enum MessageType {
 
     /// The spanning trees the leader's tx set travels down in the next slots
     /// (see `flood::txset_tree`).
-    /// Payload: [mode:1][fanout:1][slots:1]([slot:4 LE][seed:32])...
+    /// Payload: [mode:1][fanout:1][slots:1]
+    ///          ([slot:4 LE][seed:32][leaders:1][nodeID:32]...)...
     ///          [count:4 LE][nodeID:32]...
     /// mode: 0 off, 1 star, 2 hash, 3 rtt. fanout 0 = the smallest that
-    /// reaches every node in two hops.
+    /// reaches every node in two hops. `leaders` of a slot: the nodes that
+    /// may lead it (255 = any node of the tree, no IDs follow).
     SetTxSetTree = 17,
 
     // ═══ Overlay → Core (Critical Path) ═══

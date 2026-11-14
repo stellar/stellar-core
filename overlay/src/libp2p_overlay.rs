@@ -12,7 +12,8 @@
 //! QUIC provides independent loss recovery per stream.
 
 use crate::flood::txset_tree::{
-    self, FetchDecision, FrameKind, Probe, RelayPlan, TreeConfig, TreeHeader, TreeMode, TreeState,
+    self, FetchDecision, FrameKind, Probe, RelayAdmission, RelayPlan, TreeConfig, TreeHeader,
+    TreeMode, TreeState,
 };
 use crate::flood::{
     GetData, InvBatch, InvBatcher, InvEntry, InvTracker, NodeId, PendingRequests, PushRateLimiter,
@@ -1400,6 +1401,11 @@ impl StellarOverlay {
             .lock()
             .unwrap()
             .set_local_node(identity.node_id);
+        self.state
+            .txset_tree
+            .lock()
+            .unwrap()
+            .set_local_node(identity.node_id);
         for (peer, (node_id, signature)) in waiting {
             accept_node_id_claim(&self.state, peer, node_id, signature).await;
         }
@@ -1537,14 +1543,15 @@ impl StellarOverlay {
     ///   after a start, before the peers proved who they are), the set goes
     ///   to every peer as a star instead: a subtree must not depend on a
     ///   child the root cannot reach.
-    fn tree_push_plan(
-        &self,
-        slot: Option<u32>,
-        connected: &[PeerId],
-    ) -> (Option<TreeHeader>, Vec<PeerId>) {
-        let everyone = || connected.to_vec();
+    fn tree_push_plan(&self, slot: Option<u32>, connected: &[PeerId]) -> TreePushPlan {
+        let everyone = |header: Option<TreeHeader>| TreePushPlan {
+            header,
+            targets: connected.to_vec(),
+            subtrees: HashMap::new(),
+            star: None,
+        };
         let Some(slot) = slot else {
-            return (None, everyone());
+            return everyone(None);
         };
         let Some(me) = self
             .state
@@ -1555,7 +1562,7 @@ impl StellarOverlay {
             .as_ref()
             .map(|i| i.node_id)
         else {
-            return (None, everyone());
+            return everyone(None);
         };
         // One lock at a time: the identified peers first, then the tree.
         let peer_of: HashMap<NodeId, PeerId> = {
@@ -1566,45 +1573,52 @@ impl StellarOverlay {
                 .collect()
         };
         let sent_unix_ms = unix_ms_now();
-        let star = |fanout: u8| TreeHeader {
+        let star = TreeHeader {
             kind: FrameKind::Star,
-            fanout,
+            fanout: 0,
             hop: 1,
             slot,
             leader: me,
             sent_unix_ms,
             order: Vec::new(),
+            nodes_digest: [0; txset_tree::TREE_NODES_DIGEST],
         };
-        let tree = self.state.txset_tree.lock().unwrap();
-        let Some(config) = tree.config() else {
-            return (None, everyone());
-        };
-        let fanout = config.effective_fanout();
-        let (kind, order, indices) = match config.mode {
-            TreeMode::Off => return (None, everyone()),
-            TreeMode::Star => return (Some(star(0)), everyone()),
-            TreeMode::Hash => match config.hash_order(slot, &me) {
-                Some(order) => (FrameKind::Hash, order, Vec::new()),
-                None => return (Some(star(0)), everyone()),
-            },
-            TreeMode::Rtt => {
-                if config.seed_of(slot).is_none() || !config.contains(&me) {
-                    return (Some(star(0)), everyone());
-                }
-                let measured: Vec<(NodeId, Option<Duration>)> = config
+        // Copy what the layout needs and let go of the lock before computing.
+        let (config, measured) = {
+            let tree = self.state.txset_tree.lock().unwrap();
+            let Some(config) = tree.config().cloned() else {
+                return everyone(None);
+            };
+            let measured: Vec<(NodeId, Option<Duration>)> = if config.mode == TreeMode::Rtt {
+                config
                     .nodes
                     .iter()
                     .filter(|node| **node != me)
                     .map(|node| (*node, tree.rtt_of(node)))
-                    .collect();
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            (config, measured)
+        };
+        let fanout = config.effective_fanout();
+        let known = config.seed_of(slot).is_some() && config.contains(&me);
+        let (kind, order, indices) = match config.mode {
+            TreeMode::Off => return everyone(None),
+            TreeMode::Star => return everyone(Some(star)),
+            _ if !known => return everyone(Some(star)),
+            TreeMode::Hash => match config.hash_order(slot, &me) {
+                Some(order) => (FrameKind::Hash, order, Vec::new()),
+                None => return everyone(Some(star)),
+            },
+            TreeMode::Rtt => {
                 let order = txset_tree::rtt_order(&me, &measured, fanout);
                 match config.indices_of(&order) {
                     Some(indices) => (FrameKind::Explicit, order, indices),
-                    None => return (Some(star(0)), everyone()),
+                    None => return everyone(Some(star)),
                 }
             }
         };
-        drop(tree);
         let children = txset_tree::children_of(&order, &me, fanout);
         let targets: Vec<PeerId> = children
             .iter()
@@ -1621,10 +1635,27 @@ impl StellarOverlay {
                 children.len(),
                 slot
             );
-            return (Some(star(0)), everyone());
+            return everyone(Some(star));
         }
-        (
-            Some(TreeHeader {
+        // Who sits below each child: if a child cannot be sent the set now
+        // (an earlier push to it is still in flight), they get it from this
+        // node directly.
+        let mut subtrees: HashMap<PeerId, Vec<PeerId>> = HashMap::new();
+        for child in &children {
+            let mut below = Vec::new();
+            let mut frontier = vec![*child];
+            while let Some(node) = frontier.pop() {
+                for descendant in txset_tree::children_of(&order, &node, fanout) {
+                    if let Some(peer) = peer_of.get(&descendant) {
+                        below.push(*peer);
+                    }
+                    frontier.push(descendant);
+                }
+            }
+            subtrees.insert(peer_of[child], below);
+        }
+        TreePushPlan {
+            header: Some(TreeHeader {
                 kind,
                 fanout: fanout.min(u8::MAX as usize) as u8,
                 hop: 1,
@@ -1632,9 +1663,16 @@ impl StellarOverlay {
                 leader: me,
                 sent_unix_ms,
                 order: indices,
+                nodes_digest: if kind == FrameKind::Explicit {
+                    config.nodes_digest()
+                } else {
+                    [0; txset_tree::TREE_NODES_DIGEST]
+                },
             }),
             targets,
-        )
+            subtrees,
+            star: Some(star),
+        }
     }
 
     /// Push a TX set this node leads with. Without a tree it goes to every
@@ -1660,24 +1698,48 @@ impl StellarOverlay {
             .keys()
             .cloned()
             .collect();
-        let (header, wanted) = self.tree_push_plan(slot, &connected);
-        let tagged = header.is_some();
-        let header: Arc<Vec<u8>> = Arc::new(header.map(|h| h.encode()).unwrap_or_default());
+        let plan = self.tree_push_plan(slot, &connected);
+        let tagged = plan.header.is_some();
+        let header: Arc<Vec<u8>> = Arc::new(plan.header.map(|h| h.encode()).unwrap_or_default());
         let (targets, busy) = self
             .state
             .txset_pushes
             .lock()
             .unwrap()
-            .start_push_counting_busy(hash, wanted);
-        if busy > 0 {
+            .start_push_listing_busy(hash, plan.targets);
+        if !busy.is_empty() {
             // Those peers request the set when they see the proposal.
             warn!(
                 "TXSET_PUSH_BUSY: Not pushing TX set {:02x?}... to {} peer(s): an earlier push to them is still in flight",
                 &hash[..4],
-                busy
+                busy.len()
             );
         }
-        if targets.is_empty() {
+        // In a tree a child that is left out would leave everyone below it
+        // without the set: they get it from this node directly, as a star
+        // (which nobody relays).
+        let mut direct: Vec<PeerId> = Vec::new();
+        for child in &busy {
+            if let Some(below) = plan.subtrees.get(child) {
+                direct.extend(below.iter().copied());
+            }
+        }
+        if !plan.subtrees.is_empty() && !busy.is_empty() {
+            self.state
+                .metrics
+                .txset_tree_child_busy
+                .fetch_add(busy.len() as u64, Ordering::Relaxed);
+        }
+        let direct = if direct.is_empty() {
+            direct
+        } else {
+            self.state
+                .txset_pushes
+                .lock()
+                .unwrap()
+                .start_push(hash, direct)
+        };
+        if targets.is_empty() && direct.is_empty() {
             debug!(
                 "TXSET_PUSH_SKIP: TX set {:02x?}... has no peer left to push to",
                 &hash[..4]
@@ -1685,17 +1747,38 @@ impl StellarOverlay {
             return;
         }
         info!(
-            "TXSET_PUSH: Pushing TX set {:02x?}... ({} bytes, {} on the wire) to {} of {} peers{}",
+            "TXSET_PUSH: Pushing TX set {:02x?}... ({} bytes, {} on the wire) to {} of {} peers{}{}",
             &hash[..4],
             data.len(),
             data.encoded().len(),
-            targets.len(),
+            targets.len() + direct.len(),
             connected.len(),
-            if tagged { " (tagged)" } else { "" }
+            if tagged { " (tagged)" } else { "" },
+            if direct.is_empty() {
+                String::new()
+            } else {
+                format!(", {} of them below a busy child", direct.len())
+            }
         );
-        for peer in targets {
+        self.spawn_pushes(hash, &data, header, targets);
+        if let (false, Some(star)) = (direct.is_empty(), plan.star) {
+            self.spawn_pushes(hash, &data, Arc::new(star.encode()), direct);
+        }
+    }
+
+    /// Write the set to `peers`, each on its TX-set stream, with `header` in
+    /// front if it is not empty. The peers were registered with
+    /// `PushRecord::start_push*`.
+    fn spawn_pushes(
+        &mut self,
+        hash: [u8; 32],
+        data: &Arc<TxSetData>,
+        header: Arc<Vec<u8>>,
+        peers: Vec<PeerId>,
+    ) {
+        for peer in peers {
             let state = Arc::clone(&self.state);
-            let data = Arc::clone(&data);
+            let data = Arc::clone(data);
             let header = Arc::clone(&header);
             self.sends.spawn(async move {
                 let sent = if header.is_empty() {
@@ -3410,24 +3493,37 @@ async fn txset_tree_probe_task(state: Arc<SharedState>) {
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         interval.tick().await;
-        if state.txset_tree.lock().unwrap().mode() != TreeMode::Rtt {
-            continue;
+        {
+            let tree = state.txset_tree.lock().unwrap();
+            if tree.mode() != TreeMode::Rtt || !tree.probing() {
+                continue;
+            }
         }
-        let peers: Vec<PeerId> = state
-            .tx_router
-            .lock()
-            .unwrap()
-            .identified_peers()
-            .into_values()
-            .collect();
-        for peer in peers {
+        let peers = state.tx_router.lock().unwrap().identified_peers();
+        for (node, peer) in peers {
             let state = state.clone();
             tokio::spawn(async move {
-                let ping = Probe::Ping(monotonic_micros()).encode();
+                // The clock starts when the stream is this probe's to write.
+                let value = monotonic_micros();
+                state.txset_tree.lock().unwrap().probe_sent(node, value);
+                let ping = Probe::Ping(value).encode();
                 let _ = send_to_peer_stream(&state, peer, StreamType::TxSet, &ping).await;
             });
         }
     }
+}
+
+/// Where a set this node leads goes (see `StellarOverlay::tree_push_plan`).
+struct TreePushPlan {
+    /// In front of the frame; none for an ordinary frame.
+    header: Option<TreeHeader>,
+    /// The peers to write it to.
+    targets: Vec<PeerId>,
+    /// In a tree: for each target, the peers below it.
+    subtrees: HashMap<PeerId, Vec<PeerId>>,
+    /// In a tree: the header of a copy that goes to a node directly (not to
+    /// be relayed).
+    star: Option<TreeHeader>,
 }
 
 /// Milliseconds since the Unix epoch by this node's clock.
@@ -3515,6 +3611,17 @@ fn relay_tagged_frame(
     if header.kind == FrameKind::Star {
         return Some(TaggedBody { frame, body });
     }
+    // What `decode` will refuse anyway is not passed on: a body that is too
+    // large, or that announces more XDR than a set may have.
+    let body_len = frame.len() - body;
+    let plausible = body_len >= 4
+        && body_len <= crate::flood::txset_encoding::max_encoded_size()
+        && u32::from_be_bytes(frame[body..body + 4].try_into().unwrap()) as usize
+            <= crate::flood::txset_encoding::MAX_TXSET_XDR_SIZE;
+    if !plausible {
+        metrics.txset_tree_refused.fetch_add(1, Ordering::Relaxed);
+        return Some(TaggedBody { frame, body });
+    }
     // One lock at a time.
     let me = state.identity.lock().unwrap().ours.as_ref().map(|i| i.node_id);
     let sender = state.tx_router.lock().unwrap().node_of(&peer_id).copied();
@@ -3527,14 +3634,25 @@ fn relay_tagged_frame(
             _ => RelayPlan::Refused(txset_tree::RelayRefusal::NotATree),
         };
         match plan {
-            RelayPlan::Relay(children) => {
-                if tree.first_copy(&header, &frame[body..]) {
-                    RelayPlan::Relay(children)
-                } else {
+            RelayPlan::Relay(children) => match tree.admit_relay(&header, &frame[body..]) {
+                RelayAdmission::Relay => RelayPlan::Relay(children),
+                RelayAdmission::Duplicate => {
                     metrics.txset_tree_duplicate.fetch_add(1, Ordering::Relaxed);
                     RelayPlan::Leaf
                 }
-            }
+                RelayAdmission::OverLimit => {
+                    metrics
+                        .txset_tree_relay_limited
+                        .fetch_add(1, Ordering::Relaxed);
+                    warn!(
+                        "TXSET_TREE_LIMIT: Not relaying another frame of slot {} from {}: this node relayed {} for that slot and leader already",
+                        header.slot,
+                        peer_id,
+                        txset_tree::MAX_RELAYS_PER_SLOT_AND_LEADER
+                    );
+                    RelayPlan::Leaf
+                }
+            },
             other => other,
         }
     };
@@ -3562,17 +3680,29 @@ fn relay_tagged_frame(
                 .encode(),
             );
             let mut unreachable = 0u64;
+            let mut busy = 0u64;
             for child in &children {
                 let Some(peer) = peer_of.get(child).copied() else {
                     unreachable += 1;
                     continue;
                 };
+                // A child that does not read its stream holds one frame in
+                // this node's memory, not one per slot: while a relay to it
+                // is in flight it is sent no other (it asks for the set).
+                if !state.txset_tree.lock().unwrap().start_relay(*child) {
+                    busy += 1;
+                    continue;
+                }
+                let child = *child;
                 let state = Arc::clone(state);
                 let frame = Arc::clone(&frame);
                 let relay_header = Arc::clone(&relay_header);
                 tokio::spawn(async move {
                     let parts = [relay_header.as_slice(), &frame[body..]];
-                    match send_to_peer_stream_parts(&state, peer, StreamType::TxSet, &parts).await {
+                    let sent =
+                        send_to_peer_stream_parts(&state, peer, StreamType::TxSet, &parts).await;
+                    state.txset_tree.lock().unwrap().finish_relay(&child);
+                    match sent {
                         Ok(_) => {
                             let bytes = (relay_header.len() + frame.len() - body) as u64;
                             let metrics = &state.metrics;
@@ -3599,11 +3729,20 @@ fn relay_tagged_frame(
                     .txset_tree_unreachable
                     .fetch_add(unreachable, Ordering::Relaxed);
             }
+            if busy > 0 {
+                metrics
+                    .txset_tree_relay_busy
+                    .fetch_add(busy, Ordering::Relaxed);
+                warn!(
+                    "TXSET_TREE_RELAY_BUSY: Not relaying the tree frame for slot {} to {} child(ren): an earlier relay to them is still in flight",
+                    header.slot, busy
+                );
+            }
             debug!(
                 "TXSET_TREE_RELAY: Relaying the tree frame for slot {} (hop {}) to {} children",
                 header.slot,
                 header.hop,
-                children.len() as u64 - unreachable
+                children.len() as u64 - unreachable - busy
             );
         }
     }
@@ -3619,6 +3758,7 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
         tokio::spawn(async move {
             let mut probe_window = Instant::now();
             let mut probes_answered = 0u32;
+            let pong_in_flight = Arc::new(std::sync::atomic::AtomicBool::new(false));
             loop {
                 match read_framed_with_limit(
                     &mut stream,
@@ -3643,9 +3783,15 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                         probe_window = now;
                                         probes_answered = 0;
                                     }
-                                    if probes_answered < MAX_PROBES_ANSWERED_PER_SEC {
+                                    // And one answer at a time: a peer
+                                    // that does not read leaves one small
+                                    // write waiting, not one per ping.
+                                    if probes_answered < MAX_PROBES_ANSWERED_PER_SEC
+                                        && !pong_in_flight.swap(true, Ordering::AcqRel)
+                                    {
                                         probes_answered += 1;
                                         let state = state.clone();
+                                        let pong_in_flight = Arc::clone(&pong_in_flight);
                                         tokio::spawn(async move {
                                             let pong = Probe::Pong(value).encode();
                                             let _ = send_to_peer_stream(
@@ -3655,19 +3801,27 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                                 &pong,
                                             )
                                             .await;
+                                            pong_in_flight.store(false, Ordering::Release);
                                         });
                                     }
                                 }
                                 Some(Probe::Pong(sent_micros)) => {
-                                    let rtt = monotonic_micros().saturating_sub(sent_micros);
+                                    let now = monotonic_micros();
                                     let node =
                                         state.tx_router.lock().unwrap().node_of(&peer_id).copied();
-                                    if let (Some(node), true) = (node, rtt < 10_000_000) {
-                                        state
-                                            .txset_tree
-                                            .lock()
-                                            .unwrap()
-                                            .note_rtt(node, Duration::from_micros(rtt));
+                                    // Only the answer to the probe this node
+                                    // sent that validator last counts.
+                                    if let Some(node) = node {
+                                        let mut tree = state.txset_tree.lock().unwrap();
+                                        if tree.probe_answered(&node, sent_micros)
+                                            && sent_micros <= now
+                                            && now - sent_micros < 10_000_000
+                                        {
+                                            tree.note_rtt(
+                                                node,
+                                                Duration::from_micros(now - sent_micros),
+                                            );
+                                        }
                                     }
                                 }
                                 None => {}

@@ -455,14 +455,45 @@ HerderImpl::updateTxSetTree()
     {
         return;
     }
+    // Who may root a tree: the leaders of the slot's first rounds. A node
+    // relays only for those, so that no other validator can have its frames
+    // passed on. (A set pushed by the leader of a later round is not
+    // relayed; the nodes ask for it after their wait.)
+    size_t const ROUNDS = 3;
+    std::vector<NodeID> nextLeaders;
+    for (uint32_t round = 1; round <= ROUNDS; ++round)
+    {
+        auto leader = mHerderSCPDriver.getRoundLeader(next, round);
+        if (leader && std::find(nextLeaders.begin(), nextLeaders.end(),
+                                *leader) == nextLeaders.end())
+        {
+            nextLeaders.emplace_back(*leader);
+        }
+    }
+    // The slot after: the node that closes the next ledger may keep leading
+    // (its term), or a new order starts, seeded with the last closed
+    // ledger's hash (see LeaderSchedule.h).
+    std::vector<NodeID> afterLeaders = nextLeaders;
+    auto const fresh = computeLeaderSchedule(lcl.hash, nodes);
+    for (size_t i = 0; i < std::min(ROUNDS, fresh.size()); ++i)
+    {
+        if (std::find(afterLeaders.begin(), afterLeaders.end(), fresh[i]) ==
+            afterLeaders.end())
+        {
+            afterLeaders.emplace_back(fresh[i]);
+        }
+    }
     // The seeds are those of the leader schedules: the hash of the ledger
     // before the last closed one for the next slot, and the last closed
-    // ledger's own for the slot after (see LeaderSchedule.h).
-    std::vector<std::pair<uint32_t, Hash>> const slots{
-        {next, lcl.header.previousLedgerHash}, {next + 1, lcl.hash}};
+    // ledger's own for the slot after.
+    std::vector<OverlayIPC::TxSetTreeSlot> const slots{
+        {next, lcl.header.previousLedgerHash, std::move(nextLeaders)},
+        {next + 1, lcl.hash, std::move(afterLeaders)}};
     mApp.getOverlayManager().setTxSetTree(
-        mode, static_cast<uint8_t>(cfg.EXPERIMENTAL_TX_SET_TREE_FANOUT), slots,
-        nodes);
+        mode,
+        static_cast<uint8_t>(
+            std::min<uint32_t>(cfg.EXPERIMENTAL_TX_SET_TREE_FANOUT, UINT8_MAX)),
+        slots, nodes);
 }
 
 std::optional<std::vector<NodeID>>

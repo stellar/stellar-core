@@ -79,8 +79,21 @@ pub const TREE_HEADER_FIXED: usize = 4 + 1 + 1 + 1 + 1 + 4 + 32 + 8 + 2;
 /// Nodes a tree may have (an explicit order is two bytes per node).
 pub const MAX_TREE_NODES: usize = 1024;
 
+/// Bytes of the node-list digest behind an explicit order.
+pub const TREE_NODES_DIGEST: usize = 8;
+
 /// The largest header a frame can carry.
-pub const MAX_TREE_HEADER: usize = TREE_HEADER_FIXED + 2 * MAX_TREE_NODES;
+pub const MAX_TREE_HEADER: usize = TREE_HEADER_FIXED + 2 * MAX_TREE_NODES + TREE_NODES_DIGEST;
+
+/// Frames a node relays for one slot and leader. A leader pushes one set per
+/// slot it leads, two if it built one early and another at the trigger.
+pub const MAX_RELAYS_PER_SLOT_AND_LEADER: u8 = 2;
+
+/// Relays that may be queued or in flight to one child at a time. A child
+/// that stops reading its tx-set stream then pins at most this many frames
+/// in the relay's memory; further frames are not relayed to it, and it asks
+/// for them instead.
+pub const MAX_IN_FLIGHT_RELAYS_PER_CHILD: u32 = 1;
 
 /// How a node pushes the set it leads with, as its Core configures it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -222,6 +235,10 @@ pub struct TreeHeader {
     /// Explicit orders only: positions in the node list sorted by node ID,
     /// the leader's first.
     pub order: Vec<u16>,
+    /// Explicit orders only: [`TreeConfig::nodes_digest`] of the node list
+    /// the positions refer to (zero otherwise). A receiver whose list is
+    /// another does not follow the order.
+    pub nodes_digest: [u8; TREE_NODES_DIGEST],
 }
 
 impl TreeHeader {
@@ -238,6 +255,9 @@ impl TreeHeader {
         out.extend_from_slice(&(self.order.len() as u16).to_be_bytes());
         for index in &self.order {
             out.extend_from_slice(&index.to_be_bytes());
+        }
+        if self.kind == FrameKind::Explicit {
+            out.extend_from_slice(&self.nodes_digest);
         }
         out
     }
@@ -261,6 +281,9 @@ impl TreeHeader {
         };
         let fanout = frame[5];
         let hop = frame[6];
+        if frame[7] != 0 {
+            return None;
+        }
         let slot = u32::from_be_bytes(frame[8..12].try_into().unwrap());
         let mut leader = [0u8; 32];
         leader.copy_from_slice(&frame[12..44]);
@@ -269,13 +292,24 @@ impl TreeHeader {
         if count > MAX_TREE_NODES {
             return None;
         }
-        let body = TREE_HEADER_FIXED + 2 * count;
+        // Only an explicit order carries one, with the digest of the node
+        // list it refers to behind it.
+        if (kind == FrameKind::Explicit) != (count != 0) {
+            return None;
+        }
+        let digest_at = TREE_HEADER_FIXED + 2 * count;
+        let body = digest_at
+            + if kind == FrameKind::Explicit {
+                TREE_NODES_DIGEST
+            } else {
+                0
+            };
         if frame.len() < body {
             return None;
         }
-        // Only an explicit order carries one.
-        if (kind == FrameKind::Explicit) != (count != 0) {
-            return None;
+        let mut nodes_digest = [0u8; TREE_NODES_DIGEST];
+        if kind == FrameKind::Explicit {
+            nodes_digest.copy_from_slice(&frame[digest_at..body]);
         }
         let order = (0..count)
             .map(|i| {
@@ -292,6 +326,7 @@ impl TreeHeader {
                 leader,
                 sent_unix_ms,
                 order,
+                nodes_digest,
             },
             body,
         ))
@@ -306,6 +341,10 @@ pub struct TreeConfig {
     pub fanout: u8,
     /// The slots a tree is known for, with the seed of each.
     pub slots: Vec<(u32, [u8; 32])>,
+    /// For each of `slots`: the nodes that may lead it, and so root a tree
+    /// (the leaders of its first rounds, as Core expects them). `None`: any
+    /// node of the tree.
+    pub leaders: Vec<Option<Vec<NodeId>>>,
     /// The nodes of the tree, sorted by node ID, without duplicates.
     pub nodes: Vec<NodeId>,
 }
@@ -319,12 +358,49 @@ impl TreeConfig {
     ) -> Self {
         nodes.sort();
         nodes.dedup();
+        let leaders = vec![None; slots.len()];
         Self {
             mode,
             fanout,
             slots,
+            leaders,
             nodes,
         }
+    }
+
+    /// Restrict who may lead each slot (one entry per slot, in order).
+    pub fn with_leaders(mut self, leaders: Vec<Option<Vec<NodeId>>>) -> Self {
+        assert_eq!(leaders.len(), self.slots.len());
+        self.leaders = leaders;
+        self
+    }
+
+    /// Whether a frame may name `leader` as the root of the tree of `slot`.
+    pub fn may_lead(&self, slot: u32, leader: &NodeId) -> bool {
+        match self.slots.iter().position(|(s, _)| *s == slot) {
+            Some(i) => match &self.leaders[i] {
+                Some(leaders) => leaders.contains(leader),
+                None => true,
+            },
+            None => false,
+        }
+    }
+
+    /// Stands for this node's list of the tree's nodes in a header with an
+    /// explicit order: the first bytes of the SHA-256 of the sorted node IDs.
+    pub fn nodes_digest(&self) -> [u8; TREE_NODES_DIGEST] {
+        let mut hasher = Sha256::new();
+        for node in &self.nodes {
+            hasher.update(node);
+        }
+        let digest: [u8; 32] = hasher.finalize().into();
+        digest[..TREE_NODES_DIGEST].try_into().unwrap()
+    }
+
+    /// Whether a tree of `fanout` over this node's nodes has two levels at
+    /// most (a leader that lays out its own tree may not make it deeper).
+    pub fn two_levels(&self, fanout: usize) -> bool {
+        fanout + fanout.saturating_mul(fanout) >= self.nodes.len().saturating_sub(1)
     }
 
     pub fn seed_of(&self, slot: u32) -> Option<&[u8; 32]> {
@@ -358,7 +434,7 @@ impl TreeConfig {
     /// The order a header's indices stand for, if they are a permutation of
     /// this node's node list that starts with the leader.
     pub fn explicit_order(&self, header: &TreeHeader) -> Option<Vec<NodeId>> {
-        if header.order.len() != self.nodes.len() {
+        if header.order.len() != self.nodes.len() || header.nodes_digest != self.nodes_digest() {
             return None;
         }
         let mut seen = vec![false; self.nodes.len()];
@@ -405,6 +481,12 @@ pub enum RelayRefusal {
     /// The sender is not this node's parent in that tree (or did not prove
     /// which validator it is).
     NotParent,
+    /// The frame's leader is not one this node's Core expects to lead the
+    /// slot.
+    NotALeader,
+    /// An explicit order reached a node that is not in rtt mode, or makes a
+    /// tree of more than two levels.
+    NotAllowed,
 }
 
 /// Decide whether `me` relays a frame with `header` that came from the
@@ -420,6 +502,18 @@ pub fn relay_plan(
     }
     if config.seed_of(header.slot).is_none() {
         return RelayPlan::Refused(RelayRefusal::UnknownSlot);
+    }
+    if !config.may_lead(header.slot, &header.leader) {
+        return RelayPlan::Refused(RelayRefusal::NotALeader);
+    }
+    // An order chosen by the sender is followed only where every node is
+    // configured for it, and only for the shape a leader is meant to choose:
+    // otherwise a validator could send any node's traffic down a chain of
+    // its choosing.
+    if header.kind == FrameKind::Explicit
+        && (config.mode != TreeMode::Rtt || !config.two_levels(header.fanout as usize))
+    {
+        return RelayPlan::Refused(RelayRefusal::NotAllowed);
     }
     let (order, fanout) = match header.kind {
         FrameKind::Hash => match config.hash_order(header.slot, &header.leader) {
@@ -449,8 +543,9 @@ pub fn relay_plan(
     }
 }
 
-/// Round-trip times closer than this (and than a fifth of the larger one)
-/// are one group.
+/// Two nodes whose round-trip times differ by no more than this, or by no
+/// more than a fifth of the larger one, are in one group. Groups are chains:
+/// a run of nodes each that close to the next is one group.
 const RTT_GROUP_GAP: Duration = Duration::from_millis(8);
 
 /// Split nodes sorted by round-trip time into groups at the gaps.
@@ -640,6 +735,17 @@ pub enum FetchDecision {
 
 type RelayKey = (u32, NodeId, usize, [u8; 32]);
 
+/// What a node does with a frame it could relay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RelayAdmission {
+    Relay,
+    /// A copy of a frame this node relayed already.
+    Duplicate,
+    /// The node relayed [`MAX_RELAYS_PER_SLOT_AND_LEADER`] other frames of
+    /// this slot and leader already.
+    OverLimit,
+}
+
 /// A node's view of the trees: what its Core told it, what it relayed, what
 /// it waits for, and how far away its peers are.
 pub struct TreeState {
@@ -648,6 +754,16 @@ pub struct TreeState {
     waiting: lru::LruCache<[u8; 32], std::time::Instant>,
     delivered: lru::LruCache<[u8; 32], ()>,
     rtts: HashMap<NodeId, std::collections::VecDeque<Duration>>,
+    /// This node's own validator key, once Core has sent it.
+    local: Option<NodeId>,
+    /// Frames relayed per slot and leader.
+    relays: lru::LruCache<(u32, NodeId), u8>,
+    /// Relays not yet handed to the transport, per child.
+    relays_in_flight: HashMap<NodeId, u32>,
+    /// The probe this node last sent each peer and has no answer to.
+    probes: HashMap<NodeId, u64>,
+    #[cfg(test)]
+    probing_paused: bool,
 }
 
 impl Default for TreeState {
@@ -665,7 +781,17 @@ impl TreeState {
             waiting: lru::LruCache::new(memory),
             delivered: lru::LruCache::new(memory),
             rtts: HashMap::new(),
+            local: None,
+            relays: lru::LruCache::new(memory),
+            relays_in_flight: HashMap::new(),
+            probes: HashMap::new(),
+            #[cfg(test)]
+            probing_paused: false,
         }
+    }
+
+    pub fn set_local_node(&mut self, node: NodeId) {
+        self.local = Some(node);
     }
 
     pub fn set_config(&mut self, config: TreeConfig) {
@@ -680,19 +806,70 @@ impl TreeState {
         self.config.as_ref().map_or(TreeMode::Off, |c| c.mode)
     }
 
-    /// Whether this copy of a frame is the first this node sees (and so the
-    /// one to relay). Copies are told apart by slot, leader, length and the
-    /// first and last bytes of the body, without hashing megabytes before
-    /// the bytes go on.
-    pub fn first_copy(&mut self, header: &TreeHeader, body: &[u8]) -> bool {
+    /// Whether this node relays this copy of a frame: only the first copy
+    /// it sees, and only [`MAX_RELAYS_PER_SLOT_AND_LEADER`] different frames
+    /// of a slot and leader. Copies are told apart by slot, leader, length
+    /// and the first and last bytes of the body, without hashing megabytes
+    /// before the bytes go on; a sender that varies those bytes runs into
+    /// the limit.
+    pub fn admit_relay(&mut self, header: &TreeHeader, body: &[u8]) -> RelayAdmission {
         let mut ends = [0u8; 32];
         let head = body.len().min(16);
         ends[..head].copy_from_slice(&body[..head]);
         let tail = body.len().min(16);
         ends[32 - tail..].copy_from_slice(&body[body.len() - tail..]);
-        self.relayed
-            .put((header.slot, header.leader, body.len(), ends), ())
-            .is_none()
+        let key = (header.slot, header.leader, body.len(), ends);
+        if self.relayed.contains(&key) {
+            return RelayAdmission::Duplicate;
+        }
+        let count = self
+            .relays
+            .get_or_insert_mut((header.slot, header.leader), || 0);
+        if *count >= MAX_RELAYS_PER_SLOT_AND_LEADER {
+            return RelayAdmission::OverLimit;
+        }
+        *count += 1;
+        self.relayed.put(key, ());
+        RelayAdmission::Relay
+    }
+
+    /// A relay to `child` is about to be written. False: an earlier one is
+    /// still in flight, and this one is not sent (the child asks instead).
+    pub fn start_relay(&mut self, child: NodeId) -> bool {
+        let in_flight = self.relays_in_flight.entry(child).or_insert(0);
+        if *in_flight >= MAX_IN_FLIGHT_RELAYS_PER_CHILD {
+            return false;
+        }
+        *in_flight += 1;
+        true
+    }
+
+    /// The relay to `child` was handed to the transport, or failed.
+    pub fn finish_relay(&mut self, child: &NodeId) {
+        if let Some(count) = self.relays_in_flight.get_mut(child) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                self.relays_in_flight.remove(child);
+            }
+        }
+    }
+
+    /// This node sends `node` a probe with `value`.
+    pub fn probe_sent(&mut self, node: NodeId, value: u64) {
+        self.probes.insert(node, value);
+    }
+
+    /// `node` answered with `value`. True if that is the probe this node
+    /// last sent it and has no answer to yet: only then is the answer a
+    /// measurement (a peer cannot make itself look near with an answer
+    /// nobody asked for).
+    pub fn probe_answered(&mut self, node: &NodeId, value: u64) -> bool {
+        if self.probes.get(node) == Some(&value) {
+            self.probes.remove(node);
+            true
+        } else {
+            false
+        }
     }
 
     /// A proposal (or Core) named the set `hash` of `slot`, and this node
@@ -703,10 +880,12 @@ impl TreeState {
         slot: u32,
         now: std::time::Instant,
     ) -> FetchDecision {
-        let expects_tree = self
-            .config
-            .as_ref()
-            .is_some_and(|c| c.mode.relays() && c.seed_of(slot).is_some());
+        // Only a node of the tree is sent the set through it. (A node that
+        // is not, a watcher for one, asks at once as before.)
+        let local = self.local;
+        let expects_tree = self.config.as_ref().is_some_and(|c| {
+            c.mode.relays() && c.seed_of(slot).is_some() && local.is_some_and(|me| c.contains(&me))
+        });
         if !expects_tree || self.delivered.contains(hash) {
             return FetchDecision::Proceed;
         }
@@ -729,6 +908,22 @@ impl TreeState {
         self.delivered.contains(hash)
     }
 
+    /// Tests set round-trip times by hand; the probe task then leaves them
+    /// alone.
+    #[cfg(test)]
+    pub fn pause_probing(&mut self) {
+        self.probing_paused = true;
+    }
+
+    /// Whether the probe task measures (always, outside tests).
+    pub fn probing(&self) -> bool {
+        #[cfg(test)]
+        if self.probing_paused {
+            return false;
+        }
+        true
+    }
+
     /// A round trip to the validator `node` took `rtt`.
     pub fn note_rtt(&mut self, node: NodeId, rtt: Duration) {
         let samples = self.rtts.entry(node).or_default();
@@ -741,6 +936,7 @@ impl TreeState {
     /// The peer is gone; a new connection is measured afresh.
     pub fn forget_rtt(&mut self, node: &NodeId) {
         self.rtts.remove(node);
+        self.probes.remove(node);
     }
 
     /// The round-trip time to `node`: the smallest of the last samples.
@@ -874,6 +1070,7 @@ mod tests {
             leader,
             sent_unix_ms: 1_800_000_000_123,
             order: Vec::new(),
+            nodes_digest: [0; TREE_NODES_DIGEST],
         }
     }
 
@@ -890,11 +1087,16 @@ mod tests {
 
         h.kind = FrameKind::Explicit;
         h.order = vec![3, 0, 1, 2];
+        h.nodes_digest = [1, 2, 3, 4, 5, 6, 7, 8];
         let mut frame = h.encode();
         frame.extend_from_slice(b"x");
         let (parsed, body) = TreeHeader::parse(&frame).unwrap();
         assert_eq!(parsed, h);
-        assert_eq!(body, TREE_HEADER_FIXED + 8);
+        assert_eq!(body, TREE_HEADER_FIXED + 8 + TREE_NODES_DIGEST);
+        // The largest header fits the limit the reader allows for it.
+        let mut largest = h.clone();
+        largest.order = (0..MAX_TREE_NODES as u16).collect();
+        assert_eq!(largest.encode().len(), MAX_TREE_HEADER);
 
         // An ordinary frame starts with a length and is not tagged.
         assert!(!TreeHeader::is_tagged(&[0, 0x10, 0, 0, 1, 2, 3]));
@@ -905,6 +1107,10 @@ mod tests {
         assert!(TreeHeader::parse(&good[..good.len() - 1]).is_none());
         let mut bad = good.clone();
         bad[4] = 9;
+        assert!(TreeHeader::parse(&bad).is_none());
+        // The reserved byte must be zero.
+        let mut bad = good.clone();
+        bad[7] = 1;
         assert!(TreeHeader::parse(&bad).is_none());
         let mut bad = good.clone();
         bad[53] = 2;
@@ -1000,6 +1206,24 @@ mod tests {
                 RelayPlan::Refused(RelayRefusal::NotATree)
             );
         }
+        // A frame whose leader this node's Core does not expect to lead the
+        // slot, also from the node that would be the parent in that tree.
+        let restricted =
+            config(TreeMode::Hash, 3, 20).with_leaders(vec![Some(vec![node(7), node(8)]), None]);
+        assert!(!restricted.may_lead(10, &leader));
+        assert!(restricted.may_lead(10, &node(8)));
+        assert!(restricted.may_lead(11, &leader));
+        assert!(!restricted.may_lead(12, &leader));
+        assert_eq!(
+            relay_plan(&restricted, &h, &child, Some(&leader)),
+            RelayPlan::Refused(RelayRefusal::NotALeader)
+        );
+        let h8 = header(FrameKind::Hash, 10, node(8));
+        let order8 = restricted.hash_order(10, &node(8)).unwrap();
+        assert_eq!(
+            relay_plan(&restricted, &h8, &order8[1], Some(&node(8))),
+            RelayPlan::Relay(children_of(&order8, &order8[1], 3))
+        );
         // The second slot has another seed, so another tree.
         assert_ne!(cfg.hash_order(11, &leader).unwrap(), order);
         // A fanout of 0 is the default for the node count.
@@ -1010,29 +1234,35 @@ mod tests {
     fn an_explicit_order_is_followed_if_it_is_a_permutation_led_by_the_leader() {
         let cfg = config(TreeMode::Rtt, 0, 8);
         let leader = node(2);
-        // leader, then 7 6 5 4 3 1 0
+        // leader, then 7 6 5 | 4 3 1 | 0
         let order: Vec<NodeId> = [2u16, 7, 6, 5, 4, 3, 1, 0]
             .iter()
             .map(|n| node(*n))
             .collect();
         let mut h = header(FrameKind::Explicit, 10, leader);
-        h.fanout = 2;
+        h.fanout = 3;
         h.order = cfg.indices_of(&order).unwrap();
+        h.nodes_digest = cfg.nodes_digest();
         assert_eq!(cfg.explicit_order(&h).unwrap(), order);
-        // node 7 is the first child of the root; its children are 5 and 4.
+        // node 7 is the first child of the root; its children are 4, 3, 1.
         assert_eq!(
             relay_plan(&cfg, &h, &node(7), Some(&leader)),
-            RelayPlan::Relay(vec![node(5), node(4)])
+            RelayPlan::Relay(vec![node(4), node(3), node(1)])
         );
         assert_eq!(
-            relay_plan(&cfg, &h, &node(5), Some(&node(7))),
+            relay_plan(&cfg, &h, &node(6), Some(&leader)),
             RelayPlan::Relay(vec![node(0)])
         );
         assert_eq!(
-            relay_plan(&cfg, &h, &node(5), Some(&node(6))),
+            relay_plan(&cfg, &h, &node(4), Some(&node(7))),
+            RelayPlan::Leaf
+        );
+        assert_eq!(
+            relay_plan(&cfg, &h, &node(4), Some(&node(6))),
             RelayPlan::Refused(RelayRefusal::NotParent)
         );
-        // Not a permutation, too short, not led by the leader, no fanout.
+        // Not a permutation, too short, not led by the leader, an index out
+        // of range.
         let mut bad = h.clone();
         bad.order[3] = bad.order[4];
         assert_eq!(
@@ -1048,17 +1278,43 @@ mod tests {
         let mut bad = h.clone();
         bad.order[1] = 99;
         assert!(cfg.explicit_order(&bad).is_none());
+        // An order for another list of nodes (the same number of them).
         let mut bad = h.clone();
-        bad.fanout = 0;
+        bad.nodes_digest[0] ^= 1;
         assert_eq!(
             relay_plan(&cfg, &bad, &node(7), Some(&leader)),
             RelayPlan::Refused(RelayRefusal::UnknownNodes)
         );
-        // A node in hash mode follows an explicit order too (it relays).
+        let mut other_nodes = nodes(7);
+        other_nodes.push(node(100));
+        assert_ne!(
+            TreeConfig::new(TreeMode::Rtt, 0, vec![(10, [1u8; 32])], other_nodes).nodes_digest(),
+            cfg.nodes_digest()
+        );
+        // A leader lays out two levels, not a chain: a fanout that needs
+        // more is refused (8 nodes need a fanout of 3).
+        assert!(cfg.two_levels(3));
+        assert!(!cfg.two_levels(2));
+        for fanout in [0u8, 1, 2] {
+            let mut deep = h.clone();
+            deep.fanout = fanout;
+            assert_eq!(
+                relay_plan(&cfg, &deep, &node(7), Some(&leader)),
+                RelayPlan::Refused(RelayRefusal::NotAllowed)
+            );
+        }
+        // A node that is not in rtt mode does not follow a sender's order.
         let hash_cfg = config(TreeMode::Hash, 0, 8);
         assert_eq!(
             relay_plan(&hash_cfg, &h, &node(7), Some(&leader)),
-            RelayPlan::Relay(vec![node(5), node(4)])
+            RelayPlan::Refused(RelayRefusal::NotAllowed)
+        );
+        // A node in rtt mode follows the common tree as well.
+        let hash_frame = header(FrameKind::Hash, 10, leader);
+        let common = cfg.hash_order(10, &leader).unwrap();
+        assert_eq!(
+            relay_plan(&cfg, &hash_frame, &common[1], Some(&leader)),
+            RelayPlan::Relay(children_of(&common, &common[1], cfg.effective_fanout()))
         );
     }
 
@@ -1214,6 +1470,12 @@ mod tests {
         }
         state.set_config(config(TreeMode::Hash, 0, 20));
         assert_eq!(state.mode(), TreeMode::Hash);
+        // A node that does not know which validator it is, or is not one of
+        // the tree's nodes, is not sent the set through the tree: no wait.
+        assert_eq!(state.fetch_decision(&hash, 10, now), FetchDecision::Proceed);
+        state.set_local_node(node(500));
+        assert_eq!(state.fetch_decision(&hash, 10, now), FetchDecision::Proceed);
+        state.set_local_node(node(3));
         // A slot the tree is not known for (catching up): ask at once.
         assert_eq!(state.fetch_decision(&hash, 9, now), FetchDecision::Proceed);
         // Otherwise wait, once.
@@ -1245,23 +1507,55 @@ mod tests {
     }
 
     #[test]
-    fn a_frame_is_relayed_once_and_round_trip_times_keep_their_minimum() {
+    fn a_frame_is_relayed_once_and_two_frames_per_slot_and_leader() {
         let mut state = TreeState::new();
         let h = header(FrameKind::Hash, 10, node(1));
         let body = vec![5u8; 100];
-        assert!(state.first_copy(&h, &body));
-        assert!(!state.first_copy(&h, &body));
-        // Another body, slot or leader is another frame.
+        assert_eq!(state.admit_relay(&h, &body), RelayAdmission::Relay);
+        assert_eq!(state.admit_relay(&h, &body), RelayAdmission::Duplicate);
+        // Another body is another frame: the second one of this slot and
+        // leader, and the last.
         let mut other = body.clone();
         other[99] = 6;
-        assert!(state.first_copy(&h, &other));
-        assert!(state.first_copy(&h, &body[..50]));
-        assert!(state.first_copy(&header(FrameKind::Hash, 11, node(1)), &body));
-        assert!(state.first_copy(&header(FrameKind::Hash, 10, node(2)), &body));
+        assert_eq!(state.admit_relay(&h, &other), RelayAdmission::Relay);
+        assert_eq!(state.admit_relay(&h, &other), RelayAdmission::Duplicate);
+        assert_eq!(
+            state.admit_relay(&h, &body[..50]),
+            RelayAdmission::OverLimit
+        );
+        other[0] = 6;
+        assert_eq!(state.admit_relay(&h, &other), RelayAdmission::OverLimit);
+        // The first copies are still known as copies.
+        assert_eq!(state.admit_relay(&h, &body), RelayAdmission::Duplicate);
+        // Another slot or leader has its own count.
+        let h11 = header(FrameKind::Hash, 11, node(1));
+        let h2 = header(FrameKind::Hash, 10, node(2));
+        assert_eq!(state.admit_relay(&h11, &body), RelayAdmission::Relay);
+        assert_eq!(state.admit_relay(&h2, &body), RelayAdmission::Relay);
         // Short bodies do not panic.
-        assert!(state.first_copy(&h, &[1, 2, 3]));
-        assert!(state.first_copy(&h, &[]));
+        assert_eq!(state.admit_relay(&h11, &[1, 2, 3]), RelayAdmission::Relay);
+        assert_eq!(state.admit_relay(&h2, &[]), RelayAdmission::Relay);
+        assert_eq!(state.admit_relay(&h2, &[9]), RelayAdmission::OverLimit);
+    }
 
+    #[test]
+    fn one_relay_at_a_time_per_child() {
+        let mut state = TreeState::new();
+        assert!(state.start_relay(node(1)));
+        assert!(!state.start_relay(node(1)));
+        assert!(state.start_relay(node(2)));
+        state.finish_relay(&node(1));
+        assert!(state.start_relay(node(1)));
+        // Finishing what was never started changes nothing.
+        state.finish_relay(&node(9));
+        state.finish_relay(&node(1));
+        state.finish_relay(&node(1));
+        assert!(state.start_relay(node(1)));
+    }
+
+    #[test]
+    fn round_trip_times_keep_their_minimum_and_need_a_matching_probe() {
+        let mut state = TreeState::new();
         assert_eq!(state.rtt_of(&node(1)), None);
         for ms in [40u64, 35, 90, 37] {
             state.note_rtt(node(1), Duration::from_millis(ms));
@@ -1274,5 +1568,24 @@ mod tests {
         assert_eq!(state.rtt_of(&node(1)), Some(Duration::from_millis(60)));
         state.forget_rtt(&node(1));
         assert_eq!(state.rtt_of(&node(1)), None);
+
+        // An answer counts once, and only to the probe that was sent last.
+        assert!(!state.probe_answered(&node(1), 7));
+        state.probe_sent(node(1), 7);
+        assert!(!state.probe_answered(&node(1), 8));
+        assert!(!state.probe_answered(&node(2), 7));
+        assert!(state.probe_answered(&node(1), 7));
+        assert!(!state.probe_answered(&node(1), 7));
+        state.probe_sent(node(1), 9);
+        state.probe_sent(node(1), 10);
+        assert!(!state.probe_answered(&node(1), 9));
+        assert!(state.probe_answered(&node(1), 10));
+        // A peer that left has no probe outstanding.
+        state.probe_sent(node(1), 11);
+        state.forget_rtt(&node(1));
+        assert!(!state.probe_answered(&node(1), 11));
+        assert!(state.probing());
+        state.pause_probing();
+        assert!(!state.probing());
     }
 }

@@ -275,7 +275,7 @@ RustOverlayManager::setTxFloodTargets(
 bool
 RustOverlayManager::setTxSetTree(
     uint8_t mode, uint8_t fanout,
-    std::vector<std::pair<uint32_t, Hash>> const& slots,
+    std::vector<OverlayIPC::TxSetTreeSlot> const& slots,
     std::vector<NodeID> const& nodes)
 {
     if (mOverlayIPC && !mShuttingDown)
@@ -485,6 +485,9 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mTxsetTreeDuplicate, "txset_tree_duplicate");
     markDelta(m.mTxsetTreeRefused, "txset_tree_refused");
     markDelta(m.mTxsetTreeUnreachable, "txset_tree_unreachable");
+    markDelta(m.mTxsetTreeChildBusy, "txset_tree_child_busy");
+    markDelta(m.mTxsetTreeRelayBusy, "txset_tree_relay_busy");
+    markDelta(m.mTxsetTreeRelayLimited, "txset_tree_relay_limited");
     markDelta(m.mTxsetTreeFetchDeferred, "txset_tree_fetch_deferred");
     markDelta(m.mTxsetTreeFetchFallback, "txset_tree_fetch_fallback");
     markDelta(m.mTxsetTreeDelayMsSum, "txset_tree_delay_ms_sum");

@@ -234,8 +234,9 @@ TEST_CASE("the leader lays the tree out by round-trip times",
     REQUIRE(counts.mCoreRetries == 0);
 }
 
-TEST_CASE("a node that does not relay costs its subtree a wait and not a ledger",
-          "[herder][txset-tree][simulation]")
+TEST_CASE(
+    "a node that does not relay costs its subtree a wait and not a ledger",
+    "[herder][txset-tree][simulation]")
 {
     // Node 0 neither relays nor is told about trees. When it is a relay of
     // the leader's tree, its two children do not get the set through the

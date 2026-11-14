@@ -99,10 +99,12 @@ enum class IPCMessageType : uint32_t
     /// The spanning trees the leader's TX set travels down in the next
     /// slots (see HerderImpl::updateTxSetTree and
     /// overlay/src/flood/txset_tree.rs).
-    /// Payload: [mode:1][fanout:1][slots:1]([slot:4][seed:32])...
+    /// Payload: [mode:1][fanout:1][slots:1]
+    ///          ([slot:4][seed:32][leaders:1][nodeID:32]...)...
     ///          [count:4][nodeID:32]...
     /// mode: 0 off, 1 star, 2 hash, 3 rtt. fanout 0 = the smallest that
-    /// reaches every node in two hops.
+    /// reaches every node in two hops. leaders of a slot: the nodes that may
+    /// lead it and so root a tree.
     SET_TX_SET_TREE = 17,
 
     // ═══ Overlay → Core (Critical Path) ═══

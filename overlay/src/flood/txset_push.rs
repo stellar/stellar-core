@@ -95,16 +95,27 @@ impl PushRecord {
         hash: Hash256,
         connected: impl IntoIterator<Item = PeerId>,
     ) -> (Vec<PeerId>, usize) {
+        let (targets, busy) = self.start_push_listing_busy(hash, connected);
+        (targets, busy.len())
+    }
+
+    /// As [`Self::start_push`]; also returns the peers that were left out
+    /// because an earlier push to them is still in flight.
+    pub fn start_push_listing_busy(
+        &mut self,
+        hash: Hash256,
+        connected: impl IntoIterator<Item = PeerId>,
+    ) -> (Vec<PeerId>, Vec<PeerId>) {
         let peers = self.by_hash.get_or_insert_mut(hash, HashMap::new);
         let mut targets = Vec::new();
-        let mut busy = 0;
+        let mut busy = Vec::new();
         for peer in connected {
             if peers.contains_key(&peer) {
                 continue;
             }
             let in_flight = self.in_flight.entry(peer).or_insert(0);
             if *in_flight >= MAX_IN_FLIGHT_PUSHES_PER_PEER {
-                busy += 1;
+                busy.push(peer);
                 continue;
             }
             *in_flight += 1;

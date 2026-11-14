@@ -85,6 +85,9 @@ struct OverlayMetrics
     medida::Meter& mTxsetTreeDuplicate;
     medida::Meter& mTxsetTreeRefused;
     medida::Meter& mTxsetTreeUnreachable;
+    medida::Meter& mTxsetTreeChildBusy;
+    medida::Meter& mTxsetTreeRelayBusy;
+    medida::Meter& mTxsetTreeRelayLimited;
     medida::Meter& mTxsetTreeFetchDeferred;
     medida::Meter& mTxsetTreeFetchFallback;
     medida::Meter& mTxsetTreeDelayMsSum;

@@ -1853,7 +1853,8 @@ fn parse_tx_targets(payload: &[u8]) -> Option<Option<Vec<[u8; 32]>>> {
 }
 
 /// Parse a `SetTxSetTree` payload:
-/// `[mode:1][fanout:1][slots:1]([slot:4 LE][seed:32])...[count:4 LE][nodeID:32]...`.
+/// `[mode:1][fanout:1][slots:1]([slot:4 LE][seed:32][leaders:1][nodeID:32]...)...[count:4 LE][nodeID:32]...`
+/// (`leaders` = 255: any node of the tree may lead the slot).
 fn parse_txset_tree(payload: &[u8]) -> Option<TreeConfig> {
     if payload.len() < 3 {
         return None;
@@ -1863,13 +1864,26 @@ fn parse_txset_tree(payload: &[u8]) -> Option<TreeConfig> {
     let slot_count = payload[2] as usize;
     let mut at = 3;
     let mut slots = Vec::with_capacity(slot_count);
+    let mut leaders = Vec::with_capacity(slot_count);
     for _ in 0..slot_count {
-        let entry = payload.get(at..at + 36)?;
+        let entry = payload.get(at..at + 37)?;
         let slot = u32::from_le_bytes(entry[..4].try_into().unwrap());
         let mut seed = [0u8; 32];
-        seed.copy_from_slice(&entry[4..]);
+        seed.copy_from_slice(&entry[4..36]);
+        let leader_count = entry[36];
+        at += 37;
         slots.push((slot, seed));
-        at += 36;
+        if leader_count == u8::MAX {
+            leaders.push(None);
+            continue;
+        }
+        let ids = payload.get(at..at + leader_count as usize * 32)?;
+        at += ids.len();
+        leaders.push(Some(
+            ids.chunks_exact(32)
+                .map(|chunk| chunk.try_into().unwrap())
+                .collect(),
+        ));
     }
     let count = u32::from_le_bytes(payload.get(at..at + 4)?.try_into().unwrap()) as usize;
     at += 4;
@@ -1880,7 +1894,7 @@ fn parse_txset_tree(payload: &[u8]) -> Option<TreeConfig> {
         .chunks_exact(32)
         .map(|chunk| chunk.try_into().unwrap())
         .collect();
-    Some(TreeConfig::new(mode, fanout, slots, nodes))
+    Some(TreeConfig::new(mode, fanout, slots, nodes).with_leaders(leaders))
 }
 
 fn setup_logging(level: &str) {
@@ -3335,6 +3349,55 @@ mod tests {
         .await;
         assert_no_core_txset(&mut core);
         assert!(app.pending_core_tx_sets.contains_key(&sets[0].0));
+    }
+
+    /// The layout of `SetTxSetTree`, as Core writes it
+    /// (`OverlayIPC::setTxSetTree`).
+    #[test]
+    fn set_txset_tree_payload_is_parsed() {
+        let mut payload = vec![2u8, 9, 2];
+        // Slot 40: seed 3s, two leaders.
+        payload.extend_from_slice(&40u32.to_le_bytes());
+        payload.extend_from_slice(&[3u8; 32]);
+        payload.push(2);
+        payload.extend_from_slice(&[7u8; 32]);
+        payload.extend_from_slice(&[8u8; 32]);
+        // Slot 41: seed 4s, any leader.
+        payload.extend_from_slice(&41u32.to_le_bytes());
+        payload.extend_from_slice(&[4u8; 32]);
+        payload.push(255);
+        // Three nodes, not sorted, one twice.
+        payload.extend_from_slice(&4u32.to_le_bytes());
+        for id in [9u8, 7, 8, 7] {
+            payload.extend_from_slice(&[id; 32]);
+        }
+        let config = parse_txset_tree(&payload).unwrap();
+        assert_eq!(config.mode, TreeMode::Hash);
+        assert_eq!(config.fanout, 9);
+        assert_eq!(config.slots, vec![(40, [3u8; 32]), (41, [4u8; 32])]);
+        assert_eq!(
+            config.leaders,
+            vec![Some(vec![[7u8; 32], [8u8; 32]]), None]
+        );
+        assert_eq!(config.nodes, vec![[7u8; 32], [8u8; 32], [9u8; 32]]);
+        assert!(config.may_lead(40, &[8u8; 32]));
+        assert!(!config.may_lead(40, &[9u8; 32]));
+        assert!(config.may_lead(41, &[9u8; 32]));
+
+        // Truncated anywhere, an unknown mode, trailing bytes.
+        for cut in 0..payload.len() {
+            assert!(parse_txset_tree(&payload[..cut]).is_none(), "cut at {cut}");
+        }
+        let mut bad = payload.clone();
+        bad[0] = 4;
+        assert!(parse_txset_tree(&bad).is_none());
+        let mut bad = payload.clone();
+        bad.push(0);
+        assert!(parse_txset_tree(&bad).is_none());
+        // No slots and no nodes is a valid (empty) description.
+        let empty = parse_txset_tree(&[0, 0, 0, 0, 0, 0, 0]).unwrap();
+        assert_eq!(empty.mode, TreeMode::Off);
+        assert!(empty.slots.is_empty() && empty.nodes.is_empty());
     }
 
     /// PushTxSet for a set the overlay does not hold, or with a short

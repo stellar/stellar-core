@@ -85,6 +85,12 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "txset-tree", "refused"}, "txset"))
     , mTxsetTreeUnreachable(app.getMetrics().NewMeter(
           {"overlay", "txset-tree", "unreachable"}, "peer"))
+    , mTxsetTreeChildBusy(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "child-busy"}, "peer"))
+    , mTxsetTreeRelayBusy(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "relay-busy"}, "peer"))
+    , mTxsetTreeRelayLimited(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "relay-limited"}, "txset"))
     , mTxsetTreeFetchDeferred(app.getMetrics().NewMeter(
           {"overlay", "txset-tree", "fetch-deferred"}, "txset"))
     , mTxsetTreeFetchFallback(app.getMetrics().NewMeter(

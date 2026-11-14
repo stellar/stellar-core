@@ -128,11 +128,17 @@ pub struct OverlayMetrics {
     pub txset_tree_refused: AtomicU64,
     /// overlay.txset-tree.unreachable — children a set could not be sent to (no identified connection)
     pub txset_tree_unreachable: AtomicU64,
+    /// overlay.txset-tree.child-busy — children the leader could not send a set to because an earlier push to them was in flight (everyone below them gets it from the leader directly)
+    pub txset_tree_child_busy: AtomicU64,
+    /// overlay.txset-tree.relay-busy — children a relay did not pass a frame on to because an earlier relay to them was in flight
+    pub txset_tree_relay_busy: AtomicU64,
+    /// overlay.txset-tree.relay-limited — frames not relayed because this node relayed two for that slot and leader already
+    pub txset_tree_relay_limited: AtomicU64,
     /// overlay.txset-tree.fetch-deferred — requests for a set put off because the tree should bring it
     pub txset_tree_fetch_deferred: AtomicU64,
     /// overlay.txset-tree.fetch-fallback — sets asked for after the wait, because the tree did not bring them
     pub txset_tree_fetch_fallback: AtomicU64,
-    /// overlay.txset-tree.delay-ms-sum — sum of the delays from the leader's send to the frame's arrival here
+    /// overlay.txset-tree.delay-ms-sum — sum of the delays from the leader's send to the tagged frame's arrival here, by the two nodes' clocks (a set that came by request, or not at all, is not in it)
     pub txset_tree_delay_ms_sum: AtomicU64,
     /// overlay.txset-tree.delay-count — frames in delay-ms-sum
     pub txset_tree_delay_count: AtomicU64,
@@ -144,15 +150,15 @@ pub struct OverlayMetrics {
     pub txset_tree_delay_hop2_ms_sum: AtomicU64,
     /// overlay.txset-tree.delay-hop2-count — frames in delay-hop2-ms-sum
     pub txset_tree_delay_hop2_count: AtomicU64,
-    /// overlay.txset-tree.delay-le-50ms — frames that arrived within 50 ms of the leader's send
+    /// overlay.txset-tree.delay-le-50ms — frames that arrived 0 to 50 ms after the leader's send (the delay-* buckets are disjoint ranges, not cumulative)
     pub txset_tree_delay_le_50: AtomicU64,
-    /// overlay.txset-tree.delay-le-100ms — within 100 ms
+    /// overlay.txset-tree.delay-le-100ms — 51 to 100 ms after
     pub txset_tree_delay_le_100: AtomicU64,
-    /// overlay.txset-tree.delay-le-150ms — within 150 ms
+    /// overlay.txset-tree.delay-le-150ms — 101 to 150 ms after
     pub txset_tree_delay_le_150: AtomicU64,
-    /// overlay.txset-tree.delay-le-200ms — within 200 ms
+    /// overlay.txset-tree.delay-le-200ms — 151 to 200 ms after
     pub txset_tree_delay_le_200: AtomicU64,
-    /// overlay.txset-tree.delay-le-300ms — within 300 ms
+    /// overlay.txset-tree.delay-le-300ms — 201 to 300 ms after
     pub txset_tree_delay_le_300: AtomicU64,
     /// overlay.txset-tree.delay-gt-300ms — later than 300 ms
     pub txset_tree_delay_gt_300: AtomicU64,
@@ -248,6 +254,9 @@ impl Default for OverlayMetrics {
             txset_tree_duplicate: AtomicU64::new(0),
             txset_tree_refused: AtomicU64::new(0),
             txset_tree_unreachable: AtomicU64::new(0),
+            txset_tree_child_busy: AtomicU64::new(0),
+            txset_tree_relay_busy: AtomicU64::new(0),
+            txset_tree_relay_limited: AtomicU64::new(0),
             txset_tree_fetch_deferred: AtomicU64::new(0),
             txset_tree_fetch_fallback: AtomicU64::new(0),
             txset_tree_delay_ms_sum: AtomicU64::new(0),
@@ -344,6 +353,9 @@ impl OverlayMetrics {
             txset_tree_duplicate: self.txset_tree_duplicate.load(ORD),
             txset_tree_refused: self.txset_tree_refused.load(ORD),
             txset_tree_unreachable: self.txset_tree_unreachable.load(ORD),
+            txset_tree_child_busy: self.txset_tree_child_busy.load(ORD),
+            txset_tree_relay_busy: self.txset_tree_relay_busy.load(ORD),
+            txset_tree_relay_limited: self.txset_tree_relay_limited.load(ORD),
             txset_tree_fetch_deferred: self.txset_tree_fetch_deferred.load(ORD),
             txset_tree_fetch_fallback: self.txset_tree_fetch_fallback.load(ORD),
             txset_tree_delay_ms_sum: self.txset_tree_delay_ms_sum.load(ORD),
@@ -448,6 +460,9 @@ pub struct MetricsSnapshot {
     pub txset_tree_duplicate: u64,
     pub txset_tree_refused: u64,
     pub txset_tree_unreachable: u64,
+    pub txset_tree_child_busy: u64,
+    pub txset_tree_relay_busy: u64,
+    pub txset_tree_relay_limited: u64,
     pub txset_tree_fetch_deferred: u64,
     pub txset_tree_fetch_fallback: u64,
     pub txset_tree_delay_ms_sum: u64,

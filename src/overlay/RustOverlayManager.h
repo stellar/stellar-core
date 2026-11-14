@@ -106,7 +106,7 @@ class RustOverlayManager
     // its children in the slot's tree, and every node relays what its
     // parent sends it. Returns whether the overlay was told.
     bool setTxSetTree(uint8_t mode, uint8_t fanout,
-                      std::vector<std::pair<uint32_t, Hash>> const& slots,
+                      std::vector<OverlayIPC::TxSetTreeSlot> const& slots,
                       std::vector<NodeID> const& nodes);
 
     // What a validator signs to say "the overlay with this libp2p peer id is

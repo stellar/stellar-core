@@ -1274,7 +1274,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readBool(item);
                  }},
                 {"TX_FLOOD_TARGET_LEADERS",
-                 [&]() { TX_FLOOD_TARGET_LEADERS = readInt<uint32_t>(item); }},
+                 [&]() {
+                     TX_FLOOD_TARGET_LEADERS = readInt<uint32_t>(item);
+                 }},
                 {"TX_FLOOD_LEGACY_ADVERTS",
                  [&]() { TX_FLOOD_LEGACY_ADVERTS = readBool(item); }},
                 {"BATCH_EXECUTOR_TASKS",
