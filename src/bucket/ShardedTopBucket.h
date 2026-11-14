@@ -115,7 +115,9 @@ class ShardedTopBucket : public NonMovableOrCopyable
     // zero hash for no records (the empty bucket), the digest otherwise.
     static Hash bucketHash(LtHash16 const& h);
 
-    // The LtHash of the records of a bucket file.
+    // The LtHash of the records of a bucket file. Throws unless the file is
+    // the canonical file of its records (the metadata entry first, entries
+    // in the strict order of their keys, canonical XDR, nothing else).
     static LtHash16 hashOfFile(std::string const& filename);
 
     // At startup, before the bucket files of the last closed ledger are

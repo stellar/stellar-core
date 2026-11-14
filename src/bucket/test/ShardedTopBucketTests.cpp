@@ -35,11 +35,13 @@
 #include "util/Math.h"
 #include "util/MetricsRegistry.h"
 #include "util/Timer.h"
+#include "util/XDRStream.h"
 #include <fmt/format.h>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <unordered_set>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 
@@ -193,9 +195,12 @@ makeApp(VirtualClock& clock, int instance, uint32_t shardsPerGroup)
 }
 }
 
-TEST_CASE("sharded level 0 is the same buckets under another hash",
-          "[bucket][bucketlist][sharded-top-bucket]")
+namespace
 {
+void
+sameBucketsUnderAnotherHash(uint32_t version)
+{
+    INFO("protocol " << version);
     VirtualClock clock;
     // The first application has the setting off: its bucket list is what
     // every other one must agree with, apart from the hash of level 0.
@@ -207,8 +212,6 @@ TEST_CASE("sharded level 0 is the same buckets under another hash",
         apps.emplace_back(makeApp(clock, static_cast<int>(i), shardCounts[i]));
         lists.emplace_back(std::make_unique<LiveBucketList>());
     }
-    auto version = apps[0]->getConfig().LEDGER_PROTOCOL_VERSION;
-
     BatchMaker maker;
     std::vector<LedgerEntry> init, live;
     std::vector<LedgerKey> dead;
@@ -341,6 +344,108 @@ TEST_CASE("sharded level 0 is the same buckets under another hash",
         }
     }
     REQUIRE(sawTwoLedgerBuckets > 20);
+}
+}
+
+TEST_CASE("sharded level 0 is the same buckets under another hash",
+          "[bucket][bucketlist][sharded-top-bucket]")
+{
+    // The current protocol, and the last one without INIT and metadata
+    // entries and the first one with them (a bucket without a metadata entry
+    // and without entries is no bucket; a merge of a ledger that creates an
+    // entry and a ledger that deletes it keeps or drops the tombstone).
+    auto const init = static_cast<uint32_t>(
+        LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+    for (uint32_t version :
+         {getTestConfig().LEDGER_PROTOCOL_VERSION, init - 1, init})
+    {
+        sameBucketsUnderAnotherHash(version);
+    }
+}
+
+TEST_CASE("the commutative hash is taken of a canonical bucket file only",
+          "[bucket][sharded-top-bucket]")
+{
+    VirtualClock clock;
+    auto app = makeApp(clock, 0, 2);
+    auto version = app->getConfig().LEDGER_PROTOCOL_VERSION;
+    LiveBucketList list;
+    BatchMaker maker;
+    std::vector<LedgerEntry> init, live;
+    std::vector<LedgerKey> dead;
+    maker.make(1, 40, init, live, dead);
+    list.addBatch(*app, 1, version, init, live, dead);
+    auto bucket = list.getLevel(0).getCurr();
+    std::string const good = bucket->getFilename().string();
+    REQUIRE(ShardedTopBucket::bucketHash(ShardedTopBucket::hashOfFile(good)) ==
+            bucket->getHash());
+
+    std::vector<BucketEntry> entries;
+    {
+        XDRInputFileStream in;
+        in.open(good);
+        BucketEntry be;
+        while (in && in.readOne(be))
+        {
+            entries.emplace_back(be);
+        }
+    }
+    REQUIRE(entries.size() > 10);
+    REQUIRE(entries.front().type() == METAENTRY);
+
+    auto write = [&](std::vector<BucketEntry> const& es, char const* name,
+                     std::string const& tail = "") {
+        std::string file =
+            app->getBucketManager().getTmpDir() + "/" + name + ".xdr";
+        XDROutputFileStream out(clock.getIOContext(), false);
+        out.open(file);
+        for (auto const& e : es)
+        {
+            out.writeOne(e);
+        }
+        if (!tail.empty())
+        {
+            out.writeBytes(tail.data(), tail.size());
+        }
+        out.close();
+        return file;
+    };
+    auto unordered = [](std::vector<BucketEntry> const& es) {
+        LtHash16 h;
+        for (auto const& e : es)
+        {
+            auto rec = xdr::xdr_to_opaque(e);
+            h.add(ByteSlice(rec.data(), rec.size()));
+        }
+        return ShardedTopBucket::bucketHash(h);
+    };
+
+    // The same file written again is taken.
+    REQUIRE(ShardedTopBucket::bucketHash(ShardedTopBucket::hashOfFile(
+                write(entries, "same"))) == bucket->getHash());
+
+    // The same records in another order have the same commutative hash, and
+    // are not the bucket's file.
+    auto swapped = entries;
+    std::swap(swapped[3], swapped[4]);
+    REQUIRE(unordered(swapped) == bucket->getHash());
+    REQUIRE_THROWS_WITH(ShardedTopBucket::hashOfFile(write(swapped, "swapped")),
+                        Catch::Matchers::Contains("out of order"));
+
+    auto metaLast = entries;
+    std::rotate(metaLast.begin(), metaLast.begin() + 1, metaLast.end());
+    REQUIRE(unordered(metaLast) == bucket->getHash());
+    REQUIRE_THROWS_WITH(
+        ShardedTopBucket::hashOfFile(write(metaLast, "meta-last")),
+        Catch::Matchers::Contains("not first"));
+
+    auto twice = entries;
+    twice.insert(twice.begin() + 5, entries[5]);
+    REQUIRE_THROWS_WITH(ShardedTopBucket::hashOfFile(write(twice, "twice")),
+                        Catch::Matchers::Contains("out of order"));
+
+    REQUIRE_THROWS(ShardedTopBucket::hashOfFile(
+        write(entries, "tail", std::string(3, '\0'))));
 }
 
 TEST_CASE("level 0 is rebuilt from the shard files after a stop",

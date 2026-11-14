@@ -131,7 +131,13 @@ LtHash16::fromBytes(std::array<uint8_t, STATE_BYTES> const& bytes)
 uint256
 LtHash16::digest() const
 {
+    // Under a tag of its own: a digest is used where the SHA-256 of a file
+    // is used too (bucket hashes), and is never to be one.
+    static std::string const TAG = "stellar lthash16 digest v1";
     auto bytes = toBytes();
-    return sha256(ByteSlice(bytes.data(), bytes.size()));
+    SHA256 hasher;
+    hasher.add(ByteSlice(TAG.data(), TAG.size()));
+    hasher.add(ByteSlice(bytes.data(), bytes.size()));
+    return hasher.finish();
 }
 }

@@ -2195,6 +2195,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         gIsProductionNetwork = NETWORK_PASSPHRASE ==
                                "Public Global Stellar Network ; September 2015";
 
+        if (gIsProductionNetwork && EXPERIMENTAL_SHARDED_TOP_BUCKET > 0)
+        {
+            throw std::invalid_argument(
+                "EXPERIMENTAL_SHARDED_TOP_BUCKET changes the bucket list "
+                "hash of the ledger header and is not supported on the "
+                "public network");
+        }
+
         if (gIsProductionNetwork && usedExternalSecrets)
         {
             throw std::invalid_argument(

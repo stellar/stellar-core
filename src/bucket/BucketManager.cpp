@@ -145,6 +145,8 @@ BucketManager::BucketManager(AppConnector& appConnector)
           {"bucket", "batch-archive", "addtime"}))
     , mBucketSnapMerge(
           appConnector.getMetrics().NewTimer({"bucket", "snap", "merge"}))
+    , mTopBucketGcWaitTimer(appConnector.getMetrics().NewTimer(
+          {"bucket", "top-shard", "gc-wait"}))
     , mSharedBucketsSize(
           appConnector.getMetrics().NewCounter({"bucket", "memory", "shared"}))
     , mLiveBucketListSizeCounter(
@@ -252,7 +254,8 @@ BucketManager::getBucketDir() const
 
 BucketManager::~BucketManager()
 {
-
+    // The writer of level 0's file writes into the directories that go next.
+    waitForTopBucketFile();
     deleteTmpDirAndUnlockBucketDir();
 }
 
@@ -951,10 +954,12 @@ BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
     // With EXPERIMENTAL_SHARDED_TOP_BUCKET level 0's current bucket may still
     // be on its way to disk. Until it is there, a restart rebuilds it from
     // the ledger's shard files and the bucket before it, which is no longer
-    // referenced: it must not be dropped yet. (Before taking the lock: the
-    // file's writer is not to be waited for under it.)
-    if (mLiveBucketList)
+    // referenced: it must not be dropped yet. (Before taking the bucket
+    // mutex. The caller holds the ledger state mutex, on the main thread: a
+    // slow disk shows in this timer.)
+    if (mLiveBucketList && mConfig.EXPERIMENTAL_SHARDED_TOP_BUCKET > 0)
     {
+        auto timer = mTopBucketGcWaitTimer.TimeScope();
         mLiveBucketList->getLevel(0).getCurr()->waitForFile();
     }
     RecursiveMutexLocker lock(mBucketMutex);
@@ -1457,6 +1462,24 @@ void
 BucketManager::shutdown()
 {
     mIsShutdown = true;
+}
+
+void
+BucketManager::waitForTopBucketFile()
+{
+    if (!mLiveBucketList)
+    {
+        return;
+    }
+    try
+    {
+        mLiveBucketList->getLevel(0).getCurr()->waitForFile();
+    }
+    catch (std::exception const& e)
+    {
+        CLOG_ERROR(Bucket, "Level 0's bucket file was not written: {}",
+                   e.what());
+    }
 }
 
 bool

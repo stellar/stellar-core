@@ -143,19 +143,22 @@ TEST_CASE("lthash state round-trips and has a fixed value", "[crypto][lthash]")
     REQUIRE(LtHash16::fromBytes(whole.toBytes()) == whole);
 
     // The construction is part of what nodes must agree on: pin it. The
-    // digest of the empty collection is the SHA-256 of 2048 zero bytes.
-    std::array<uint8_t, LtHash16::STATE_BYTES> zeros;
-    zeros.fill(0);
+    // digest of the empty collection is the SHA-256 of the digest's tag and
+    // 2048 zero bytes (and so not the SHA-256 of any state).
+    std::string tagged = "stellar lthash16 digest v1";
+    tagged.append(LtHash16::STATE_BYTES, '\0');
     REQUIRE(LtHash16().digest() ==
-            sha256(ByteSlice(zeros.data(), zeros.size())));
+            sha256(ByteSlice(tagged.data(), tagged.size())));
+    REQUIRE(LtHash16().digest() !=
+            sha256(ByteSlice(tagged.data() + 26, LtHash16::STATE_BYTES)));
     LtHash16 abc;
     abc.add(std::string("abc"));
     INFO(binToHex(abc.digest()));
     auto bytes = abc.toBytes();
     INFO(binToHex(ByteSlice(bytes.data(), 16)));
-    // (From the first run of this test.)
+    // (From the first run of this test with the digest under its tag.)
     REQUIRE(binToHex(abc.digest()) ==
-            "2ec21e9619daeb2924bb88d36566dddfd8f4e45506f36eac8bb5d364dc373699");
+            "243136de057950006f0c715e341bf87d3f525bbabb461dca0834f5216b83e009");
     REQUIRE(binToHex(ByteSlice(bytes.data(), 16)) ==
             "0ecbf29822e9373da329597a8dcf31ad");
 }

@@ -29,6 +29,8 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <fmt/format.h>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <queue>
@@ -45,12 +47,25 @@ uint32_t const GROUP_TTL = 1;
 uint32_t const GROUP_CLASSIC = 2;
 uint32_t const NUM_GROUPS = 3;
 
+// The first 8 of 32 random-looking bytes of a key, mixed with a value that
+// only this process knows: whoever chooses keys (account ids, contract code)
+// cannot aim them at one shard.
 uint64_t
 load64(unsigned char const* p)
 {
+    static uint64_t const salt = []() {
+        auto bytes = randomBytes(sizeof(uint64_t));
+        uint64_t v;
+        std::memcpy(&v, bytes.data(), sizeof(v));
+        return v;
+    }();
     uint64_t v;
     std::memcpy(&v, p, sizeof(v));
-    return v;
+    v ^= salt;
+    // (the finalizer of splitmix64)
+    v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+    return v ^ (v >> 31);
 }
 
 uint32_t
@@ -293,6 +308,7 @@ ShardedTopBucket::ShardedTopBucket(Application& app, uint32_t shardsPerGroup)
     , mNumShards(static_cast<size_t>(NUM_GROUPS) * shardsPerGroup)
     , mShardDir(app.getBucketManager().getBucketDir() + "/topshards")
     , mInstance(binToHex(randomBytes(4)))
+    , mExecutor(/*pinWorkers=*/false)
     , mCutTimer(app.getMetrics().NewTimer({"bucket", "top-shard", "cut"}))
     , mShardsTimer(app.getMetrics().NewTimer({"bucket", "top-shard", "shards"}))
     , mFinishTimer(app.getMetrics().NewTimer({"bucket", "top-shard", "finish"}))
@@ -305,15 +321,22 @@ ShardedTopBucket::ShardedTopBucket(Application& app, uint32_t shardsPerGroup)
     {
         mShards.emplace_back(std::make_shared<Shard const>());
     }
+    mExecutor.setPreferredTaskCount(app.getConfig().BATCH_EXECUTOR_TASKS);
+    bool const isNew = !fs::exists(mShardDir);
     fs::mkpath(mShardDir);
+    if (isNew && !app.getConfig().DISABLE_XDR_FSYNC)
+    {
+        syncDir(app.getBucketManager().getBucketDir());
+    }
 }
 
 ShardedTopBucket::~ShardedTopBucket()
 {
-    // Let the file's writer finish. It uses the bucket manager, which owns
-    // this object, and the clock's io context, which outlives the
-    // application; nothing else of the application, parts of which (the
-    // metrics) are gone by now.
+    // Let the file's writer finish. It uses the clock's io context, which
+    // outlives the application, and nothing else of the application, parts
+    // of which (the metrics, the bucket manager's config) are gone by now.
+    // The bucket manager waits for it before it removes its directories
+    // (BucketManager::waitForTopBucketFile); this is the last resort.
     if (mFileWriter.valid())
     {
         mFileWriter.wait();
@@ -385,14 +408,72 @@ LtHash16
 ShardedTopBucket::hashOfFile(std::string const& filename)
 {
     ZoneScoped;
+    // The file must be THE file of its records: the metadata entry first,
+    // the entries in the strict order of their keys, every record in its one
+    // XDR form. The commutative hash alone does not tell a bucket file from
+    // a file with the same records in another order, and whoever reads the
+    // file (a merge, the index) relies on the order.
+    std::string raw;
+    {
+        std::ifstream in(filename, std::ios::binary);
+        if (!in)
+        {
+            throw std::runtime_error(
+                fmt::format(FMT_STRING("could not open {}"), filename));
+        }
+        raw.assign(std::istreambuf_iterator<char>(in),
+                   std::istreambuf_iterator<char>());
+    }
     LtHash16 h;
     XDRInputFileStream in;
     in.open(filename);
     BucketEntry be;
+    BucketEntry prev;
+    bool first = true;
+    bool havePrev = false;
+    size_t pos = 0;
+    std::string expected;
+    BucketEntryIdCmp<LiveBucket> idCmp;
     while (in && in.readOne(be))
     {
         auto rec = xdr::xdr_to_opaque(be);
+        expected.clear();
+        appendRecord(expected, reinterpret_cast<char const*>(rec.data()),
+                     rec.size());
+        if (pos + expected.size() > raw.size() ||
+            raw.compare(pos, expected.size(), expected) != 0)
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("{}: a record is not in its canonical form"),
+                filename));
+        }
+        pos += expected.size();
+        if (be.type() == METAENTRY)
+        {
+            if (!first)
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("{}: a metadata entry that is not first"),
+                    filename));
+            }
+        }
+        else
+        {
+            if (havePrev && !idCmp(prev, be))
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("{}: entries out of order"), filename));
+            }
+            prev = be;
+            havePrev = true;
+        }
+        first = false;
         h.add(ByteSlice(rec.data(), rec.size()));
+    }
+    if (pos != raw.size())
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("{}: bytes after the last record"), filename));
     }
     return h;
 }
@@ -732,7 +813,9 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
     std::shared_future<void> ready = promise->get_future().share();
     bool created = false;
     auto bucket = bm.adoptLiveBucketAheadOfItsFile(
-        hash, std::move(index), fileSize, ready, protocolVersion, created);
+        hash, std::move(index), fileSize, ready,
+        // (What the bucket's file says: nothing, without a metadata entry.)
+        hasMeta ? protocolVersion : 0, created);
     mCurrHash = hash;
 
     if (!created)
@@ -751,13 +834,15 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
     // 4. The bucket's file, off this thread.
     std::string tmpName = LiveBucket::randomBucketName(bm.getTmpDir());
     std::string canonicalName = bm.bucketFilename(hash);
-    auto* bmPtr = &bm;
+    // (Not the bucket manager's rename: the writer may run while the
+    // application is taken down.)
+    std::string const bucketDir = bm.getBucketDir();
     mFileReady = ready;
     garbage.emplace_back(std::move(prevShards));
     mFileWriter = std::async(
         std::launch::async, [promise, shards, metaRecord, hasMeta, tmpName,
-                             canonicalName, shardFiles, bmPtr, &ctx, doFsync,
-                             garbage = std::move(garbage)]() mutable {
+                             canonicalName, shardFiles, bucketDir, &ctx,
+                             doFsync, garbage = std::move(garbage)]() mutable {
             auto const start = std::chrono::steady_clock::now();
             try
             {
@@ -772,7 +857,12 @@ ShardedTopBucket::addBatch(Application& app, uint32_t ledgerSeq,
 #endif
                 writeBucketFile(shards, hasMeta ? metaRecord.get() : nullptr,
                                 tmpName, ctx, doFsync);
-                if (!bmPtr->renameBucketDirFile(tmpName, canonicalName))
+                bool const renamed =
+                    doFsync
+                        ? fs::durableRename(tmpName, canonicalName, bucketDir)
+                        : std::rename(tmpName.c_str(), canonicalName.c_str()) ==
+                              0;
+                if (!renamed)
                 {
                     throw std::runtime_error(
                         fmt::format(FMT_STRING("could not rename {} to {}: {}"),
@@ -837,6 +927,27 @@ ShardedTopBucket::prepareForRestart(Application& app,
     }
     if (isZero(hash) || fs::exists(bm.bucketFilename(hash)))
     {
+        // A level 0 that was written without the setting is found here and
+        // not in the middle of a ledger.
+        for (auto const& hex :
+             {has.currentBuckets.at(0).curr, has.currentBuckets.at(0).snap})
+        {
+            Hash const h = hexToBin256(hex);
+            if (isZero(h) || !fs::exists(bm.bucketFilename(h)))
+            {
+                continue;
+            }
+            if (bucketHash(hashOfFile(bm.bucketFilename(h))) != h)
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING(
+                        "EXPERIMENTAL_SHARDED_TOP_BUCKET is set, but level 0's "
+                        "bucket {} does not have the commutative hash of its "
+                        "records: this node's state was written without the "
+                        "setting"),
+                    hex));
+            }
+        }
         removeShardFiles(shardDir);
         return;
     }

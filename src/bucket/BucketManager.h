@@ -112,6 +112,7 @@ class BucketManager : NonMovableOrCopyable
     medida::Timer& mBucketAddLiveBatch;
     medida::Timer& mBucketAddArchiveBatch;
     medida::Timer& mBucketSnapMerge;
+    medida::Timer& mTopBucketGcWaitTimer;
     medida::Counter& mSharedBucketsSize;
     medida::Counter& mLiveBucketListSizeCounter;
     medida::Counter& mArchiveBucketListSizeCounter;
@@ -230,6 +231,10 @@ class BucketManager : NonMovableOrCopyable
     void initialize();
     void maybeDropAndCreateNew();
     std::string bucketIndexFilename(Hash const& hash) const;
+    // Blocks until the file of level 0's current bucket is on disk (see
+    // ShardedTopBucket; at once without it). Logs if it could not be written.
+    void waitForTopBucketFile();
+
     std::string const& getTmpDir();
     TmpDirManager& getTmpDirManager();
     std::string const& getBucketDir() const;
