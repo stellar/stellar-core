@@ -723,18 +723,34 @@ async fn a_relay_passes_on_two_frames_per_slot_and_leader() {
         order: Vec::new(),
         nodes_digest: [0; txset_tree::TREE_NODES_DIGEST],
     };
-    let mut hashes = Vec::new();
-    for seed in [66u8, 67, 68] {
+    let both: Vec<usize> = children_of(&order, &order[1], 2)
+        .iter()
+        .map(|id| index_of(&nodes, id))
+        .collect();
+    // Two different frames, one after the other (a relay has one frame in
+    // flight per child): both are passed on to both children.
+    for seed in [66u8, 67] {
         let (hash, data) = test_set(seed);
         send_tagged(&nodes[leader], &nodes[relay], &header, &data).await;
         expect_set(&mut nodes[relay], hash).await;
-        hashes.push(hash);
+        for i in &both {
+            let (_, from) = expect_set(&mut nodes[*i], hash).await;
+            assert_eq!(from, nodes[relay].peer_id);
+        }
     }
+    assert_eq!(nodes[relay].count(|m| &m.txset_tree_relayed), 4);
+    // A third one is filed by the relay and goes no further.
+    let (hash, data) = test_set(68);
+    send_tagged(&nodes[leader], &nodes[relay], &header, &data).await;
+    expect_set(&mut nodes[relay], hash).await;
     let (received, _) = set_events_within(&mut nodes[child], Duration::from_millis(500)).await;
-    assert_eq!(received.len(), 2, "the child got {:?}", received.len());
-    assert!(received.iter().all(|h| hashes[..2].contains(h)));
+    assert!(
+        received.is_empty(),
+        "a third frame of the slot and leader was relayed"
+    );
     assert_eq!(nodes[relay].count(|m| &m.txset_tree_relayed), 4);
     assert_eq!(nodes[relay].count(|m| &m.txset_tree_relay_limited), 1);
+    assert_eq!(nodes[relay].count(|m| &m.txset_tree_relay_busy), 0);
     // A second copy of a frame it relayed is a duplicate, not a third frame.
     let (_, again) = test_set(66);
     send_tagged(&nodes[leader], &nodes[relay], &header, &again).await;
