@@ -177,6 +177,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = true;
     EXPERIMENTAL_EARLY_TX_SET_SELECTION = true;
     EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT = 10;
+    EXPERIMENTAL_TX_SET_TREE = "off";
+    EXPERIMENTAL_TX_SET_TREE_FANOUT = 0;
     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     DISABLE_TX_META_FOR_TESTING = false;
@@ -1228,6 +1230,24 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT =
                          readInt<uint32_t>(item, 0, 1000);
+                 }},
+                {"EXPERIMENTAL_TX_SET_TREE",
+                 [&]() {
+                     EXPERIMENTAL_TX_SET_TREE = readString(item);
+                     if (EXPERIMENTAL_TX_SET_TREE != "off" &&
+                         EXPERIMENTAL_TX_SET_TREE != "star" &&
+                         EXPERIMENTAL_TX_SET_TREE != "hash" &&
+                         EXPERIMENTAL_TX_SET_TREE != "rtt")
+                     {
+                         throw std::invalid_argument(
+                             "EXPERIMENTAL_TX_SET_TREE must be one of "
+                             "\"off\", \"star\", \"hash\", \"rtt\"");
+                     }
+                 }},
+                {"EXPERIMENTAL_TX_SET_TREE_FANOUT",
+                 [&]() {
+                     EXPERIMENTAL_TX_SET_TREE_FANOUT =
+                         readInt<uint32_t>(item, 0, 255);
                  }},
                 {"EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD",
                  [&]() {
@@ -2415,6 +2435,26 @@ Config::logBasicInfo() const
              "EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT={}",
              EXPERIMENTAL_EARLY_TX_SET_SELECTION ? "true" : "false",
              EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT);
+    LOG_INFO(DEFAULT_LOG, "EXPERIMENTAL_TX_SET_TREE={} (fanout {})",
+             EXPERIMENTAL_TX_SET_TREE, EXPERIMENTAL_TX_SET_TREE_FANOUT);
+}
+
+uint8_t
+Config::txSetTreeMode() const
+{
+    if (EXPERIMENTAL_TX_SET_TREE == "star")
+    {
+        return 1;
+    }
+    if (EXPERIMENTAL_TX_SET_TREE == "hash")
+    {
+        return 2;
+    }
+    if (EXPERIMENTAL_TX_SET_TREE == "rtt")
+    {
+        return 3;
+    }
+    return 0;
 }
 
 void

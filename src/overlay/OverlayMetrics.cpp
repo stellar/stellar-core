@@ -69,6 +69,50 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "txset-push", "dropped"}, "txset"))
     , mTxSetPushEvicted(app.getMetrics().NewMeter(
           {"overlay", "txset-push", "evicted"}, "txset"))
+    , mTxsetPushSentBytes(app.getMetrics().NewMeter(
+          {"overlay", "txset-push", "sent-bytes"}, "byte"))
+    , mTxsetTreeRootSent(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "root-sent"}, "txset"))
+    , mTxsetTreeRelayed(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "relayed"}, "txset"))
+    , mTxsetTreeRelayedBytes(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "relayed-bytes"}, "byte"))
+    , mTxsetTreeReceived(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "received"}, "txset"))
+    , mTxsetTreeDuplicate(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "duplicate"}, "txset"))
+    , mTxsetTreeRefused(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "refused"}, "txset"))
+    , mTxsetTreeUnreachable(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "unreachable"}, "peer"))
+    , mTxsetTreeFetchDeferred(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "fetch-deferred"}, "txset"))
+    , mTxsetTreeFetchFallback(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "fetch-fallback"}, "txset"))
+    , mTxsetTreeDelayMsSum(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-ms-sum"}, "ms"))
+    , mTxsetTreeDelayCount(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-count"}, "txset"))
+    , mTxsetTreeDelayHop1MsSum(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-hop1-ms-sum"}, "ms"))
+    , mTxsetTreeDelayHop1Count(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-hop1-count"}, "txset"))
+    , mTxsetTreeDelayHop2MsSum(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-hop2-ms-sum"}, "ms"))
+    , mTxsetTreeDelayHop2Count(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-hop2-count"}, "txset"))
+    , mTxsetTreeDelayLe50(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-le-50ms"}, "txset"))
+    , mTxsetTreeDelayLe100(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-le-100ms"}, "txset"))
+    , mTxsetTreeDelayLe150(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-le-150ms"}, "txset"))
+    , mTxsetTreeDelayLe200(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-le-200ms"}, "txset"))
+    , mTxsetTreeDelayLe300(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-le-300ms"}, "txset"))
+    , mTxsetTreeDelayGt300(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "delay-gt-300ms"}, "txset"))
     , mTxDirectSent(app.getMetrics().NewMeter(
           {"overlay", "flood", "tx-direct-sent"}, "transaction"))
     , mTxDirectSentBytes(app.getMetrics().NewMeter(

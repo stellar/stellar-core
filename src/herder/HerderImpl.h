@@ -87,6 +87,14 @@ class HerderImpl : public Herder
     // Recomputes the targets and tells the overlay if they changed. Called
     // when a ledger closes, when SCP enters a round, and when sync is lost.
     void updateTxFloodTargets();
+
+    // Tell the overlay the spanning trees of the next two slots
+    // (EXPERIMENTAL_TX_SET_TREE): the nodes of the leader schedule and the
+    // seed of each slot. The tree of a slot and leader is a function of
+    // those, as the schedule is, so every node derives the same one. Sent a
+    // slot ahead because a leader may push the set of slot N+1 the moment N
+    // closes, before a follower has closed N.
+    void updateTxSetTree();
 #ifdef BUILD_TESTS
     // What the overlay was last told (nullopt = every peer).
     std::optional<std::vector<NodeID>> const&

@@ -436,6 +436,35 @@ HerderImpl::lostSync()
     updateTxFloodTargets();
 }
 
+void
+HerderImpl::updateTxSetTree()
+{
+    auto const& cfg = mApp.getConfig();
+    uint8_t const mode = cfg.txSetTreeMode();
+    if (mode == 0 || mApp.isStopping())
+    {
+        // Off: the overlay is never told, and pushes as before.
+        return;
+    }
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    uint32_t const next = lcl.header.ledgerSeq + 1;
+    // The nodes of the trees are the nodes of the leader schedule (the
+    // transitive quorum).
+    auto const& nodes = mHerderSCPDriver.getLeaderSchedule(next);
+    if (nodes.empty())
+    {
+        return;
+    }
+    // The seeds are those of the leader schedules: the hash of the ledger
+    // before the last closed one for the next slot, and the last closed
+    // ledger's own for the slot after (see LeaderSchedule.h).
+    std::vector<std::pair<uint32_t, Hash>> const slots{
+        {next, lcl.header.previousLedgerHash}, {next + 1, lcl.hash}};
+    mApp.getOverlayManager().setTxSetTree(
+        mode, static_cast<uint8_t>(cfg.EXPERIMENTAL_TX_SET_TREE_FANOUT), slots,
+        nodes);
+}
+
 std::optional<std::vector<NodeID>>
 HerderImpl::computeTxFloodTargets()
 {
@@ -2388,6 +2417,7 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
         // The new ledger's hash seeds the next slot's leader schedule: the
         // transactions this node holds go to the new leaders now.
         updateTxFloodTargets();
+        updateTxSetTree();
 
         // Now that the new ledger is closed, process any already-buffered SCP
         // envelopes for the next slot. Posted to the main thread so control

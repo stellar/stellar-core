@@ -11,6 +11,9 @@
 //! Each stream is opened once per peer and kept alive.
 //! QUIC provides independent loss recovery per stream.
 
+use crate::flood::txset_tree::{
+    self, FetchDecision, FrameKind, Probe, RelayPlan, TreeConfig, TreeHeader, TreeMode, TreeState,
+};
 use crate::flood::{
     GetData, InvBatch, InvBatcher, InvEntry, InvTracker, NodeId, PendingRequests, PushRateLimiter,
     PushRecord, SendPlan, TxBuffer, TxRouter, TxSetData, TxStreamMessage,
@@ -213,6 +216,9 @@ pub enum OverlayCommand {
     PushTxSet {
         hash: [u8; 32],
         data: Arc<TxSetData>,
+        /// The slot the set is for, if the caller knows it: with a tree
+        /// configured for that slot the set goes down the tree.
+        slot: Option<u32>,
     },
     /// Core accepted this transaction. The router already holds it; this
     /// carries out what it decided at that moment.
@@ -302,6 +308,10 @@ pub struct OverlayHandle {
     /// Core's messages (a transaction accepted, transactions externalized,
     /// new targets), then sends a command to act on it.
     tx_router: Arc<std::sync::Mutex<TxRouter<PeerId>>>,
+    /// Shared with the overlay task: the trees the leader's tx set travels
+    /// down (see `flood::txset_tree`).
+    txset_tree: Arc<std::sync::Mutex<TreeState>>,
+    metrics: Arc<OverlayMetrics>,
     local_peer_id: PeerId,
 }
 
@@ -406,8 +416,47 @@ impl OverlayHandle {
         self.tx_router.lock().unwrap().len()
     }
 
+    /// Ask a peer for a set this node does not hold. If the set is expected
+    /// through the tree, the request waits (`TREE_FETCH_GRACE` from the first
+    /// mention of the hash) and is only sent if the set has not arrived by
+    /// then: otherwise every node the leader did not push to would ask it the
+    /// moment the proposal arrives.
     pub async fn fetch_txset(&self, hash: [u8; 32], slot: u32) {
-        self.send_fetch_txset(hash, slot, false).await;
+        let decision = self
+            .txset_tree
+            .lock()
+            .unwrap()
+            .fetch_decision(&hash, slot, Instant::now());
+        match decision {
+            FetchDecision::Proceed => self.send_fetch_txset(hash, slot, false).await,
+            FetchDecision::AlreadyWaiting => {}
+            FetchDecision::Wait(wait) => {
+                self.metrics
+                    .txset_tree_fetch_deferred
+                    .fetch_add(1, Ordering::Relaxed);
+                let this = self.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(wait).await;
+                    if this.txset_tree.lock().unwrap().is_delivered(&hash) {
+                        return;
+                    }
+                    this.metrics
+                        .txset_tree_fetch_fallback
+                        .fetch_add(1, Ordering::Relaxed);
+                    info!(
+                        "TXSET_TREE_FALLBACK: TX set {:02x?}... for slot {} did not arrive through the tree, asking for it",
+                        &hash[..4],
+                        slot
+                    );
+                    this.send_fetch_txset(hash, slot, false).await;
+                });
+            }
+        }
+    }
+
+    /// Core described the trees of the next slots.
+    pub fn set_txset_tree(&self, config: TreeConfig) {
+        self.txset_tree.lock().unwrap().set_config(config);
     }
 
     /// Re-request a set an earlier request has not delivered. Unlike
@@ -485,9 +534,20 @@ impl OverlayHandle {
     /// Push a TX set to every connected peer without waiting for requests.
     /// Each peer is sent a given set once; see `PushRecord`.
     pub async fn push_txset(&self, hash: [u8; 32], data: Arc<TxSetData>) {
+        self.send_push_txset(hash, data, None).await;
+    }
+
+    /// As [`Self::push_txset`] for the set of `slot`: if Core configured a
+    /// tree for that slot, the set goes to this node's children in it (or,
+    /// in star mode, to every peer with a header that says when).
+    pub async fn push_txset_for_slot(&self, hash: [u8; 32], data: Arc<TxSetData>, slot: u32) {
+        self.send_push_txset(hash, data, Some(slot)).await;
+    }
+
+    async fn send_push_txset(&self, hash: [u8; 32], data: Arc<TxSetData>, slot: Option<u32>) {
         if let Err(e) = self
             .cmd_tx
-            .send(OverlayCommand::PushTxSet { hash, data })
+            .send(OverlayCommand::PushTxSet { hash, data, slot })
             .await
         {
             warn!(
@@ -635,6 +695,10 @@ struct SharedState {
     /// Where this node's own transactions go (shared with the App through
     /// `OverlayHandle`). Never held across an await.
     tx_router: Arc<std::sync::Mutex<TxRouter<PeerId>>>,
+    /// The trees the leader's tx set travels down (shared with the App
+    /// through `OverlayHandle`). Never held across an await, and never
+    /// together with another of these locks.
+    txset_tree: Arc<std::sync::Mutex<TreeState>>,
     /// Validator identities: ours and unchecked claims. Never held across
     /// an await.
     identity: std::sync::Mutex<IdentityState>,
@@ -652,6 +716,7 @@ impl SharedState {
         control: Control,
         metrics: Arc<OverlayMetrics>,
         tx_router: Arc<std::sync::Mutex<TxRouter<PeerId>>>,
+        txset_tree: Arc<std::sync::Mutex<TreeState>>,
     ) -> Self {
         Self {
             peer_streams: RwLock::new(HashMap::new()),
@@ -680,6 +745,7 @@ impl SharedState {
             pending_getdata: RwLock::new(PendingRequests::new()),
             tx_buffer: RwLock::new(TxBuffer::new()),
             tx_router,
+            txset_tree,
             identity: std::sync::Mutex::new(IdentityState::default()),
             direct_out: std::sync::Mutex::new(DirectOut::default()),
             metrics,
@@ -786,12 +852,14 @@ pub fn create_overlay(
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
     let tx_router = Arc::new(std::sync::Mutex::new(TxRouter::new()));
+    let txset_tree = Arc::new(std::sync::Mutex::new(TreeState::new()));
     let state = Arc::new(SharedState::new(
         event_tx,
         mempool,
         control.clone(),
-        metrics,
+        Arc::clone(&metrics),
         Arc::clone(&tx_router),
+        Arc::clone(&txset_tree),
     ));
 
     let overlay = StellarOverlay {
@@ -807,6 +875,8 @@ pub fn create_overlay(
         txset_send_slots: Arc::new(Semaphore::new(MAX_OUTSTANDING_TXSET_SENDS)),
         txset_send_bytes: Arc::new(Semaphore::new(MAX_OUTSTANDING_TXSET_BYTES)),
         tx_router,
+        txset_tree,
+        metrics,
         local_peer_id: peer_id,
     };
 
@@ -864,6 +934,7 @@ impl StellarOverlay {
         // Spawn INV/GETDATA housekeeping task
         tokio::spawn(inv_getdata_housekeeping_task(state.clone()));
         tokio::spawn(direct_send_flush_task(state.clone()));
+        tokio::spawn(txset_tree_probe_task(state.clone()));
 
         loop {
             tokio::select! {
@@ -902,8 +973,8 @@ impl StellarOverlay {
                             sources.put(hash, peer);
                             debug!("Recorded peer {} as source for TX set {:02x?}...", peer, &hash[..4]);
                         }
-                        OverlayCommand::PushTxSet { hash, data } => {
-                            self.push_txset(hash, data).await;
+                        OverlayCommand::PushTxSet { hash, data, slot } => {
+                            self.push_txset(hash, data, slot).await;
                         }
                         OverlayCommand::SendLocalTx(plan) => {
                             self.send_local_tx_plan(plan).await;
@@ -1117,11 +1188,16 @@ impl StellarOverlay {
                     // Whatever was queued for the peer is not sent; the
                     // router forgets its sends to the peer just below.
                     self.state.direct_out.lock().unwrap().queued.remove(&peer_id);
-                    let identified = {
+                    let (identified, gone) = {
                         let mut router = self.state.tx_router.lock().unwrap();
+                        let gone = router.node_of(&peer_id).copied();
                         router.peer_disconnected(&peer_id);
-                        router.identified_peer_count()
+                        (router.identified_peer_count(), gone)
                     };
+                    if let Some(node) = gone {
+                        // A new connection to it is measured afresh.
+                        self.state.txset_tree.lock().unwrap().forget_rtt(&node);
+                    }
                     self.state
                         .metrics
                         .node_id_identified
@@ -1451,10 +1527,122 @@ impl StellarOverlay {
         });
     }
 
-    /// Push a TX set to every connected peer that has not been sent it. The
-    /// frame is the one a request is answered with, sent unsolicited on the
-    /// TX-set stream; receivers verify and cache it by its content hash.
-    async fn push_txset(&mut self, hash: [u8; 32], data: Arc<TxSetData>) {
+    /// Whom the set of `slot` goes to when this node leads, and the header it
+    /// carries (none: an ordinary frame, as before the tree).
+    ///
+    /// * No tree configured, or mode off: every connected peer, no header.
+    /// * Star: every connected peer, with a header.
+    /// * Hash, rtt: this node's children in the tree. If the tree of the slot
+    ///   is not known here, or a child has no identified connection (right
+    ///   after a start, before the peers proved who they are), the set goes
+    ///   to every peer as a star instead: a subtree must not depend on a
+    ///   child the root cannot reach.
+    fn tree_push_plan(
+        &self,
+        slot: Option<u32>,
+        connected: &[PeerId],
+    ) -> (Option<TreeHeader>, Vec<PeerId>) {
+        let everyone = || connected.to_vec();
+        let Some(slot) = slot else {
+            return (None, everyone());
+        };
+        let Some(me) = self
+            .state
+            .identity
+            .lock()
+            .unwrap()
+            .ours
+            .as_ref()
+            .map(|i| i.node_id)
+        else {
+            return (None, everyone());
+        };
+        // One lock at a time: the identified peers first, then the tree.
+        let peer_of: HashMap<NodeId, PeerId> = {
+            let router = self.state.tx_router.lock().unwrap();
+            connected
+                .iter()
+                .filter_map(|peer| router.node_of(peer).map(|node| (*node, *peer)))
+                .collect()
+        };
+        let sent_unix_ms = unix_ms_now();
+        let star = |fanout: u8| TreeHeader {
+            kind: FrameKind::Star,
+            fanout,
+            hop: 1,
+            slot,
+            leader: me,
+            sent_unix_ms,
+            order: Vec::new(),
+        };
+        let tree = self.state.txset_tree.lock().unwrap();
+        let Some(config) = tree.config() else {
+            return (None, everyone());
+        };
+        let fanout = config.effective_fanout();
+        let (kind, order, indices) = match config.mode {
+            TreeMode::Off => return (None, everyone()),
+            TreeMode::Star => return (Some(star(0)), everyone()),
+            TreeMode::Hash => match config.hash_order(slot, &me) {
+                Some(order) => (FrameKind::Hash, order, Vec::new()),
+                None => return (Some(star(0)), everyone()),
+            },
+            TreeMode::Rtt => {
+                if config.seed_of(slot).is_none() || !config.contains(&me) {
+                    return (Some(star(0)), everyone());
+                }
+                let measured: Vec<(NodeId, Option<Duration>)> = config
+                    .nodes
+                    .iter()
+                    .filter(|node| **node != me)
+                    .map(|node| (*node, tree.rtt_of(node)))
+                    .collect();
+                let order = txset_tree::rtt_order(&me, &measured, fanout);
+                match config.indices_of(&order) {
+                    Some(indices) => (FrameKind::Explicit, order, indices),
+                    None => return (Some(star(0)), everyone()),
+                }
+            }
+        };
+        drop(tree);
+        let children = txset_tree::children_of(&order, &me, fanout);
+        let targets: Vec<PeerId> = children
+            .iter()
+            .filter_map(|node| peer_of.get(node).copied())
+            .collect();
+        if targets.len() < children.len() {
+            self.state.metrics.txset_tree_unreachable.fetch_add(
+                (children.len() - targets.len()) as u64,
+                Ordering::Relaxed,
+            );
+            warn!(
+                "TXSET_TREE_STAR: {} of {} children for slot {} have no identified connection, pushing to every peer",
+                children.len() - targets.len(),
+                children.len(),
+                slot
+            );
+            return (Some(star(0)), everyone());
+        }
+        (
+            Some(TreeHeader {
+                kind,
+                fanout: fanout.min(u8::MAX as usize) as u8,
+                hop: 1,
+                slot,
+                leader: me,
+                sent_unix_ms,
+                order: indices,
+            }),
+            targets,
+        )
+    }
+
+    /// Push a TX set this node leads with. Without a tree it goes to every
+    /// connected peer that has not been sent it, as the frame a request is
+    /// answered with, unsolicited on the TX-set stream; with one, to this
+    /// node's children in the tree, with a header in front (see
+    /// `tree_push_plan`). Receivers verify and cache it by its content hash.
+    async fn push_txset(&mut self, hash: [u8; 32], data: Arc<TxSetData>, slot: Option<u32>) {
         // Include the StellarMessage discriminant in the existing wire limit.
         if data.len() > MAX_MESSAGE_SIZE - 4 {
             warn!(
@@ -1472,12 +1660,15 @@ impl StellarOverlay {
             .keys()
             .cloned()
             .collect();
+        let (header, wanted) = self.tree_push_plan(slot, &connected);
+        let tagged = header.is_some();
+        let header: Arc<Vec<u8>> = Arc::new(header.map(|h| h.encode()).unwrap_or_default());
         let (targets, busy) = self
             .state
             .txset_pushes
             .lock()
             .unwrap()
-            .start_push_counting_busy(hash, connected);
+            .start_push_counting_busy(hash, wanted);
         if busy > 0 {
             // Those peers request the set when they see the proposal.
             warn!(
@@ -1494,30 +1685,49 @@ impl StellarOverlay {
             return;
         }
         info!(
-            "TXSET_PUSH: Pushing TX set {:02x?}... ({} bytes, {} on the wire) to {} peers",
+            "TXSET_PUSH: Pushing TX set {:02x?}... ({} bytes, {} on the wire) to {} of {} peers{}",
             &hash[..4],
             data.len(),
             data.encoded().len(),
-            targets.len()
+            targets.len(),
+            connected.len(),
+            if tagged { " (tagged)" } else { "" }
         );
         for peer in targets {
             let state = Arc::clone(&self.state);
             let data = Arc::clone(&data);
+            let header = Arc::clone(&header);
             self.sends.spawn(async move {
-                match send_to_peer_stream(&state, peer, StreamType::TxSet, data.encoded()).await {
+                let sent = if header.is_empty() {
+                    send_to_peer_stream(&state, peer, StreamType::TxSet, data.encoded()).await
+                } else {
+                    send_to_peer_stream_parts(
+                        &state,
+                        peer,
+                        StreamType::TxSet,
+                        &[header.as_slice(), data.encoded()],
+                    )
+                    .await
+                };
+                match sent {
                     Ok(_) => {
                         state.txset_pushes.lock().unwrap().push_written(
                             &hash,
                             &peer,
                             Instant::now(),
                         );
+                        let bytes = (header.len() + data.encoded().len()) as u64;
                         let metrics = &state.metrics;
                         metrics.txset_push_sent.fetch_add(1, Ordering::Relaxed);
+                        metrics
+                            .txset_push_sent_bytes
+                            .fetch_add(bytes, Ordering::Relaxed);
+                        if !header.is_empty() {
+                            metrics.txset_tree_root_sent.fetch_add(1, Ordering::Relaxed);
+                        }
                         metrics.send_txset.fetch_add(1, Ordering::Relaxed);
                         metrics.message_write.fetch_add(1, Ordering::Relaxed);
-                        metrics
-                            .byte_write
-                            .fetch_add(data.encoded().len() as u64, Ordering::Relaxed);
+                        metrics.byte_write.fetch_add(bytes, Ordering::Relaxed);
                         debug!(
                             "TXSET_PUSH_OK: Queued TX set {:02x?}... to {}",
                             &hash[..4],
@@ -3124,6 +3334,8 @@ fn handle_txset_request(state: &SharedState, peer_id: PeerId, hash: [u8; 32]) {
 /// Deliver verified XDR together with its original compressed encoding.
 async fn deliver_txset(state: &SharedState, peer_id: PeerId, txset_data: Arc<TxSetData>) {
     let hash = crate::xdr::sha256_hash(txset_data.as_slice());
+    // A node that waits for this set through the tree need not ask for it.
+    state.txset_tree.lock().unwrap().set_delivered(hash);
 
     // Clear pending request flag and measure fetch latency
     let slot = {
@@ -3171,6 +3383,233 @@ async fn deliver_txset(state: &SharedState, peer_id: PeerId, txset_data: Arc<TxS
     }
 }
 
+/// Pings a peer is answered per second (a node sends one every
+/// `TREE_PROBE_INTERVAL`).
+const MAX_PROBES_ANSWERED_PER_SEC: u32 = 5;
+
+/// How often a node in rtt mode measures the round trip to each peer.
+const TREE_PROBE_INTERVAL: Duration = if cfg!(test) {
+    Duration::from_millis(200)
+} else {
+    Duration::from_secs(2)
+};
+
+/// Microseconds on this process's monotonic clock.
+fn monotonic_micros() -> u64 {
+    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    START.get_or_init(Instant::now).elapsed().as_micros() as u64
+}
+
+/// In rtt mode, measure the round trip to every identified peer: a ping on
+/// the tx-set stream, which the peer sends back (`Probe`). The leader lays
+/// its tree out by these times (`txset_tree::rtt_order`). A probe that waits
+/// behind a set on the same stream comes back late; the smallest of the last
+/// few samples is used.
+async fn txset_tree_probe_task(state: Arc<SharedState>) {
+    let mut interval = tokio::time::interval(TREE_PROBE_INTERVAL);
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        interval.tick().await;
+        if state.txset_tree.lock().unwrap().mode() != TreeMode::Rtt {
+            continue;
+        }
+        let peers: Vec<PeerId> = state
+            .tx_router
+            .lock()
+            .unwrap()
+            .identified_peers()
+            .into_values()
+            .collect();
+        for peer in peers {
+            let state = state.clone();
+            tokio::spawn(async move {
+                let ping = Probe::Ping(monotonic_micros()).encode();
+                let _ = send_to_peer_stream(&state, peer, StreamType::TxSet, &ping).await;
+            });
+        }
+    }
+}
+
+/// Milliseconds since the Unix epoch by this node's clock.
+fn unix_ms_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
+}
+
+/// A received tx-set frame with the offset at which the ordinary frame
+/// begins (0 if it had no tree header).
+struct TaggedBody {
+    frame: Arc<Vec<u8>>,
+    body: usize,
+}
+
+impl TaggedBody {
+    fn plain(frame: Vec<u8>) -> Self {
+        Self {
+            frame: Arc::new(frame),
+            body: 0,
+        }
+    }
+
+    /// The ordinary frame as an allocation of its own (what the cache keeps
+    /// to answer requests with). Free when there was no header and nobody
+    /// else holds the bytes; one copy otherwise.
+    fn into_frame(self) -> Vec<u8> {
+        if self.body == 0 {
+            Arc::try_unwrap(self.frame).unwrap_or_else(|shared| shared.as_ref().clone())
+        } else {
+            self.frame[self.body..].to_vec()
+        }
+    }
+}
+
+/// Handle the tree header of a frame from `peer_id`: record how long the
+/// frame took, and pass it on to this node's children in the tree if it has
+/// any (see `txset_tree::relay_plan`). The bytes go on as they came, before
+/// they are decompressed or checked: every receiver checks them itself, and
+/// a node only relays what its parent in the tree sent it, once.
+///
+/// Returns the frame with the offset of the ordinary frame in it, or `None`
+/// if the header is malformed.
+fn relay_tagged_frame(
+    state: &Arc<SharedState>,
+    peer_id: PeerId,
+    frame: Vec<u8>,
+) -> Option<TaggedBody> {
+    let (header, body) = TreeHeader::parse(&frame)?;
+    let metrics = &state.metrics;
+    metrics.txset_tree_received.fetch_add(1, Ordering::Relaxed);
+    // By the leader's clock and ours; the nodes of a network keep theirs
+    // within a few milliseconds. A nonsensical difference is not recorded.
+    let delay_ms = unix_ms_now().saturating_sub(header.sent_unix_ms);
+    if header.sent_unix_ms != 0 && delay_ms < 60_000 {
+        metrics
+            .txset_tree_delay_ms_sum
+            .fetch_add(delay_ms, Ordering::Relaxed);
+        metrics.txset_tree_delay_count.fetch_add(1, Ordering::Relaxed);
+        let (sum, count) = if header.hop <= 1 {
+            (
+                &metrics.txset_tree_delay_hop1_ms_sum,
+                &metrics.txset_tree_delay_hop1_count,
+            )
+        } else {
+            (
+                &metrics.txset_tree_delay_hop2_ms_sum,
+                &metrics.txset_tree_delay_hop2_count,
+            )
+        };
+        sum.fetch_add(delay_ms, Ordering::Relaxed);
+        count.fetch_add(1, Ordering::Relaxed);
+        let bucket = match delay_ms {
+            0..=50 => &metrics.txset_tree_delay_le_50,
+            51..=100 => &metrics.txset_tree_delay_le_100,
+            101..=150 => &metrics.txset_tree_delay_le_150,
+            151..=200 => &metrics.txset_tree_delay_le_200,
+            201..=300 => &metrics.txset_tree_delay_le_300,
+            _ => &metrics.txset_tree_delay_gt_300,
+        };
+        bucket.fetch_add(1, Ordering::Relaxed);
+    }
+    let frame = Arc::new(frame);
+    if header.kind == FrameKind::Star {
+        return Some(TaggedBody { frame, body });
+    }
+    // One lock at a time.
+    let me = state.identity.lock().unwrap().ours.as_ref().map(|i| i.node_id);
+    let sender = state.tx_router.lock().unwrap().node_of(&peer_id).copied();
+    let plan = {
+        let mut tree = state.txset_tree.lock().unwrap();
+        let plan = match (tree.config(), me) {
+            (Some(config), Some(me)) => {
+                txset_tree::relay_plan(config, &header, &me, sender.as_ref())
+            }
+            _ => RelayPlan::Refused(txset_tree::RelayRefusal::NotATree),
+        };
+        match plan {
+            RelayPlan::Relay(children) => {
+                if tree.first_copy(&header, &frame[body..]) {
+                    RelayPlan::Relay(children)
+                } else {
+                    metrics.txset_tree_duplicate.fetch_add(1, Ordering::Relaxed);
+                    RelayPlan::Leaf
+                }
+            }
+            other => other,
+        }
+    };
+    match plan {
+        RelayPlan::Leaf => {}
+        RelayPlan::Refused(why) => {
+            if why != txset_tree::RelayRefusal::NotATree {
+                metrics.txset_tree_refused.fetch_add(1, Ordering::Relaxed);
+                debug!(
+                    "TXSET_TREE_REFUSED: Not relaying the tree frame for slot {} from {}: {:?}",
+                    header.slot, peer_id, why
+                );
+            }
+        }
+        RelayPlan::Relay(children) => {
+            let peer_of: HashMap<NodeId, PeerId> = {
+                let router = state.tx_router.lock().unwrap();
+                router.identified_peers()
+            };
+            let relay_header = Arc::new(
+                TreeHeader {
+                    hop: header.hop.saturating_add(1),
+                    ..header.clone()
+                }
+                .encode(),
+            );
+            let mut unreachable = 0u64;
+            for child in &children {
+                let Some(peer) = peer_of.get(child).copied() else {
+                    unreachable += 1;
+                    continue;
+                };
+                let state = Arc::clone(state);
+                let frame = Arc::clone(&frame);
+                let relay_header = Arc::clone(&relay_header);
+                tokio::spawn(async move {
+                    let parts = [relay_header.as_slice(), &frame[body..]];
+                    match send_to_peer_stream_parts(&state, peer, StreamType::TxSet, &parts).await {
+                        Ok(_) => {
+                            let bytes = (relay_header.len() + frame.len() - body) as u64;
+                            let metrics = &state.metrics;
+                            metrics.txset_tree_relayed.fetch_add(1, Ordering::Relaxed);
+                            metrics
+                                .txset_tree_relayed_bytes
+                                .fetch_add(bytes, Ordering::Relaxed);
+                            metrics.send_txset.fetch_add(1, Ordering::Relaxed);
+                            metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                            metrics.byte_write.fetch_add(bytes, Ordering::Relaxed);
+                        }
+                        Err(e) => {
+                            state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                            warn!(
+                                "TXSET_TREE_RELAY_FAIL: Failed to relay a tree frame to {}: {}",
+                                peer, e
+                            );
+                        }
+                    }
+                });
+            }
+            if unreachable > 0 {
+                metrics
+                    .txset_tree_unreachable
+                    .fetch_add(unreachable, Ordering::Relaxed);
+            }
+            debug!(
+                "TXSET_TREE_RELAY: Relaying the tree frame for slot {} (hop {}) to {} children",
+                header.slot,
+                header.hop,
+                children.len() as u64 - unreachable
+            );
+        }
+    }
+    Some(TaggedBody { frame, body })
+}
+
 async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
         debug!("Accepted inbound TxSet stream from {}", peer_id);
@@ -3178,10 +3617,12 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
         let state = state.clone();
 
         tokio::spawn(async move {
+            let mut probe_window = Instant::now();
+            let mut probes_answered = 0u32;
             loop {
                 match read_framed_with_limit(
                     &mut stream,
-                    crate::flood::txset_encoding::max_encoded_size(),
+                    crate::flood::txset_encoding::max_encoded_size() + txset_tree::MAX_TREE_HEADER,
                 )
                 .await
                 {
@@ -3191,6 +3632,48 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                             .metrics
                             .byte_read
                             .fetch_add(data.len() as u64, Ordering::Relaxed);
+                        // A round-trip probe (see `txset_tree_probe_task`):
+                        // answer a ping, record a pong. Neither is a set.
+                        if let Some(probe) = Probe::parse(&data) {
+                            match probe {
+                                Some(Probe::Ping(value)) => {
+                                    // A peer gets a few answers a second.
+                                    let now = Instant::now();
+                                    if now.duration_since(probe_window) >= Duration::from_secs(1) {
+                                        probe_window = now;
+                                        probes_answered = 0;
+                                    }
+                                    if probes_answered < MAX_PROBES_ANSWERED_PER_SEC {
+                                        probes_answered += 1;
+                                        let state = state.clone();
+                                        tokio::spawn(async move {
+                                            let pong = Probe::Pong(value).encode();
+                                            let _ = send_to_peer_stream(
+                                                &state,
+                                                peer_id,
+                                                StreamType::TxSet,
+                                                &pong,
+                                            )
+                                            .await;
+                                        });
+                                    }
+                                }
+                                Some(Probe::Pong(sent_micros)) => {
+                                    let rtt = monotonic_micros().saturating_sub(sent_micros);
+                                    let node =
+                                        state.tx_router.lock().unwrap().node_of(&peer_id).copied();
+                                    if let (Some(node), true) = (node, rtt < 10_000_000) {
+                                        state
+                                            .txset_tree
+                                            .lock()
+                                            .unwrap()
+                                            .note_rtt(node, Duration::from_micros(rtt));
+                                    }
+                                }
+                                None => {}
+                            }
+                            continue;
+                        }
                         // Bound what a peer can make this node decompress
                         // and parse. Answers to this node's requests are
                         // free (the token is returned in `deliver_txset`);
@@ -3213,11 +3696,26 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                             );
                             continue;
                         }
+                        // A frame with a tree header: pass the bytes on to
+                        // this node's children first (if it has any in that
+                        // tree), then go on with the ordinary frame behind
+                        // the header.
+                        let data = if TreeHeader::is_tagged(&data) {
+                            match relay_tagged_frame(&state, peer_id, data) {
+                                Some(body) => body,
+                                None => {
+                                    warn!("TXSET_TREE_ERR: Dropping TxSet frame with a malformed tree header from {}", peer_id);
+                                    continue;
+                                }
+                            }
+                        } else {
+                            TaggedBody::plain(data)
+                        };
                         // Preserve the received encoding through verification and
                         // cache insertion. Forwarding never compresses it again.
                         let decoded = tokio::task::spawn_blocking(move || {
                             use stellar_xdr::{GeneralizedTransactionSet, Limits, ReadXdr};
-                            let data = crate::flood::txset_encoding::decode(data)?;
+                            let data = crate::flood::txset_encoding::decode(data.into_frame())?;
                             GeneralizedTransactionSet::from_xdr(data.as_slice(), Limits::none())
                                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                             Ok::<_, io::Error>(Arc::new(data))
@@ -3423,6 +3921,9 @@ mod txset_push_tests;
 
 #[cfg(test)]
 mod tx_direct_tests;
+
+#[cfg(test)]
+mod txset_tree_tests;
 
 #[cfg(test)]
 mod tests {

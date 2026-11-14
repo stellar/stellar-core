@@ -23,6 +23,7 @@ use stellar_overlay::config::Config;
 use stellar_overlay::flood::{
     CachedTxSet, Hash256, TxSetCache, TxSetData, TxSetStore, UnclaimedSetBudget,
 };
+use stellar_overlay::flood::txset_tree::{TreeConfig, TreeMode, MAX_TREE_NODES};
 use stellar_overlay::integrated::{Overlay, OverlayHandle};
 use stellar_overlay::ipc::{CoreIpc, Message, MessageType};
 use stellar_overlay::libp2p_overlay::{
@@ -1405,7 +1406,7 @@ impl App {
                 // Spawn so the main loop never awaits on the bounded libp2p
                 // command channel.
                 tokio::spawn(async move {
-                    handle.push_txset(hash, data).await;
+                    handle.push_txset_for_slot(hash, data, slot).await;
                 });
             }
 
@@ -1488,6 +1489,24 @@ impl App {
                         handle.flush_local_txs().await;
                     });
                 }
+            }
+
+            MessageType::SetTxSetTree => {
+                let Some(config) = parse_txset_tree(&msg.payload) else {
+                    warn!(
+                        "SetTxSetTree payload malformed ({} bytes)",
+                        msg.payload.len()
+                    );
+                    return true;
+                };
+                debug!(
+                    "TXSET_TREE: mode {:?}, fanout {}, {} nodes, slots {:?}",
+                    config.mode,
+                    config.effective_fanout(),
+                    config.nodes.len(),
+                    config.slots.iter().map(|(slot, _)| *slot).collect::<Vec<_>>()
+                );
+                self.libp2p_handle.set_txset_tree(config);
             }
 
             MessageType::RequestScpState => {
@@ -1831,6 +1850,37 @@ fn parse_tx_targets(payload: &[u8]) -> Option<Option<Vec<[u8; 32]>>> {
         .map(|chunk| chunk.try_into().unwrap())
         .collect();
     Some(Some(nodes))
+}
+
+/// Parse a `SetTxSetTree` payload:
+/// `[mode:1][fanout:1][slots:1]([slot:4 LE][seed:32])...[count:4 LE][nodeID:32]...`.
+fn parse_txset_tree(payload: &[u8]) -> Option<TreeConfig> {
+    if payload.len() < 3 {
+        return None;
+    }
+    let mode = TreeMode::from_u8(payload[0])?;
+    let fanout = payload[1];
+    let slot_count = payload[2] as usize;
+    let mut at = 3;
+    let mut slots = Vec::with_capacity(slot_count);
+    for _ in 0..slot_count {
+        let entry = payload.get(at..at + 36)?;
+        let slot = u32::from_le_bytes(entry[..4].try_into().unwrap());
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(&entry[4..]);
+        slots.push((slot, seed));
+        at += 36;
+    }
+    let count = u32::from_le_bytes(payload.get(at..at + 4)?.try_into().unwrap()) as usize;
+    at += 4;
+    if count > MAX_TREE_NODES || payload.len() != at + count.checked_mul(32)? {
+        return None;
+    }
+    let nodes = payload[at..]
+        .chunks_exact(32)
+        .map(|chunk| chunk.try_into().unwrap())
+        .collect();
+    Some(TreeConfig::new(mode, fanout, slots, nodes))
 }
 
 fn setup_logging(level: &str) {

@@ -96,6 +96,15 @@ enum class IPCMessageType : uint32_t
     /// everyone = 1: flood to all peers (the list is ignored).
     SET_TX_TARGETS = 16,
 
+    /// The spanning trees the leader's TX set travels down in the next
+    /// slots (see HerderImpl::updateTxSetTree and
+    /// overlay/src/flood/txset_tree.rs).
+    /// Payload: [mode:1][fanout:1][slots:1]([slot:4][seed:32])...
+    ///          [count:4][nodeID:32]...
+    /// mode: 0 off, 1 star, 2 hash, 3 rtt. fanout 0 = the smallest that
+    /// reaches every node in two hops.
+    SET_TX_SET_TREE = 17,
+
     // ═══ Overlay → Core (Critical Path) ═══
 
     /// Received SCP envelope from network

@@ -101,6 +101,14 @@ class RustOverlayManager
     // Returns whether the overlay was told.
     bool setTxFloodTargets(std::optional<std::vector<NodeID>> const& targets);
 
+    // Describe the spanning trees of the next slots to the overlay (see
+    // HerderImpl::updateTxSetTree): with them a leader's pushTxSet goes to
+    // its children in the slot's tree, and every node relays what its
+    // parent sends it. Returns whether the overlay was told.
+    bool setTxSetTree(uint8_t mode, uint8_t fanout,
+                      std::vector<std::pair<uint32_t, Hash>> const& slots,
+                      std::vector<NodeID> const& nodes);
+
     // What a validator signs to say "the overlay with this libp2p peer id is
     // mine": SHA256(networkID || "stellar-overlay-peer-id" || peerId). The
     // tag keeps it apart from everything else the node key signs.

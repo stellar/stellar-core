@@ -556,6 +556,28 @@ class Config : public std::enable_shared_from_this<Config>
     // how often that happens.
     uint32_t EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT;
 
+    // How the round's leader gets its transaction set to the other nodes
+    // (experimental; see overlay/src/flood/txset_tree.rs):
+    //  "off"  - it writes the set to every peer (as before).
+    //  "star" - the same, with a header that says when it was sent, so that
+    //           the delivery can be measured like a tree's.
+    //  "hash" - down a spanning tree that every node derives from the nodes
+    //           of the leader schedule and the slot's seed: the leader writes
+    //           the set to its children only, and every node passes it on to
+    //           its own.
+    //  "rtt"  - down a tree the leader lays out by its round-trip times to
+    //           its peers; the order travels with the set.
+    // Every node of a network should use the same value: a node relays in
+    // "hash" and "rtt" only.
+    std::string EXPERIMENTAL_TX_SET_TREE;
+
+    // Children per node in that tree. 0 = the smallest number that reaches
+    // every node in two hops (9 for 90 nodes).
+    uint32_t EXPERIMENTAL_TX_SET_TREE_FANOUT;
+
+    // EXPERIMENTAL_TX_SET_TREE as the overlay's mode byte.
+    uint8_t txSetTreeMode() const;
+
     // Allow downloading of transaction sets in parallel with SCP (experimental)
     bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
 

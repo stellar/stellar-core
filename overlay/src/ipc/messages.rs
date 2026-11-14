@@ -73,6 +73,14 @@ pub enum MessageType {
     /// `everyone` = 1: flood to all peers (the list is ignored).
     SetTxTargets = 16,
 
+    /// The spanning trees the leader's tx set travels down in the next slots
+    /// (see `flood::txset_tree`).
+    /// Payload: [mode:1][fanout:1][slots:1]([slot:4 LE][seed:32])...
+    ///          [count:4 LE][nodeID:32]...
+    /// mode: 0 off, 1 star, 2 hash, 3 rtt. fanout 0 = the smallest that
+    /// reaches every node in two hops.
+    SetTxSetTree = 17,
+
     // ═══ Overlay → Core (Critical Path) ═══
     /// Received SCP envelope from network
     ScpReceived = 100,
@@ -118,6 +126,7 @@ impl TryFrom<u32> for MessageType {
             14 => Ok(MessageType::PushTxSet),
             15 => Ok(MessageType::SetNodeIdentity),
             16 => Ok(MessageType::SetTxTargets),
+            17 => Ok(MessageType::SetTxSetTree),
             100 => Ok(MessageType::ScpReceived),
             101 => Ok(MessageType::TopTxsResponse),
             102 => Ok(MessageType::PeerRequestsScpState),
@@ -323,6 +332,7 @@ mod tests {
             MessageType::PushTxSet,
             MessageType::SetNodeIdentity,
             MessageType::SetTxTargets,
+            MessageType::SetTxSetTree,
             MessageType::OverlayIdentity,
             MessageType::ScpReceived,
             MessageType::TopTxsResponse,
@@ -400,6 +410,7 @@ mod tests {
             MessageType::SetNodeIdentity
         );
         assert_eq!(MessageType::try_from(16).unwrap(), MessageType::SetTxTargets);
+        assert_eq!(MessageType::try_from(17).unwrap(), MessageType::SetTxSetTree);
         assert_eq!(
             MessageType::try_from(106).unwrap(),
             MessageType::OverlayIdentity
@@ -432,7 +443,7 @@ mod tests {
         assert!(MessageType::try_from(9).is_err()); // gap between 8 and 10
         assert!(MessageType::try_from(99).is_err());
         assert!(MessageType::try_from(104).is_err());
-        assert!(MessageType::try_from(17).is_err());
+        assert!(MessageType::try_from(18).is_err());
         assert!(MessageType::try_from(107).is_err());
         assert!(MessageType::try_from(u32::MAX).is_err());
     }

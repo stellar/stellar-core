@@ -111,6 +111,52 @@ pub struct OverlayMetrics {
     /// overlay.txset-push.evicted — unrequested tx sets evicted by the unclaimed-set limits
     pub txset_push_evicted: AtomicU64,
 
+    // Spanning tree for the leader's tx-set push
+    /// overlay.txset-push.sent-bytes — bytes of tx sets written to peers as round leader (pushes, tagged or not)
+    pub txset_push_sent_bytes: AtomicU64,
+    /// overlay.txset-tree.root-sent — tagged copies of a set written as its leader (star or tree)
+    pub txset_tree_root_sent: AtomicU64,
+    /// overlay.txset-tree.relayed — copies of a set written as a relay of its tree
+    pub txset_tree_relayed: AtomicU64,
+    /// overlay.txset-tree.relayed-bytes — bytes written as a relay
+    pub txset_tree_relayed_bytes: AtomicU64,
+    /// overlay.txset-tree.received — tagged frames received
+    pub txset_tree_received: AtomicU64,
+    /// overlay.txset-tree.duplicate — tagged frames that were a second copy (not relayed again)
+    pub txset_tree_duplicate: AtomicU64,
+    /// overlay.txset-tree.refused — tree frames not relayed: unknown slot or nodes, or not from the parent
+    pub txset_tree_refused: AtomicU64,
+    /// overlay.txset-tree.unreachable — children a set could not be sent to (no identified connection)
+    pub txset_tree_unreachable: AtomicU64,
+    /// overlay.txset-tree.fetch-deferred — requests for a set put off because the tree should bring it
+    pub txset_tree_fetch_deferred: AtomicU64,
+    /// overlay.txset-tree.fetch-fallback — sets asked for after the wait, because the tree did not bring them
+    pub txset_tree_fetch_fallback: AtomicU64,
+    /// overlay.txset-tree.delay-ms-sum — sum of the delays from the leader's send to the frame's arrival here
+    pub txset_tree_delay_ms_sum: AtomicU64,
+    /// overlay.txset-tree.delay-count — frames in delay-ms-sum
+    pub txset_tree_delay_count: AtomicU64,
+    /// overlay.txset-tree.delay-hop1-ms-sum — the same for frames straight from the leader
+    pub txset_tree_delay_hop1_ms_sum: AtomicU64,
+    /// overlay.txset-tree.delay-hop1-count — frames in delay-hop1-ms-sum
+    pub txset_tree_delay_hop1_count: AtomicU64,
+    /// overlay.txset-tree.delay-hop2-ms-sum — the same for frames that came through a relay
+    pub txset_tree_delay_hop2_ms_sum: AtomicU64,
+    /// overlay.txset-tree.delay-hop2-count — frames in delay-hop2-ms-sum
+    pub txset_tree_delay_hop2_count: AtomicU64,
+    /// overlay.txset-tree.delay-le-50ms — frames that arrived within 50 ms of the leader's send
+    pub txset_tree_delay_le_50: AtomicU64,
+    /// overlay.txset-tree.delay-le-100ms — within 100 ms
+    pub txset_tree_delay_le_100: AtomicU64,
+    /// overlay.txset-tree.delay-le-150ms — within 150 ms
+    pub txset_tree_delay_le_150: AtomicU64,
+    /// overlay.txset-tree.delay-le-200ms — within 200 ms
+    pub txset_tree_delay_le_200: AtomicU64,
+    /// overlay.txset-tree.delay-le-300ms — within 300 ms
+    pub txset_tree_delay_le_300: AtomicU64,
+    /// overlay.txset-tree.delay-gt-300ms — later than 300 ms
+    pub txset_tree_delay_gt_300: AtomicU64,
+
     // Transactions sent to the target leaders only
     /// overlay.flood.tx-direct-sent — transaction bodies sent straight to a
     /// target (no advert)
@@ -194,6 +240,28 @@ impl Default for OverlayMetrics {
             txset_push_request_skipped: AtomicU64::new(0),
             txset_push_dropped: AtomicU64::new(0),
             txset_push_evicted: AtomicU64::new(0),
+            txset_push_sent_bytes: AtomicU64::new(0),
+            txset_tree_root_sent: AtomicU64::new(0),
+            txset_tree_relayed: AtomicU64::new(0),
+            txset_tree_relayed_bytes: AtomicU64::new(0),
+            txset_tree_received: AtomicU64::new(0),
+            txset_tree_duplicate: AtomicU64::new(0),
+            txset_tree_refused: AtomicU64::new(0),
+            txset_tree_unreachable: AtomicU64::new(0),
+            txset_tree_fetch_deferred: AtomicU64::new(0),
+            txset_tree_fetch_fallback: AtomicU64::new(0),
+            txset_tree_delay_ms_sum: AtomicU64::new(0),
+            txset_tree_delay_count: AtomicU64::new(0),
+            txset_tree_delay_hop1_ms_sum: AtomicU64::new(0),
+            txset_tree_delay_hop1_count: AtomicU64::new(0),
+            txset_tree_delay_hop2_ms_sum: AtomicU64::new(0),
+            txset_tree_delay_hop2_count: AtomicU64::new(0),
+            txset_tree_delay_le_50: AtomicU64::new(0),
+            txset_tree_delay_le_100: AtomicU64::new(0),
+            txset_tree_delay_le_150: AtomicU64::new(0),
+            txset_tree_delay_le_200: AtomicU64::new(0),
+            txset_tree_delay_le_300: AtomicU64::new(0),
+            txset_tree_delay_gt_300: AtomicU64::new(0),
             flood_tx_direct_sent: AtomicU64::new(0),
             flood_tx_direct_sent_bytes: AtomicU64::new(0),
             flood_tx_direct_recv: AtomicU64::new(0),
@@ -268,6 +336,28 @@ impl OverlayMetrics {
             txset_push_request_skipped: self.txset_push_request_skipped.load(ORD),
             txset_push_dropped: self.txset_push_dropped.load(ORD),
             txset_push_evicted: self.txset_push_evicted.load(ORD),
+            txset_push_sent_bytes: self.txset_push_sent_bytes.load(ORD),
+            txset_tree_root_sent: self.txset_tree_root_sent.load(ORD),
+            txset_tree_relayed: self.txset_tree_relayed.load(ORD),
+            txset_tree_relayed_bytes: self.txset_tree_relayed_bytes.load(ORD),
+            txset_tree_received: self.txset_tree_received.load(ORD),
+            txset_tree_duplicate: self.txset_tree_duplicate.load(ORD),
+            txset_tree_refused: self.txset_tree_refused.load(ORD),
+            txset_tree_unreachable: self.txset_tree_unreachable.load(ORD),
+            txset_tree_fetch_deferred: self.txset_tree_fetch_deferred.load(ORD),
+            txset_tree_fetch_fallback: self.txset_tree_fetch_fallback.load(ORD),
+            txset_tree_delay_ms_sum: self.txset_tree_delay_ms_sum.load(ORD),
+            txset_tree_delay_count: self.txset_tree_delay_count.load(ORD),
+            txset_tree_delay_hop1_ms_sum: self.txset_tree_delay_hop1_ms_sum.load(ORD),
+            txset_tree_delay_hop1_count: self.txset_tree_delay_hop1_count.load(ORD),
+            txset_tree_delay_hop2_ms_sum: self.txset_tree_delay_hop2_ms_sum.load(ORD),
+            txset_tree_delay_hop2_count: self.txset_tree_delay_hop2_count.load(ORD),
+            txset_tree_delay_le_50: self.txset_tree_delay_le_50.load(ORD),
+            txset_tree_delay_le_100: self.txset_tree_delay_le_100.load(ORD),
+            txset_tree_delay_le_150: self.txset_tree_delay_le_150.load(ORD),
+            txset_tree_delay_le_200: self.txset_tree_delay_le_200.load(ORD),
+            txset_tree_delay_le_300: self.txset_tree_delay_le_300.load(ORD),
+            txset_tree_delay_gt_300: self.txset_tree_delay_gt_300.load(ORD),
             flood_tx_direct_sent: self.flood_tx_direct_sent.load(ORD),
             flood_tx_direct_sent_bytes: self.flood_tx_direct_sent_bytes.load(ORD),
             flood_tx_direct_recv: self.flood_tx_direct_recv.load(ORD),
@@ -350,6 +440,28 @@ pub struct MetricsSnapshot {
     pub txset_push_request_skipped: u64,
     pub txset_push_dropped: u64,
     pub txset_push_evicted: u64,
+    pub txset_push_sent_bytes: u64,
+    pub txset_tree_root_sent: u64,
+    pub txset_tree_relayed: u64,
+    pub txset_tree_relayed_bytes: u64,
+    pub txset_tree_received: u64,
+    pub txset_tree_duplicate: u64,
+    pub txset_tree_refused: u64,
+    pub txset_tree_unreachable: u64,
+    pub txset_tree_fetch_deferred: u64,
+    pub txset_tree_fetch_fallback: u64,
+    pub txset_tree_delay_ms_sum: u64,
+    pub txset_tree_delay_count: u64,
+    pub txset_tree_delay_hop1_ms_sum: u64,
+    pub txset_tree_delay_hop1_count: u64,
+    pub txset_tree_delay_hop2_ms_sum: u64,
+    pub txset_tree_delay_hop2_count: u64,
+    pub txset_tree_delay_le_50: u64,
+    pub txset_tree_delay_le_100: u64,
+    pub txset_tree_delay_le_150: u64,
+    pub txset_tree_delay_le_200: u64,
+    pub txset_tree_delay_le_300: u64,
+    pub txset_tree_delay_gt_300: u64,
     pub flood_tx_direct_sent: u64,
     pub flood_tx_direct_sent_bytes: u64,
     pub flood_tx_direct_recv: u64,
