@@ -48,7 +48,8 @@ pub const MIN_CODED_OTHERS: usize = 4;
 /// trigger (as `MAX_RELAYS_PER_SLOT_AND_LEADER` for the tree).
 pub const MAX_ROOTS_PER_SLOT_AND_LEADER: usize = 2;
 
-/// Piece frames a node looks at from one sender for one slot and leader. A
+/// Piece frames a node looks at from one sender for one slot and leader,
+/// whatever they turn out to be (counted before the layout is consulted). A
 /// sender owes it one piece per root; the rest is room for a repeat.
 pub const MAX_FRAMES_PER_SENDER: u8 = 6;
 
@@ -317,10 +318,13 @@ pub fn merkle_root_from(leaf: [u8; 32], index: usize, path: &[[u8; 32]]) -> [u8;
 }
 
 /// What the leader's overlay key signs for a set it cut into pieces: the
-/// network, the slot, the leader, the shape of the code, the frame's length
-/// and the root of its pieces.
+/// network, the slot and the seed of its layout (a hash of the chain just
+/// before the slot, so that a signature from another history of a network
+/// with the same name and keys is of no use), the leader, the shape of the
+/// code, the frame's length and the root of its pieces.
 pub fn root_message(
     network_id: &[u8; 32],
+    seed: &[u8; 32],
     slot: u32,
     leader: &NodeId,
     params: CodedParams,
@@ -330,6 +334,7 @@ pub fn root_message(
     let mut hasher = Sha256::new();
     hasher.update(b"stellar-overlay tx set pieces v1");
     hasher.update(network_id);
+    hasher.update(seed);
     hasher.update(slot.to_be_bytes());
     hasher.update(leader);
     hasher.update([params.data as u8, params.pieces as u8]);
@@ -531,6 +536,9 @@ pub struct CodedState {
     relayed: lru::LruCache<RootKey, ()>,
     /// Sets this node cut into pieces as their leader, by content hash.
     pushed: lru::LruCache<[u8; 32], ()>,
+    /// Layouts worked out already, by slot, seed and leader (see
+    /// `TreeState::coded_layout`).
+    layouts: lru::LruCache<(u32, [u8; 32], NodeId), Arc<CodedLayout>>,
     /// Pieces not yet handed to the transport, per receiver.
     in_flight: HashMap<NodeId, u32>,
 }
@@ -550,8 +558,29 @@ impl CodedState {
             frames: lru::LruCache::new(std::num::NonZeroUsize::new(16 * CODED_MEMORY).unwrap()),
             relayed: lru::LruCache::new(memory),
             pushed: lru::LruCache::new(memory),
+            layouts: lru::LruCache::new(std::num::NonZeroUsize::new(32).unwrap()),
             in_flight: HashMap::new(),
         }
+    }
+
+    /// The layout of `slot` (with `seed`) and `leader`, if it was worked out
+    /// before.
+    pub fn cached_layout(
+        &mut self,
+        slot: u32,
+        seed: &[u8; 32],
+        leader: &NodeId,
+    ) -> Option<Arc<CodedLayout>> {
+        self.layouts.get(&(slot, *seed, *leader)).cloned()
+    }
+
+    pub fn cache_layout(&mut self, slot: u32, seed: [u8; 32], layout: Arc<CodedLayout>) {
+        self.layouts.put((slot, seed, layout.leader), layout);
+    }
+
+    /// The nodes changed: the layouts are others now.
+    pub fn forget_layouts(&mut self) {
+        self.layouts.clear();
     }
 
     /// A piece frame for `slot` and `leader` came from `sender`. False: that
@@ -1129,40 +1158,44 @@ mod tests {
     #[test]
     fn the_signed_message_binds_every_field() {
         let p = params(8, 16);
-        let base = root_message(&[1u8; 32], 5, &node(1), p, 1000, &[2u8; 32]);
-        assert_ne!(
-            base,
-            root_message(&[9u8; 32], 5, &node(1), p, 1000, &[2u8; 32])
-        );
-        assert_ne!(
-            base,
-            root_message(&[1u8; 32], 6, &node(1), p, 1000, &[2u8; 32])
-        );
-        assert_ne!(
-            base,
-            root_message(&[1u8; 32], 5, &node(2), p, 1000, &[2u8; 32])
-        );
-        assert_ne!(
-            base,
-            root_message(&[1u8; 32], 5, &node(1), params(7, 16), 1000, &[2u8; 32])
-        );
-        assert_ne!(
-            base,
-            root_message(&[1u8; 32], 5, &node(1), params(8, 15), 1000, &[2u8; 32])
-        );
-        assert_ne!(
-            base,
-            root_message(&[1u8; 32], 5, &node(1), p, 1001, &[2u8; 32])
-        );
-        assert_ne!(
-            base,
-            root_message(&[1u8; 32], 5, &node(1), p, 1000, &[3u8; 32])
-        );
+        let message =
+            |network: u8, seed: u8, slot: u32, leader: u16, p: CodedParams, len: u32, root: u8| {
+                root_message(
+                    &[network; 32],
+                    &[seed; 32],
+                    slot,
+                    &node(leader),
+                    p,
+                    len,
+                    &[root; 32],
+                )
+            };
+        let base = message(1, 4, 5, 1, p, 1000, 2);
+        assert_ne!(base, message(9, 4, 5, 1, p, 1000, 2));
+        assert_ne!(base, message(1, 5, 5, 1, p, 1000, 2));
+        assert_ne!(base, message(1, 4, 6, 1, p, 1000, 2));
+        assert_ne!(base, message(1, 4, 5, 2, p, 1000, 2));
+        assert_ne!(base, message(1, 4, 5, 1, params(7, 16), 1000, 2));
+        assert_ne!(base, message(1, 4, 5, 1, params(8, 15), 1000, 2));
+        assert_ne!(base, message(1, 4, 5, 1, p, 1001, 2));
+        assert_ne!(base, message(1, 4, 5, 1, p, 1000, 3));
         // The relays per piece are not part of the code.
         let other = CodedParams { relays: 5, ..p };
-        assert_eq!(
-            base,
-            root_message(&[1u8; 32], 5, &node(1), other, 1000, &[2u8; 32])
-        );
+        assert_eq!(base, message(1, 4, 5, 1, other, 1000, 2));
+    }
+
+    #[test]
+    fn layouts_are_kept_by_slot_seed_and_leader() {
+        let all = nodes(9);
+        let layout = Arc::new(CodedLayout::new(&tree_order(&[3u8; 32], &all[2], &all)).unwrap());
+        let mut state = CodedState::new();
+        assert!(state.cached_layout(10, &[3u8; 32], &all[2]).is_none());
+        state.cache_layout(10, [3u8; 32], Arc::clone(&layout));
+        assert!(state.cached_layout(10, &[3u8; 32], &all[2]).is_some());
+        assert!(state.cached_layout(11, &[3u8; 32], &all[2]).is_none());
+        assert!(state.cached_layout(10, &[4u8; 32], &all[2]).is_none());
+        assert!(state.cached_layout(10, &[3u8; 32], &all[3]).is_none());
+        state.forget_layouts();
+        assert!(state.cached_layout(10, &[3u8; 32], &all[2]).is_none());
     }
 }

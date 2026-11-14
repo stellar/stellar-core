@@ -5,7 +5,7 @@
 
 use super::txset_tree_tests::{
     config, expect_set, full_mesh, index_of, serve_request, set_events_within, test_set, Node,
-    NETWORK_ID, SLOT,
+    NETWORK_ID, SEED, SLOT,
 };
 use super::*;
 use crate::flood::txset_tree::TREE_FETCH_GRACE;
@@ -85,6 +85,7 @@ fn pieces_of(
         &leader.state.keypair,
         &identity_of(leader),
         SLOT,
+        &SEED,
         params,
         data.encoded().len() as u32,
         pieces,
@@ -424,19 +425,60 @@ async fn wrong_pieces_are_dropped_and_not_passed_on() {
     settle().await;
     assert_eq!((invalid(&nodes), refused(&nodes)), (3, 2));
 
-    // 4. The attacker leads a set of its own, honestly signed, for a slot
-    //    it may not lead: its relays refuse the pieces.
-    let (other_hash, other) = test_set(76);
-    nodes[attacker]
-        .handle
-        .push_txset_for_slot(other_hash, other, SLOT)
-        .await;
+    // 4. The attacker cuts a set of its own and signs it honestly, as the
+    //    leader of a slot it may not lead, and sends the target the piece
+    //    the target would relay in the attacker's layout: refused.
+    let own_layout = layout_of(&nodes, attacker);
+    let own = pieces_of(&nodes[attacker], &other, own_layout.params, |_| {});
+    let owed = own_layout.relayed_piece(&nodes[target].node_id()).unwrap();
+    deliver_piece(&nodes, &own_layout, &own, owed, target).await;
     settle().await;
-    assert_eq!(
-        nodes[attacker].count(|m| &m.txset_coded_pieces_sent),
-        PIECES
-    );
-    assert_eq!(sum(&nodes, |m| &m.txset_coded_pieces_refused), 2 + PIECES);
+    assert_eq!((invalid(&nodes), refused(&nodes)), (3, 3));
+
+    // 5. A piece signed for another history of the same network (another
+    //    seed for the slot): the signature is of no use here. The pieces
+    //    and the root are those of the real set, so only the signature
+    //    differs.
+    let replayed = txset_coded::encode_pieces(data.encoded(), layout.params)
+        .ok()
+        .and_then(|pieces| {
+            sign_pieces(
+                &nodes[leader].state.keypair,
+                &identity_of(&nodes[leader]),
+                SLOT,
+                &[0x77; 32],
+                layout.params,
+                data.encoded().len() as u32,
+                pieces,
+                unix_ms_now(),
+            )
+        })
+        .unwrap();
+    assert_eq!(replayed.headers[1].root, good.headers[1].root);
+    deliver_piece(&nodes, &layout, &replayed, 1, target).await;
+    settle().await;
+    assert_eq!((invalid(&nodes), refused(&nodes)), (4, 3));
+
+    // 6. A sender is listened to six times per slot and leader, whatever it
+    //    sends: the attacker has used four; after two more, even the piece
+    //    it owes the target is not looked at.
+    for _ in 0..3 {
+        send_to_peer_stream_parts(
+            &nodes[attacker].state,
+            nodes[target].peer_id,
+            StreamType::TxSet,
+            &[
+                good.headers[1].encode().as_slice(),
+                good.pieces[1].as_slice(),
+            ],
+        )
+        .await
+        .unwrap();
+    }
+    deliver_piece(&nodes, &layout, &good, 6, target).await;
+    settle().await;
+    assert_eq!((invalid(&nodes), refused(&nodes)), (4, 7));
+    assert_eq!(sum(&nodes, |m| &m.txset_coded_pieces_refused), 7);
 
     // Nothing of all this was kept, passed on or rebuilt.
     assert_eq!(sum(&nodes, |m| &m.txset_coded_pieces_received), 0);
@@ -458,6 +500,12 @@ async fn wrong_pieces_are_dropped_and_not_passed_on() {
     settle().await;
     assert_eq!(
         nodes[target].count(|m| &m.txset_coded_pieces_relayed),
+        PIECES - 1
+    );
+    // (The attacker's own piece for the target is one frame too many now:
+    // the target makes do with the other seven.)
+    assert_eq!(
+        nodes[target].count(|m| &m.txset_coded_pieces_received),
         PIECES - 1
     );
     assert_eq!(
@@ -551,9 +599,9 @@ fn a_piece_is_checked_against_the_leaders_node_id() {
     };
     let frame = vec![7u8; 1001];
     let pieces = txset_coded::encode_pieces(&frame, params).unwrap();
-    let signed = sign_pieces(&overlay, &identity, SLOT, params, 1001, pieces, 5).unwrap();
+    let signed = sign_pieces(&overlay, &identity, SLOT, &SEED, params, 1001, pieces, 5).unwrap();
     let header = signed.headers[3].clone();
-    assert!(verify_piece_signatures(&NETWORK_ID, &header));
+    assert!(verify_piece_signatures(&NETWORK_ID, &SEED, &header));
     // The path of every piece reaches the signed root.
     for (i, piece) in signed.pieces.iter().enumerate() {
         let h = &signed.headers[i];
@@ -565,7 +613,7 @@ fn a_piece_is_checked_against_the_leaders_node_id() {
     let wrong = |change: &dyn Fn(&mut PieceHeader)| {
         let mut h = header.clone();
         change(&mut h);
-        !verify_piece_signatures(&NETWORK_ID, &h)
+        !verify_piece_signatures(&NETWORK_ID, &SEED, &h)
     };
     assert!(wrong(&|h| h.slot += 1));
     assert!(wrong(&|h| h.total_len += 1));
@@ -580,11 +628,52 @@ fn a_piece_is_checked_against_the_leaders_node_id() {
     assert!(wrong(
         &|h| h.overlay_key = ed25519::Keypair::generate().public().to_bytes()
     ));
-    assert!(!verify_piece_signatures(&[1u8; 32], &header));
+    assert!(!verify_piece_signatures(&[1u8; 32], &SEED, &header));
+    // Another seed for the slot: another history of the network.
+    assert!(!verify_piece_signatures(&NETWORK_ID, &[4u8; 32], &header));
     // What is not signed: where the piece is in the set and how it came.
     let mut other = header.clone();
     other.index = 5;
     other.hop = 2;
     other.sent_unix_ms = 99;
-    assert!(verify_piece_signatures(&NETWORK_ID, &other));
+    assert!(verify_piece_signatures(&NETWORK_ID, &SEED, &other));
+}
+
+/// A node the others do not expect to lead the slot (a leader of a later
+/// round, or one with another view) does not cut its set into pieces, which
+/// every node would refuse: it pushes the set to everyone, as a star.
+#[tokio::test]
+async fn a_leader_nobody_expects_pushes_to_everyone() {
+    let mut nodes = coded_mesh(27601).await;
+    let expected = nodes[3].node_id();
+    for node in &nodes {
+        node.handle
+            .set_txset_tree(coded_config(&nodes).with_leaders(vec![Some(vec![expected])]));
+    }
+    let leader = 6;
+    let (hash, data) = test_set(78);
+    nodes[leader]
+        .handle
+        .push_txset_for_slot(hash, data, SLOT)
+        .await;
+    for i in (0..NODES).filter(|i| *i != leader) {
+        let (slot, from) = expect_set(&mut nodes[i], hash).await;
+        assert_eq!(slot, None);
+        assert_eq!(from, nodes[leader].peer_id);
+    }
+    assert_eq!(nodes[leader].count(|m| &m.txset_coded_sets_encoded), 0);
+    assert_eq!(nodes[leader].count(|m| &m.txset_coded_pieces_sent), 0);
+    assert_eq!(
+        nodes[leader].count(|m| &m.txset_push_sent),
+        NODES as u64 - 1
+    );
+    assert_eq!(sum(&nodes, |m| &m.txset_coded_pieces_refused), 0);
+    // The expected leader does code.
+    let (hash, data) = test_set(79);
+    nodes[3].handle.push_txset_for_slot(hash, data, SLOT).await;
+    for i in (0..NODES).filter(|i| *i != 3) {
+        expect_set(&mut nodes[i], hash).await;
+    }
+    assert_eq!(nodes[3].count(|m| &m.txset_coded_pieces_sent), PIECES);
+    assert_eq!(nodes[3].count(|m| &m.txset_push_sent), 0);
 }

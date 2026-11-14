@@ -833,7 +833,31 @@ impl TreeState {
         if let Some(oldest) = config.slots.iter().map(|(slot, _)| *slot).min() {
             self.coded.prune(oldest);
         }
+        if self.config.as_ref().map(|old| &old.nodes) != Some(&config.nodes) {
+            self.coded.forget_layouts();
+        }
         self.config = Some(config);
+    }
+
+    /// The coded layout of `slot` and `leader` (see `txset_coded`), if this
+    /// node's Core described the slot, the leader is one of the nodes and
+    /// there are enough nodes to code for. Worked out once per slot and
+    /// leader.
+    pub fn coded_layout(
+        &mut self,
+        slot: u32,
+        leader: &NodeId,
+    ) -> Option<std::sync::Arc<super::txset_coded::CodedLayout>> {
+        let config = self.config.as_ref()?;
+        let seed = *config.seed_of(slot)?;
+        if let Some(layout) = self.coded.cached_layout(slot, &seed, leader) {
+            return Some(layout);
+        }
+        let order = config.hash_order(slot, leader)?;
+        let layout = std::sync::Arc::new(super::txset_coded::CodedLayout::new(&order)?);
+        self.coded
+            .cache_layout(slot, seed, std::sync::Arc::clone(&layout));
+        Some(layout)
     }
 
     /// This node's own validator key, once Core has sent it.

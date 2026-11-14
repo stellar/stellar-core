@@ -231,17 +231,21 @@ A piece frame, on the tx-set stream (big-endian):
 The leaves of the Merkle tree are `SHA256(0x00 || index || piece)`, inner nodes
 `SHA256(0x01 || left || right)`, padded with zero leaves to a power of two. The
 root signature is the leader's overlay (libp2p Ed25519) key over
-`SHA256("stellar-overlay tx set pieces v1" || network || slot || leader || k || m || frame length || root)`;
+`SHA256("stellar-overlay tx set pieces v1" || network || seed || slot || leader || k || m || frame length || root)`
+(`seed` is the seed of the slot's layout, a hash of the chain just before the
+slot: a signature from another history of a network with the same name and
+keys is of no use);
 the binding signature is the validator's over the peer id of that overlay key,
 as nodes exchange it as their identity. So a piece can be checked against the
 leader's node ID alone, without a connection to the leader.
 
 A node looks at a piece only if its mode is `coded`, its Core described the
-slot and named the leader as one that may lead it, k and m are what the node
-derives itself, the sender is the node that owes it that index in the layout
-(by the validator identity of the connection) with the hop count that goes
-with it, and the sender has sent fewer than 6 piece frames for that slot and
-leader. It keeps the piece only if both signatures and the Merkle path check
+slot and named the leader as one that may lead it, the sender (by the
+validator identity of the connection) has sent fewer than 6 piece frames for
+that slot and leader, whatever they were, k and m are what the node derives
+itself, and the sender is the node that owes it that index in the layout,
+with the hop count that goes with it. The layout is worked out once per slot
+and leader. It keeps the piece only if both signatures and the Merkle path check
 (the signatures once per root); a leader has room for two roots per slot. A
 relay passes its piece on after those checks, once per root, and only if the
 leader itself sent it. Pieces do not draw on the per-peer allowance for
@@ -249,9 +253,15 @@ unrequested frames: what they can make a node keep and rebuild is bounded by
 the above, and nothing is decompressed before k of the node's senders agree on
 a root the leader signed.
 
+A node that its Core does not name as a leader of the slot (the leader of a
+fourth or later round, a node with another view) does not code: every node
+would refuse its pieces. It pushes its set to everyone, as in `star` (the same
+now holds for `hash` and `rtt`).
+
 With k pieces under one root the frame is rebuilt (no decoding if they are
 the k data pieces) and goes the way of every received frame: decompress,
-strict parse, content hash, cache. Afterwards the node encodes the frame again
+strict parse, content hash, cache. It counts as received from its leader (if
+connected), not from the sender of the piece that completed it. Afterwards the node encodes the frame again
 and compares the root: a leader whose pieces do not fit together is counted
 (`sets-inconsistent`); the set is still what its content hash says. A node
 waits for pieces as it does for a tree frame (300 ms) before it asks.
@@ -286,6 +296,15 @@ Limits of the prototype:
   hash only: it does not use round-trip times.
 - A piece a relay could not write (the receiver has four in flight, or no
   identified connection) is not sent later; the code absorbs the gap.
+- `coded`: the only bound on a frame's size is the general one (16 MiB). A
+  leader that signs frames of that size has the network write 180 times its
+  own 10 frame sizes' worth per root (two roots per slot); Core does not yet
+  tell the overlay how large a set can be.
+- `coded`: a node connected to fewer than k of its senders (a sparse mesh), or
+  with another list of nodes, waits 300 ms for every set and then asks. The
+  request goes to the peer the SCP statement came from, which may not hold
+  the set and then does not answer; the next step is Core's one-second retry
+  (the same holds for the nodes below a failed relay of a tree).
 - The delay metric compares two hosts' clocks and only counts tagged frames
   that arrived.
 - A leader of a fourth or later round is not one of the named leaders: its set

@@ -144,8 +144,8 @@ fn verify_node_id_binding(
 /// [`node_id_binding`] of that overlay's peer id, as peers exchange it), and
 /// that key signed the root of the set's pieces with the slot, the shape of
 /// the code and the frame's length (`txset_coded::root_message`). Needs no
-/// connection to the leader.
-fn verify_piece_signatures(network_id: &[u8; 32], header: &PieceHeader) -> bool {
+/// connection to the leader. `seed` is this node's seed of the header's slot.
+fn verify_piece_signatures(network_id: &[u8; 32], seed: &[u8; 32], header: &PieceHeader) -> bool {
     let Ok(overlay_key) =
         libp2p::identity::ed25519::PublicKey::try_from_bytes(&header.overlay_key)
     else {
@@ -158,6 +158,7 @@ fn verify_piece_signatures(network_id: &[u8; 32], header: &PieceHeader) -> bool 
     let (data, pieces) = header.params();
     let message = txset_coded::root_message(
         network_id,
+        seed,
         header.slot,
         &header.leader,
         CodedParams {
@@ -1643,7 +1644,12 @@ impl StellarOverlay {
             (config, measured)
         };
         let fanout = config.effective_fanout();
-        let known = config.seed_of(slot).is_some() && config.contains(&me);
+        // A node the others do not expect to lead the slot (a later round,
+        // another view) would have its frames refused by every relay: it
+        // pushes to everyone.
+        let known = config.seed_of(slot).is_some()
+            && config.contains(&me)
+            && config.may_lead(slot, &me);
         let (kind, order, indices) = match config.mode {
             TreeMode::Off => return everyone(None),
             // Coded: `coded_push` did not take the set (see there).
@@ -1737,17 +1743,23 @@ impl StellarOverlay {
             return false;
         };
         let me = identity.node_id;
-        // One lock at a time.
-        let order = {
-            let tree = self.state.txset_tree.lock().unwrap();
-            match tree.config() {
-                Some(config) if config.mode == TreeMode::Coded && config.contains(&me) => {
-                    config.hash_order(slot, &me)
+        // One lock at a time. A node the others do not expect to lead the
+        // slot would have its pieces refused by every node: it does not code.
+        let planned = {
+            let mut tree = self.state.txset_tree.lock().unwrap();
+            let seed = match tree.config() {
+                Some(config)
+                    if config.mode == TreeMode::Coded
+                        && config.contains(&me)
+                        && config.may_lead(slot, &me) =>
+                {
+                    config.seed_of(slot).copied()
                 }
                 _ => None,
-            }
+            };
+            seed.and_then(|seed| tree.coded_layout(slot, &me).map(|layout| (seed, layout)))
         };
-        let Some(layout) = order.as_deref().and_then(CodedLayout::new) else {
+        let Some((seed, layout)) = planned else {
             return false;
         };
         // The root of the pieces is signed with an Ed25519 key.
@@ -1798,6 +1810,7 @@ impl StellarOverlay {
             hash,
             Arc::clone(data),
             slot,
+            seed,
             layout,
             identity,
             peer_of,
@@ -3914,6 +3927,7 @@ fn sign_pieces(
     keypair: &Keypair,
     identity: &NodeIdentity,
     slot: u32,
+    seed: &[u8; 32],
     params: CodedParams,
     total_len: u32,
     pieces: Vec<Vec<u8>>,
@@ -3928,6 +3942,7 @@ fn sign_pieces(
     let (root, paths) = txset_coded::merkle_tree(&leaves);
     let message = txset_coded::root_message(
         &identity.network_id,
+        seed,
         slot,
         &identity.node_id,
         params,
@@ -3963,12 +3978,14 @@ fn sign_pieces(
 /// As the leader of `slot`: cut the set's frame into pieces, sign the root of
 /// their Merkle tree, and write every piece to its relays. Runs as a task of
 /// its own, so that the coding does not hold up the overlay's command loop.
+#[allow(clippy::too_many_arguments)]
 async fn send_coded_set(
     state: Arc<SharedState>,
     hash: [u8; 32],
     data: Arc<TxSetData>,
     slot: u32,
-    layout: CodedLayout,
+    seed: [u8; 32],
+    layout: Arc<CodedLayout>,
     identity: NodeIdentity,
     peer_of: HashMap<NodeId, PeerId>,
     sent_unix_ms: u64,
@@ -3984,6 +4001,7 @@ async fn send_coded_set(
                 &keypair,
                 &identity,
                 slot,
+                &seed,
                 params,
                 frame.len() as u32,
                 pieces,
@@ -4103,9 +4121,13 @@ fn handle_piece_frame(state: &Arc<SharedState>, peer_id: PeerId, frame: Vec<u8>)
     };
     let key: RootKey = (header.slot, header.leader, header.root);
     let index = header.index as usize;
-    let checked: Result<(CodedLayout, bool, Option<bool>), &str> = {
+    // Cheap checks first; then the frame is counted against its sender,
+    // whatever it turns out to be; only then is the layout consulted (worked
+    // out once per slot and leader).
+    type Checked = (Arc<CodedLayout>, [u8; 32], bool, Option<bool>);
+    let checked: Result<Checked, &str> = {
         let mut tree = state.txset_tree.lock().unwrap();
-        let layout = match tree.config() {
+        let config = match tree.config() {
             None => Err("no layout from Core"),
             Some(config) if config.mode != TreeMode::Coded => Err("not in coded mode"),
             Some(config) if !config.may_lead(header.slot, &header.leader) => {
@@ -4113,38 +4135,41 @@ fn handle_piece_frame(state: &Arc<SharedState>, peer_id: PeerId, frame: Vec<u8>)
             }
             Some(config) if !config.contains(&me) => Err("this node is not in the layout"),
             Some(config) => config
-                .hash_order(header.slot, &header.leader)
-                .as_deref()
-                .and_then(CodedLayout::new)
-                .map(|layout| (layout, config.withhold))
-                .ok_or("no layout for these nodes"),
+                .seed_of(header.slot)
+                .map(|seed| (*seed, config.withhold))
+                .ok_or("unknown slot"),
         };
-        match layout {
+        match config {
             Err(why) => Err(why),
-            Ok((layout, _)) if (layout.params.data, layout.params.pieces) != header.params() => {
-                Err("another code than this node derives")
-            }
-            Ok((layout, _)) if layout.sender_of(&me, index) != Some(sender) => {
-                Err("not from the node that owes this piece")
-            }
-            Ok(_) if (sender == header.leader) != (header.hop == 1) => Err("wrong hop count"),
             Ok(_) if !tree.coded.admit_frame(header.slot, header.leader, sender) => {
                 Err("too many frames from this sender for the slot and leader")
             }
-            Ok((layout, withhold)) => {
-                let known = tree.coded.knows_root(&key, layout.params, header.total_len);
-                Ok((layout, withhold, known))
-            }
+            Ok((seed, withhold)) => match tree.coded_layout(header.slot, &header.leader) {
+                None => Err("no layout for these nodes"),
+                Some(layout) if (layout.params.data, layout.params.pieces) != header.params() => {
+                    Err("another code than this node derives")
+                }
+                Some(layout) if layout.sender_of(&me, index) != Some(sender) => {
+                    Err("not from the node that owes this piece")
+                }
+                Some(_) if (sender == header.leader) != (header.hop == 1) => {
+                    Err("wrong hop count")
+                }
+                Some(layout) => {
+                    let known = tree.coded.knows_root(&key, layout.params, header.total_len);
+                    Ok((layout, seed, withhold, known))
+                }
+            },
         }
     };
-    let (layout, withhold, known) = match checked {
+    let (layout, seed, withhold, known) = match checked {
         Ok(checked) => checked,
         Err(why) => return refuse(why),
     };
     match known {
         Some(true) => {}
         Some(false) => return invalid("its root is known with another shape or length"),
-        None if !verify_piece_signatures(&identity.network_id, &header) => {
+        None if !verify_piece_signatures(&identity.network_id, &seed, &header) => {
             return invalid("the root is not signed by the leader");
         }
         None => {}
@@ -4209,9 +4234,20 @@ fn handle_piece_frame(state: &Arc<SharedState>, peer_id: PeerId, frame: Vec<u8>)
         // follows is this node's own work.
         record_tree_delay(metrics, header.sent_unix_ms, None);
         metrics.txset_tree_received.fetch_add(1, Ordering::Relaxed);
+        // The set is its leader's, whoever sent the piece that completed
+        // it: what a peer may have this node keep unclaimed is counted
+        // against the leader, if it is connected.
+        let from = state
+            .tx_router
+            .lock()
+            .unwrap()
+            .identified_peers()
+            .get(&header.leader)
+            .copied()
+            .unwrap_or(peer_id);
         tokio::spawn(rebuild_coded_set(
             Arc::clone(state),
-            peer_id,
+            from,
             ready,
             header.slot,
             header.root,
