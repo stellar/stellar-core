@@ -146,8 +146,7 @@ fn verify_node_id_binding(
 /// the code and the frame's length (`txset_coded::root_message`). Needs no
 /// connection to the leader. `seed` is this node's seed of the header's slot.
 fn verify_piece_signatures(network_id: &[u8; 32], seed: &[u8; 32], header: &PieceHeader) -> bool {
-    let Ok(overlay_key) =
-        libp2p::identity::ed25519::PublicKey::try_from_bytes(&header.overlay_key)
+    let Ok(overlay_key) = libp2p::identity::ed25519::PublicKey::try_from_bytes(&header.overlay_key)
     else {
         return false;
     };
@@ -1648,9 +1647,8 @@ impl StellarOverlay {
         // A node the others do not expect to lead the slot (a later round,
         // another view) would have its frames refused by every relay: it
         // pushes to everyone.
-        let known = config.seed_of(slot).is_some()
-            && config.contains(&me)
-            && config.may_lead(slot, &me);
+        let known =
+            config.seed_of(slot).is_some() && config.contains(&me) && config.may_lead(slot, &me);
         if config.mode.relays() && config.seed_of(slot).is_some() && !config.may_lead(slot, &me) {
             info!(
                 "TXSET_TREE_STAR: This node is not one of the leaders its Core named for slot {}, pushing to every peer",
@@ -1680,10 +1678,10 @@ impl StellarOverlay {
             .filter_map(|node| peer_of.get(node).copied())
             .collect();
         if targets.len() < children.len() {
-            self.state.metrics.txset_tree_unreachable.fetch_add(
-                (children.len() - targets.len()) as u64,
-                Ordering::Relaxed,
-            );
+            self.state
+                .metrics
+                .txset_tree_unreachable
+                .fetch_add((children.len() - targets.len()) as u64, Ordering::Relaxed);
             warn!(
                 "TXSET_TREE_STAR: {} of {} children for slot {} have no identified connection, pushing to every peer",
                 children.len() - targets.len(),
@@ -1808,7 +1806,14 @@ impl StellarOverlay {
             );
             return false;
         }
-        if !self.state.txset_tree.lock().unwrap().coded.mark_pushed(hash) {
+        if !self
+            .state
+            .txset_tree
+            .lock()
+            .unwrap()
+            .coded
+            .mark_pushed(hash)
+        {
             // This set went out as pieces already.
             return true;
         }
@@ -3739,7 +3744,9 @@ fn record_tree_delay(metrics: &OverlayMetrics, sent_unix_ms: u64, hop: Option<u8
     metrics
         .txset_tree_delay_ms_sum
         .fetch_add(delay_ms, Ordering::Relaxed);
-    metrics.txset_tree_delay_count.fetch_add(1, Ordering::Relaxed);
+    metrics
+        .txset_tree_delay_count
+        .fetch_add(1, Ordering::Relaxed);
     if let Some(hop) = hop {
         let (sum, count) = if hop <= 1 {
             (
@@ -3799,7 +3806,13 @@ fn relay_tagged_frame(
         return Some(TaggedBody { frame, body });
     }
     // One lock at a time.
-    let me = state.identity.lock().unwrap().ours.as_ref().map(|i| i.node_id);
+    let me = state
+        .identity
+        .lock()
+        .unwrap()
+        .ours
+        .as_ref()
+        .map(|i| i.node_id);
     let sender = state.tx_router.lock().unwrap().node_of(&peer_id).copied();
     let plan = {
         let mut tree = state.txset_tree.lock().unwrap();
@@ -4172,9 +4185,7 @@ fn handle_piece_frame(state: &Arc<SharedState>, peer_id: PeerId, frame: Vec<u8>)
                 Some(layout) if layout.sender_of(&me, index) != Some(sender) => {
                     Err("not from the node that owes this piece")
                 }
-                Some(_) if (sender == header.leader) != (header.hop == 1) => {
-                    Err("wrong hop count")
-                }
+                Some(_) if (sender == header.leader) != (header.hop == 1) => Err("wrong hop count"),
                 Some(layout) => {
                     let known = tree.coded.knows_root(&key, layout.params, header.total_len);
                     Ok((layout, seed, withhold, known))

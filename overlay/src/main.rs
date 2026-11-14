@@ -1504,7 +1504,11 @@ impl App {
                     config.mode,
                     config.effective_fanout(),
                     config.nodes.len(),
-                    config.slots.iter().map(|(slot, _)| *slot).collect::<Vec<_>>()
+                    config
+                        .slots
+                        .iter()
+                        .map(|(slot, _)| *slot)
+                        .collect::<Vec<_>>()
                 );
                 self.libp2p_handle.set_txset_tree(config);
             }
@@ -3382,10 +3386,7 @@ mod tests {
         assert_eq!(config.mode, TreeMode::Hash);
         assert_eq!(config.fanout, 9);
         assert_eq!(config.slots, vec![(40, [3u8; 32]), (41, [4u8; 32])]);
-        assert_eq!(
-            config.leaders,
-            vec![Some(vec![[7u8; 32], [8u8; 32]]), None]
-        );
+        assert_eq!(config.leaders, vec![Some(vec![[7u8; 32], [8u8; 32]]), None]);
         assert_eq!(config.nodes, vec![[7u8; 32], [8u8; 32], [9u8; 32]]);
         assert!(config.may_lead(40, &[8u8; 32]));
         assert!(!config.may_lead(40, &[9u8; 32]));
@@ -3407,7 +3408,10 @@ mod tests {
         let mut withholding = payload.clone();
         withholding[0] = 0x80 | 2;
         let withholding = parse_txset_tree(&withholding).unwrap();
-        assert_eq!((withholding.mode, withholding.withhold), (TreeMode::Hash, true));
+        assert_eq!(
+            (withholding.mode, withholding.withhold),
+            (TreeMode::Hash, true)
+        );
         let mut bad = payload.clone();
         bad.push(0);
         assert!(parse_txset_tree(&bad).is_none());

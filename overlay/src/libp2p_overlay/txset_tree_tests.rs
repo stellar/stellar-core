@@ -145,7 +145,11 @@ pub(super) async fn expect_set(node: &mut Node, hash: [u8; 32]) -> (Option<u32>,
 
 /// Wait until a peer asks `node` for `hash`, and answer as the App does
 /// (these tests have no App behind the overlay). Returns the requester.
-pub(super) async fn serve_request(node: &mut Node, hash: [u8; 32], data: &Arc<TxSetData>) -> PeerId {
+pub(super) async fn serve_request(
+    node: &mut Node,
+    hash: [u8; 32],
+    data: &Arc<TxSetData>,
+) -> PeerId {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     loop {
         match tokio::time::timeout_at(deadline, node.events.recv()).await {
@@ -161,7 +165,10 @@ pub(super) async fn serve_request(node: &mut Node, hash: [u8; 32], data: &Arc<Tx
 
 /// The hashes of the sets received and of the sets peers asked for within
 /// `window`.
-pub(super) async fn set_events_within(node: &mut Node, window: Duration) -> (Vec<[u8; 32]>, Vec<[u8; 32]>) {
+pub(super) async fn set_events_within(
+    node: &mut Node,
+    window: Duration,
+) -> (Vec<[u8; 32]>, Vec<[u8; 32]>) {
     let deadline = tokio::time::Instant::now() + window;
     let (mut received, mut requested) = (Vec::new(), Vec::new());
     loop {
@@ -925,6 +932,9 @@ async fn a_leader_nobody_expects_pushes_a_star() {
     }
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(nodes[2].count(|m| &m.txset_push_sent), 2);
-    let relayed: u64 = nodes.iter().map(|n| n.count(|m| &m.txset_tree_relayed)).sum();
+    let relayed: u64 = nodes
+        .iter()
+        .map(|n| n.count(|m| &m.txset_tree_relayed))
+        .sum();
     assert_eq!(relayed, 4);
 }

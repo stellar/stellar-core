@@ -428,7 +428,9 @@ impl OverlayMetrics {
             txset_coded_pieces_duplicate: self.txset_coded_pieces_duplicate.load(ORD),
             txset_coded_pieces_skipped: self.txset_coded_pieces_skipped.load(ORD),
             txset_coded_sets_rebuilt: self.txset_coded_sets_rebuilt.load(ORD),
-            txset_coded_sets_rebuilt_with_parity: self.txset_coded_sets_rebuilt_with_parity.load(ORD),
+            txset_coded_sets_rebuilt_with_parity: self
+                .txset_coded_sets_rebuilt_with_parity
+                .load(ORD),
             txset_coded_sets_failed: self.txset_coded_sets_failed.load(ORD),
             txset_coded_sets_inconsistent: self.txset_coded_sets_inconsistent.load(ORD),
             txset_coded_rebuild_us_sum: self.txset_coded_rebuild_us_sum.load(ORD),
