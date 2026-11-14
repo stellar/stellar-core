@@ -489,8 +489,27 @@ HerderImpl::updateTxSetTree()
     std::vector<OverlayIPC::TxSetTreeSlot> const slots{
         {next, lcl.header.previousLedgerHash, std::move(nextLeaders)},
         {next + 1, lcl.hash, std::move(afterLeaders)}};
+    // For tests and fault runs: the validators with the smallest node IDs
+    // withhold what they should relay. The overlay is told with the top bit
+    // of the mode byte.
+    uint8_t withhold = 0;
+    if (auto const withholders =
+            cfg.EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING;
+        withholders > 0)
+    {
+        auto const& self = cfg.NODE_SEED.getPublicKey();
+        size_t const smaller =
+            std::count_if(nodes.begin(), nodes.end(),
+                          [&](NodeID const& node) { return node < self; });
+        bool const listed =
+            std::find(nodes.begin(), nodes.end(), self) != nodes.end();
+        if (listed && smaller < withholders)
+        {
+            withhold = 0x80;
+        }
+    }
     mApp.getOverlayManager().setTxSetTree(
-        mode,
+        static_cast<uint8_t>(mode | withhold),
         static_cast<uint8_t>(
             std::min<uint32_t>(cfg.EXPERIMENTAL_TX_SET_TREE_FANOUT, UINT8_MAX)),
         slots, nodes);

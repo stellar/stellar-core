@@ -5,32 +5,32 @@ use super::*;
 use crate::flood::txset_tree::{children_of, parent_of, TREE_FETCH_GRACE};
 use libp2p::identity::ed25519;
 
-const NETWORK_ID: [u8; 32] = [9; 32];
-const SLOT: u32 = 40;
-const SEED: [u8; 32] = [3; 32];
+pub(super) const NETWORK_ID: [u8; 32] = [9; 32];
+pub(super) const SLOT: u32 = 40;
+pub(super) const SEED: [u8; 32] = [3; 32];
 
-struct Node {
-    handle: OverlayHandle,
-    events: mpsc::UnboundedReceiver<OverlayEvent>,
-    state: Arc<SharedState>,
-    metrics: Arc<OverlayMetrics>,
-    peer_id: PeerId,
-    port: u16,
-    validator: ed25519::Keypair,
-    _admissions: mpsc::UnboundedReceiver<CoreCommand>,
+pub(super) struct Node {
+    pub(super) handle: OverlayHandle,
+    pub(super) events: mpsc::UnboundedReceiver<OverlayEvent>,
+    pub(super) state: Arc<SharedState>,
+    pub(super) metrics: Arc<OverlayMetrics>,
+    pub(super) peer_id: PeerId,
+    pub(super) port: u16,
+    pub(super) validator: ed25519::Keypair,
+    pub(super) _admissions: mpsc::UnboundedReceiver<CoreCommand>,
 }
 
 impl Node {
-    fn node_id(&self) -> NodeId {
+    pub(super) fn node_id(&self) -> NodeId {
         self.validator.public().to_bytes()
     }
 
-    fn count(&self, pick: impl Fn(&OverlayMetrics) -> &AtomicU64) -> u64 {
+    pub(super) fn count(&self, pick: impl Fn(&OverlayMetrics) -> &AtomicU64) -> u64 {
         pick(&self.metrics).load(Ordering::Relaxed)
     }
 }
 
-async fn start_node(port: u16) -> Node {
+pub(super) async fn start_node(port: u16) -> Node {
     let keypair = Keypair::generate_ed25519();
     let peer_id = keypair.public().to_peer_id();
     let metrics = Arc::new(OverlayMetrics::new());
@@ -53,7 +53,7 @@ async fn start_node(port: u16) -> Node {
 
 /// `count` nodes, every pair connected, every node knowing which validator
 /// each of its peers is.
-async fn full_mesh(first_port: u16, count: usize) -> Vec<Node> {
+pub(super) async fn full_mesh(first_port: u16, count: usize) -> Vec<Node> {
     let mut nodes = Vec::new();
     for i in 0..count {
         nodes.push(start_node(first_port + i as u16).await);
@@ -99,32 +99,32 @@ async fn full_mesh(first_port: u16, count: usize) -> Vec<Node> {
     nodes
 }
 
-fn node_ids(nodes: &[Node]) -> Vec<NodeId> {
+pub(super) fn node_ids(nodes: &[Node]) -> Vec<NodeId> {
     nodes.iter().map(Node::node_id).collect()
 }
 
-fn config(nodes: &[Node], mode: TreeMode, fanout: u8) -> TreeConfig {
+pub(super) fn config(nodes: &[Node], mode: TreeMode, fanout: u8) -> TreeConfig {
     TreeConfig::new(mode, fanout, vec![(SLOT, SEED)], node_ids(nodes))
 }
 
-fn configure(nodes: &[Node], mode: TreeMode, fanout: u8) {
+pub(super) fn configure(nodes: &[Node], mode: TreeMode, fanout: u8) {
     for node in nodes {
         node.handle.set_txset_tree(config(nodes, mode, fanout));
     }
 }
 
-fn index_of(nodes: &[Node], id: &NodeId) -> usize {
+pub(super) fn index_of(nodes: &[Node], id: &NodeId) -> usize {
     nodes.iter().position(|n| n.node_id() == *id).unwrap()
 }
 
-fn test_set(seed: u8) -> ([u8; 32], Arc<TxSetData>) {
+pub(super) fn test_set(seed: u8) -> ([u8; 32], Arc<TxSetData>) {
     let (hash, xdr) = test_txset_xdr(seed);
     (hash, Arc::new(TxSetData::from_local(xdr).unwrap()))
 }
 
 /// Wait for a `TxSetReceived` of `hash`; returns the slot it carries (None:
 /// nobody on this node had asked) and the sender.
-async fn expect_set(node: &mut Node, hash: [u8; 32]) -> (Option<u32>, PeerId) {
+pub(super) async fn expect_set(node: &mut Node, hash: [u8; 32]) -> (Option<u32>, PeerId) {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     loop {
         match tokio::time::timeout_at(deadline, node.events.recv()).await {
@@ -145,7 +145,7 @@ async fn expect_set(node: &mut Node, hash: [u8; 32]) -> (Option<u32>, PeerId) {
 
 /// Wait until a peer asks `node` for `hash`, and answer as the App does
 /// (these tests have no App behind the overlay). Returns the requester.
-async fn serve_request(node: &mut Node, hash: [u8; 32], data: &Arc<TxSetData>) -> PeerId {
+pub(super) async fn serve_request(node: &mut Node, hash: [u8; 32], data: &Arc<TxSetData>) -> PeerId {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     loop {
         match tokio::time::timeout_at(deadline, node.events.recv()).await {
@@ -161,7 +161,7 @@ async fn serve_request(node: &mut Node, hash: [u8; 32], data: &Arc<TxSetData>) -
 
 /// The hashes of the sets received and of the sets peers asked for within
 /// `window`.
-async fn set_events_within(node: &mut Node, window: Duration) -> (Vec<[u8; 32]>, Vec<[u8; 32]>) {
+pub(super) async fn set_events_within(node: &mut Node, window: Duration) -> (Vec<[u8; 32]>, Vec<[u8; 32]>) {
     let deadline = tokio::time::Instant::now() + window;
     let (mut received, mut requested) = (Vec::new(), Vec::new());
     loop {

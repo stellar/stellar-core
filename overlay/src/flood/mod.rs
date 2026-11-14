@@ -13,6 +13,7 @@ mod txset;
 pub(crate) mod txset_encoding;
 pub(crate) mod txset_push;
 mod txset_store;
+pub mod txset_coded;
 pub mod txset_tree;
 
 pub use inv_batcher::InvBatcher;

@@ -119,6 +119,36 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "txset-tree", "delay-le-300ms"}, "txset"))
     , mTxsetTreeDelayGt300(app.getMetrics().NewMeter(
           {"overlay", "txset-tree", "delay-gt-300ms"}, "txset"))
+    , mTxsetTreeWithheld(app.getMetrics().NewMeter(
+          {"overlay", "txset-tree", "withheld"}, "txset"))
+    , mTxsetCodedSetsEncoded(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "sets-encoded"}, "txset"))
+    , mTxsetCodedPiecesSent(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "pieces-sent"}, "piece"))
+    , mTxsetCodedPiecesRelayed(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "pieces-relayed"}, "piece"))
+    , mTxsetCodedPiecesReceived(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "pieces-received"}, "piece"))
+    , mTxsetCodedPiecesLate(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "pieces-late"}, "piece"))
+    , mTxsetCodedPiecesRefused(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "pieces-refused"}, "piece"))
+    , mTxsetCodedPiecesInvalid(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "pieces-invalid"}, "piece"))
+    , mTxsetCodedPiecesDuplicate(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "pieces-duplicate"}, "piece"))
+    , mTxsetCodedPiecesSkipped(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "pieces-skipped"}, "piece"))
+    , mTxsetCodedSetsRebuilt(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "sets-rebuilt"}, "txset"))
+    , mTxsetCodedSetsRebuiltWithParity(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "sets-rebuilt-with-parity"}, "txset"))
+    , mTxsetCodedSetsFailed(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "sets-failed"}, "txset"))
+    , mTxsetCodedSetsInconsistent(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "sets-inconsistent"}, "txset"))
+    , mTxsetCodedRebuildUsSum(app.getMetrics().NewMeter(
+          {"overlay", "txset-coded", "rebuild-us-sum"}, "microsecond"))
     , mTxDirectSent(app.getMetrics().NewMeter(
           {"overlay", "flood", "tx-direct-sent"}, "transaction"))
     , mTxDirectSentBytes(app.getMetrics().NewMeter(

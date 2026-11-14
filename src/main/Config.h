@@ -567,13 +567,24 @@ class Config : public std::enable_shared_from_this<Config>
     //           its own.
     //  "rtt"  - down a tree the leader lays out by its round-trip times to
     //           its peers; the order travels with the set.
+    //  "coded" - as erasure-coded pieces: the leader cuts the set into 16
+    //           pieces of which any 8 rebuild it (fewer in a small network),
+    //           signs the root of their Merkle tree and sends every piece
+    //           to its own relays; a node gets its pieces from as many
+    //           different senders, so up to half of them can fail or lie
+    //           without the node having to wait and ask.
     // Every node of a network should use the same value: a node relays in
-    // "hash" and "rtt" only.
+    // "hash", "rtt" and "coded" only, and only what fits its own mode.
     std::string EXPERIMENTAL_TX_SET_TREE;
 
     // Children per node in that tree. 0 = the smallest number that reaches
     // every node in two hops (9 for 90 nodes).
     uint32_t EXPERIMENTAL_TX_SET_TREE_FANOUT;
+
+    // For tests and fault runs: the validators with the N smallest node IDs
+    // among the nodes of the leader schedule pass nothing on (tree frames or
+    // pieces). They still lead, receive and vote. 0 = nobody (default).
+    uint32_t EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING;
 
     // EXPERIMENTAL_TX_SET_TREE as the overlay's mode byte.
     uint8_t txSetTreeMode() const;

@@ -179,6 +179,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT = 10;
     EXPERIMENTAL_TX_SET_TREE = "off";
     EXPERIMENTAL_TX_SET_TREE_FANOUT = 0;
+    EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING = 0;
     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     DISABLE_TX_META_FOR_TESTING = false;
@@ -1237,12 +1238,19 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      if (EXPERIMENTAL_TX_SET_TREE != "off" &&
                          EXPERIMENTAL_TX_SET_TREE != "star" &&
                          EXPERIMENTAL_TX_SET_TREE != "hash" &&
-                         EXPERIMENTAL_TX_SET_TREE != "rtt")
+                         EXPERIMENTAL_TX_SET_TREE != "rtt" &&
+                         EXPERIMENTAL_TX_SET_TREE != "coded")
                      {
                          throw std::invalid_argument(
                              "EXPERIMENTAL_TX_SET_TREE must be one of "
-                             "\"off\", \"star\", \"hash\", \"rtt\"");
+                             "\"off\", \"star\", \"hash\", \"rtt\", "
+                             "\"coded\"");
                      }
+                 }},
+                {"EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING",
+                 [&]() {
+                     EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING =
+                         readInt<uint32_t>(item, 0, 1024);
                  }},
                 {"EXPERIMENTAL_TX_SET_TREE_FANOUT",
                  [&]() {
@@ -2437,8 +2445,11 @@ Config::logBasicInfo() const
              "EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT={}",
              EXPERIMENTAL_EARLY_TX_SET_SELECTION ? "true" : "false",
              EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT);
-    LOG_INFO(DEFAULT_LOG, "EXPERIMENTAL_TX_SET_TREE={} (fanout {})",
-             EXPERIMENTAL_TX_SET_TREE, EXPERIMENTAL_TX_SET_TREE_FANOUT);
+    LOG_INFO(DEFAULT_LOG,
+             "EXPERIMENTAL_TX_SET_TREE={} (fanout {}, withholders for "
+             "testing {})",
+             EXPERIMENTAL_TX_SET_TREE, EXPERIMENTAL_TX_SET_TREE_FANOUT,
+             EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING);
 }
 
 uint8_t
@@ -2455,6 +2466,10 @@ Config::txSetTreeMode() const
     if (EXPERIMENTAL_TX_SET_TREE == "rtt")
     {
         return 3;
+    }
+    if (EXPERIMENTAL_TX_SET_TREE == "coded")
+    {
+        return 4;
     }
     return 0;
 }

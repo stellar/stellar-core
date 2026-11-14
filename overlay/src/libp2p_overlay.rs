@@ -11,6 +11,9 @@
 //! Each stream is opened once per peer and kept alive.
 //! QUIC provides independent loss recovery per stream.
 
+use crate::flood::txset_coded::{
+    self, CodedLayout, CodedParams, PieceBytes, PieceHeader, PieceOutcome, ReadySet, RootKey,
+};
 use crate::flood::txset_tree::{
     self, FetchDecision, FrameKind, Probe, RelayAdmission, RelayPlan, TreeConfig, TreeHeader,
     TreeMode, TreeState,
@@ -134,6 +137,38 @@ fn verify_node_id_binding(
         return false;
     };
     key.verify(&node_id_binding(network_id, peer), signature)
+}
+
+/// Whether a piece is of a set its leader cut up: the header's overlay key
+/// belongs to the leader (the validator's own signature over
+/// [`node_id_binding`] of that overlay's peer id, as peers exchange it), and
+/// that key signed the root of the set's pieces with the slot, the shape of
+/// the code and the frame's length (`txset_coded::root_message`). Needs no
+/// connection to the leader.
+fn verify_piece_signatures(network_id: &[u8; 32], header: &PieceHeader) -> bool {
+    let Ok(overlay_key) =
+        libp2p::identity::ed25519::PublicKey::try_from_bytes(&header.overlay_key)
+    else {
+        return false;
+    };
+    let peer = libp2p::identity::PublicKey::from(overlay_key.clone()).to_peer_id();
+    if !verify_node_id_binding(network_id, &peer, &header.leader, &header.binding_sig) {
+        return false;
+    }
+    let (data, pieces) = header.params();
+    let message = txset_coded::root_message(
+        network_id,
+        header.slot,
+        &header.leader,
+        CodedParams {
+            data,
+            pieces,
+            relays: 0,
+        },
+        header.total_len,
+        &header.root,
+    );
+    overlay_key.verify(&message, &header.root_sig)
 }
 
 /// Identity state: ours, and claims from peers that arrived before Core told
@@ -708,6 +743,9 @@ struct SharedState {
     direct_out: std::sync::Mutex<DirectOut>,
     /// Overlay metrics (shared with App for IPC reporting)
     metrics: Arc<OverlayMetrics>,
+    /// This overlay's own key: it signs the root of the pieces of a set
+    /// this node leads with (see `txset_coded`).
+    keypair: Keypair,
 }
 
 impl SharedState {
@@ -718,6 +756,7 @@ impl SharedState {
         metrics: Arc<OverlayMetrics>,
         tx_router: Arc<std::sync::Mutex<TxRouter<PeerId>>>,
         txset_tree: Arc<std::sync::Mutex<TreeState>>,
+        keypair: Keypair,
     ) -> Self {
         Self {
             peer_streams: RwLock::new(HashMap::new()),
@@ -750,6 +789,7 @@ impl SharedState {
             identity: std::sync::Mutex::new(IdentityState::default()),
             direct_out: std::sync::Mutex::new(DirectOut::default()),
             metrics,
+            keypair,
         }
     }
 }
@@ -861,6 +901,7 @@ pub fn create_overlay(
         Arc::clone(&metrics),
         Arc::clone(&tx_router),
         Arc::clone(&txset_tree),
+        keypair.clone(),
     ));
 
     let overlay = StellarOverlay {
@@ -1605,7 +1646,8 @@ impl StellarOverlay {
         let known = config.seed_of(slot).is_some() && config.contains(&me);
         let (kind, order, indices) = match config.mode {
             TreeMode::Off => return everyone(None),
-            TreeMode::Star => return everyone(Some(star)),
+            // Coded: `coded_push` did not take the set (see there).
+            TreeMode::Star | TreeMode::Coded => return everyone(Some(star)),
             _ if !known => return everyone(Some(star)),
             TreeMode::Hash => match config.hash_order(slot, &me) {
                 Some(order) => (FrameKind::Hash, order, Vec::new()),
@@ -1675,6 +1717,95 @@ impl StellarOverlay {
         }
     }
 
+    /// In coded mode, cut the set of `slot` into pieces and write every piece
+    /// to its relays (see `txset_coded`). False: the set is not coded (another
+    /// mode, the slot's layout is not known here, too few nodes, or more than
+    /// a quarter of the relays have no identified connection, as right after
+    /// a start), and the caller pushes it as before, to every peer.
+    ///
+    /// The pieces are not registered as a push of the set to their receivers
+    /// (`PushRecord`): no peer gets the whole set from this node, so a
+    /// request for it is answered.
+    fn coded_push(
+        &mut self,
+        hash: [u8; 32],
+        data: &Arc<TxSetData>,
+        slot: u32,
+        connected: &[PeerId],
+    ) -> bool {
+        let Some(identity) = self.state.identity.lock().unwrap().ours.clone() else {
+            return false;
+        };
+        let me = identity.node_id;
+        // One lock at a time.
+        let order = {
+            let tree = self.state.txset_tree.lock().unwrap();
+            match tree.config() {
+                Some(config) if config.mode == TreeMode::Coded && config.contains(&me) => {
+                    config.hash_order(slot, &me)
+                }
+                _ => None,
+            }
+        };
+        let Some(layout) = order.as_deref().and_then(CodedLayout::new) else {
+            return false;
+        };
+        // The root of the pieces is signed with an Ed25519 key.
+        if self.state.keypair.public().try_into_ed25519().is_err() {
+            return false;
+        }
+        let peer_of: HashMap<NodeId, PeerId> = {
+            let router = self.state.tx_router.lock().unwrap();
+            connected
+                .iter()
+                .filter_map(|peer| router.node_of(peer).map(|node| (*node, *peer)))
+                .collect()
+        };
+        let targets = layout.leader_targets();
+        let unreachable = targets
+            .iter()
+            .filter(|(_, node)| !peer_of.contains_key(node))
+            .count();
+        if unreachable * 4 > targets.len() {
+            self.state
+                .metrics
+                .txset_tree_unreachable
+                .fetch_add(unreachable as u64, Ordering::Relaxed);
+            warn!(
+                "TXSET_CODED_STAR: {} of {} relays for slot {} have no identified connection, pushing to every peer",
+                unreachable,
+                targets.len(),
+                slot
+            );
+            return false;
+        }
+        if !self.state.txset_tree.lock().unwrap().coded.mark_pushed(hash) {
+            // This set went out as pieces already.
+            return true;
+        }
+        info!(
+            "TXSET_CODED_PUSH: Pushing TX set {:02x?}... ({} bytes, {} on the wire) for slot {} as {} pieces ({} rebuild it) to {} relays",
+            &hash[..4],
+            data.len(),
+            data.encoded().len(),
+            slot,
+            layout.params.pieces,
+            layout.params.data,
+            targets.len() - unreachable
+        );
+        tokio::spawn(send_coded_set(
+            Arc::clone(&self.state),
+            hash,
+            Arc::clone(data),
+            slot,
+            layout,
+            identity,
+            peer_of,
+            unix_ms_now(),
+        ));
+        true
+    }
+
     /// Push a TX set this node leads with. Without a tree it goes to every
     /// connected peer that has not been sent it, as the frame a request is
     /// answered with, unsolicited on the TX-set stream; with one, to this
@@ -1698,6 +1829,11 @@ impl StellarOverlay {
             .keys()
             .cloned()
             .collect();
+        if let Some(slot) = slot {
+            if self.coded_push(hash, &data, slot, &connected) {
+                return;
+            }
+        }
         let plan = self.tree_push_plan(slot, &connected);
         let tagged = plan.header.is_some();
         let header: Arc<Vec<u8>> = Arc::new(plan.header.map(|h| h.encode()).unwrap_or_default());
@@ -3560,6 +3696,46 @@ impl TaggedBody {
     }
 }
 
+/// Record how long a set took from its leader's send to this node: now less
+/// `sent_unix_ms`, by the leader's clock and ours (the nodes of a network
+/// keep theirs within a few milliseconds). A nonsensical difference is not
+/// recorded. `hop`: how the frame came (1 = straight from the leader), for
+/// the per-hop sums; none for a set rebuilt from pieces.
+fn record_tree_delay(metrics: &OverlayMetrics, sent_unix_ms: u64, hop: Option<u8>) {
+    let delay_ms = unix_ms_now().saturating_sub(sent_unix_ms);
+    if sent_unix_ms == 0 || delay_ms >= 60_000 {
+        return;
+    }
+    metrics
+        .txset_tree_delay_ms_sum
+        .fetch_add(delay_ms, Ordering::Relaxed);
+    metrics.txset_tree_delay_count.fetch_add(1, Ordering::Relaxed);
+    if let Some(hop) = hop {
+        let (sum, count) = if hop <= 1 {
+            (
+                &metrics.txset_tree_delay_hop1_ms_sum,
+                &metrics.txset_tree_delay_hop1_count,
+            )
+        } else {
+            (
+                &metrics.txset_tree_delay_hop2_ms_sum,
+                &metrics.txset_tree_delay_hop2_count,
+            )
+        };
+        sum.fetch_add(delay_ms, Ordering::Relaxed);
+        count.fetch_add(1, Ordering::Relaxed);
+    }
+    let bucket = match delay_ms {
+        0..=50 => &metrics.txset_tree_delay_le_50,
+        51..=100 => &metrics.txset_tree_delay_le_100,
+        101..=150 => &metrics.txset_tree_delay_le_150,
+        151..=200 => &metrics.txset_tree_delay_le_200,
+        201..=300 => &metrics.txset_tree_delay_le_300,
+        _ => &metrics.txset_tree_delay_gt_300,
+    };
+    bucket.fetch_add(1, Ordering::Relaxed);
+}
+
 /// Handle the tree header of a frame from `peer_id`: record how long the
 /// frame took, and pass it on to this node's children in the tree if it has
 /// any (see `txset_tree::relay_plan`). The bytes go on as they came, before
@@ -3576,37 +3752,7 @@ fn relay_tagged_frame(
     let (header, body) = TreeHeader::parse(&frame)?;
     let metrics = &state.metrics;
     metrics.txset_tree_received.fetch_add(1, Ordering::Relaxed);
-    // By the leader's clock and ours; the nodes of a network keep theirs
-    // within a few milliseconds. A nonsensical difference is not recorded.
-    let delay_ms = unix_ms_now().saturating_sub(header.sent_unix_ms);
-    if header.sent_unix_ms != 0 && delay_ms < 60_000 {
-        metrics
-            .txset_tree_delay_ms_sum
-            .fetch_add(delay_ms, Ordering::Relaxed);
-        metrics.txset_tree_delay_count.fetch_add(1, Ordering::Relaxed);
-        let (sum, count) = if header.hop <= 1 {
-            (
-                &metrics.txset_tree_delay_hop1_ms_sum,
-                &metrics.txset_tree_delay_hop1_count,
-            )
-        } else {
-            (
-                &metrics.txset_tree_delay_hop2_ms_sum,
-                &metrics.txset_tree_delay_hop2_count,
-            )
-        };
-        sum.fetch_add(delay_ms, Ordering::Relaxed);
-        count.fetch_add(1, Ordering::Relaxed);
-        let bucket = match delay_ms {
-            0..=50 => &metrics.txset_tree_delay_le_50,
-            51..=100 => &metrics.txset_tree_delay_le_100,
-            101..=150 => &metrics.txset_tree_delay_le_150,
-            151..=200 => &metrics.txset_tree_delay_le_200,
-            201..=300 => &metrics.txset_tree_delay_le_300,
-            _ => &metrics.txset_tree_delay_gt_300,
-        };
-        bucket.fetch_add(1, Ordering::Relaxed);
-    }
+    record_tree_delay(metrics, header.sent_unix_ms, Some(header.hop));
     let frame = Arc::new(frame);
     if header.kind == FrameKind::Star {
         return Some(TaggedBody { frame, body });
@@ -3627,6 +3773,7 @@ fn relay_tagged_frame(
     let sender = state.tx_router.lock().unwrap().node_of(&peer_id).copied();
     let plan = {
         let mut tree = state.txset_tree.lock().unwrap();
+        let withhold = tree.config().is_some_and(|config| config.withhold);
         let plan = match (tree.config(), me) {
             (Some(config), Some(me)) => {
                 txset_tree::relay_plan(config, &header, &me, sender.as_ref())
@@ -3634,6 +3781,11 @@ fn relay_tagged_frame(
             _ => RelayPlan::Refused(txset_tree::RelayRefusal::NotATree),
         };
         match plan {
+            // A node set up to withhold (tests, fault runs) passes nothing on.
+            RelayPlan::Relay(_) if withhold => {
+                metrics.txset_tree_withheld.fetch_add(1, Ordering::Relaxed);
+                RelayPlan::Leaf
+            }
             RelayPlan::Relay(children) => match tree.admit_relay(&header, &frame[body..]) {
                 RelayAdmission::Relay => RelayPlan::Relay(children),
                 RelayAdmission::Duplicate => {
@@ -3749,6 +3901,471 @@ fn relay_tagged_frame(
     Some(TaggedBody { frame, body })
 }
 
+/// The pieces of a set with their headers, as its leader sends them.
+struct SignedPieces {
+    headers: Vec<PieceHeader>,
+    pieces: Vec<Arc<Vec<u8>>>,
+}
+
+/// Sign the root of the Merkle tree over `pieces` with this overlay's key,
+/// and make every piece its header (hop 1). `None`: the overlay's key is not
+/// an Ed25519 key, or the signing failed.
+fn sign_pieces(
+    keypair: &Keypair,
+    identity: &NodeIdentity,
+    slot: u32,
+    params: CodedParams,
+    total_len: u32,
+    pieces: Vec<Vec<u8>>,
+    sent_unix_ms: u64,
+) -> Option<SignedPieces> {
+    let overlay_key = keypair.public().try_into_ed25519().ok()?.to_bytes();
+    let leaves: Vec<[u8; 32]> = pieces
+        .iter()
+        .enumerate()
+        .map(|(i, piece)| txset_coded::leaf_hash(i as u8, piece))
+        .collect();
+    let (root, paths) = txset_coded::merkle_tree(&leaves);
+    let message = txset_coded::root_message(
+        &identity.network_id,
+        slot,
+        &identity.node_id,
+        params,
+        total_len,
+        &root,
+    );
+    let root_sig: [u8; 64] = keypair.sign(&message).ok()?.try_into().ok()?;
+    let headers = paths
+        .into_iter()
+        .enumerate()
+        .map(|(index, path)| PieceHeader {
+            hop: 1,
+            data: params.data as u8,
+            pieces: params.pieces as u8,
+            index: index as u8,
+            slot,
+            leader: identity.node_id,
+            sent_unix_ms,
+            total_len,
+            root,
+            overlay_key,
+            binding_sig: identity.signature,
+            root_sig,
+            path,
+        })
+        .collect();
+    Some(SignedPieces {
+        headers,
+        pieces: pieces.into_iter().map(Arc::new).collect(),
+    })
+}
+
+/// As the leader of `slot`: cut the set's frame into pieces, sign the root of
+/// their Merkle tree, and write every piece to its relays. Runs as a task of
+/// its own, so that the coding does not hold up the overlay's command loop.
+async fn send_coded_set(
+    state: Arc<SharedState>,
+    hash: [u8; 32],
+    data: Arc<TxSetData>,
+    slot: u32,
+    layout: CodedLayout,
+    identity: NodeIdentity,
+    peer_of: HashMap<NodeId, PeerId>,
+    sent_unix_ms: u64,
+) {
+    let params = layout.params;
+    let signed = {
+        let keypair = state.keypair.clone();
+        let identity = identity.clone();
+        tokio::task::spawn_blocking(move || {
+            let frame = data.encoded();
+            let pieces = txset_coded::encode_pieces(frame, params).ok()?;
+            sign_pieces(
+                &keypair,
+                &identity,
+                slot,
+                params,
+                frame.len() as u32,
+                pieces,
+                sent_unix_ms,
+            )
+        })
+        .await
+    };
+    let Ok(Some(SignedPieces { headers, pieces })) = signed else {
+        // Nothing was sent: the other nodes ask for the set after their wait.
+        warn!(
+            "TXSET_CODED_ERR: Could not cut TX set {:02x?}... for slot {} into pieces",
+            &hash[..4],
+            slot
+        );
+        return;
+    };
+    let metrics = &state.metrics;
+    metrics
+        .txset_coded_sets_encoded
+        .fetch_add(1, Ordering::Relaxed);
+    let mut skipped = 0u64;
+    for (index, node) in layout.leader_targets() {
+        let Some(peer) = peer_of.get(&node).copied() else {
+            skipped += 1;
+            continue;
+        };
+        if !state.txset_tree.lock().unwrap().coded.start_send(node) {
+            skipped += 1;
+            continue;
+        }
+        let header = headers[index].encode();
+        let piece = Arc::clone(&pieces[index]);
+        let state = Arc::clone(&state);
+        tokio::spawn(async move {
+            let parts = [header.as_slice(), piece.as_slice()];
+            let sent = send_to_peer_stream_parts(&state, peer, StreamType::TxSet, &parts).await;
+            state.txset_tree.lock().unwrap().coded.finish_send(&node);
+            let metrics = &state.metrics;
+            match sent {
+                Ok(_) => {
+                    let bytes = (header.len() + piece.len()) as u64;
+                    metrics
+                        .txset_coded_pieces_sent
+                        .fetch_add(1, Ordering::Relaxed);
+                    metrics
+                        .txset_push_sent_bytes
+                        .fetch_add(bytes, Ordering::Relaxed);
+                    metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                    metrics.byte_write.fetch_add(bytes, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                    warn!(
+                        "TXSET_CODED_SEND_FAIL: Failed to send a piece to {}: {}",
+                        peer, e
+                    );
+                }
+            }
+        });
+    }
+    if skipped > 0 {
+        metrics
+            .txset_coded_pieces_skipped
+            .fetch_add(skipped, Ordering::Relaxed);
+    }
+}
+
+/// A piece of a coded set arrived from `peer_id` (see `txset_coded`).
+///
+/// It is looked at only if this node's Core described the slot and names the
+/// leader as one that may lead it, the code is the one this node derives, and
+/// the sender is the node that owes this node that piece in the layout (by
+/// the validator identity of the connection). It is kept only if the leader's
+/// signatures and the piece's Merkle path check. A relay passes on what the
+/// leader itself sent it, once, and only after those checks. With enough
+/// pieces under one root the frame is rebuilt and goes the way of every
+/// received frame.
+fn handle_piece_frame(state: &Arc<SharedState>, peer_id: PeerId, frame: Vec<u8>) {
+    let metrics = &state.metrics;
+    let Some((header, at)) = PieceHeader::parse(&frame) else {
+        metrics
+            .txset_coded_pieces_invalid
+            .fetch_add(1, Ordering::Relaxed);
+        warn!(
+            "TXSET_CODED_ERR: Dropping a malformed piece frame ({} bytes) from {}",
+            frame.len(),
+            peer_id
+        );
+        return;
+    };
+    let refuse = |why: &str| {
+        metrics
+            .txset_coded_pieces_refused
+            .fetch_add(1, Ordering::Relaxed);
+        debug!(
+            "TXSET_CODED_REFUSED: Piece {} of slot {} from {}: {}",
+            header.index, header.slot, peer_id, why
+        );
+    };
+    let invalid = |why: &str| {
+        metrics
+            .txset_coded_pieces_invalid
+            .fetch_add(1, Ordering::Relaxed);
+        warn!(
+            "TXSET_CODED_INVALID: Dropping piece {} of slot {} from {}: {}",
+            header.index, header.slot, peer_id, why
+        );
+    };
+    // One lock at a time.
+    let Some(identity) = state.identity.lock().unwrap().ours.clone() else {
+        return refuse("this node's identity is not known yet");
+    };
+    let me = identity.node_id;
+    let Some(sender) = state.tx_router.lock().unwrap().node_of(&peer_id).copied() else {
+        return refuse("the sender did not prove which validator it is");
+    };
+    let key: RootKey = (header.slot, header.leader, header.root);
+    let index = header.index as usize;
+    let checked: Result<(CodedLayout, bool, Option<bool>), &str> = {
+        let mut tree = state.txset_tree.lock().unwrap();
+        let layout = match tree.config() {
+            None => Err("no layout from Core"),
+            Some(config) if config.mode != TreeMode::Coded => Err("not in coded mode"),
+            Some(config) if !config.may_lead(header.slot, &header.leader) => {
+                Err("unknown slot, or not a leader of it")
+            }
+            Some(config) if !config.contains(&me) => Err("this node is not in the layout"),
+            Some(config) => config
+                .hash_order(header.slot, &header.leader)
+                .as_deref()
+                .and_then(CodedLayout::new)
+                .map(|layout| (layout, config.withhold))
+                .ok_or("no layout for these nodes"),
+        };
+        match layout {
+            Err(why) => Err(why),
+            Ok((layout, _)) if (layout.params.data, layout.params.pieces) != header.params() => {
+                Err("another code than this node derives")
+            }
+            Ok((layout, _)) if layout.sender_of(&me, index) != Some(sender) => {
+                Err("not from the node that owes this piece")
+            }
+            Ok(_) if (sender == header.leader) != (header.hop == 1) => Err("wrong hop count"),
+            Ok(_) if !tree.coded.admit_frame(header.slot, header.leader, sender) => {
+                Err("too many frames from this sender for the slot and leader")
+            }
+            Ok((layout, withhold)) => {
+                let known = tree.coded.knows_root(&key, layout.params, header.total_len);
+                Ok((layout, withhold, known))
+            }
+        }
+    };
+    let (layout, withhold, known) = match checked {
+        Ok(checked) => checked,
+        Err(why) => return refuse(why),
+    };
+    match known {
+        Some(true) => {}
+        Some(false) => return invalid("its root is known with another shape or length"),
+        None if !verify_piece_signatures(&identity.network_id, &header) => {
+            return invalid("the root is not signed by the leader");
+        }
+        None => {}
+    }
+    let leaf = txset_coded::leaf_hash(header.index, &frame[at..]);
+    if txset_coded::merkle_root_from(leaf, index, &header.path) != header.root {
+        return invalid("its Merkle path does not reach the root");
+    }
+    let frame = Arc::new(frame);
+    let (outcome, relay) = {
+        let mut tree = state.txset_tree.lock().unwrap();
+        if !tree.coded.add_root(key, layout.params, header.total_len) {
+            return refuse("the leader has two other roots for the slot already");
+        }
+        if tree.coded.knows_root(&key, layout.params, header.total_len) != Some(true) {
+            return invalid("its root is known with another shape or length");
+        }
+        let outcome = tree.coded.add_piece(
+            &key,
+            index,
+            PieceBytes {
+                frame: Arc::clone(&frame),
+                at,
+            },
+        );
+        // Passed on: what the leader itself sent this node as the relay of
+        // this piece, once per root.
+        let relay = header.hop == 1
+            && layout.relayed_piece(&me) == Some(index)
+            && !matches!(outcome, PieceOutcome::Duplicate | PieceOutcome::Unknown)
+            && tree.coded.mark_relayed(key);
+        (outcome, relay)
+    };
+    match &outcome {
+        PieceOutcome::Stored | PieceOutcome::Ready(_) => {
+            metrics
+                .txset_coded_pieces_received
+                .fetch_add(1, Ordering::Relaxed);
+        }
+        PieceOutcome::Late => {
+            metrics
+                .txset_coded_pieces_received
+                .fetch_add(1, Ordering::Relaxed);
+            metrics
+                .txset_coded_pieces_late
+                .fetch_add(1, Ordering::Relaxed);
+        }
+        PieceOutcome::Duplicate => {
+            metrics
+                .txset_coded_pieces_duplicate
+                .fetch_add(1, Ordering::Relaxed);
+        }
+        PieceOutcome::Unknown => refuse("no place for it"),
+    }
+    if relay && withhold {
+        metrics.txset_tree_withheld.fetch_add(1, Ordering::Relaxed);
+    } else if relay {
+        relay_piece(state, &layout, &me, &header, &frame, at);
+    }
+    if let PieceOutcome::Ready(ready) = outcome {
+        // The set is in hand when the last piece needed is: the rebuild that
+        // follows is this node's own work.
+        record_tree_delay(metrics, header.sent_unix_ms, None);
+        metrics.txset_tree_received.fetch_add(1, Ordering::Relaxed);
+        tokio::spawn(rebuild_coded_set(
+            Arc::clone(state),
+            peer_id,
+            ready,
+            header.slot,
+            header.root,
+        ));
+    }
+}
+
+/// Pass this node's piece on to the nodes that expect it from this node.
+fn relay_piece(
+    state: &Arc<SharedState>,
+    layout: &CodedLayout,
+    me: &NodeId,
+    header: &PieceHeader,
+    frame: &Arc<Vec<u8>>,
+    at: usize,
+) {
+    let peer_of: HashMap<NodeId, PeerId> = state.tx_router.lock().unwrap().identified_peers();
+    let relay_header = Arc::new(
+        PieceHeader {
+            hop: 2,
+            ..header.clone()
+        }
+        .encode(),
+    );
+    let mut skipped = 0u64;
+    for node in layout.receivers_of(me) {
+        let Some(peer) = peer_of.get(&node).copied() else {
+            skipped += 1;
+            continue;
+        };
+        if !state.txset_tree.lock().unwrap().coded.start_send(node) {
+            skipped += 1;
+            continue;
+        }
+        let state = Arc::clone(state);
+        let frame = Arc::clone(frame);
+        let relay_header = Arc::clone(&relay_header);
+        tokio::spawn(async move {
+            let parts = [relay_header.as_slice(), &frame[at..]];
+            let sent = send_to_peer_stream_parts(&state, peer, StreamType::TxSet, &parts).await;
+            state.txset_tree.lock().unwrap().coded.finish_send(&node);
+            let metrics = &state.metrics;
+            match sent {
+                Ok(_) => {
+                    let bytes = (relay_header.len() + frame.len() - at) as u64;
+                    metrics
+                        .txset_coded_pieces_relayed
+                        .fetch_add(1, Ordering::Relaxed);
+                    metrics
+                        .txset_tree_relayed_bytes
+                        .fetch_add(bytes, Ordering::Relaxed);
+                    metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                    metrics.byte_write.fetch_add(bytes, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                    warn!(
+                        "TXSET_CODED_RELAY_FAIL: Failed to relay a piece to {}: {}",
+                        peer, e
+                    );
+                }
+            }
+        });
+    }
+    if skipped > 0 {
+        state
+            .metrics
+            .txset_coded_pieces_skipped
+            .fetch_add(skipped, Ordering::Relaxed);
+    }
+}
+
+/// Rebuild a set's frame from its pieces and hand it on as a received frame:
+/// decompress, strict parse, then `deliver_txset` (which files it by the hash
+/// of its content). Afterwards, off the path of the set, encode the frame
+/// again and compare the root: a leader that signed pieces which do not fit
+/// together is counted (the set is still what its content hash says).
+async fn rebuild_coded_set(
+    state: Arc<SharedState>,
+    peer_id: PeerId,
+    ready: ReadySet,
+    slot: u32,
+    root: [u8; 32],
+) {
+    let params = ready.params;
+    let rebuilt = tokio::task::spawn_blocking(move || {
+        use stellar_xdr::{GeneralizedTransactionSet, Limits, ReadXdr};
+        let started = Instant::now();
+        let held: Vec<Option<&[u8]>> = ready
+            .pieces
+            .iter()
+            .map(|piece| piece.as_ref().map(|piece| piece.as_slice()))
+            .collect();
+        let (frame, with_parity) =
+            txset_coded::rebuild(&held, ready.params, ready.total_len as usize)?;
+        let rebuild_us = started.elapsed().as_micros() as u64;
+        let data = crate::flood::txset_encoding::decode(frame)?;
+        GeneralizedTransactionSet::from_xdr(data.as_slice(), Limits::none())
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        Ok::<_, io::Error>((Arc::new(data), with_parity, rebuild_us))
+    })
+    .await;
+    let metrics = &state.metrics;
+    let data = match rebuilt {
+        Ok(Ok((data, with_parity, rebuild_us))) => {
+            metrics
+                .txset_coded_sets_rebuilt
+                .fetch_add(1, Ordering::Relaxed);
+            if with_parity {
+                metrics
+                    .txset_coded_sets_rebuilt_with_parity
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            metrics
+                .txset_coded_rebuild_us_sum
+                .fetch_add(rebuild_us, Ordering::Relaxed);
+            data
+        }
+        result => {
+            metrics
+                .txset_coded_sets_failed
+                .fetch_add(1, Ordering::Relaxed);
+            warn!(
+                "TXSET_CODED_ERR: The pieces of a set for slot {} do not rebuild a TX set: {:?}",
+                slot,
+                result.map(|inner| inner.map(|_| ()))
+            );
+            return;
+        }
+    };
+    deliver_txset(&state, peer_id, Arc::clone(&data)).await;
+    let consistent = tokio::task::spawn_blocking(move || {
+        txset_coded::encode_pieces(data.encoded(), params).is_ok_and(|pieces| {
+            let leaves: Vec<[u8; 32]> = pieces
+                .iter()
+                .enumerate()
+                .map(|(i, piece)| txset_coded::leaf_hash(i as u8, piece))
+                .collect();
+            txset_coded::merkle_tree(&leaves).0 == root
+        })
+    })
+    .await;
+    if !matches!(consistent, Ok(true)) {
+        state
+            .metrics
+            .txset_coded_sets_inconsistent
+            .fetch_add(1, Ordering::Relaxed);
+        warn!(
+            "TXSET_CODED_INCONSISTENT: The leader of slot {} signed pieces that do not fit together",
+            slot
+        );
+    }
+}
+
 async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
         debug!("Accepted inbound TxSet stream from {}", peer_id);
@@ -3826,6 +4443,17 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                 }
                                 None => {}
                             }
+                            continue;
+                        }
+                        // A piece of a coded set (see `txset_coded`). It
+                        // does not draw on the allowance below: what a peer
+                        // can make this node keep and rebuild is bounded by
+                        // the layout (one piece index per sender, slot and
+                        // leader) and by `CodedState`'s limits, and nothing
+                        // is decompressed before pieces from half of this
+                        // node's senders agree on a root its leader signed.
+                        if PieceHeader::is_tagged(&data) {
+                            handle_piece_frame(&state, peer_id, data);
                             continue;
                         }
                         // Bound what a peer can make this node decompress
@@ -4078,6 +4706,9 @@ mod tx_direct_tests;
 
 #[cfg(test)]
 mod txset_tree_tests;
+
+#[cfg(test)]
+mod txset_coded_tests;
 
 #[cfg(test)]
 mod tests {

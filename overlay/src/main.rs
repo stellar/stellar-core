@@ -1859,7 +1859,10 @@ fn parse_txset_tree(payload: &[u8]) -> Option<TreeConfig> {
     if payload.len() < 3 {
         return None;
     }
-    let mode = TreeMode::from_u8(payload[0])?;
+    // The top bit of the mode byte: this node withholds what it should
+    // relay (EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING).
+    let mode = TreeMode::from_u8(payload[0] & 0x7F)?;
+    let withhold = payload[0] & 0x80 != 0;
     let fanout = payload[1];
     let slot_count = payload[2] as usize;
     let mut at = 3;
@@ -1894,7 +1897,11 @@ fn parse_txset_tree(payload: &[u8]) -> Option<TreeConfig> {
         .chunks_exact(32)
         .map(|chunk| chunk.try_into().unwrap())
         .collect();
-    Some(TreeConfig::new(mode, fanout, slots, nodes).with_leaders(leaders))
+    Some(
+        TreeConfig::new(mode, fanout, slots, nodes)
+            .with_leaders(leaders)
+            .with_withhold(withhold),
+    )
 }
 
 fn setup_logging(level: &str) {
@@ -3389,8 +3396,18 @@ mod tests {
             assert!(parse_txset_tree(&payload[..cut]).is_none(), "cut at {cut}");
         }
         let mut bad = payload.clone();
-        bad[0] = 4;
+        bad[0] = 5;
         assert!(parse_txset_tree(&bad).is_none());
+        assert!(!config.withhold);
+        // Coded mode, and the bit that makes a node withhold its relays.
+        let mut coded = payload.clone();
+        coded[0] = 4;
+        let coded = parse_txset_tree(&coded).unwrap();
+        assert_eq!((coded.mode, coded.withhold), (TreeMode::Coded, false));
+        let mut withholding = payload.clone();
+        withholding[0] = 0x80 | 2;
+        let withholding = parse_txset_tree(&withholding).unwrap();
+        assert_eq!((withholding.mode, withholding.withhold), (TreeMode::Hash, true));
         let mut bad = payload.clone();
         bad.push(0);
         assert!(parse_txset_tree(&bad).is_none());

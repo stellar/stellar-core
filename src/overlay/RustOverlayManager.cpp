@@ -502,6 +502,22 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mTxsetTreeDelayLe200, "txset_tree_delay_le_200");
     markDelta(m.mTxsetTreeDelayLe300, "txset_tree_delay_le_300");
     markDelta(m.mTxsetTreeDelayGt300, "txset_tree_delay_gt_300");
+    markDelta(m.mTxsetTreeWithheld, "txset_tree_withheld");
+    markDelta(m.mTxsetCodedSetsEncoded, "txset_coded_sets_encoded");
+    markDelta(m.mTxsetCodedPiecesSent, "txset_coded_pieces_sent");
+    markDelta(m.mTxsetCodedPiecesRelayed, "txset_coded_pieces_relayed");
+    markDelta(m.mTxsetCodedPiecesReceived, "txset_coded_pieces_received");
+    markDelta(m.mTxsetCodedPiecesLate, "txset_coded_pieces_late");
+    markDelta(m.mTxsetCodedPiecesRefused, "txset_coded_pieces_refused");
+    markDelta(m.mTxsetCodedPiecesInvalid, "txset_coded_pieces_invalid");
+    markDelta(m.mTxsetCodedPiecesDuplicate, "txset_coded_pieces_duplicate");
+    markDelta(m.mTxsetCodedPiecesSkipped, "txset_coded_pieces_skipped");
+    markDelta(m.mTxsetCodedSetsRebuilt, "txset_coded_sets_rebuilt");
+    markDelta(m.mTxsetCodedSetsRebuiltWithParity,
+              "txset_coded_sets_rebuilt_with_parity");
+    markDelta(m.mTxsetCodedSetsFailed, "txset_coded_sets_failed");
+    markDelta(m.mTxsetCodedSetsInconsistent, "txset_coded_sets_inconsistent");
+    markDelta(m.mTxsetCodedRebuildUsSum, "txset_coded_rebuild_us_sum");
 
     // Transactions sent to the target leaders only
     markDelta(m.mTxDirectSent, "flood_tx_direct_sent");

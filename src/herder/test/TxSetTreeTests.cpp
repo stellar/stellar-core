@@ -5,10 +5,13 @@
 // Network-level tests of the spanning tree for the leader's tx set
 // (EXPERIMENTAL_TX_SET_TREE): the leader writes its set to its children in a
 // tree that every node derives from the nodes of the leader schedule and the
-// slot's seed, and every node passes the set on to its own children. The
-// tree's logic is tested in the overlay (overlay/src/flood/txset_tree.rs,
-// overlay/src/libp2p_overlay/txset_tree_tests.rs); these tests run it under
-// consensus, with Core telling every overlay the trees of the next slots.
+// slot's seed, and every node passes the set on to its own children; or, in
+// "coded" mode, the leader cuts the set into erasure-coded pieces and every
+// node gets its pieces from as many different senders. The logic is tested
+// in the overlay (overlay/src/flood/txset_tree.rs, txset_coded.rs,
+// overlay/src/libp2p_overlay/txset_tree_tests.rs, txset_coded_tests.rs);
+// these tests run it under consensus, with Core telling every overlay the
+// trees of the next slots.
 
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
@@ -51,6 +54,20 @@ struct TreeCounts
     // one-second retry interval.
     int64_t mCoreFetches{0};
     int64_t mCoreRetries{0};
+    // Relays not made by nodes that are set up to withhold them.
+    int64_t mWithheld{0};
+    // Coded mode: pieces written by leaders and by relays, valid pieces
+    // received, pieces refused and pieces found wrong; sets rebuilt, with a
+    // parity piece, and rebuilds that gave no tx set.
+    int64_t mPiecesSent{0};
+    int64_t mPiecesRelayed{0};
+    int64_t mPiecesReceived{0};
+    int64_t mPiecesRefused{0};
+    int64_t mPiecesInvalid{0};
+    int64_t mSetsRebuilt{0};
+    int64_t mSetsRebuiltWithParity{0};
+    int64_t mSetsFailed{0};
+    int64_t mSetsInconsistent{0};
 
     std::string
     toString() const
@@ -58,9 +75,14 @@ struct TreeCounts
         return fmt::format(
             "push sent {} (tagged {}), relayed {}, received {}, refused {}, "
             "duplicate {}, deferred {}, fallback {}, delays {}; core fetches "
-            "{} retries {}",
+            "{} retries {}; withheld {}; pieces sent {} relayed {} received "
+            "{} refused {} invalid {}; sets rebuilt {} (with parity {}) "
+            "failed {} inconsistent {}",
             mPushSent, mRootSent, mRelayed, mReceived, mRefused, mDuplicate,
-            mDeferred, mFallback, mDelayCount, mCoreFetches, mCoreRetries);
+            mDeferred, mFallback, mDelayCount, mCoreFetches, mCoreRetries,
+            mWithheld, mPiecesSent, mPiecesRelayed, mPiecesReceived,
+            mPiecesRefused, mPiecesInvalid, mSetsRebuilt,
+            mSetsRebuiltWithParity, mSetsFailed, mSetsInconsistent);
     }
 };
 
@@ -88,6 +110,22 @@ countTree(std::vector<Application::pointer> const& nodes)
         res.mDeferred += tree("fetch-deferred");
         res.mFallback += tree("fetch-fallback");
         res.mDelayCount += tree("delay-count");
+        res.mWithheld += tree("withheld");
+        auto coded = [&](char const* name, char const* unit) {
+            return static_cast<int64_t>(
+                metrics.NewMeter({"overlay", "txset-coded", name}, unit)
+                    .count());
+        };
+        res.mPiecesSent += coded("pieces-sent", "piece");
+        res.mPiecesRelayed += coded("pieces-relayed", "piece");
+        res.mPiecesReceived += coded("pieces-received", "piece");
+        res.mPiecesRefused += coded("pieces-refused", "piece");
+        res.mPiecesInvalid += coded("pieces-invalid", "piece");
+        res.mSetsRebuilt += coded("sets-rebuilt", "txset");
+        res.mSetsRebuiltWithParity +=
+            coded("sets-rebuilt-with-parity", "txset");
+        res.mSetsFailed += coded("sets-failed", "txset");
+        res.mSetsInconsistent += coded("sets-inconsistent", "txset");
         res.mCoreFetches += static_cast<int64_t>(
             metrics.NewTimer({"scp", "fetch", "txset"}).count());
         res.mCoreRetries += static_cast<int64_t>(
@@ -141,6 +179,9 @@ TEST_CASE("tx set tree mode is read from the config", "[herder][txset-tree]")
     REQUIRE(cfg.txSetTreeMode() == 2);
     cfg.EXPERIMENTAL_TX_SET_TREE = "rtt";
     REQUIRE(cfg.txSetTreeMode() == 3);
+    cfg.EXPERIMENTAL_TX_SET_TREE = "coded";
+    REQUIRE(cfg.txSetTreeMode() == 4);
+    REQUIRE(cfg.EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING == 0);
 }
 
 TEST_CASE("the tx set of a leader travels down the hash tree",
@@ -256,4 +297,77 @@ TEST_CASE(
     // not lead: over this many ledgers some subtree had to ask.
     REQUIRE(counts.mFallback > 0);
     REQUIRE(counts.mCoreRetries == 0);
+}
+
+TEST_CASE("the tx set of a leader travels as coded pieces",
+          "[herder][txset-tree][txset-coded][simulation]")
+{
+    // With 6 other nodes a set is cut into 6 pieces of which 3 rebuild it;
+    // the leader writes one piece to each node, and each passes its piece
+    // on to the 5 others.
+    auto simulation = makeNetwork(
+        [](Config& cfg, int) { cfg.EXPERIMENTAL_TX_SET_TREE = "coded"; });
+    uint32_t const lastLedger = 16;
+    auto const ledgers = closeLedgers(simulation, lastLedger);
+    REQUIRE(ledgers >= 12);
+
+    auto counts = countTree(simulation->getNodes());
+    INFO(counts.toString());
+    // Once the nodes know each other's validator identity and the layouts,
+    // a leader writes 6 pieces per set and no whole copy; before that (the
+    // first ledgers) it writes the set to all 6 peers.
+    REQUIRE(counts.mPiecesSent >= 6 * (ledgers - 6));
+    REQUIRE(counts.mPiecesRelayed >= 5 * 6 * (ledgers - 6));
+    REQUIRE(counts.mPushSent <= 4 * ledgers);
+    // Every node rebuilt those sets from pieces, and no piece was wrong.
+    REQUIRE(counts.mSetsRebuilt >= (NODES - 1) * (ledgers - 6));
+    REQUIRE(counts.mPiecesInvalid == 0);
+    REQUIRE(counts.mSetsFailed == 0);
+    REQUIRE(counts.mSetsInconsistent == 0);
+    REQUIRE(counts.mWithheld == 0);
+    // Every node still got every set from its overlay without the
+    // one-second retry, and the delay was recorded for every rebuilt set.
+    REQUIRE(counts.mCoreFetches >= (NODES - 1) * (ledgers - 2));
+    REQUIRE(counts.mCoreRetries == 0);
+    REQUIRE(counts.mDelayCount == counts.mReceived);
+    REQUIRE(counts.mReceived >= counts.mSetsRebuilt);
+}
+
+TEST_CASE("relays that withhold cost a tree a wait and coded pieces none",
+          "[herder][txset-tree][txset-coded][simulation]")
+{
+    // The validator with the smallest node ID passes nothing on.
+    //  - In the hash tree (two relays, two children each) the children of
+    //    that relay ask for the set after their wait, in every tree in which
+    //    it is a relay.
+    //  - In coded mode a node then holds at least 5 of its 6 pieces and
+    //    needs 3: it rebuilds the set, mostly with a parity piece, and
+    //    nobody has to ask.
+    auto run = [](std::string const& mode) {
+        auto simulation = makeNetwork([&](Config& cfg, int) {
+            cfg.EXPERIMENTAL_TX_SET_TREE = mode;
+            cfg.EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING = 1;
+        });
+        uint32_t const lastLedger = 30;
+        auto const ledgers = closeLedgers(simulation, lastLedger);
+        REQUIRE(ledgers >= 24);
+        auto counts = countTree(simulation->getNodes());
+        // The network closes its ledgers either way, without Core's
+        // one-second retry.
+        REQUIRE(counts.mCoreRetries == 0);
+        REQUIRE(counts.mWithheld > 0);
+        return counts;
+    };
+    auto const tree = run("hash");
+    auto const coded = run("coded");
+    INFO("hash: " << tree.toString());
+    INFO("coded: " << coded.toString());
+    REQUIRE(tree.mFallback > 0);
+    REQUIRE(coded.mSetsRebuiltWithParity > 0);
+    REQUIRE(coded.mPiecesInvalid == 0);
+    REQUIRE(coded.mSetsFailed == 0);
+    // Coded: far fewer sets asked for than in the tree (none, unless two
+    // writes to one node failed for one set, which the first ledgers'
+    // stream set-up can do).
+    REQUIRE(coded.mFallback * 4 <= tree.mFallback);
 }

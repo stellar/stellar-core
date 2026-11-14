@@ -107,6 +107,9 @@ pub enum TreeMode {
     Hash,
     /// Down a tree the leader lays out by its round-trip times.
     Rtt,
+    /// As erasure-coded pieces, each through its own relays (see
+    /// `txset_coded`).
+    Coded,
 }
 
 impl TreeMode {
@@ -116,13 +119,20 @@ impl TreeMode {
             1 => Some(Self::Star),
             2 => Some(Self::Hash),
             3 => Some(Self::Rtt),
+            4 => Some(Self::Coded),
             _ => None,
         }
     }
 
-    /// Whether nodes in this mode relay tagged frames and wait for them.
+    /// Whether nodes in this mode relay tagged frames down a tree.
     pub fn relays(self) -> bool {
         matches!(self, Self::Hash | Self::Rtt)
+    }
+
+    /// Whether nodes in this mode expect a set to reach them through other
+    /// nodes, and so wait before they ask for it.
+    pub fn waits(self) -> bool {
+        matches!(self, Self::Hash | Self::Rtt | Self::Coded)
     }
 }
 
@@ -347,6 +357,9 @@ pub struct TreeConfig {
     pub leaders: Vec<Option<Vec<NodeId>>>,
     /// The nodes of the tree, sorted by node ID, without duplicates.
     pub nodes: Vec<NodeId>,
+    /// For tests and fault runs: this node passes nothing on (tree frames
+    /// or pieces). It still leads, receives and asks.
+    pub withhold: bool,
 }
 
 impl TreeConfig {
@@ -365,7 +378,14 @@ impl TreeConfig {
             slots,
             leaders,
             nodes,
+            withhold: false,
         }
+    }
+
+    /// Make this node withhold what it should relay (tests, fault runs).
+    pub fn with_withhold(mut self, withhold: bool) -> Self {
+        self.withhold = withhold;
+        self
     }
 
     /// Restrict who may lead each slot (one entry per slot, in order).
@@ -773,6 +793,8 @@ pub struct TreeState {
     relays_in_flight: HashMap<NodeId, u32>,
     /// The probe this node last sent each peer and has no answer to.
     probes: HashMap<NodeId, u64>,
+    /// Pieces of coded sets (mode `coded`).
+    pub coded: super::txset_coded::CodedState,
     #[cfg(test)]
     probing_paused: bool,
 }
@@ -796,6 +818,7 @@ impl TreeState {
             relays: lru::LruCache::new(memory),
             relays_in_flight: HashMap::new(),
             probes: HashMap::new(),
+            coded: super::txset_coded::CodedState::new(),
             #[cfg(test)]
             probing_paused: false,
         }
@@ -806,7 +829,16 @@ impl TreeState {
     }
 
     pub fn set_config(&mut self, config: TreeConfig) {
+        // Pieces of slots Core no longer describes are of no use.
+        if let Some(oldest) = config.slots.iter().map(|(slot, _)| *slot).min() {
+            self.coded.prune(oldest);
+        }
         self.config = Some(config);
+    }
+
+    /// This node's own validator key, once Core has sent it.
+    pub fn local_node(&self) -> Option<NodeId> {
+        self.local
     }
 
     pub fn config(&self) -> Option<&TreeConfig> {
@@ -895,7 +927,7 @@ impl TreeState {
         // is not, a watcher for one, asks at once as before.)
         let local = self.local;
         let expects_tree = self.config.as_ref().is_some_and(|c| {
-            c.mode.relays() && c.seed_of(slot).is_some() && local.is_some_and(|me| c.contains(&me))
+            c.mode.waits() && c.seed_of(slot).is_some() && local.is_some_and(|me| c.contains(&me))
         });
         if !expects_tree || self.delivered.contains(hash) {
             return FetchDecision::Proceed;

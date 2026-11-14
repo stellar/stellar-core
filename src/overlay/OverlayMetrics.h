@@ -103,6 +103,24 @@ struct OverlayMetrics
     medida::Meter& mTxsetTreeDelayLe300;
     medida::Meter& mTxsetTreeDelayGt300;
 
+    // Erasure-coded pieces of the leader's tx set (EXPERIMENTAL_TX_SET_TREE
+    // = "coded")
+    medida::Meter& mTxsetTreeWithheld;
+    medida::Meter& mTxsetCodedSetsEncoded;
+    medida::Meter& mTxsetCodedPiecesSent;
+    medida::Meter& mTxsetCodedPiecesRelayed;
+    medida::Meter& mTxsetCodedPiecesReceived;
+    medida::Meter& mTxsetCodedPiecesLate;
+    medida::Meter& mTxsetCodedPiecesRefused;
+    medida::Meter& mTxsetCodedPiecesInvalid;
+    medida::Meter& mTxsetCodedPiecesDuplicate;
+    medida::Meter& mTxsetCodedPiecesSkipped;
+    medida::Meter& mTxsetCodedSetsRebuilt;
+    medida::Meter& mTxsetCodedSetsRebuiltWithParity;
+    medida::Meter& mTxsetCodedSetsFailed;
+    medida::Meter& mTxsetCodedSetsInconsistent;
+    medida::Meter& mTxsetCodedRebuildUsSum;
+
     // Transactions sent to the target leaders only (tx-flood-to-leaders)
     medida::Meter& mTxDirectSent;
     medida::Meter& mTxDirectSentBytes;

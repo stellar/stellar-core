@@ -32,6 +32,10 @@ futures = "0.3"
 # TX set response compression
 zstd = { version = "0.13.3", default-features = false }
 
+# Erasure code for the pieces of a pushed TX set (EXPERIMENTAL_TX_SET_TREE = "coded")
+# (3.0: its dependencies are in the lock file already, apart from one build-time crate.)
+reed-solomon-simd = "~3.0.1"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
