@@ -543,9 +543,10 @@ pub fn relay_plan(
     }
 }
 
-/// Two nodes whose round-trip times differ by no more than this, or by no
-/// more than a fifth of the larger one, are in one group. Groups are chains:
-/// a run of nodes each that close to the next is one group.
+/// Nodes whose round-trip times follow each other within this are taken to be
+/// in one place. (Inside a region the times differ by a few milliseconds;
+/// between regions by tens.) Two regions at the same distance from the leader
+/// end up in one group; see `rtt_order` for what is done about that.
 const RTT_GROUP_GAP: Duration = Duration::from_millis(8);
 
 /// Split nodes sorted by round-trip time into groups at the gaps.
@@ -554,10 +555,7 @@ fn rtt_groups(mut measured: Vec<(Duration, NodeId)>) -> Vec<Vec<NodeId>> {
     let mut groups: Vec<Vec<NodeId>> = Vec::new();
     let mut last: Option<Duration> = None;
     for (rtt, node) in measured {
-        let same = last.is_some_and(|prev| {
-            let gap = rtt.saturating_sub(prev);
-            gap <= RTT_GROUP_GAP || gap <= rtt / 5
-        });
+        let same = last.is_some_and(|prev| rtt.saturating_sub(prev) <= RTT_GROUP_GAP);
         if same {
             groups.last_mut().unwrap().push(node);
         } else {
@@ -568,15 +566,26 @@ fn rtt_groups(mut measured: Vec<(Duration, NodeId)>) -> Vec<Vec<NodeId>> {
     groups
 }
 
-/// An order for the leader's own tree from its round-trip times: nodes at
-/// about the same distance are taken to be in one place; every such group
-/// gets relays in proportion to its size, and a relay's children come from
-/// its own group. So a set makes one long hop to a group's relay and a short
-/// one from there, instead of two hops of any length.
+/// An order for the leader's own tree from its round-trip times, so that a
+/// set makes one long hop to a relay near its destination and a short one
+/// from there, instead of two hops of any length.
+///
+/// * Nodes at about the same distance are a group (`rtt_groups`). Every
+///   group gets relays in proportion to its size.
+/// * A group's nodes, sorted by round-trip time, are cut into consecutive
+///   runs, one per relay. The relay of a run is its middle node, its children
+///   the rest of the run. Two regions at the same distance from the leader
+///   are one group, but their times still differ by a little, so the runs
+///   mostly fall apart along the regions, and a run that straddles two is
+///   relayed by a node of the part it holds more of.
+/// * What does not fit under its own run's relay (a relay has `fanout`
+///   children) goes where there is room.
 ///
 /// `nodes` are the other nodes of the tree with the round-trip time to each
-/// (`None`: not measured; those form a group of their own, served last).
-/// The result starts with `leader` and holds every node once.
+/// (`None`: not measured; those come last, as one group). The result starts
+/// with `leader` and holds every node once, laid out as the complete tree
+/// `children_of` reads: only the last relays may have fewer than `fanout`
+/// children.
 pub fn rtt_order(
     leader: &NodeId,
     nodes: &[(NodeId, Option<Duration>)],
@@ -609,18 +618,22 @@ pub fn rtt_order(
     let fanout = fanout.max(1);
     let relays = fanout.min(total);
     // A tree of two levels holds `relays` relays and `relays * fanout`
-    // leaves. If the nodes do not fit, or there are more groups than relays,
-    // the grouping cannot be kept: fall back to the nearest nodes first.
-    if total > relays + relays * fanout || groups.len() > relays {
+    // leaves. If the nodes do not fit, the order is the nodes from the
+    // nearest to the farthest (a deeper tree; `relay_plan` only follows two
+    // levels). With more groups than relays the groups cannot each have a
+    // relay: all nodes are one group then.
+    if total > relays + relays * fanout {
         order.extend(groups.into_iter().flatten());
         return order;
     }
-    // Relays per group: one each, the rest by the largest remainder of each
-    // group's share, never more than the group's size.
+    if groups.len() > relays {
+        groups = vec![groups.into_iter().flatten().collect()];
+    }
+    // Relays per group: one each, the rest to the group with the most nodes
+    // per relay, never more than the group's size.
     let mut seats: Vec<usize> = vec![1; groups.len()];
     let mut left = relays - groups.len();
     while left > 0 {
-        // The group with the most nodes per relay gets the next one.
         let Some(next) = (0..groups.len())
             .filter(|g| seats[*g] < groups[*g].len())
             .max_by(|a, b| {
@@ -637,37 +650,35 @@ pub fn rtt_order(
         seats[next] += 1;
         left -= 1;
     }
-    // Level 1: each group's relays are its nearest nodes.
+    // Cut every group into consecutive runs, one per relay.
     let mut relay_nodes: Vec<NodeId> = Vec::new();
-    let mut owner_group: Vec<usize> = Vec::new();
-    let mut rest: Vec<std::collections::VecDeque<NodeId>> = Vec::new();
+    let mut children: Vec<Vec<NodeId>> = Vec::new();
+    let mut leftovers: std::collections::VecDeque<NodeId> = std::collections::VecDeque::new();
     for (g, group) in groups.iter().enumerate() {
-        let (heads, others) = group.split_at(seats[g]);
-        for node in heads {
-            relay_nodes.push(*node);
-            owner_group.push(g);
+        let mut start = 0;
+        for j in 0..seats[g] {
+            // Runs of nearly equal size (the earlier ones get the remainder).
+            let rest = group.len() - start;
+            let size = rest.div_ceil(seats[g] - j);
+            let run = &group[start..start + size];
+            start += size;
+            let middle = run.len() / 2;
+            relay_nodes.push(run[middle]);
+            let mut kids: Vec<NodeId> = run
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != middle)
+                .map(|(_, node)| *node)
+                .collect();
+            // A relay has `fanout` children; the farthest of a longer run
+            // go where there is room.
+            if kids.len() > fanout {
+                leftovers.extend(kids.drain(fanout..));
+            }
+            children.push(kids);
         }
-        rest.push(others.iter().copied().collect());
     }
     let relay_count = relay_nodes.len();
-    // Level 2: every relay's children come from its own group, dealt out in
-    // turn so that a group's relays share it evenly.
-    let mut children: Vec<Vec<NodeId>> = vec![Vec::new(); relay_count];
-    for (g, queue) in rest.iter_mut().enumerate() {
-        let mine: Vec<usize> = (0..relay_count).filter(|j| owner_group[*j] == g).collect();
-        let mut turn = 0;
-        while !queue.is_empty() && mine.iter().any(|j| children[*j].len() < fanout) {
-            let j = mine[turn % mine.len()];
-            turn += 1;
-            if children[j].len() < fanout {
-                children[j].push(queue.pop_front().unwrap());
-            }
-        }
-    }
-    // What did not fit under its own group's relays goes where there is
-    // room (a relay with its own ten nodes serves a group of ten; larger
-    // groups overflow).
-    let mut leftovers: std::collections::VecDeque<NodeId> = rest.into_iter().flatten().collect();
     for slot in children.iter_mut() {
         while slot.len() < fanout {
             match leftovers.pop_front() {
@@ -1387,6 +1398,57 @@ mod tests {
         }
     }
 
+    /// Two regions at the same distance from the leader (as eu-central-1
+    /// and us-west-2 are from ap-southeast-1): they are one group, and most
+    /// of their nodes still sit under a relay of their own region.
+    #[test]
+    fn an_rtt_order_keeps_regions_at_the_same_distance_apart() {
+        let leader = node(0);
+        let mut measured = Vec::new();
+        let mut regions: Vec<Vec<NodeId>> = Vec::new();
+        let mut next = 1u16;
+        // 22 with the leader, 22 at 160-162 ms, 23 at 165-167 ms, 22 at 215.
+        for (size, base_us) in [(22u16, 900u64), (22, 160_000), (23, 165_200), (22, 215_000)] {
+            let mut region = Vec::new();
+            for i in 0..size {
+                let n = node(next);
+                next += 1;
+                let rtt = Duration::from_micros(base_us + (i as u64 * 173) % 2000);
+                measured.push((n, Some(rtt)));
+                region.push(n);
+            }
+            regions.push(region);
+        }
+        let fanout = 9;
+        let order = rtt_order(&leader, &measured, fanout);
+        assert_eq!(order.len(), 90);
+        let mut sorted = order.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), 90);
+        let region_of = |n: &NodeId| regions.iter().position(|r| r.contains(n)).unwrap();
+        let relays = children_of(&order, &leader, fanout);
+        assert_eq!(relays.len(), 9);
+        // Both regions of the merged group have relays of their own.
+        assert!(relays.iter().filter(|n| region_of(n) == 1).count() >= 2);
+        assert!(relays.iter().filter(|n| region_of(n) == 2).count() >= 2);
+        let mut foreign = 0;
+        for relay in &relays {
+            for child in children_of(&order, relay, fanout) {
+                assert_eq!(depth_of(&order, &child, fanout), Some(2));
+                if region_of(&child) != region_of(relay) {
+                    foreign += 1;
+                }
+            }
+        }
+        // Of 80 leaves; the runs that straddle two regions and the overflow
+        // of the larger groups.
+        assert!(
+            foreign <= 12,
+            "{foreign} nodes under a relay of another region"
+        );
+    }
+
     #[test]
     fn an_rtt_order_copes_with_unmeasured_nodes_small_networks_and_many_groups() {
         // Nothing measured: one group, still every node once.
@@ -1404,13 +1466,24 @@ mod tests {
             (node(1), Some(Duration::from_millis(50))),
         ];
         assert_eq!(rtt_order(&leader, &dup, 2), vec![leader, node(1)]);
-        // More groups than relays: nearest first, every node once.
+        // More groups than relays: one group of all, every node once, and
+        // still two levels.
         let spread: Vec<_> = (1..=12u16)
             .map(|n| (node(n), Some(Duration::from_millis(n as u64 * 40))))
             .collect();
         let order = rtt_order(&leader, &spread, 3);
         assert_eq!(order.len(), 13);
-        assert_eq!(order[1], node(1));
+        for n in &order[1..] {
+            assert!(depth_of(&order, n, 3).unwrap() <= 2);
+        }
+        // Each relay's children are its neighbours in distance: the three
+        // runs are nodes 1-4, 5-8 and 9-12.
+        for relay in children_of(&order, &leader, 3) {
+            let run = |n: &NodeId| (u16::from_be_bytes([n[0], n[1]]) - 1) / 4;
+            for child in children_of(&order, &relay, 3) {
+                assert_eq!(run(&child), run(&relay));
+            }
+        }
         let mut sorted = order.clone();
         sorted.sort();
         sorted.dedup();
