@@ -101,6 +101,32 @@ TEST_CASE("RandomEvictionCache works as a cache", "[randomevictioncache]")
     }
 }
 
+TEST_CASE("RandomEvictionCache peek reads without recording the access",
+          "[randomevictioncache]")
+{
+    RandomEvictionCache<size_t, size_t> cache(4);
+    RandomEvictionCache<size_t, size_t> const& constCache = cache;
+    cache.put(1, 10);
+    cache.put(2, 20);
+    auto const before = cache.getCounters();
+    REQUIRE(constCache.peek(1));
+    REQUIRE(*constCache.peek(1) == 10);
+    REQUIRE(*constCache.peek(2) == 20);
+    REQUIRE(constCache.peek(3) == nullptr);
+    // Neither hits nor misses are counted, and nothing was inserted.
+    auto const after = cache.getCounters();
+    REQUIRE(after.mHits == before.mHits);
+    REQUIRE(after.mMisses == before.mMisses);
+    REQUIRE(after.mInserts == before.mInserts);
+    REQUIRE(cache.size() == 2);
+    // An updated value is what peek returns next.
+    cache.put(1, 11);
+    REQUIRE(*constCache.peek(1) == 11);
+    // maybeGet still counts.
+    REQUIRE(cache.maybeGet(1));
+    REQUIRE(cache.getCounters().mHits == before.mHits + 1);
+}
+
 TEST_CASE("RandomEvictionCache does not thrash",
           "[randomevictioncachethrash][!hide]")
 {

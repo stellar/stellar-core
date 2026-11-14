@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "simulation/LoadGenerator.h"
+#include "crypto/KeyUtils.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
@@ -71,6 +72,16 @@ uint32_t const LoadGenerator::TX_SUBMIT_MAX_TRIES = 10;
 // After successfully submitting desired load, wait a bit to let it get into the
 // ledger.
 uint32_t const LoadGenerator::TIMEOUT_NUM_LEDGERS = 20;
+uint32_t const LoadGenerator::DEFAULT_COMPLETION_TIMEOUT_NUM_LEDGERS =
+    LoadGenerator::TIMEOUT_NUM_LEDGERS;
+// The payments of SAC_PAYMENT travel to the round leaders only, without an
+// acknowledgement. A node's last few can be included much later than the
+// rest (25 to 70 s were measured on a 90-validator network at 0.8 s per
+// ledger, where 1 to 9 of 90 generators hit it per run): a leader dropped
+// them from its build, and the origin sends them again only by its resend
+// rules. They are applied in the end, so the run is complete, only late;
+// the default wait of 20 ledgers reported such a run as failed.
+uint32_t const LoadGenerator::SAC_PAYMENT_COMPLETION_TIMEOUT_NUM_LEDGERS = 150;
 
 // After successfully submitting desired load, wait for this many ledgers
 // without checking for account consistency.
@@ -104,6 +115,29 @@ isMixedPregenMode(LoadGenMode mode)
     return mode == LoadGenMode::MIXED_PREGEN_SAC_PAYMENT ||
            mode == LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER ||
            mode == LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP;
+}
+
+LedgerKey
+LoadGenerator::getNativeSACInstanceKey(Hash const& networkID)
+{
+    SCAddress contract(SC_ADDRESS_TYPE_CONTRACT);
+    contract.contractId() = getAssetContractID(networkID, makeNativeAsset());
+    return makeContractInstanceKey(contract);
+}
+
+SCAddress
+LoadGenerator::getNativeSACPaymentDestination(NodeID const& node,
+                                              uint32_t ledgerNum,
+                                              uint64_t counter)
+{
+    // The name holds the generating node's key, so every generator of a
+    // network pays to destinations of its own; the ledger and the counter
+    // make the destinations of one generator distinct.
+    SCAddress dest(SC_ADDRESS_TYPE_CONTRACT);
+    dest.contractId() =
+        sha256(fmt::format("loadgen_native_sac_dest_{}_{}_{}",
+                           KeyUtils::toStrKey(node), ledgerNum, counter));
+    return dest;
 }
 
 LoadGenerator::LoadGenerator(Application& app)
@@ -172,6 +206,14 @@ LoadGenerator::getMode(std::string const& mode)
     else if (mode == "mixed_pregen_soroswap_swap")
     {
         return LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP;
+    }
+    else if (mode == "sac_setup")
+    {
+        return LoadGenMode::SAC_SETUP;
+    }
+    else if (mode == "sac_payment")
+    {
+        return LoadGenMode::SAC_PAYMENT;
     }
     else
     {
@@ -345,6 +387,8 @@ LoadGenerator::reset()
     mSyntheticSoroswapState.reset();
     mSyntheticSACDestCounter = 0;
     mSyntheticSoroswapSwapCounter = 0;
+    mNativeSACInstance.reset();
+    mNativeSACDestCounter = 0;
     mWaitTillCompleteForLedgers = 0;
     mFailed = false;
     mStarted = false;
@@ -401,8 +445,48 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         cfg.txRate = 1;
     }
 
+    if (cfg.modeUsesNativeSAC())
+    {
+        // These modes exist to exercise apply. In overlay only mode nothing
+        // is applied, so the instance would never appear and the payments
+        // would never complete.
+        if (mApp.getRunInOverlayOnlyMode())
+        {
+            reset();
+            throw std::runtime_error(
+                "SAC_SETUP / SAC_PAYMENT need transactions to be applied, "
+                "they can not run in overlay only mode");
+        }
+
+        auto instanceKey = getNativeSACInstanceKey(mApp.getNetworkID());
+        bool instanceExists = static_cast<bool>(
+            mApp.getLedgerManager().getLCLView()->load(instanceKey));
+        if (cfg.mode == LoadGenMode::SAC_SETUP)
+        {
+            // A single transaction creates the instance. If it is already
+            // there (e.g. another node ran the setup), there is nothing to do.
+            cfg.nTxs = instanceExists ? 0 : 1;
+            cfg.skipLowFeeTxs = false;
+            cfg.spikeInterval = std::chrono::seconds(0);
+            cfg.spikeSize = 0;
+        }
+        else if (!instanceExists)
+        {
+            reset();
+            throw std::runtime_error(
+                "Before running MODE::SAC_PAYMENT, please run MODE::SAC_SETUP "
+                "to create the native asset contract first.");
+        }
+
+        TxGenerator::ContractInstance instance;
+        instance.readOnlyKeys.emplace_back(instanceKey);
+        instance.contractID = instanceKey.contractData().contract;
+        mNativeSACInstance = instance;
+    }
+
     // Setup config for soroban modes
-    if (cfg.isSoroban() && cfg.mode != LoadGenMode::SOROBAN_UPLOAD)
+    if (cfg.isSoroban() && cfg.mode != LoadGenMode::SOROBAN_UPLOAD &&
+        !cfg.modeUsesNativeSAC())
     {
         auto& sorobanLoadCfg = cfg.getMutSorobanConfig();
         sorobanLoadCfg.nWasms = 1;
@@ -715,6 +799,12 @@ GeneratedLoadConfig::getStatus() const
     case LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP:
         modeStr = "mixed_pregen_soroswap_swap";
         break;
+    case LoadGenMode::SAC_SETUP:
+        modeStr = "sac_setup";
+        break;
+    case LoadGenMode::SAC_PAYMENT:
+        modeStr = "sac_payment";
+        break;
     }
 
     ret["mode"] = modeStr;
@@ -945,6 +1035,19 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 --mixedClassicBudget;
                 isMixedSorobanTx = false;
                 return readTransactionFromFile(cfg);
+            };
+            break;
+        case LoadGenMode::SAC_SETUP:
+            generateTx = [&]() {
+                return mTxGenerator.createSACTransaction(
+                    ledgerNum, sourceAccountId, makeNativeAsset(),
+                    cfg.maxGeneratedFeeRate);
+            };
+            break;
+        case LoadGenMode::SAC_PAYMENT:
+            generateTx = [&]() {
+                return createNativeSACPaymentTransaction(ledgerNum,
+                                                         sourceAccountId, cfg);
             };
             break;
         }
@@ -1232,6 +1335,23 @@ LoadGenerator::createSyntheticSorobanTransaction(uint32_t ledgerNum,
 }
 
 std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
+LoadGenerator::createNativeSACPaymentTransaction(uint32_t ledgerNum,
+                                                 uint64_t sourceAccountId,
+                                                 GeneratedLoadConfig const& cfg)
+{
+    releaseAssert(mNativeSACInstance);
+    // A payment writes only its source account and the balance entry of a
+    // destination no other transaction uses, so payments from different
+    // accounts never conflict.
+    auto dest = getNativeSACPaymentDestination(
+        mApp.getConfig().NODE_SEED.getPublicKey(), ledgerNum,
+        mNativeSACDestCounter++);
+    return mTxGenerator.invokeSACPayment(ledgerNum, sourceAccountId, dest,
+                                         *mNativeSACInstance, /* amount */ 100,
+                                         cfg.maxGeneratedFeeRate);
+}
+
+std::pair<CachedTestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
                                            uint32_t ledgerNum,
                                            uint64_t sourceAccountId)
@@ -1307,6 +1427,19 @@ LoadGenerator::checkSorobanStateSynced(Application& app,
 
     std::vector<LedgerKey> result;
     auto ledgerView = mApp.getLedgerManager().getLCLView();
+    if (cfg.modeUsesNativeSAC())
+    {
+        // SAC_SETUP is done once the instance is on the ledger. The payments
+        // do not create persistent loadgen state; their source accounts are
+        // checked by checkAccountSynced.
+        auto instanceKey = getNativeSACInstanceKey(mApp.getNetworkID());
+        if (!ledgerView->load(instanceKey))
+        {
+            result.emplace_back(instanceKey);
+        }
+        return result;
+    }
+
     for (auto const& lk : mContractInstanceKeys)
     {
         if (!ledgerView->load(lk))
@@ -1382,6 +1515,18 @@ LoadGenerator::checkMinimumSorobanSuccess(GeneratedLoadConfig const& cfg)
     return (nSuccessful * 100) / nTxns >= cfg.getMinSorobanPercentSuccess();
 }
 
+uint32_t
+LoadGenerator::completionTimeoutLedgers(GeneratedLoadConfig const& cfg)
+{
+    if (cfg.completionTimeoutLedgers != 0)
+    {
+        return cfg.completionTimeoutLedgers;
+    }
+    return cfg.mode == LoadGenMode::SAC_PAYMENT
+               ? SAC_PAYMENT_COMPLETION_TIMEOUT_NUM_LEDGERS
+               : DEFAULT_COMPLETION_TIMEOUT_NUM_LEDGERS;
+}
+
 void
 LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
 {
@@ -1440,7 +1585,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     // If we have an inconsistency, reset the timer and wait for another ledger
     else if (!classicIsDone || !sorobanIsDone)
     {
-        if (++mWaitTillCompleteForLedgers >= TIMEOUT_NUM_LEDGERS)
+        if (++mWaitTillCompleteForLedgers >= completionTimeoutLedgers(cfg))
         {
             emitFailure(!sorobanIsDone);
             return;
@@ -1633,6 +1778,12 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
             txm.mNativePayment.Mark(txf->getNumOperations());
             txm.mNativePaymentBytes.Mark(msgBytes);
         }
+        break;
+    case LoadGenMode::SAC_SETUP:
+        txm.mSorobanSetupInvokeTxs.Mark();
+        break;
+    case LoadGenMode::SAC_PAYMENT:
+        txm.mSorobanInvokeTxs.Mark();
         break;
     }
 
@@ -1951,7 +2102,7 @@ GeneratedLoadConfig::isSoroban() const
            mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
-           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;
+           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN || modeUsesNativeSAC();
 }
 
 bool
@@ -1968,7 +2119,8 @@ GeneratedLoadConfig::isLoad() const
            mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
-           mode == LoadGenMode::PAY_PREGENERATED || modeMixesPregen();
+           mode == LoadGenMode::PAY_PREGENERATED || modeMixesPregen() ||
+           modeUsesNativeSAC();
 }
 
 bool
@@ -1982,6 +2134,12 @@ bool
 GeneratedLoadConfig::modeMixesPregen() const
 {
     return isMixedPregenMode(mode);
+}
+
+bool
+GeneratedLoadConfig::modeUsesNativeSAC() const
+{
+    return mode == LoadGenMode::SAC_SETUP || mode == LoadGenMode::SAC_PAYMENT;
 }
 
 bool

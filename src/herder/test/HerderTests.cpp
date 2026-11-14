@@ -73,6 +73,15 @@ using namespace stellar::txbridge;
 using namespace stellar::txtest;
 using namespace historytestutils;
 
+namespace stellar
+{
+// LeaderBuildTestAccess::selectLocalFirstLeader (defined further down), for
+// the fixtures above it: replaces the second validator of a two-validator
+// quorum set by one that sorts behind the local node in the next slot's
+// leader order.
+void makeLocalNodeFirstLeader(HerderImpl& herder);
+}
+
 static TransactionTestFramePtr
 makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
                  int nbOps, int64 paymentBase, uint32 extraFee, uint32 feeMult)
@@ -2960,6 +2969,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     SECTION("validateValue txSet cached")
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        // Which of this fixture's two validators leads the next slot depends
+        // on the local node's key, i.e. on the test instance number; the
+        // expectations below are for the node that builds and proposes.
+        makeLocalNodeFirstLeader(herder);
         auto seq = herder.trackingConsensusLedgerIndex() + 1;
 
         auto& cache = herder.getHerderSCPDriver().getTxSetValidityCache();
@@ -5387,6 +5400,12 @@ namespace stellar
 class LeaderBuildTestAccess
 {
   public:
+    static void
+    checkInLine(HerderImpl& herder)
+    {
+        herder.mTxSetSelfCheckFailed = true;
+    }
+
     static VirtualClock::time_point
     triggerAnchor(HerderImpl& herder, uint64_t slot)
     {
@@ -5544,6 +5563,12 @@ class LeaderBuildTestAccess
         FAIL("Could not select a first-round local leader");
     }
 };
+
+void
+makeLocalNodeFirstLeader(HerderImpl& herder)
+{
+    LeaderBuildTestAccess::selectLocalFirstLeader(herder);
+}
 }
 
 TEST_CASE("trigger fallback credits elapsed time up to the first ballot",
@@ -6008,10 +6033,17 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
     tx->addSignature(alice);
     auto extra = makeTx(bob, alice);
     mempool = {tx->getEnvelope(), extra->getEnvelope()};
-    size_t pulls = 0;
-    herder.mGetTopTransactionsForTesting = [&](size_t) {
-        ++pulls;
-        return mempool;
+    herder.mGetTopTransactionsForTesting = [&](size_t) { return mempool; };
+    // Builds of a tx set since here. (Not pulls of the mempool: the leader
+    // starts executing a prepared set at once, and that execution pulls
+    // candidates for the ledger after it.)
+    auto const buildsBefore =
+        app->getMetrics().NewTimer({"herder", "txset", "build"}).count();
+    auto builds = [&]() {
+        return app->getMetrics()
+                   .NewTimer({"herder", "txset", "build"})
+                   .count() -
+               buildsBefore;
     };
     // Exercise the real post-close hook, including its heartbeat reset after
     // advancing the fixture clock past the upgrade helper's close time.
@@ -6023,7 +6055,7 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         [&]() { return LeaderBuildTestAccess::prepared(herder) != nullptr; },
         std::chrono::seconds(1));
     REQUIRE(clock.now() < trigger);
-    REQUIRE(pulls == 1);
+    REQUIRE(builds() == 1);
     auto prepared = LeaderBuildTestAccess::prepared(herder);
     auto const preparedCloseTime = LeaderBuildTestAccess::closeTime(herder);
     REQUIRE(prepared);
@@ -6042,7 +6074,7 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         testutil::crankUntil(
             app, [&]() { return herder.getSCP().getLeaderRound(seq) != 0; },
             std::chrono::seconds(1));
-        REQUIRE(pulls == 1);
+        REQUIRE(builds() == 1);
         REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         REQUIRE(std::get<TxSetXDRFrameConstPtr>(
                     herder.getTxSet(prepared->getContentsHash())) == prepared);
@@ -6071,7 +6103,7 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         xdr::xdr_from_opaque(ballot.value, value);
         REQUIRE(value.txSetHash == prepared->getContentsHash());
         REQUIRE(getConsensusTime(value) == preparedCloseTime);
-        REQUIRE(pulls == 1);
+        REQUIRE(builds() == 1);
     }
     SECTION("clock regression rejects the prepared future close time")
     {
@@ -6079,7 +6111,7 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         // The fallback builds with today's valid close time, and must not
         // claim that our time-bound transaction is valid for that time.
         herder.triggerNextLedger(seq, true);
-        REQUIRE(pulls == 2);
+        REQUIRE(builds() == 2);
         REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         REQUIRE(std::get<TxSetXDRFrameConstPtr>(
                     herder.getTxSet(prepared->getContentsHash())) == nullptr);
@@ -6089,17 +6121,17 @@ TEST_CASE("prepare proposal before trigger", "[herder][early-proposal]")
         herder.externalizeValue(TxSetXDRFrame::makeEmpty(lcl), seq,
                                 preparedCloseTime, {}, cfg.NODE_SEED);
         REQUIRE(LeaderBuildTestAccess::prepared(herder) != prepared);
-        auto const pullsAfterClose = pulls;
-        // A stale timer/caller cannot propose for the old slot or pull again.
+        auto const buildsAfterClose = builds();
+        // A stale timer/caller cannot propose for the old slot or build again.
         herder.triggerNextLedger(seq, true);
-        REQUIRE(pulls == pullsAfterClose);
+        REQUIRE(builds() == buildsAfterClose);
     }
     SECTION("loss of sync discards preparation")
     {
         herder.lostSync();
         REQUIRE(!LeaderBuildTestAccess::prepared(herder));
         herder.triggerNextLedger(seq, true);
-        REQUIRE(pulls == 1);
+        REQUIRE(builds() == 1);
     }
     SECTION("shutdown cancels preparation")
     {
@@ -6958,17 +6990,20 @@ TEST_CASE("the set prepared before the trigger is proposed unchanged",
         // More candidates than capacity, but they cannot fill the ledger.
         mempool = {bad->getEnvelope(), bad->getEnvelope(), bad->getEnvelope()};
     }
-    size_t pulls = 0;
-    herder.mGetTopTransactionsForTesting = [&](size_t) {
-        ++pulls;
-        return mempool;
+    herder.mGetTopTransactionsForTesting = [&](size_t) { return mempool; };
+    // Builds, not pulls of the mempool: the leader starts executing the
+    // prepared set at once, and that execution pulls candidates for the
+    // ledger after it.
+    auto builds = [&]() {
+        return app->getMetrics().NewTimer({"herder", "txset", "build"}).count();
     };
+    REQUIRE(builds() == 0);
     LeaderBuildTestAccess::schedule(herder);
     testutil::crankUntil(
         app,
         [&]() { return LeaderBuildTestAccess::prepared(herder) != nullptr; },
         std::chrono::seconds(1));
-    REQUIRE(pulls == 1);
+    REQUIRE(builds() == 1);
     auto const prepared = LeaderBuildTestAccess::prepared(herder);
     REQUIRE(prepared->sizeTxTotal() == (invalidFirst ? 0 : 1));
     // It was built a short lead time before the trigger, not earlier.
@@ -6982,7 +7017,7 @@ TEST_CASE("the set prepared before the trigger is proposed unchanged",
         app, [&]() { return herder.getSCP().getLeaderRound(seq) != 0; },
         std::chrono::seconds(1));
     // No second build: the proposal names the prepared set.
-    REQUIRE(pulls == 1);
+    REQUIRE(builds() == 1);
     auto messages = herder.getSCP().getLatestMessagesSend(seq);
     REQUIRE(!messages.empty());
     REQUIRE(messages.front().statement.pledges.type() == SCP_ST_PREPARE);
@@ -7458,9 +7493,9 @@ TEST_CASE("leader builds validate only the top of the mempool pull",
         mempool.push_back(tx->getEnvelope());
         hashes.push_back(tx->getFullHash());
     }
-    size_t requested = 0;
+    std::vector<size_t> requested;
     herder.mGetTopTransactionsForTesting = [&](size_t count) {
-        requested = count;
+        requested.push_back(count);
         return std::vector<TransactionEnvelope>(
             mempool.begin(), mempool.begin() + std::min(count, mempool.size()));
     };
@@ -7471,10 +7506,13 @@ TEST_CASE("leader builds validate only the top of the mempool pull",
         getConsensusTime(lcl.header.scpValue).next(lcl.header.ledgerVersion));
     herder.mGetTopTransactionsForTesting = nullptr;
 
-    // The pull is unchanged: twice the capacity of both phases.
-    REQUIRE(
-        requested ==
-        2 * (10 + lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount()));
+    // The pull is the capacity of both phases plus the margin of 10%. Five
+    // of its candidates are invalid, which leaves the set short while the
+    // mempool has more: the build pulls again, twice as much.
+    size_t const capacity =
+        10 + lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+    size_t const pull = capacity + (capacity * 10 + 99) / 100;
+    REQUIRE(requested == std::vector<size_t>{pull, 2 * pull});
     // The invalid top candidates were replaced: the set is full, with the
     // best valid ones.
     auto applicable = txSet->prepareForApply(*app, lcl.header);
@@ -7486,7 +7524,7 @@ TEST_CASE("leader builds validate only the top of the mempool pull",
     }
     REQUIRE(included ==
             std::set<Hash>(hashes.begin() + 5, hashes.begin() + 15));
-    // #40 is past the validated candidates (0-22): it stays in the mempool
+    // #40 is past the candidates the build pulled: it stays in the mempool
     // until it reaches them.
     REQUIRE(std::set<Hash>(invalid.begin(), invalid.end()) ==
             std::set<Hash>(hashes.begin(), hashes.begin() + 5));
@@ -7566,7 +7604,29 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
     herder.mGetTopTransactionsForTesting = [&](size_t) {
         return OverlayIPC::parseTopTransactions(payload);
     };
+    // A build takes the payload itself, and only as many transactions as
+    // it asks for.
+    std::vector<size_t> ends{4};
+    for (uint32_t i = 0; i < pull; ++i)
+    {
+        uint32_t len = 0;
+        std::memcpy(&len, payload.data() + ends.back(), 4);
+        ends.push_back(ends.back() + 4 + len);
+    }
+    herder.mGetTopTransactionsPayloadForTesting = [&](size_t n) {
+        uint32_t const given = static_cast<uint32_t>(std::min<size_t>(n, pull));
+        std::vector<uint8_t> res(payload.begin(),
+                                 payload.begin() + ends[given]);
+        std::memcpy(res.data(), &given, 4);
+        return res;
+    };
 
+    // BENCH_INLINE_CHECK=1: the build checks its written set before it
+    // returns (as it does once a background check has failed).
+    if (envInt("BENCH_INLINE_CHECK", 0) != 0)
+    {
+        LeaderBuildTestAccess::checkInLine(herder);
+    }
     auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     auto const seq = lcl.header.ledgerSeq + 1;
     auto const closeTime =
@@ -7637,6 +7697,11 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
             // against perfnet's herder.txset.validate).
             auto const& lastSet =
                 LeaderBuildTestAccess::build(herder, seq, closeTime);
+            if (envInt("BENCH_SETTLE_MS", 0) != 0)
+            {
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(envInt("BENCH_SETTLE_MS", 0)));
+            }
             for (uint32_t rep = 0; rep < reps; ++rep)
             {
                 auto received = TxSetXDRFrame::makeFromWire(
@@ -7647,6 +7712,10 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
                 }
                 auto const start = std::chrono::steady_clock::now();
                 auto applicable = received->prepareForApply(*app, lcl.header);
+                samples["received-set-prepare"].push_back(
+                    std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() - start)
+                        .count());
                 REQUIRE(applicable);
                 REQUIRE(applicable->checkValid(*app, 0, 0));
                 samples["received-set-validate"].push_back(
@@ -7733,5 +7802,6 @@ TEST_CASE("leader tx set build costs", "[herder][.][benchmark]")
                       << ", n=" << v.size() << ")" << std::endl;
         }
     }
+    herder.mGetTopTransactionsPayloadForTesting = nullptr;
     herder.mGetTopTransactionsForTesting = nullptr;
 }
