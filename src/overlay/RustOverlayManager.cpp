@@ -272,6 +272,19 @@ RustOverlayManager::setTxFloodTargets(
     return false;
 }
 
+bool
+RustOverlayManager::setTxSetTree(
+    uint8_t mode, uint8_t fanout,
+    std::vector<OverlayIPC::TxSetTreeSlot> const& slots,
+    std::vector<NodeID> const& nodes)
+{
+    if (mOverlayIPC && !mShuttingDown)
+    {
+        return mOverlayIPC->setTxSetTree(mode, fanout, slots, nodes);
+    }
+    return false;
+}
+
 Hash
 RustOverlayManager::overlayIdentityBinding(Hash const& networkID,
                                            std::vector<uint8_t> const& peerId)
@@ -462,6 +475,49 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mTxSetPushRequestSkipped, "txset_push_request_skipped");
     markDelta(m.mTxSetPushDropped, "txset_push_dropped");
     markDelta(m.mTxSetPushEvicted, "txset_push_evicted");
+
+    // Spanning tree for the leader's tx-set push
+    markDelta(m.mTxsetPushSentBytes, "txset_push_sent_bytes");
+    markDelta(m.mTxsetTreeRootSent, "txset_tree_root_sent");
+    markDelta(m.mTxsetTreeRelayed, "txset_tree_relayed");
+    markDelta(m.mTxsetTreeRelayedBytes, "txset_tree_relayed_bytes");
+    markDelta(m.mTxsetTreeReceived, "txset_tree_received");
+    markDelta(m.mTxsetTreeDuplicate, "txset_tree_duplicate");
+    markDelta(m.mTxsetTreeRefused, "txset_tree_refused");
+    markDelta(m.mTxsetTreeUnreachable, "txset_tree_unreachable");
+    markDelta(m.mTxsetTreeChildBusy, "txset_tree_child_busy");
+    markDelta(m.mTxsetTreeRelayBusy, "txset_tree_relay_busy");
+    markDelta(m.mTxsetTreeRelayLimited, "txset_tree_relay_limited");
+    markDelta(m.mTxsetTreeFetchDeferred, "txset_tree_fetch_deferred");
+    markDelta(m.mTxsetTreeFetchFallback, "txset_tree_fetch_fallback");
+    markDelta(m.mTxsetTreeDelayMsSum, "txset_tree_delay_ms_sum");
+    markDelta(m.mTxsetTreeDelayCount, "txset_tree_delay_count");
+    markDelta(m.mTxsetTreeDelayHop1MsSum, "txset_tree_delay_hop1_ms_sum");
+    markDelta(m.mTxsetTreeDelayHop1Count, "txset_tree_delay_hop1_count");
+    markDelta(m.mTxsetTreeDelayHop2MsSum, "txset_tree_delay_hop2_ms_sum");
+    markDelta(m.mTxsetTreeDelayHop2Count, "txset_tree_delay_hop2_count");
+    markDelta(m.mTxsetTreeDelayLe50, "txset_tree_delay_le_50");
+    markDelta(m.mTxsetTreeDelayLe100, "txset_tree_delay_le_100");
+    markDelta(m.mTxsetTreeDelayLe150, "txset_tree_delay_le_150");
+    markDelta(m.mTxsetTreeDelayLe200, "txset_tree_delay_le_200");
+    markDelta(m.mTxsetTreeDelayLe300, "txset_tree_delay_le_300");
+    markDelta(m.mTxsetTreeDelayGt300, "txset_tree_delay_gt_300");
+    markDelta(m.mTxsetTreeWithheld, "txset_tree_withheld");
+    markDelta(m.mTxsetCodedSetsEncoded, "txset_coded_sets_encoded");
+    markDelta(m.mTxsetCodedPiecesSent, "txset_coded_pieces_sent");
+    markDelta(m.mTxsetCodedPiecesRelayed, "txset_coded_pieces_relayed");
+    markDelta(m.mTxsetCodedPiecesReceived, "txset_coded_pieces_received");
+    markDelta(m.mTxsetCodedPiecesLate, "txset_coded_pieces_late");
+    markDelta(m.mTxsetCodedPiecesRefused, "txset_coded_pieces_refused");
+    markDelta(m.mTxsetCodedPiecesInvalid, "txset_coded_pieces_invalid");
+    markDelta(m.mTxsetCodedPiecesDuplicate, "txset_coded_pieces_duplicate");
+    markDelta(m.mTxsetCodedPiecesSkipped, "txset_coded_pieces_skipped");
+    markDelta(m.mTxsetCodedSetsRebuilt, "txset_coded_sets_rebuilt");
+    markDelta(m.mTxsetCodedSetsRebuiltWithParity,
+              "txset_coded_sets_rebuilt_with_parity");
+    markDelta(m.mTxsetCodedSetsFailed, "txset_coded_sets_failed");
+    markDelta(m.mTxsetCodedSetsInconsistent, "txset_coded_sets_inconsistent");
+    markDelta(m.mTxsetCodedRebuildUsSum, "txset_coded_rebuild_us_sum");
 
     // Transactions sent to the target leaders only
     markDelta(m.mTxDirectSent, "flood_tx_direct_sent");

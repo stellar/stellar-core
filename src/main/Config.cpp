@@ -47,6 +47,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
     "GENESIS_TEST_ACCOUNT_COUNT",
     "UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING",
     "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
+    "EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING",
     "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
@@ -175,6 +176,11 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKGROUND_OVERLAY_PROCESSING = true;
     PARALLEL_LEDGER_APPLY = true;
     EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = true;
+    EXPERIMENTAL_EARLY_TX_SET_SELECTION = true;
+    EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT = 10;
+    EXPERIMENTAL_TX_SET_TREE = "off";
+    EXPERIMENTAL_TX_SET_TREE_FANOUT = 0;
+    EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING = 0;
     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     DISABLE_TX_META_FOR_TESTING = false;
@@ -1218,6 +1224,40 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = readBool(item);
                  }},
+                {"EXPERIMENTAL_EARLY_TX_SET_SELECTION",
+                 [&]() {
+                     EXPERIMENTAL_EARLY_TX_SET_SELECTION = readBool(item);
+                 }},
+                {"EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT",
+                 [&]() {
+                     EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT =
+                         readInt<uint32_t>(item, 0, 1000);
+                 }},
+                {"EXPERIMENTAL_TX_SET_TREE",
+                 [&]() {
+                     EXPERIMENTAL_TX_SET_TREE = readString(item);
+                     if (EXPERIMENTAL_TX_SET_TREE != "off" &&
+                         EXPERIMENTAL_TX_SET_TREE != "star" &&
+                         EXPERIMENTAL_TX_SET_TREE != "hash" &&
+                         EXPERIMENTAL_TX_SET_TREE != "rtt" &&
+                         EXPERIMENTAL_TX_SET_TREE != "coded")
+                     {
+                         throw std::invalid_argument(
+                             "EXPERIMENTAL_TX_SET_TREE must be one of "
+                             "\"off\", \"star\", \"hash\", \"rtt\", "
+                             "\"coded\"");
+                     }
+                 }},
+                {"EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING",
+                 [&]() {
+                     EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING =
+                         readInt<uint32_t>(item, 0, 1024);
+                 }},
+                {"EXPERIMENTAL_TX_SET_TREE_FANOUT",
+                 [&]() {
+                     EXPERIMENTAL_TX_SET_TREE_FANOUT =
+                         readInt<uint32_t>(item, 0, 255);
+                 }},
                 {"EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD",
                  [&]() {
                      EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = readBool(item);
@@ -1243,9 +1283,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readBool(item);
                  }},
                 {"TX_FLOOD_TARGET_LEADERS",
-                 [&]() {
-                     TX_FLOOD_TARGET_LEADERS = readInt<uint32_t>(item);
-                 }},
+                 [&]() { TX_FLOOD_TARGET_LEADERS = readInt<uint32_t>(item); }},
                 {"TX_FLOOD_LEGACY_ADVERTS",
                  [&]() { TX_FLOOD_LEGACY_ADVERTS = readBool(item); }},
                 {"BATCH_EXECUTOR_TASKS",
@@ -2401,6 +2439,38 @@ Config::logBasicInfo() const
              "EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY="
              "{}",
              EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY ? "true" : "false");
+    LOG_INFO(DEFAULT_LOG,
+             "EXPERIMENTAL_EARLY_TX_SET_SELECTION={}, "
+             "EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT={}",
+             EXPERIMENTAL_EARLY_TX_SET_SELECTION ? "true" : "false",
+             EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT);
+    LOG_INFO(DEFAULT_LOG,
+             "EXPERIMENTAL_TX_SET_TREE={} (fanout {}, withholders for "
+             "testing {})",
+             EXPERIMENTAL_TX_SET_TREE, EXPERIMENTAL_TX_SET_TREE_FANOUT,
+             EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING);
+}
+
+uint8_t
+Config::txSetTreeMode() const
+{
+    if (EXPERIMENTAL_TX_SET_TREE == "star")
+    {
+        return 1;
+    }
+    if (EXPERIMENTAL_TX_SET_TREE == "hash")
+    {
+        return 2;
+    }
+    if (EXPERIMENTAL_TX_SET_TREE == "rtt")
+    {
+        return 3;
+    }
+    if (EXPERIMENTAL_TX_SET_TREE == "coded")
+    {
+        return 4;
+    }
+    return 0;
 }
 
 void

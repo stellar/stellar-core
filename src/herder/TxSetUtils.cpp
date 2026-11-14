@@ -383,6 +383,18 @@ TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
     releaseAssert(threadIsMain());
     auto ctx = TxSetValidationContext::forLCL(app);
     ctx.mValidationCache = validationCache;
+    return trimInvalid(txs, app, ctx, accountFeeMap, lowerBoundCloseTimeOffset,
+                       upperBoundCloseTimeOffset, invalidTxs);
+}
+
+TxFrameList
+TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
+                        TxSetValidationContext const& ctx,
+                        UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                        uint64_t lowerBoundCloseTimeOffset,
+                        uint64_t upperBoundCloseTimeOffset,
+                        TxFrameList& invalidTxs)
+{
     invalidTxs = getInvalidTxListWithErrors(txs, app, ctx, accountFeeMap,
                                             lowerBoundCloseTimeOffset,
                                             upperBoundCloseTimeOffset)
@@ -397,6 +409,23 @@ TxSetUtils::trimInvalidPrefix(
     Application& app, UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     TxFrameList& invalidTxs, TxValidationCache* validationCache)
+{
+    releaseAssert(threadIsMain());
+    auto ctx = TxSetValidationContext::forLCL(app);
+    ctx.mValidationCache = validationCache;
+    return trimInvalidPrefix(txs, targetValidTxs, countsTowardTarget, app, ctx,
+                             accountFeeMap, lowerBoundCloseTimeOffset,
+                             upperBoundCloseTimeOffset, invalidTxs);
+}
+
+TxFrameList
+TxSetUtils::trimInvalidPrefix(
+    TxFrameList const& txs, size_t targetValidTxs,
+    std::function<bool(TransactionFrameBase const&)> const& countsTowardTarget,
+    Application& app, TxSetValidationContext const& ctx,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    TxFrameList& invalidTxs)
 {
     ZoneScoped;
     TxFrameList validTxs;
@@ -420,8 +449,8 @@ TxSetUtils::trimInvalidPrefix(
         validated += count;
         TxFrameList batchInvalid;
         for (auto const& tx : trimInvalid(
-                 batch, app, accountFeeMap, lowerBoundCloseTimeOffset,
-                 upperBoundCloseTimeOffset, batchInvalid, validationCache))
+                 batch, app, ctx, accountFeeMap, lowerBoundCloseTimeOffset,
+                 upperBoundCloseTimeOffset, batchInvalid))
         {
             if (!countsTowardTarget || countsTowardTarget(*tx))
             {
@@ -433,6 +462,79 @@ TxSetUtils::trimInvalidPrefix(
                           batchInvalid.end());
     }
     return validTxs;
+}
+
+// The mempool is fee-ordered and sequence-number-oblivious, so it can hand
+// out several transactions from one source account (e.g. a chained pair). A
+// tx set may only contain one tx per source account, so keep the lowest
+// sequence number per account and let the others wait for a later ledger.
+void
+TxSetUtils::keepOnePerSourceAccount(TxFrameList& txs)
+{
+    std::unordered_map<AccountID, size_t> firstBySource;
+    TxFrameList kept;
+    for (auto const& tx : txs)
+    {
+        auto [it, inserted] =
+            firstBySource.emplace(tx->getSourceID(), kept.size());
+        if (inserted)
+        {
+            kept.push_back(tx);
+        }
+        else if (tx->getSeqNum() < kept[it->second]->getSeqNum())
+        {
+            kept[it->second] = tx;
+        }
+    }
+    txs = std::move(kept);
+}
+
+// One transaction per source account holds across the phases of a set, not
+// only within each: of an account's classic and Soroban candidates, the one
+// with the lower sequence number stays (the classic one if they are equal).
+void
+TxSetUtils::keepOnePerSourceAccount(TxFrameList& classicTxs,
+                                    TxFrameList& sorobanTxs)
+{
+    keepOnePerSourceAccount(classicTxs);
+    keepOnePerSourceAccount(sorobanTxs);
+    if (classicTxs.empty() || sorobanTxs.empty())
+    {
+        return;
+    }
+    std::unordered_map<AccountID, SequenceNumber> classicSeq;
+    for (auto const& tx : classicTxs)
+    {
+        classicSeq.emplace(tx->getSourceID(), tx->getSeqNum());
+    }
+    std::unordered_set<AccountID> dropFromClassic;
+    TxFrameList keptSoroban;
+    for (auto const& tx : sorobanTxs)
+    {
+        auto it = classicSeq.find(tx->getSourceID());
+        if (it == classicSeq.end())
+        {
+            keptSoroban.push_back(tx);
+        }
+        else if (tx->getSeqNum() < it->second)
+        {
+            dropFromClassic.insert(it->first);
+            keptSoroban.push_back(tx);
+        }
+    }
+    sorobanTxs = std::move(keptSoroban);
+    if (!dropFromClassic.empty())
+    {
+        TxFrameList keptClassic;
+        for (auto const& tx : classicTxs)
+        {
+            if (dropFromClassic.count(tx->getSourceID()) == 0)
+            {
+                keptClassic.push_back(tx);
+            }
+        }
+        classicTxs = std::move(keptClassic);
+    }
 }
 
 } // namespace stellar

@@ -111,6 +111,90 @@ pub struct OverlayMetrics {
     /// overlay.txset-push.evicted — unrequested tx sets evicted by the unclaimed-set limits
     pub txset_push_evicted: AtomicU64,
 
+    // Spanning tree for the leader's tx-set push
+    /// overlay.txset-push.sent-bytes — bytes of tx sets written to peers as round leader (pushes, tagged or not)
+    pub txset_push_sent_bytes: AtomicU64,
+    /// overlay.txset-tree.root-sent — tagged copies of a set written as its leader (star or tree)
+    pub txset_tree_root_sent: AtomicU64,
+    /// overlay.txset-tree.relayed — copies of a set written as a relay of its tree
+    pub txset_tree_relayed: AtomicU64,
+    /// overlay.txset-tree.relayed-bytes — bytes written as a relay
+    pub txset_tree_relayed_bytes: AtomicU64,
+    /// overlay.txset-tree.received — tagged frames received
+    pub txset_tree_received: AtomicU64,
+    /// overlay.txset-tree.duplicate — tagged frames that were a second copy (not relayed again)
+    pub txset_tree_duplicate: AtomicU64,
+    /// overlay.txset-tree.refused — tree frames not relayed: unknown slot or nodes, or not from the parent
+    pub txset_tree_refused: AtomicU64,
+    /// overlay.txset-tree.unreachable — children a set could not be sent to (no identified connection)
+    pub txset_tree_unreachable: AtomicU64,
+    /// overlay.txset-tree.child-busy — children the leader could not send a set to because an earlier push to them was in flight (everyone below them gets it from the leader directly)
+    pub txset_tree_child_busy: AtomicU64,
+    /// overlay.txset-tree.relay-busy — children a relay did not pass a frame on to because an earlier relay to them was in flight
+    pub txset_tree_relay_busy: AtomicU64,
+    /// overlay.txset-tree.relay-limited — frames not relayed because this node relayed two for that slot and leader already
+    pub txset_tree_relay_limited: AtomicU64,
+    /// overlay.txset-tree.fetch-deferred — requests for a set put off because the tree should bring it
+    pub txset_tree_fetch_deferred: AtomicU64,
+    /// overlay.txset-tree.fetch-fallback — sets asked for after the wait, because the tree did not bring them
+    pub txset_tree_fetch_fallback: AtomicU64,
+    /// overlay.txset-tree.delay-ms-sum — sum of the delays from the leader's send to the tagged frame's arrival here, by the two nodes' clocks (a set that came by request, or not at all, is not in it)
+    pub txset_tree_delay_ms_sum: AtomicU64,
+    /// overlay.txset-tree.delay-count — frames in delay-ms-sum
+    pub txset_tree_delay_count: AtomicU64,
+    /// overlay.txset-tree.delay-hop1-ms-sum — the same for frames straight from the leader
+    pub txset_tree_delay_hop1_ms_sum: AtomicU64,
+    /// overlay.txset-tree.delay-hop1-count — frames in delay-hop1-ms-sum
+    pub txset_tree_delay_hop1_count: AtomicU64,
+    /// overlay.txset-tree.delay-hop2-ms-sum — the same for frames that came through a relay
+    pub txset_tree_delay_hop2_ms_sum: AtomicU64,
+    /// overlay.txset-tree.delay-hop2-count — frames in delay-hop2-ms-sum
+    pub txset_tree_delay_hop2_count: AtomicU64,
+    /// overlay.txset-tree.delay-le-50ms — frames that arrived 0 to 50 ms after the leader's send (the delay-* buckets are disjoint ranges, not cumulative)
+    pub txset_tree_delay_le_50: AtomicU64,
+    /// overlay.txset-tree.delay-le-100ms — 51 to 100 ms after
+    pub txset_tree_delay_le_100: AtomicU64,
+    /// overlay.txset-tree.delay-le-150ms — 101 to 150 ms after
+    pub txset_tree_delay_le_150: AtomicU64,
+    /// overlay.txset-tree.delay-le-200ms — 151 to 200 ms after
+    pub txset_tree_delay_le_200: AtomicU64,
+    /// overlay.txset-tree.delay-le-300ms — 201 to 300 ms after
+    pub txset_tree_delay_le_300: AtomicU64,
+    /// overlay.txset-tree.delay-gt-300ms — later than 300 ms
+    pub txset_tree_delay_gt_300: AtomicU64,
+
+    // Erasure-coded pieces of the leader's tx set (mode `coded`)
+    /// overlay.txset-tree.withheld — relays this node did not make because it is configured to withhold them (testing)
+    pub txset_tree_withheld: AtomicU64,
+    /// overlay.txset-coded.sets-encoded — sets this node cut into coded pieces as their leader
+    pub txset_coded_sets_encoded: AtomicU64,
+    /// overlay.txset-coded.pieces-sent — pieces written as the set's leader
+    pub txset_coded_pieces_sent: AtomicU64,
+    /// overlay.txset-coded.pieces-relayed — pieces passed on as a relay
+    pub txset_coded_pieces_relayed: AtomicU64,
+    /// overlay.txset-coded.pieces-received — valid pieces received (signed by an allowed leader, from the sender that owes them, with a Merkle path that verifies), late ones included
+    pub txset_coded_pieces_received: AtomicU64,
+    /// overlay.txset-coded.pieces-late — valid pieces that arrived after the set was rebuilt
+    pub txset_coded_pieces_late: AtomicU64,
+    /// overlay.txset-coded.pieces-refused — pieces not looked at: unknown slot, leader or layout, not from the sender that owes that piece, or over a limit
+    pub txset_coded_pieces_refused: AtomicU64,
+    /// overlay.txset-coded.pieces-invalid — pieces dropped because the frame, a signature or the Merkle path is wrong
+    pub txset_coded_pieces_invalid: AtomicU64,
+    /// overlay.txset-coded.pieces-duplicate — pieces received a second time
+    pub txset_coded_pieces_duplicate: AtomicU64,
+    /// overlay.txset-coded.pieces-skipped — pieces not written: the receiver has no identified connection or too many pieces in flight
+    pub txset_coded_pieces_skipped: AtomicU64,
+    /// overlay.txset-coded.sets-rebuilt — sets rebuilt from pieces
+    pub txset_coded_sets_rebuilt: AtomicU64,
+    /// overlay.txset-coded.sets-rebuilt-with-parity — of those, sets that needed a parity piece
+    pub txset_coded_sets_rebuilt_with_parity: AtomicU64,
+    /// overlay.txset-coded.sets-failed — rebuilds whose result could not be decoded, decompressed or parsed
+    pub txset_coded_sets_failed: AtomicU64,
+    /// overlay.txset-coded.sets-inconsistent — rebuilt sets whose pieces, encoded again, do not give the root the leader signed
+    pub txset_coded_sets_inconsistent: AtomicU64,
+    /// overlay.txset-coded.rebuild-us-sum — microseconds spent rebuilding sets from pieces (decoding and joining, before decompression)
+    pub txset_coded_rebuild_us_sum: AtomicU64,
+
     // Transactions sent to the target leaders only
     /// overlay.flood.tx-direct-sent — transaction bodies sent straight to a
     /// target (no advert)
@@ -194,6 +278,46 @@ impl Default for OverlayMetrics {
             txset_push_request_skipped: AtomicU64::new(0),
             txset_push_dropped: AtomicU64::new(0),
             txset_push_evicted: AtomicU64::new(0),
+            txset_push_sent_bytes: AtomicU64::new(0),
+            txset_tree_root_sent: AtomicU64::new(0),
+            txset_tree_relayed: AtomicU64::new(0),
+            txset_tree_relayed_bytes: AtomicU64::new(0),
+            txset_tree_received: AtomicU64::new(0),
+            txset_tree_duplicate: AtomicU64::new(0),
+            txset_tree_refused: AtomicU64::new(0),
+            txset_tree_unreachable: AtomicU64::new(0),
+            txset_tree_child_busy: AtomicU64::new(0),
+            txset_tree_relay_busy: AtomicU64::new(0),
+            txset_tree_relay_limited: AtomicU64::new(0),
+            txset_tree_fetch_deferred: AtomicU64::new(0),
+            txset_tree_fetch_fallback: AtomicU64::new(0),
+            txset_tree_delay_ms_sum: AtomicU64::new(0),
+            txset_tree_delay_count: AtomicU64::new(0),
+            txset_tree_delay_hop1_ms_sum: AtomicU64::new(0),
+            txset_tree_delay_hop1_count: AtomicU64::new(0),
+            txset_tree_delay_hop2_ms_sum: AtomicU64::new(0),
+            txset_tree_delay_hop2_count: AtomicU64::new(0),
+            txset_tree_delay_le_50: AtomicU64::new(0),
+            txset_tree_delay_le_100: AtomicU64::new(0),
+            txset_tree_delay_le_150: AtomicU64::new(0),
+            txset_tree_delay_le_200: AtomicU64::new(0),
+            txset_tree_delay_le_300: AtomicU64::new(0),
+            txset_tree_delay_gt_300: AtomicU64::new(0),
+            txset_tree_withheld: AtomicU64::new(0),
+            txset_coded_sets_encoded: AtomicU64::new(0),
+            txset_coded_pieces_sent: AtomicU64::new(0),
+            txset_coded_pieces_relayed: AtomicU64::new(0),
+            txset_coded_pieces_received: AtomicU64::new(0),
+            txset_coded_pieces_late: AtomicU64::new(0),
+            txset_coded_pieces_refused: AtomicU64::new(0),
+            txset_coded_pieces_invalid: AtomicU64::new(0),
+            txset_coded_pieces_duplicate: AtomicU64::new(0),
+            txset_coded_pieces_skipped: AtomicU64::new(0),
+            txset_coded_sets_rebuilt: AtomicU64::new(0),
+            txset_coded_sets_rebuilt_with_parity: AtomicU64::new(0),
+            txset_coded_sets_failed: AtomicU64::new(0),
+            txset_coded_sets_inconsistent: AtomicU64::new(0),
+            txset_coded_rebuild_us_sum: AtomicU64::new(0),
             flood_tx_direct_sent: AtomicU64::new(0),
             flood_tx_direct_sent_bytes: AtomicU64::new(0),
             flood_tx_direct_recv: AtomicU64::new(0),
@@ -268,6 +392,48 @@ impl OverlayMetrics {
             txset_push_request_skipped: self.txset_push_request_skipped.load(ORD),
             txset_push_dropped: self.txset_push_dropped.load(ORD),
             txset_push_evicted: self.txset_push_evicted.load(ORD),
+            txset_push_sent_bytes: self.txset_push_sent_bytes.load(ORD),
+            txset_tree_root_sent: self.txset_tree_root_sent.load(ORD),
+            txset_tree_relayed: self.txset_tree_relayed.load(ORD),
+            txset_tree_relayed_bytes: self.txset_tree_relayed_bytes.load(ORD),
+            txset_tree_received: self.txset_tree_received.load(ORD),
+            txset_tree_duplicate: self.txset_tree_duplicate.load(ORD),
+            txset_tree_refused: self.txset_tree_refused.load(ORD),
+            txset_tree_unreachable: self.txset_tree_unreachable.load(ORD),
+            txset_tree_child_busy: self.txset_tree_child_busy.load(ORD),
+            txset_tree_relay_busy: self.txset_tree_relay_busy.load(ORD),
+            txset_tree_relay_limited: self.txset_tree_relay_limited.load(ORD),
+            txset_tree_fetch_deferred: self.txset_tree_fetch_deferred.load(ORD),
+            txset_tree_fetch_fallback: self.txset_tree_fetch_fallback.load(ORD),
+            txset_tree_delay_ms_sum: self.txset_tree_delay_ms_sum.load(ORD),
+            txset_tree_delay_count: self.txset_tree_delay_count.load(ORD),
+            txset_tree_delay_hop1_ms_sum: self.txset_tree_delay_hop1_ms_sum.load(ORD),
+            txset_tree_delay_hop1_count: self.txset_tree_delay_hop1_count.load(ORD),
+            txset_tree_delay_hop2_ms_sum: self.txset_tree_delay_hop2_ms_sum.load(ORD),
+            txset_tree_delay_hop2_count: self.txset_tree_delay_hop2_count.load(ORD),
+            txset_tree_delay_le_50: self.txset_tree_delay_le_50.load(ORD),
+            txset_tree_delay_le_100: self.txset_tree_delay_le_100.load(ORD),
+            txset_tree_delay_le_150: self.txset_tree_delay_le_150.load(ORD),
+            txset_tree_delay_le_200: self.txset_tree_delay_le_200.load(ORD),
+            txset_tree_delay_le_300: self.txset_tree_delay_le_300.load(ORD),
+            txset_tree_delay_gt_300: self.txset_tree_delay_gt_300.load(ORD),
+            txset_tree_withheld: self.txset_tree_withheld.load(ORD),
+            txset_coded_sets_encoded: self.txset_coded_sets_encoded.load(ORD),
+            txset_coded_pieces_sent: self.txset_coded_pieces_sent.load(ORD),
+            txset_coded_pieces_relayed: self.txset_coded_pieces_relayed.load(ORD),
+            txset_coded_pieces_received: self.txset_coded_pieces_received.load(ORD),
+            txset_coded_pieces_late: self.txset_coded_pieces_late.load(ORD),
+            txset_coded_pieces_refused: self.txset_coded_pieces_refused.load(ORD),
+            txset_coded_pieces_invalid: self.txset_coded_pieces_invalid.load(ORD),
+            txset_coded_pieces_duplicate: self.txset_coded_pieces_duplicate.load(ORD),
+            txset_coded_pieces_skipped: self.txset_coded_pieces_skipped.load(ORD),
+            txset_coded_sets_rebuilt: self.txset_coded_sets_rebuilt.load(ORD),
+            txset_coded_sets_rebuilt_with_parity: self
+                .txset_coded_sets_rebuilt_with_parity
+                .load(ORD),
+            txset_coded_sets_failed: self.txset_coded_sets_failed.load(ORD),
+            txset_coded_sets_inconsistent: self.txset_coded_sets_inconsistent.load(ORD),
+            txset_coded_rebuild_us_sum: self.txset_coded_rebuild_us_sum.load(ORD),
             flood_tx_direct_sent: self.flood_tx_direct_sent.load(ORD),
             flood_tx_direct_sent_bytes: self.flood_tx_direct_sent_bytes.load(ORD),
             flood_tx_direct_recv: self.flood_tx_direct_recv.load(ORD),
@@ -350,6 +516,46 @@ pub struct MetricsSnapshot {
     pub txset_push_request_skipped: u64,
     pub txset_push_dropped: u64,
     pub txset_push_evicted: u64,
+    pub txset_push_sent_bytes: u64,
+    pub txset_tree_root_sent: u64,
+    pub txset_tree_relayed: u64,
+    pub txset_tree_relayed_bytes: u64,
+    pub txset_tree_received: u64,
+    pub txset_tree_duplicate: u64,
+    pub txset_tree_refused: u64,
+    pub txset_tree_unreachable: u64,
+    pub txset_tree_child_busy: u64,
+    pub txset_tree_relay_busy: u64,
+    pub txset_tree_relay_limited: u64,
+    pub txset_tree_fetch_deferred: u64,
+    pub txset_tree_fetch_fallback: u64,
+    pub txset_tree_delay_ms_sum: u64,
+    pub txset_tree_delay_count: u64,
+    pub txset_tree_delay_hop1_ms_sum: u64,
+    pub txset_tree_delay_hop1_count: u64,
+    pub txset_tree_delay_hop2_ms_sum: u64,
+    pub txset_tree_delay_hop2_count: u64,
+    pub txset_tree_delay_le_50: u64,
+    pub txset_tree_delay_le_100: u64,
+    pub txset_tree_delay_le_150: u64,
+    pub txset_tree_delay_le_200: u64,
+    pub txset_tree_delay_le_300: u64,
+    pub txset_tree_delay_gt_300: u64,
+    pub txset_tree_withheld: u64,
+    pub txset_coded_sets_encoded: u64,
+    pub txset_coded_pieces_sent: u64,
+    pub txset_coded_pieces_relayed: u64,
+    pub txset_coded_pieces_received: u64,
+    pub txset_coded_pieces_late: u64,
+    pub txset_coded_pieces_refused: u64,
+    pub txset_coded_pieces_invalid: u64,
+    pub txset_coded_pieces_duplicate: u64,
+    pub txset_coded_pieces_skipped: u64,
+    pub txset_coded_sets_rebuilt: u64,
+    pub txset_coded_sets_rebuilt_with_parity: u64,
+    pub txset_coded_sets_failed: u64,
+    pub txset_coded_sets_inconsistent: u64,
+    pub txset_coded_rebuild_us_sum: u64,
     pub flood_tx_direct_sent: u64,
     pub flood_tx_direct_sent_bytes: u64,
     pub flood_tx_direct_recv: u64,

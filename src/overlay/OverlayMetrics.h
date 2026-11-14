@@ -75,6 +75,52 @@ struct OverlayMetrics
     medida::Meter& mTxSetPushDropped;
     medida::Meter& mTxSetPushEvicted;
 
+    // Spanning tree for the leader's tx-set push (kept by the Rust overlay;
+    // see overlay/src/metrics.rs for what each counts).
+    medida::Meter& mTxsetPushSentBytes;
+    medida::Meter& mTxsetTreeRootSent;
+    medida::Meter& mTxsetTreeRelayed;
+    medida::Meter& mTxsetTreeRelayedBytes;
+    medida::Meter& mTxsetTreeReceived;
+    medida::Meter& mTxsetTreeDuplicate;
+    medida::Meter& mTxsetTreeRefused;
+    medida::Meter& mTxsetTreeUnreachable;
+    medida::Meter& mTxsetTreeChildBusy;
+    medida::Meter& mTxsetTreeRelayBusy;
+    medida::Meter& mTxsetTreeRelayLimited;
+    medida::Meter& mTxsetTreeFetchDeferred;
+    medida::Meter& mTxsetTreeFetchFallback;
+    medida::Meter& mTxsetTreeDelayMsSum;
+    medida::Meter& mTxsetTreeDelayCount;
+    medida::Meter& mTxsetTreeDelayHop1MsSum;
+    medida::Meter& mTxsetTreeDelayHop1Count;
+    medida::Meter& mTxsetTreeDelayHop2MsSum;
+    medida::Meter& mTxsetTreeDelayHop2Count;
+    medida::Meter& mTxsetTreeDelayLe50;
+    medida::Meter& mTxsetTreeDelayLe100;
+    medida::Meter& mTxsetTreeDelayLe150;
+    medida::Meter& mTxsetTreeDelayLe200;
+    medida::Meter& mTxsetTreeDelayLe300;
+    medida::Meter& mTxsetTreeDelayGt300;
+
+    // Erasure-coded pieces of the leader's tx set (EXPERIMENTAL_TX_SET_TREE
+    // = "coded")
+    medida::Meter& mTxsetTreeWithheld;
+    medida::Meter& mTxsetCodedSetsEncoded;
+    medida::Meter& mTxsetCodedPiecesSent;
+    medida::Meter& mTxsetCodedPiecesRelayed;
+    medida::Meter& mTxsetCodedPiecesReceived;
+    medida::Meter& mTxsetCodedPiecesLate;
+    medida::Meter& mTxsetCodedPiecesRefused;
+    medida::Meter& mTxsetCodedPiecesInvalid;
+    medida::Meter& mTxsetCodedPiecesDuplicate;
+    medida::Meter& mTxsetCodedPiecesSkipped;
+    medida::Meter& mTxsetCodedSetsRebuilt;
+    medida::Meter& mTxsetCodedSetsRebuiltWithParity;
+    medida::Meter& mTxsetCodedSetsFailed;
+    medida::Meter& mTxsetCodedSetsInconsistent;
+    medida::Meter& mTxsetCodedRebuildUsSum;
+
     // Transactions sent to the target leaders only (tx-flood-to-leaders)
     medida::Meter& mTxDirectSent;
     medida::Meter& mTxDirectSentBytes;

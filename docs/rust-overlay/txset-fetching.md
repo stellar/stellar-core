@@ -139,6 +139,180 @@ Limits on what a peer can make a node decode and keep:
   fill it and cycle out sets the node built or already uses (on the base one
   peer could, through prefetches).
 
+## Spanning tree for the push (experimental)
+
+`EXPERIMENTAL_TX_SET_TREE` (`off`, `star`, `hash`, `rtt`, `coded`; default
+`off`) changes who the leader's set travels through. With `off` nothing below
+applies. Every node of a network should use the same value. Code:
+`overlay/src/flood/txset_tree.rs`, and for `coded`
+`overlay/src/flood/txset_coded.rs` (see "Coded pieces" below).
+
+The tree. Its nodes are the nodes of the leader schedule. For a slot and a
+leader the leader is the root and the other nodes follow in the order of
+`SHA256(seed || leader || node)`, where `seed` is the seed of the slot's leader
+schedule. Position `i` has the children `F*i+1 .. F*i+F`: the complete F-ary
+tree, the least depth a fanout of F allows. F is
+`EXPERIMENTAL_TX_SET_TREE_FANOUT`; 0 (the default) is the smallest F that
+reaches every node in two hops (9 for 90 nodes). Every node derives the same
+tree from what it already agrees on; nothing about it is negotiated.
+
+What Core tells the overlay. At every ledger close Core sends
+`SetTxSetTree [mode:1][fanout:1][slots:1]([slot:u32 LE][seed:32][leaders:1][nodeID:32]...)...[count:u32 LE][nodeID:32]...`
+for the next two slots: the seed of each, the nodes that may lead it (the
+leaders of the next slot's first three rounds; for the slot after it those and
+the first three of a new order) and the nodes of the trees. Two slots, because
+a leader may push the set of slot N+1 the moment it closes N, when a follower
+has only closed N-1. The top bit of the mode byte tells an overlay to pass
+nothing on (`EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING = N`: the N
+validators with the smallest node IDs; for tests and fault runs).
+
+On the wire. A tree push is the ordinary tx-set frame with a header in front,
+on the same stream: `[tag:u32 = 0xFFFFFFF1][kind:1][fanout:1][hop:1][0][slot:u32]`
+`[leader:32][sent:u64 Unix ms][n:u16][n x u16 order][8-byte digest if n > 0]`
+(big-endian). The tag stands where an ordinary frame has the length of its
+XDR, which is at most 16 MiB, so no ordinary frame starts with it. Kinds: 1
+star (to every peer, never relayed), 2 hash (the tree above), 3 explicit (the
+order is in the header, see `rtt`).
+
+Pushing. `PushTxSet` makes the leader's overlay write the set to its
+children in the slot's tree. If it does not know the slot's tree, is not one
+of the leaders its Core named for the slot, or a child has no identified
+connection, it writes a star to every peer instead. If a
+child is left out because an earlier push to it is still in flight, the nodes
+below that child get a star from the leader directly.
+
+Relaying. A node that reads a tagged frame passes the bytes on to its children
+before it decompresses or checks them, if all of these hold: its mode is
+`hash` or `rtt`; its Core described the tree of the frame's slot; the frame's
+leader is one of the leaders Core named for that slot; the sender is its
+parent in that tree, by the validator identity of the connection; the body is
+of a size `decode` would accept; and it has relayed fewer than two frames of
+that slot and leader and not this one. One relay is in flight per child. The
+node then verifies and files the set as it does any other, by the hash of its
+content.
+
+Asking. A node of the tree that does not hold a set a proposal names waits
+300 ms from the first mention of the hash before it asks a peer (Core's own
+one-second retry is not delayed). Without that wait every node the leader did
+not write to would ask it when the proposal arrives.
+
+`star` is the push as it was, with the header (so that the delay from the
+leader's send is recorded like a tree's). `rtt`: every node measures the round
+trip to each identified peer every two seconds with a 13-byte probe on the
+tx-set stream (`[tag:u32 = 0xFFFFFFF2][1 ping | 2 pong][u64]`; the answer must
+match the probe sent last); the leader groups its peers by the gaps in the
+sorted times, gives every group relays in proportion to its size and fills a
+relay's children from its own group, and sends that order in the header. A
+receiver follows such an order only in `rtt` mode, only if it has two levels,
+and only if it refers to the same list of nodes.
+
+### Coded pieces (`coded`)
+
+In a tree a node has one path to the set: its parent. In `coded` mode the
+leader cuts the frame it would push into k pieces, adds m-k Reed-Solomon
+parity pieces (any k of the m rebuild the frame), and every node gets its m
+pieces from m different senders. Up to m-k of a node's senders can be down,
+slow or hostile without the node having to wait and ask.
+
+The layout is derived like the tree. `others` is the hash order of the slot and
+leader without the leader. From the number of other nodes alone: m = min(16,
+others), k = ceil(m/2), r = others / m relays per piece (90 validators: 16, 8
+and 5; fewer than 4 others: no coding, the set is pushed to everyone). Piece
+j's relays are `others[j*r .. j*r+r-1]`; the leader writes them piece j. The
+node at position p gets piece j from relay `(p + j) mod r` of that piece,
+unless it is one of the piece's relays. No piece makes more than two hops. The
+leader writes m*r pieces of a k-th of the frame each (10 frame sizes at 90
+validators), a relay about (others - r) / r of them (2.1 frame sizes); the
+network as a whole writes m/k times the frame per node.
+
+A piece frame, on the tx-set stream (big-endian):
+`[tag:u32 = 0xFFFFFFF3][version:1 = 1][hop:1][k:1][m:1][index:1][path length:1][0][0]`
+`[slot:u32][leader:32][sent:u64 Unix ms][frame length:u32][root:32]`
+`[overlay key:32][binding signature:64][root signature:64][path: 32 each][piece]`.
+The leaves of the Merkle tree are `SHA256(0x00 || index || piece)`, inner nodes
+`SHA256(0x01 || left || right)`, padded with zero leaves to a power of two. The
+root signature is the leader's overlay (libp2p Ed25519) key over
+`SHA256("stellar-overlay tx set pieces v1" || network || seed || slot || leader || k || m || frame length || root)`
+(`seed` is the seed of the slot's layout, the hash of the ledger two before the
+slot: a signature from another history of a network with the same name and
+keys is of no use once the two histories differ at that ledger);
+the binding signature is the validator's over the peer id of that overlay key,
+as nodes exchange it as their identity. So a piece can be checked against the
+leader's node ID alone, without a connection to the leader.
+
+A node looks at a piece only if its mode is `coded`, its Core described the
+slot and named the leader as one that may lead it, the sender (by the
+validator identity of the connection) has sent fewer than 6 piece frames for
+that slot and leader, whatever they were, k and m are what the node derives
+itself, and the sender is the node that owes it that index in the layout,
+with the hop count that goes with it. The layout is worked out once per slot
+and leader. It keeps the piece only if both signatures and the Merkle path check
+(the signatures once per root); a leader has room for two roots per slot. A
+relay passes its piece on after those checks, once per root, and only if the
+leader itself sent it. Pieces do not draw on the per-peer allowance for
+unrequested frames: what they can make a node keep and rebuild is bounded by
+the above, and nothing is decompressed before k of the node's senders agree on
+a root the leader signed.
+
+A node that its Core does not name as a leader of the slot (the leader of a
+fourth or later round, a node with another view) does not code: every node
+would refuse its pieces. It pushes its set to everyone, as in `star`, and logs
+`TXSET_CODED_STAR` (in `hash` and `rtt`: `TXSET_TREE_STAR`).
+
+With k pieces under one root the frame is rebuilt (no decoding if they are
+the k data pieces) and goes the way of every received frame: decompress,
+strict parse, content hash, cache. It counts as received from the overlay that
+signed its root (the leader's, connected or not), not from the sender of the
+piece that completed it. Afterwards the node encodes the frame again
+and compares the root: a leader whose pieces do not fit together is counted
+(`sets-inconsistent`); the set is still what its content hash says. A node
+waits for pieces as it does for a tree frame (300 ms) before it asks.
+
+What the code protects is the delivery. A set is identified by the hash of
+its content, as before; a wrong piece, root or rebuild gives bytes that fail
+the decompression or the parse, or a set with another hash that no SCP
+statement names.
+
+Metrics: `overlay.txset-coded.*` (sets cut into pieces; pieces sent, relayed,
+received, late, refused, invalid, duplicate, skipped; sets rebuilt, rebuilt
+with parity, failed, inconsistent; microseconds of rebuilding) and
+`overlay.txset-tree.withheld`. The leader's piece bytes count in
+`overlay.txset-push.sent-bytes`, a relay's in `overlay.txset-tree.relayed-bytes`,
+and a rebuilt set in `overlay.txset-tree.received` and the delay metrics (at
+the arrival of the k-th piece).
+
+Metrics: `overlay.txset-tree.*` (copies written as root and as relay, frames
+received, refused, duplicates, relays over the limit, busy and unreachable
+children, requests put off and those sent after the wait, the delay since the
+leader's send in total, per hop count and in ranges) and
+`overlay.txset-push.sent-bytes`.
+
+Limits of the prototype:
+
+- No version negotiation: a node without this change reads a tagged frame or a
+  probe as a malformed set.
+- In `hash` and `rtt` a relay that is down, slow, two ledgers behind or has
+  another view of the nodes costs the nodes below it the 300 ms wait: there is
+  no second path. `coded` is the mode with several paths.
+- `coded` writes twice the bytes of a set per node (m/k), and its layout is by
+  hash only: it does not use round-trip times.
+- A piece a relay could not write (the receiver has four in flight, or no
+  identified connection) is not sent later; the code absorbs the gap.
+- `coded`: the only bound on a frame's size is the general one (16 MiB). For
+  a frame a leader signs, it writes 10 frame sizes itself and the network about
+  178 in all (18 times the leader's own), per root, two roots per slot; Core
+  does not yet tell the overlay how large a set can be.
+- `coded`: a node connected to fewer than k of its senders (a sparse mesh), or
+  with another list of nodes, waits 300 ms for every set and then asks. The
+  request goes to the peer the SCP statement came from, which may not hold
+  the set and then does not answer; the next step is Core's one-second retry
+  (the same holds for the nodes below a failed relay of a tree).
+- The delay metric compares two hosts' clocks and only counts tagged frames
+  that arrived.
+- A leader of a fourth or later round is not one of the named leaders: its set
+  goes to every peer as a star, in every mode.
+- Relays have no write timeout (neither has the leader's push).
+
 ## Core requests and network prefetches
 
 `RequestTxSet` IPC carries `[hash:32][slot:u32 LE]`. App records the newest
@@ -203,8 +377,9 @@ See [mempool](mempool.md).
 
 ## Remaining limitations
 
-- The push is not relayed and carries the full compressed set; nodes that are
-  not connected to the leader, and a compact (hash-list) form, are future work.
+- Without the tree the push is not relayed; with or without it, it carries the
+  full compressed set. Nodes that are not connected to the leader (or, in a
+  tree, to their parent), and a compact (hash-list) form, are future work.
 - A peer whose first copy of a proposal came through a relay requests the set
   from that relay, which answers from its cache while the leader's push may
   still be in flight: one duplicate transfer.
