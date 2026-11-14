@@ -1,4 +1,4 @@
-# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only, next tx set selected during the previous ballot (experimental branch)
+# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only, next tx set selected during the previous ballot, the leader's tx set delivered as erasure-coded pieces (experimental branch)
 
 **This branch is an experiment. It is not production code and must not run on a real network.**
 The leader schedule and the tx-set push have no feature flag and no protocol gate, and the branch
@@ -31,13 +31,25 @@ The time per ledger goes from 873 to 858 ms, which one run on each side does not
 tx set was invalid or short. Results, and why the shorter build does not show in the block time:
 [Real apply with the meta off, and the tx set build off the critical path](#real-apply-with-the-meta-off-and-the-tx-set-build-off-the-critical-path).
 
+**With the leader's tx set delivered as erasure-coded pieces** (the seventh experiment,
+2026-11-14, real execution, meta off, one run per point, one build for every mode): the 90
+validators **hold the 800 ms target at 8,000 TPS** (a ledger every 804 ms, block time p75
+837 ms, verdict PASS), where the push of the whole set to every peer takes 869 ms and a spanning
+tree 832 ms. The leader writes 9.6 MB per set instead of 95.7 MB. With 29 of the 90 validators
+withholding every piece they should relay, a ledger takes 837 ms and 1.7% of the deliveries
+fall back to a request. **At 10,000 TPS** every ledger is full (10,000 payments) and takes
+1.0 s; all 3,600,000 payments are included. What limits it there is no longer the set's way to
+the followers but the serial apply path: validation, execution and commit of a ledger take
+0.86 s. Results, the comparison tables and the bottlenecks:
+[The leader's tx set as erasure-coded pieces](#the-leaders-tx-set-as-erasure-coded-pieces).
+
 The earlier benchmark (48 validators, 5,000 TPS, 1,000 ms, 4-core instances) is kept below.
 
 ## What this branch is
 
 It is the overlay-v2 stack up to [#5459](https://github.com/stellar/stellar-core/pull/5459)
 (Rust overlay over QUIC, millisecond close times, compressed tx-set responses, leader-only tx-set
-construction) plus six experiments:
+construction) plus seven experiments:
 
 1. **No nomination** ([#5495](https://github.com/stellar/stellar-core/pull/5495)). The SCP
    nomination phase is deleted and replaced by a leader schedule that every node computes locally.
@@ -142,11 +154,47 @@ construction) plus six experiments:
      the shared lock, and the load generator has the two test-only modes of the real-apply runs
      (`sac_setup`, `sac_payment`).
 
-Unchanged by all six: the ballot protocol's accept, confirm and commit rules. For a valid tx
+7. **The leader's tx set travels as erasure-coded pieces, or down a spanning tree** (this pull
+   request, the latest experiment). Config-gated, default off: `EXPERIMENTAL_TX_SET_TREE` =
+   `off`, `star`, `hash`, `rtt` or `coded`. Every node of a network needs the same value. No
+   protocol change: only who sends the set's bytes to whom.
+   - **Why.** The leader of experiment 2 writes its whole set to every peer: 89 copies at 90
+     validators, 96 MB per ledger at 8,000 TPS. A follower cannot vote before it holds the set.
+   - **A layout every node derives.** As the leader schedule: from the nodes of the transitive
+     quorum and the slot's seed. For a slot and a leader, the other nodes are ordered by
+     `SHA256(seed || leader || node)`. Nothing is negotiated.
+   - **`hash`: a spanning tree.** The order is laid out as a complete tree of the smallest fanout
+     that reaches every node in two hops (9 at 90 validators). The leader writes the set to its 9
+     children and every node passes it on to its own. `rtt` is the same tree laid out by the
+     leader from round-trip times it measures; the order travels with the set.
+   - **`coded`: pieces.** The leader cuts the compressed set into 16 pieces of which any 8
+     rebuild it (Reed-Solomon; fewer pieces in a small network), and signs the root of the
+     pieces' Merkle tree. Every piece has 5 relays, to which the leader writes it; a relay
+     passes its piece on to a fifth of the other nodes. So a node gets its 16 pieces from 16
+     different senders, no piece makes more than two hops, and a node has the set when the 8
+     fastest of its 16 pieces have arrived.
+   - **What a node accepts.** A piece only from the node that owes it that piece in the layout,
+     only for a leader its Core expects for the slot, and only with the leader's signature and a
+     Merkle path to the signed root. A relay passes a piece on after those checks. A rebuilt set
+     then goes the way of every received set: decompressed, parsed strictly and filed under the
+     hash of its content.
+   - **What the code protects.** The delivery: up to 8 of a node's 16 senders can be down, slow
+     or lying without the node having to wait and ask. Not consensus, which does not depend on
+     it: a set is used only when an SCP statement names the hash of its content, as before.
+   - **Fallback.** A node that expects the set through relays waits 300 ms before it asks a
+     peer for it, as it does without the experiment at once.
+   - `star` is the push of experiment 2 with a header that carries the send time, the baseline
+     of the measurements. `EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING=N` makes N validators
+     pass nothing on, for fault runs.
+   - Wire formats, checks and limits:
+     [docs/rust-overlay/txset-fetching.md](docs/rust-overlay/txset-fetching.md).
+
+Unchanged by all seven: the ballot protocol's accept, confirm and commit rules. For a valid tx
 set, ledger state and meta are also unchanged; experiment 3 changes when a set is validated and
 executed, and what an invalid set does to the ledger; experiment 4 changes who leads; experiment
 5 changes which transactions reach a leader, and which submissions a node refuses; experiment 6
-changes which candidates a leader looks at and when it selects them, not the checks a set passes.
+changes which candidates a leader looks at and when it selects them, not the checks a set passes;
+experiment 7 changes which peers a set's bytes come from, not what a node does with a set.
 
 ## Performance results
 
@@ -520,6 +568,163 @@ load and settings; on 6 validators both networks are on target, so only the buil
   small pull just before it selects; and the largest piece, push the selected transactions to
   the peers while ledger N is in its ballot and send only the difference at the close. The
   0.15 s of delivery are now the largest part of the cycle that is neither ballot nor apply.
+
+### The leader's tx set as erasure-coded pieces
+
+Runs of 2026-11-14 (experiment 7). Every run executes the load (real apply), with the settings
+of the last row of the bucket list table above: transaction meta off, 4 GB account cache,
+256-byte index pages, 16 clusters, an 800 ms target, 90 validators (30 organizations, 4
+regions) on m6id.8xlarge. **One build for every run** (`8015877d9`), so the only difference
+between the modes is `EXPERIMENTAL_TX_SET_TREE`. One run per point.
+
+**The best results: coded pieces at 8,000 and at 10,000 TPS.**
+
+| Coded pieces (16 pieces, 8 rebuild the set, 5 relays per piece) | 8,000 TPS | 10,000 TPS |
+|---|---:|---:|
+| Verdict | **PASS** | FAIL (block time p75 over its limit of 960 ms) |
+| **Time per ledger: mean / p50 / p75 / p99** | **804 / 800 / 817 / 953 ms** | **978 / 964 / 1,043 / 1,359 ms** |
+| Block time p75 / p99 of the median node, first and second window | 837 / 994 and 836 / 994 ms | 1,065 / 1,367 and 1,068 / 1,368 ms |
+| Payments per ledger (the cap is 125% of a ledger's offered load) | 6,400 (cap 8,000) | 9,674; **10,000, the cap, in every ledger** once the load is steady |
+| Payments included, of those offered; failed | **2,880,000 of 2,880,000**; 0 | **3,600,000 of 3,600,000**; 0 |
+| Leader's upload per set | 9.6 MB (80 pieces) | 15.0 MB (80 pieces) |
+| Leader's send to the set being in a follower's overlay | 104 ms | 107 ms |
+| Sets in hand within 100 / 150 / 200 ms of the send | 47% / 86% / 100% | 46% / 88% / 100% |
+| Sets a node had to ask for after the wait | 0 | 0 |
+| Pieces invalid, refused or not written; rebuilds failed | 0; 0 | 0; 0 |
+| Rebuilding a set from its pieces | 1.3 ms | 2.0 ms |
+| Tx set validation at apply / execution / commit, per ledger | 103 / 323 / 133 ms | 164 / 495 / 205 ms |
+| The same per payment | 16.0 / 50.4 / 20.7 us | 16.4 / 49.5 / 20.5 us |
+
+- **At 8,000 TPS the network is on its target**, for the first time in this fixture: the three
+  runs without the experiment took 873, 858 and 869 ms per ledger.
+- **At 10,000 TPS it carries the load at one ledger per second**: the ledgers are full, the
+  queue does not grow (10,000 payments per 1.007 s in the steady part of the load), nothing is
+  lost. It does not hold 800 ms. See "Where a ledger's time goes at 10,000 TPS" below.
+
+**Coded pieces against the spanning tree and the push to every peer**, at 8,000 TPS. "Star" is
+the branch as it was: the leader writes the whole set to all 89 peers.
+
+| 8,000 TPS, same build | Star (push to every peer) | Hash tree (fanout 9) | **Coded pieces** |
+|---|---:|---:|---:|
+| Verdict | FAIL (p75 over 960 ms on 42 and 83 of 90 nodes) | PASS | **PASS** |
+| **Time per ledger: mean / p50 / p75 / p99** | 869 / 853 / 935 / 1,104 ms | 832 / 817 / 868 / 1,055 ms | **804 / 800 / 817 / 953 ms** |
+| Block time p75 / p99 of the median node, first and second window | 960 / 1,139 and 965 / 1,140 ms | 901 / 1,136 and 900 / 1,136 ms | **837 / 994 and 836 / 994 ms** |
+| Payments per ledger | 6,926 | 6,627 | 6,400 |
+| **Leader's upload per set** | **95.7 MB** (89 copies) | 9.1 MB (9 copies) | **9.6 MB** (80 pieces) |
+| Written by all relays per set | 0 | 81 MB (80 copies; a relay 9 MB) | 163 MB (1,356 pieces; a relay 2.0 MB) |
+| **Leader's send to the set being in a follower's overlay** | 173 ms | 134 ms (72 ms from the leader, 141 ms through a relay) | **104 ms** |
+| Sets in hand within 100 / 150 / 200 / 300 ms of the send | 4% / 36% / 65% / 100% | 31% / 61% / 81% / 100% | 47% / 86% / 100% / 100% |
+| Core's wait for a set it was told of (`scp.fetch.txset`) | 157 ms | 128 ms | **66 ms** |
+| Leader's trigger to the first ballot | 289 ms | 263 ms | **137 ms** |
+| Leader: set built to consensus | 516 ms | 493 ms | **431 ms** |
+| Sets a node asked for after its 300 ms wait | no wait in star | 149 of 17,176 | **0 of 12,394** |
+| All overlay bytes written, per node | 15.7 MB/s | 16.5 MB/s | 18.7 MB/s |
+| Payments included, of 2,880,000; failed | all; 0 | all; 0 | all; 0 |
+
+- **Coded pieces: 65 ms less per ledger than the star (-7.5%), the tree 37 ms.** Since the
+  coded run sits on the target, 65 ms is the least the coding gains at this load. With shorter
+  ledgers a ledger also holds fewer payments, so apply is shorter too.
+- **Both take 90% of the leader's upload away. The tree gets a third of the way, because a node
+  still has one path to the set**: its parent. In the coded layout a node needs the 8 fastest
+  of 16 two-hop paths, and there is no slow tail: every set was in hand within 200 ms of the
+  leader's send, where the tree had 19% later than that and 149 sets that had to be asked for.
+  That tail is the tree's p99 (1,136 ms, as the star's), which the coding lowers to 994 ms.
+- **The price is bytes**: the network writes 1.8 times the tx-set bytes of the star (172 against
+  96 MB per set). Of everything the overlay writes that is 6% more per ledger.
+- **Under simulated apply the same change did not move the block time** (10,080 TPS, 90
+  validators, three runs of the tree modes on 2026-11-14: the delivery went from 168 to 131 ms
+  with the hash tree and to 84 ms with the tree by round-trip times, the block time stayed at
+  800 ms). That fixture was on its target with slack. With real apply there is none, and
+  every millisecond of delivery is on the path of the vote. The tree by round-trip times and
+  a coded layout that uses round-trip times were not run with real apply.
+
+**Coded pieces when validators withhold.** The same run with
+`EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING=29`: the 29 validators with the smallest
+node IDs, just under a third of the 90, pass no piece on. They still lead, receive and vote,
+so this is the withholding part of a Byzantine fault, not all of it. The prediction was
+written down before the run, from a model of the layout fitted to the star run.
+
+| Coded pieces, 8,000 TPS | Nobody withholding | **29 of 90 validators withholding** | Predicted | Star, nobody withholding |
+|---|---:|---:|---:|---:|
+| Verdict | PASS | **PASS** | PASS | FAIL |
+| Time per ledger: mean / p75 / p99 | 804 / 817 / 953 ms | **837 / 879 / 1,042 ms** | 815 to 850 ms | 869 / 935 / 1,104 ms |
+| Block time p75 / p99 of the median node | 837 / 994 ms | 900 / 1,131 ms | | 960 / 1,139 ms |
+| Leader's send to the set being in hand | 104 ms | **141 ms** | 130 to 150 ms | 173 ms |
+| Sets in hand within 150 / 200 / 300 ms | 86% / 100% / 100% | 54% / 92% / 100% | | 36% / 65% / 100% |
+| **Deliveries that ended with a request after the 300 ms wait** | 0 | **543 of 31,506 (1.7%)** | 1 to 3% | no wait in star |
+| Core's one-second retries | 0 | **0** | | 1 |
+| Pieces a relay passed on, per set | 1,356 | 901 | | |
+| Pieces invalid or refused; rebuilds failed | 0; 0 | 0; 0 | 0 | |
+| Payments included, of 2,880,000; failed | all; 0 | all; 0 | | all; 0 |
+
+- **With a third of the relays silent the coded network still closes every ledger without
+  Core's retry, faster than the healthy star and about as fast as the healthy tree** (832 ms).
+  98.3% of the deliveries needed no request.
+- The same fault in the hash tree was not run. The model that predicted this run gives it 28%
+  of deliveries waiting 300 ms and asking; on 7 validators under consensus, with two of them
+  withholding, the tree asked 39 times in 30 ledgers and the coded network 3 times (one run of
+  a test).
+- Not run on a network: relays that send wrong pieces, a leader that signs pieces that do not
+  fit together, more than a third withholding. Those are covered by tests with 9 overlay nodes
+  (a changed piece, a piece from a node that does not owe it, a root signed by another
+  validator or for another history of the network, a validator that may not lead, a sender
+  that floods: none is kept or passed on, and the leader's real set still arrives).
+
+**Where a ledger's time goes at 10,000 TPS** (coded pieces; the steady part of the load,
+between the readings at 150 s and at 315 s; means over all nodes).
+
+| Step, in the order of the leader's cycle | Per 10,000-payment ledger | Share of the 1,007 ms cycle | At 8,000 TPS (6,400 payments) |
+|---|---:|---:|---:|
+| The leader completes its next tx set once its ledger has closed (main thread: validity pass 33 ms, top-up from the mempool 48 ms, XDR and checks) | 146 ms | 14% | 103 ms |
+| Tx set validation at apply (apply thread and workers) | 164 ms | 16% | 103 ms |
+| Execution (apply thread; the host calls on 16 workers) | 495 ms | 49% | 323 ms |
+| Commit (always after consensus) | 205 ms | 20% | 133 ms |
+| **Sum** | **1,010 ms** (measured cycle: 1,007 ms) | | 661 ms (the cycle is the 800 ms target) |
+| *Inside the execution, not limiting any more:* | | | |
+| The set's way to the followers | 107 ms | | 104 ms |
+| Followers: set in hand to consensus | 313 ms | | 307 ms |
+| Leader: set built to consensus | 511 ms | | 431 ms |
+| Consensus to ledger closed: leader / follower | 285 / 412 ms | | 193 / 197 ms |
+
+- **The bottleneck at 10,000 TPS is the serial apply path, not consensus and not the network.**
+  The four steps of the first block follow one another and add up to the cycle within 3 ms.
+  The execution is still running when consensus arrives: of the ballot, 0.8 ms are left after
+  it (11 ms at 8,000 TPS), and a ledger closes 0.29 s (leader) to 0.41 s (follower) after
+  consensus. The ballot and the set's delivery now hide inside the execution, which is what
+  experiment 3 set out to do. The machines are not busy (6.5 of 32 CPUs).
+- **Per payment the apply path costs the same at both loads**: 16 us of validation, 50 us of
+  execution, 21 us of commit, 86 to 87 us together. So a ledger of n payments needs about
+  26 ms + 98 us x n from one close to the next (the completion of the next set included).
+- **10,000 TPS at 800 ms is missed by about 2%.** At that pace a ledger holds 8,000 payments,
+  which by the line above need 813 ms. Once a ledger takes longer than the target the next one
+  holds more payments and takes longer still, up to the cap: that is why the run sits at full
+  ledgers and 1.0 s, far from the 813 ms. The same line puts the limit of this build at about
+  9,800 TPS (two runs, one line through them: an estimate).
+- **Where the 0.86 s of apply go** was profiled at 8,000 TPS before the meta was turned off
+  (above, "What limits real apply"): the apply thread works serially, 39% of its samples copy,
+  serialize or free XDR values and 18% are `malloc` and `free`, while each of the 16 workers is
+  busy a tenth of the time. That profile was not repeated for these runs.
+
+**Next steps**, by what they should buy at 10,000 TPS (estimates from the table above, not
+measured):
+
+1. **Take the tx set validation off the apply path** (164 ms per full ledger, 16 us per
+   payment): validate a set while the previous ledger commits, when a node already holds it.
+   Even a part of it puts 10,000 TPS under 800 ms by the line above.
+2. **Commit ledger N while ledger N+1 executes** (205 ms, 21 us per payment): the bucket list
+   add and the history checkpoint do not need the apply thread's next step to wait.
+3. **The serial part of the execution** (495 ms, 50 us per payment, of which the parallel host
+   calls are a small part): the per-payment copies and allocations of the earlier profile.
+4. **Complete the next tx set earlier** (146 ms): time the early selection of experiment 6 so
+   that less is topped up at the close (its own next step), or complete it while the previous
+   ledger commits.
+5. **Measure the spread and the limit**: a second run of the star and of the coded mode, and
+   runs at 9,000 and 9,500 TPS. Every point here is one run.
+6. **The coded mode itself**: a layout that uses round-trip times (the tree by round-trip
+   times delivered in 84 ms under simulated apply, with one path per node); a bound from Core
+   on how large a set a leader may cut into pieces; whom a node asks after its wait.
+7. **More of the Byzantine picture on a network**: the tree under the same fault for a measured
+   contrast, relays that send wrong pieces, a leader that withholds from a part of the network.
 
 ### Earlier benchmark: 1,000 ms target, 5,000 TPS, 48 validators, 4-core instances
 
@@ -898,6 +1103,19 @@ points:
 | Timers | Read from every node's metrics while the network was up, 315 s into the load: means since the load's start, medians over the nodes. The leader's build and the timers of experiment 6: the difference between the readings at 150 s and at 315 s, over all builds of all nodes |
 | Log times, CPU | From all nodes' logs and per-thread CPU counters, as above |
 
+**The runs of experiment 7** (2026-11-14) use the fixture of the meta-off runs at 90
+validators with these differences:
+
+| | Experiment 7: 90 validators |
+|---|---|
+| Build | `8015877d9` for every run, package `30.0.1-3697.8015877d95.noble~perf.txset.spanning.tree~perftests`. The branch has one source commit after it (`d3323573d`: which peer a rebuilt set is counted against, a log line, tests), which does not touch what these runs measure |
+| Node settings | Those of the meta-off runs, and `--cfg 'EXPERIMENTAL_TX_SET_TREE="star"'`, `"hash"` or `"coded"`; the fault run also `--cfg EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING=29` |
+| Offered load | 8,000 TPS (89 per validator; tx set cap 8,000) or 10,000 TPS (111; cap 10,000), for 360 s |
+| Order of the runs | Star, coded, hash tree and the fault run within 90 minutes of one morning; the 10,000 TPS run ten hours later |
+| Delivery times | The leader's send time travels with the set (in the header of a pushed frame or of a piece); a node records the difference to its own clock when the frame, or the 8th piece, has arrived. The hosts' clock offsets were under 1 ms |
+| Timers | Read from every node's metrics while the network was up: the difference between the readings at 150 s and at 315 s into the load, over all nodes. In the coded run at 8,000 TPS the first reading was taken at 205 to 244 s (an operator slip); the time per ledger and the block times do not depend on it |
+| Simulated-apply runs of the tree | 2026-11-14, 10,080 TPS, 150 ms sleep per ledger, builds `90c1ee1dc` (star), `b6f32b52b` (hash), `d2dfbe4bb` (rtt) of this experiment before it was rebased; kept as branch `perf/txset-spanning-tree-round1` of `SirTyson/stellar-core` |
+
 ### Limits of these numbers
 
 - One run on each side, plus the first run of the change without the IPC fix. The "before"
@@ -950,7 +1168,44 @@ Meta off, the bucket list settings and experiment 6:
   minute and carry the same network passphrase. They were separate networks, and everything
   reported here was read per instance.
 
+The tx set as coded pieces and the spanning tree:
+- One run per point. The 65 ms between the star and the coded mode are four times the spread
+  of the three runs of this fixture without the experiment (858 to 873 ms, three builds), but
+  no mode was run twice. The zones the instances landed in differ between the runs.
+- The fault run tests relays that stay silent, by a setting on 29 nodes that otherwise behave.
+  Nothing else of a Byzantine fault was run on a network.
+- The delivery time of the coded mode is taken when the 8th piece arrives, before the 1 to 2 ms
+  of rebuilding; a set that is never completed gives no sample (there were none without
+  withholders, and 1.7% with them, which were asked for instead).
+- The bottleneck table reads timers of one run; the steps were not traced, and that they follow
+  one another is inferred from their sum and from the execution ending after consensus. The apply
+  profile it points to is from an earlier build with the meta on.
+- The limit of about 9,800 TPS is a line through two runs.
+- The hash tree asked for 213 sets after its wait on a healthy network (0.7%); why was not
+  looked into.
+
 ## Known limitations of the prototype
+
+The tx set as coded pieces and the spanning tree (experiment 7):
+- No version negotiation: a node without the change reads a tagged frame, a probe or a piece as
+  a malformed set. Every node of a network needs the same mode.
+- The layout is by hash: the coded mode does not use round-trip times.
+- The network writes twice the bytes of a set per node in coded mode.
+- A hostile leader that its Core names for the slot can sign frames of up to the general limit
+  (16 MiB): it writes 10 frame sizes and the network about 178, two roots per slot. Core does
+  not yet tell the overlay how large a set can be.
+- A node connected to fewer than 8 of its 16 senders (a sparse mesh), or with another view of
+  the nodes, waits 300 ms for every set and then asks. After the wait the request goes to the
+  peer the SCP statement came from, which may not hold the set and then does not answer; the
+  next step is Core's retry after one second. The same holds below a failed relay of a tree.
+- In a tree a failed relay costs the nodes below it that wait: there is no second path.
+- A piece a relay could not write is not sent again; the code absorbs the gap. The stream
+  library drops inbound streams that are opened in a burst, so pieces can be lost in the first
+  ledgers after a start; in the runs no piece went unwritten during the load.
+- The send time and the hop count in a frame are not signed: a relay can skew the delivery
+  metric.
+- Sanitizer builds were not run for this experiment.
+
 
 Transactions to the leaders only:
 - No protocol gate and no version negotiation: a node without the change ignores the identity
