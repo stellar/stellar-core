@@ -61,10 +61,45 @@ InMemoryBucketState::insert(BucketEntry const& be)
 }
 
 // Perform a binary search using start iter as lower bound for search key.
+void
+InMemoryBucketState::insertInto(SetT& set, BucketEntry const& be)
+{
+    auto [_, inserted] = set.insert(
+        InternalInMemoryBucketEntry(std::make_shared<BucketEntry const>(be)));
+    releaseAssertOrThrow(inserted);
+}
+
+void
+InMemoryBucketState::setShards(std::vector<SetT>&& shards,
+                               std::function<size_t(LedgerKey const&)> shardOf)
+{
+    releaseAssertOrThrow(mEntries.empty() && mShards.empty());
+    mShards = std::move(shards);
+    mShardOf = std::move(shardOf);
+    for (auto const& shard : mShards)
+    {
+        if (!shard.empty())
+        {
+            mEntries.insert(InternalInMemoryBucketEntry(shard.begin()->get()));
+            break;
+        }
+    }
+}
+
 std::pair<IndexReturnT, InMemoryBucketState::IterT>
 InMemoryBucketState::scan(IterT start, LedgerKey const& searchKey) const
 {
     ZoneScoped;
+    if (!mShards.empty())
+    {
+        auto const& shard = mShards.at(mShardOf(searchKey));
+        auto shardIt = shard.find(InternalInMemoryBucketEntry(searchKey));
+        if (shardIt != shard.end())
+        {
+            return {IndexReturnT(shardIt->get()), mEntries.begin()};
+        }
+        return {IndexReturnT(), mEntries.begin()};
+    }
     auto it = mEntries.find(InternalInMemoryBucketEntry(searchKey));
     // If we found the key
     if (it != mEntries.end())
@@ -113,6 +148,70 @@ InMemoryIndex::InMemoryIndex(BucketManager& bm,
     }
 
     // Build the final type ranges map
+    mTypeRanges = buildTypeRangesMap(typeStartOffsets, typeEndOffsets);
+}
+
+void
+InMemoryIndexShard::add(BucketEntry const& be, size_t xdrSize)
+{
+    releaseAssertOrThrow(be.type() != METAENTRY);
+    counters.template count<LiveBucket>(be);
+    LedgerKey lk = getBucketLedgerKey(be);
+    if (be.type() == INITENTRY && lk.type() == LIQUIDITY_POOL)
+    {
+        auto const& poolParams =
+            be.liveEntry().data.liquidityPool().body.constantProduct().params;
+        assetPoolIDMap[poolParams.assetA].emplace_back(
+            lk.liquidityPool().liquidityPoolID);
+        assetPoolIDMap[poolParams.assetB].emplace_back(
+            lk.liquidityPool().liquidityPoolID);
+    }
+    InMemoryBucketState::insertInto(entries, be);
+    // 4 bytes of size info in front of every entry on disk
+    typeBytes[lk.type()] += static_cast<std::streamoff>(xdrSize + 4);
+}
+
+InMemoryIndex::InMemoryIndex(std::vector<InMemoryIndexShard>&& shards,
+                             std::function<size_t(LedgerKey const&)> shardOf,
+                             BucketMetadata const& metadata, bool hasMetaEntry)
+{
+    ZoneScoped;
+    std::map<LedgerEntryType, std::streamoff> typeBytes;
+    std::vector<InMemoryBucketState::SetT> sets;
+    sets.reserve(shards.size());
+    for (auto& shard : shards)
+    {
+        mCounters += shard.counters;
+        for (auto& [asset, pools] : shard.assetPoolIDMap)
+        {
+            auto& all = mAssetPoolIDMap[asset];
+            all.insert(all.end(), pools.begin(), pools.end());
+        }
+        for (auto const& [type, bytes] : shard.typeBytes)
+        {
+            typeBytes[type] += bytes;
+        }
+        sets.emplace_back(std::move(shard.entries));
+    }
+    mInMemoryState.setShards(std::move(sets), std::move(shardOf));
+
+    // The file holds the entries sorted by key, and keys sort by type first:
+    // a type's entries are one run, as long as the sum of their sizes. The
+    // offsets are those the other constructors arrive at entry by entry.
+    std::streamoff offset = 0;
+    if (hasMetaEntry)
+    {
+        offset = xdr::xdr_size(metadata) + 4 + 4;
+    }
+    std::map<LedgerEntryType, std::streamoff> typeStartOffsets;
+    std::map<LedgerEntryType, std::streamoff> typeEndOffsets;
+    std::optional<LedgerEntryType> lastTypeSeen = std::nullopt;
+    for (auto const& [type, bytes] : typeBytes)
+    {
+        updateTypeBoundaries(type, offset, typeStartOffsets, typeEndOffsets,
+                             lastTypeSeen);
+        offset += bytes;
+    }
     mTypeRanges = buildTypeRangesMap(typeStartOffsets, typeEndOffsets);
 }
 

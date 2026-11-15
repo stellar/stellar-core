@@ -39,6 +39,10 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // in-memory entries to produce the new bucket instead of file IO.
     std::unique_ptr<std::vector<BucketEntry>> mEntries{};
 
+    // The bucket's protocol version, where it is known without reading the
+    // file (a bucket created ahead of its file).
+    std::optional<uint32_t> mKnownBucketVersion{};
+
   public:
     // Entry type that this bucket stores
     using EntryT = BucketEntry;
@@ -64,6 +68,13 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
         std::string const& filename, Hash const& hash,
         std::shared_ptr<LiveBucketIndex const>&& index,
         std::unique_ptr<std::vector<BucketEntry>> inMemoryState = nullptr);
+
+    // A bucket of protocol version `bucketVersion` whose file, of `fileSize`
+    // bytes, is still being written and will be at `filename` when
+    // `fileReady` is (see ShardedTopBucket). Lookups are answered by `index`.
+    LiveBucket(std::string const& filename, Hash const& hash,
+               std::shared_ptr<LiveBucketIndex const>&& index, size_t fileSize,
+               std::shared_future<void> fileReady, uint32_t bucketVersion);
 
     // Returns true if a BucketEntry that is key-wise identical to the given
     // BucketEntry exists in the bucket. For testing.
@@ -160,6 +171,14 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
                          BucketEntry const& entry, MergeCounters& mc,
                          std::vector<LiveBucketInputIterator>& shadowIterators,
                          bool keepShadowedLifecycleEntries);
+
+    // The entries of the merge of two sorted lists of entries (the older
+    // first), by the rules of every live bucket merge at level 0: no shadows,
+    // tombstones kept.
+    static std::vector<BucketEntry> mergeEntriesInMemory(
+        BucketManager& bucketManager, uint32_t maxProtocolVersion,
+        std::vector<BucketEntry> const& oldEntries,
+        std::vector<BucketEntry> const& newEntries, MergeCounters& mc);
 
     // Merge two buckets in memory without using FutureBucket.
     // This is used only for level 0 merges. Note that the resulting Bucket is

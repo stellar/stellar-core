@@ -1,4 +1,4 @@
-# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only (experimental branch)
+# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only, next tx set selected during the previous ballot, the leader's tx set delivered as erasure-coded pieces, level 0 of the bucket list written as shards under a commutative hash (experimental branch)
 
 **This branch is an experiment. It is not production code and must not run on a real network.**
 The leader schedule and the tx-set push have no feature flag and no protocol gate, and the branch
@@ -22,13 +22,34 @@ sleeps instead), the same 90 validators at 800 ms hold the target at 4,000 TPS (
 8,000 TPS. One run per point. Results and the ranked bottlenecks:
 [Real apply at 90 validators and 800 ms](#real-apply-at-90-validators-and-800-ms).
 
+**With the transaction meta off, a bucket list account cache and 256-byte bucket index pages**
+(2026-11-13, real execution, one run per point), the 90 validators hold 800 ms at 6,000 TPS
+(block time p75 805 to 808 ms, p99 872 to 880 ms) and take 0.87 s per ledger at 8,000 TPS. The
+sixth experiment (the leader selects its next tx set while the current ledger is in its ballot,
+and pulls less for a build) shortens the leader's tx set build at 8,000 TPS from 176 to 121 ms.
+The time per ledger goes from 873 to 858 ms, which one run on each side does not establish. No
+tx set was invalid or short. Results, and why the shorter build does not show in the block time:
+[Real apply with the meta off, and the tx set build off the critical path](#real-apply-with-the-meta-off-and-the-tx-set-build-off-the-critical-path).
+
+**With the leader's tx set delivered as erasure-coded pieces** (the seventh experiment,
+2026-11-14, real execution, meta off, one run per point, one build for every mode): the 90
+validators **hold the 800 ms target at 8,000 TPS** (a ledger every 804 ms, block time p75
+837 ms, verdict PASS), where the push of the whole set to every peer takes 869 ms and a spanning
+tree 832 ms. The leader writes 9.6 MB per set instead of 95.7 MB. With 29 of the 90 validators
+withholding every piece they should relay, a ledger takes 837 ms and 1.7% of the deliveries
+fall back to a request. **At 10,000 TPS** every ledger is full (10,000 payments) and takes
+1.0 s; all 3,600,000 payments are included. What limits it there is no longer the set's way to
+the followers but the serial apply path: validation, execution and commit of a ledger take
+0.86 s. Results, the comparison tables and the bottlenecks:
+[The leader's tx set as erasure-coded pieces](#the-leaders-tx-set-as-erasure-coded-pieces).
+
 The earlier benchmark (48 validators, 5,000 TPS, 1,000 ms, 4-core instances) is kept below.
 
 ## What this branch is
 
 It is the overlay-v2 stack up to [#5459](https://github.com/stellar/stellar-core/pull/5459)
 (Rust overlay over QUIC, millisecond close times, compressed tx-set responses, leader-only tx-set
-construction) plus five experiments:
+construction) plus seven experiments:
 
 1. **No nomination** ([#5495](https://github.com/stellar/stellar-core/pull/5495)). The SCP
    nomination phase is deleted and replaced by a leader schedule that every node computes locally.
@@ -86,8 +107,8 @@ construction) plus five experiments:
    - **One build.** The first-round leader builds once, a lead time before its trigger, pushes
      the set as soon as it exists and proposes it unchanged at the trigger.
 5. **Transactions go to the upcoming leaders only**
-   ([#5501](https://github.com/stellar/stellar-core/pull/5501), the latest experiment). No
-   protocol gate and no version negotiation.
+   ([#5501](https://github.com/stellar/stellar-core/pull/5501)). No protocol gate and no version
+   negotiation.
    - **Targets.** A node that accepts a transaction no longer advertises it to every peer. Its
      overlay sends the body straight to the leaders of the node's current round and of the next
      one for the next ledger and, one ledger before a new leader term starts, to that term's
@@ -103,11 +124,101 @@ construction) plus five experiments:
      connection key, signed by the node key.
    - **Cost.** Followers no longer hold the transactions before the leader's set arrives, so
      they verify signatures when they check the set at apply instead of in the background.
+6. **The leader's tx set build off the critical path**
+   ([#5505](https://github.com/stellar/stellar-core/pull/5505)). No protocol change: the sets are ordinary
+   tx sets, and every node validates them at apply as before.
+   - **A smaller build.** A build pulls the set's capacity plus 10% from the mempool
+     (`EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT`); it pulled twice the capacity. A phase that lost
+     candidates (invalid ones, or a second transaction of an account) and is short pulls again,
+     twice as deep, as long as a pull brings it something new, up to three pulls. The structural
+     check of the selection runs beside the XDR write and ends before the set goes to the
+     overlay. A leader that executes its own vote no longer reads the written set back: that
+     execution validates it. If the execution does not start, the read-back runs in the
+     background.
+   - **Early selection.** The node first in line to lead ledger N+1 selects N+1's set on
+     background threads while ledger N is in its ballot. It starts from N's tx set, which it
+     holds at its first vote: it assumes N's transactions applied (sequence numbers and fees),
+     validates its mempool's top candidates on that view and selects the phases.
+   - **Completion at the close.** When N has closed with the value the selection was made for,
+     the main thread validates every selected transaction on the closed ledger, for the set's
+     real close time, and removes what does not hold. It then tops the set up with what the
+     mempool received since, validated the same way (the Soroban phase is extended in place, the
+     classic phase is selected again), computes the base fees, runs the structural check and
+     writes the set. A selection for another value or other limits, after an upgrade, or one that
+     is not ready is dropped, and the set is built from scratch.
+   - `EXPERIMENTAL_EARLY_TX_SET_SELECTION` (default true) turns the early selection off.
+   - It replaces the selection of [#5503](https://github.com/stellar/stellar-core/pull/5503)
+     (closed), which waited for the leader's own execution of ledger N, and keeps that attempt's
+     early execution: a leader starts executing the set it prepared as soon as it is built.
+   - Two supporting changes came with it: a hit in the bucket list's account cache is read under
+     the shared lock, and the load generator has the two test-only modes of the real-apply runs
+     (`sac_setup`, `sac_payment`).
 
-Unchanged by all five: the ballot protocol's accept, confirm and commit rules. For a valid tx
+7. **The leader's tx set travels as erasure-coded pieces, or down a spanning tree**
+   ([#5506](https://github.com/stellar/stellar-core/pull/5506), the latest experiment). Config-gated, default off: `EXPERIMENTAL_TX_SET_TREE` =
+   `off`, `star`, `hash`, `rtt` or `coded`. Every node of a network needs the same value. No
+   protocol change: only who sends the set's bytes to whom.
+   - **Why.** The leader of experiment 2 writes its whole set to every peer: 89 copies at 90
+     validators, 96 MB per ledger at 8,000 TPS. A follower cannot vote before it holds the set.
+   - **A layout every node derives.** As the leader schedule: from the nodes of the transitive
+     quorum and the slot's seed. For a slot and a leader, the other nodes are ordered by
+     `SHA256(seed || leader || node)`. Nothing is negotiated.
+   - **`hash`: a spanning tree.** The order is laid out as a complete tree of the smallest fanout
+     that reaches every node in two hops (9 at 90 validators). The leader writes the set to its 9
+     children and every node passes it on to its own. `rtt` is the same tree laid out by the
+     leader from round-trip times it measures; the order travels with the set.
+   - **`coded`: pieces.** The leader cuts the compressed set into 16 pieces of which any 8
+     rebuild it (Reed-Solomon; fewer pieces in a small network), and signs the root of the
+     pieces' Merkle tree. Every piece has 5 relays, to which the leader writes it; a relay
+     passes its piece on to a fifth of the other nodes. So a node gets its 16 pieces from 16
+     different senders, no piece makes more than two hops, and a node has the set when the 8
+     fastest of its 16 pieces have arrived.
+   - **What a node accepts.** A piece only from the node that owes it that piece in the layout,
+     only for a leader its Core expects for the slot, and only with the leader's signature and a
+     Merkle path to the signed root. A relay passes a piece on after those checks. A rebuilt set
+     then goes the way of every received set: decompressed, parsed strictly and filed under the
+     hash of its content.
+   - **What the code protects.** The delivery: up to 8 of a node's 16 senders can be down, slow
+     or lying without the node having to wait and ask. Not consensus, which does not depend on
+     it: a set is used only when an SCP statement names the hash of its content, as before.
+   - **Fallback.** A node that expects the set through relays waits 300 ms before it asks a
+     peer for it, as it does without the experiment at once.
+   - `star` is the push of experiment 2 with a header that carries the send time, the baseline
+     of the measurements. `EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING=N` makes N validators
+     pass nothing on, for fault runs.
+   - Wire formats, checks and limits:
+     [docs/rust-overlay/txset-fetching.md](docs/rust-overlay/txset-fetching.md).
+
+8. **Level 0 of the live bucket list is written as shards, under a commutative hash**
+   (`EXPERIMENTAL_SHARDED_TOP_BUCKET = N`, 0 = off; `src/bucket/ShardedTopBucket.h`).
+   - Today a ledger's entries become one level-0 bucket: sorted, serialized, written and hashed
+     with SHA-256 by one thread in the ledger's commit (97 ms of a 203 ms commit at 10,000
+     payments per ledger).
+   - With the setting the hash of a level-0 bucket is the **LtHash16 of its records**
+     (`src/crypto/LtHash.h`), which does not depend on their order or on how they are split.
+     A ledger's entries are cut into shards by key (N for contract data and code, N for TTL
+     entries, N for everything else), and every shard is sorted, written and synced, merged
+     with the shard of the ledger before, hashed and indexed on its own thread; the hashes are
+     added up.
+   - What a level-0 bucket **is** does not change, so its single file (written afterwards by a
+     thread of its own, the shards interleaved by key) is byte for byte the file of today: it
+     is what spills into level 1 and what is published to history archives. **Levels 1 and
+     deeper keep SHA-256 and their buckets.**
+   - The number of shards is each node's choice and changes no hash. The setting itself
+     changes the bucket list hash of the ledger header: every node of a network has it on, or
+     none (a real version needs a protocol version; the setting is refused on the public
+     network).
+   - A node that stops between a ledger's commit and the end of the bucket's file rebuilds the
+     file at startup from the ledger's shard files.
+
+Unchanged by all eight: the ballot protocol's accept, confirm and commit rules. For a valid tx
 set, ledger state and meta are also unchanged; experiment 3 changes when a set is validated and
 executed, and what an invalid set does to the ledger; experiment 4 changes who leads; experiment
-5 changes which transactions reach a leader, and which submissions a node refuses.
+5 changes which transactions reach a leader, and which submissions a node refuses; experiment 6
+changes which candidates a leader looks at and when it selects them, not the checks a set passes;
+experiment 7 changes which peers a set's bytes come from, not what a node does with a set;
+experiment 8 changes how level 0 of the bucket list is hashed (and so the bucket list hash in
+the header) and how it gets to disk, not what it holds.
 
 ## Performance results
 
@@ -302,7 +413,7 @@ Ranked by their share of the leader's cycle (90 validators, 16 clusters, local N
 | # | Step | At 8,000 TPS (1.16 s) | At 6,000 TPS (0.86 s) | Grows with the load | Most plausible fix |
 |---|---|---:|---:|---|---|
 | 1 | Ballot, first ballot to externalize | 310 ms, 27% | 307 ms, 36% | no | None found here. It is the floor of the cycle, and the window that speculative execution hides in |
-| 2 | Tx set build on the leader's main thread. It needs the previous ledger closed, and once the cycle has no slack the trigger is already due when it ends | 261 ms, 23% | 137 ms, 16% | yes; between 6,000 and 8,000 TPS faster than the load, because of the backlog | Build the next set while the current ledger is in its ballot. Tried once as [#5503](https://github.com/stellar/stellar-core/pull/5503) with simulated apply (slower than the base in its one run, closed); not measured with real apply |
+| 2 | Tx set build on the leader's main thread. It needs the previous ledger closed, and once the cycle has no slack the trigger is already due when it ends | 261 ms, 23% | 137 ms, 16% | yes; between 6,000 and 8,000 TPS faster than the load, because of the backlog | Build the next set while the current ledger is in its ballot. Tried once as [#5503](https://github.com/stellar/stellar-core/pull/5503) with simulated apply (slower than the base in its one run, closed). Experiment 6 does it from the current ledger's tx set: measured with real apply in the next section (build 31% shorter, block time 2%) |
 | 3 | Commit, always after externalize | 244 ms, 21% | 177 ms, 21% | linear, 31 to 35 us per payment | No debug meta on a validator: **measured, 43% less commit per payment** (below) |
 | 4 | Between the proposal and the followers' vote, beyond the ballot: the set's compression, storage, push, fetch, decoding and hashing, and the main threads' queues | 201 ms, 17% | 142 ms, 17% | yes | Not known. Only the fetch has a timer (88 and 58 ms of it); the rest needs timers first |
 | 5 | Execution beyond the ballot (from about 4,700 payments per ledger on) | 81 ms, 7%; on a follower 167 ms | 46 ms, 5% | linear, 65 us per payment | Meta off and the account cache: measured (below). Then the serial account prefetch and the tx set validation |
@@ -363,13 +474,334 @@ type at 8,000 TPS; apply cost per node does not depend on the network size):
   prefetch falls by 70%, but an account load on a worker takes twice as long, because a cache
   hit takes an exclusive lock, and the tx set validation gives back what it gained. Execution is
   9% shorter and the block time does not move.
-- **Not measured: either setting at 90 validators.** Scaled per payment, meta off would take
-  about 105 ms off the commit at 8,000 TPS and 70 ms at 6,000 TPS (about 30 and 20 ms of that is
-  the test build's copy), which puts 6,000 TPS near 800 ms and leaves 8,000 TPS above 1 s.
+- **Either setting at 90 validators** was measured after this was written: see the next
+  section. The estimate made before, scaled per payment: meta off would take about 105 ms off
+  the commit at 8,000 TPS and 70 ms at 6,000 TPS (about 30 and 20 ms of that is the test build's
+  copy), which puts 6,000 TPS near 800 ms and leaves 8,000 TPS above 1 s. Measured: 801 ms at
+  6,000 TPS and 873 ms at 8,000 TPS.
 - **At 90 validators one low-priority core thread is busy 100% of a core** in every run,
   independent of the load (3% at 24 validators). Most likely the quorum intersection checker,
   which is on by default; inferred from the code, not profiled. It does not sit in the block
   time.
+
+### Real apply with the meta off, and the tx set build off the critical path
+
+Runs of 2026-11-13. Every run of this section executes the load, with the transaction meta off
+(`METADATA_DEBUG_LEDGERS=0`; in these test builds also `DISABLE_TX_META_FOR_TESTING=true`),
+16 clusters, an 800 ms target, m6id.8xlarge with core's data on the local NVMe disk, and the
+load and limits of the real-apply runs above. One run per point.
+
+**Bucket list settings**, on 6 validators at 8,000 TPS offered (apply cost per node does not
+depend on the network size). Means over the whole load, medians over the 6 nodes. The table of
+the two settings above averages over the load's last five minutes, so compare inside this table
+only; its first two rows are the same two runs.
+
+| Settings beyond meta off | Execution / commit / whole close, per payment | Tx set validation at apply | Time per ledger: mean / p99 / longest | Outcome |
+|---|---:|---:|---:|---|
+| none | 44.3 / 15.8 / 60.1 us | 77 ms | 802 / 938 / 1,042 ms | all 2,880,000 payments included |
+| 4 GB account cache, a hit takes an exclusive lock | 40.2 / 16.4 / 56.5 us | 101 ms | 814 / 1,061 / 1,231 ms | all included (two generators timed out on their last payments) |
+| Every live bucket in memory (`BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT=0`) | **33.7** / 17.6 / 51.3 us | 63 ms | 829 / **1,637** / 2,195 ms | all included; **the close stalls** |
+| 256-byte index pages (`BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT=8`; the default is 14, 16 KiB) | 38.0 / 16.0 / 54.1 us | 66 ms | 816 / 1,047 / 2,792 ms | all included; one ledger took 2.0 s on every node |
+| 4 GB account cache, a hit is read under the shared lock (this branch), and 256-byte index pages | 37.3 / 17.0 / 54.3 us | 73 ms | **802 / 918 / 1,194 ms** | all included, **verdict PASS** |
+
+- **Every live bucket in memory is the fastest apply and not usable as it is.** Execution per
+  payment is 24% lower than with the meta off alone, but the time from consensus to the close is
+  0.4 to 0.5 s at every 8th ledger and 0.7 to 1.7 s at every 32nd, and grows during the run
+  (median 186 ms). Inferred from the code, not profiled: with this setting a merged bucket is
+  loaded into memory entry by entry when it is indexed, and the deeper buckets grow with the run.
+- **256-byte index pages: execution 14% lower, the whole close 10% lower, no periodic stalls.**
+- **The account cache no longer slows the tx set validation** once a hit is read under the
+  shared lock (101 ms with the exclusive lock, 73 ms with the shared one, 66 to 77 ms without a
+  cache). On top of the small index pages it adds nothing these runs can show (37.3 against
+  38.0 us of execution per payment).
+- The 90-validator runs below use the last row's settings.
+
+**90 validators**, 30 organizations, as in the real-apply runs above. "Base" is this branch
+before experiment 6, with the load generator modes and the cache's shared lock (`54260eafb`).
+The meta-on columns are the 16-cluster runs of the table above: another build, and core's
+default bucket settings.
+
+| | Meta on, 6,000 TPS | **Base, 6,000 TPS** | Meta on, 8,000 TPS | **Base, 8,000 TPS** | **Experiment 6, 8,000 TPS** |
+|---|---:|---:|---:|---:|---:|
+| Payments per ledger | 5,150 | 4,800 | 8,000 (the cap) | 7,085 | 7,076 |
+| **Time per ledger: mean / p75 / p99** | 0.86 s | **801 / 806 / 868 ms** | 1.16 s | **873 / 928 / 1,100 ms** | **858 / 908 / 1,107 ms** |
+| Block time p75 / p99 of the median node (limits 960 / 1,600 ms), first and second window | 927 / 1,164 ms | 805 / 872 and 808 / 880 ms | 1,236 / 1,482 ms | 946 / 1,143 and 888 / 1,125 ms | 937 / 1,151 and 939 / 1,151 ms |
+| **Leader: tx set build** | 137 ms | 122 ms | 261 ms | **176 ms** | **121 ms** |
+| Leader: set built to consensus | 449 ms | 392 ms | 511 ms | **468 ms** | **514 ms** |
+| Follower: tx set fetch | 58 ms | 27 ms | 88 ms | **98 ms** | **155 ms** |
+| Consensus to ledger closed: leader / follower | 223 / 242 ms | 140 / 136 ms | 325 / 453 ms | 196 / 220 ms | 198 / 210 ms |
+| Execution / commit, per payment | 65 / 34 us | 40.0 / 16.4 us | 65 / 31 us | 40.0 / 16.1 us | 39.2 / 16.3 us |
+| Of the ballot, left after execution | 14 ms | 78 ms | 0 | 9 ms | 13 ms |
+| Payments included, of those offered | (inclusion check not run) | 2,159,941 of 2,160,000 | about 6,860 TPS | 2,879,853 of 2,880,000 | **2,880,000 of 2,880,000** |
+| Outcome | inside the limits, 16% over the target and rising | **on target on all 90 nodes**; verdict FAIL for the 59 missing payments | window missed on all 90 nodes | inside the limits, **9% over the target**; verdict FAIL for the 147 missing payments | inside the limits, 7% over the target; **verdict PASS** |
+
+- **With the meta off and these settings the base holds 800 ms at 6,000 TPS with room** (a
+  quarter of the ballot is left after execution) **and takes 0.87 s per ledger at 8,000 TPS**,
+  where it took 1.16 s. Per payment, execution is 40 us instead of 65 and the commit 16 us
+  instead of 31 to 35.
+- **At 8,000 TPS the base has no slack left**: 9 ms of the ballot remain after execution, and
+  the build starts when the previous ledger has closed (trigger to first ballot 0.30 s; 0.09 s at
+  6,000 TPS). The leader's cycle is build 176 ms, set built to consensus 468 ms, consensus to
+  close 196 ms.
+- **Both base runs lost payments**: 59 and 147 were never included, and the 3 and 4 generators
+  that had sent them report a failure, which is the whole reason for the verdict. No node had a
+  pending transaction of its own left. Not looked into; the base sends a transaction to the
+  upcoming leaders only (experiment 5). The generators' timeouts of the earlier series are gone:
+  a generator now waits 150 ledgers for its last payments.
+
+**Experiment 6: the next tx set selected before the close.** Base and experiment at the same
+load and settings; on 6 validators both networks are on target, so only the build can differ.
+
+| | 6 validators, base | 6 validators, experiment 6 | 90 validators, base | 90 validators, experiment 6 |
+|---|---:|---:|---:|---:|
+| Leader's tx set build (main thread) | 144 ms | **94 ms** | 176 ms | **121 ms (-31%)** |
+| Sets completed from an early selection | | 88% | | 93% |
+| Completion: validity pass on the closed ledger | | 14 ms | | 16 ms |
+| Completion: top-up from the mempool (share of the final set it adds) | | 39 ms (27%) | | 60 ms (34%) |
+| Completion: XDR write, with the structural check beside it | | 23 to 24 ms | | 25 to 27 ms |
+| The selection: ready before it is needed / time it takes in the background | | 189 / 108 ms | | 313 / 142 ms |
+| Base build: after the set is pushed to the peers (read-back and final check) | 40 ms | | 51 ms | |
+| Signature checks inside builds | 411,060 | 48,436 | 452,437 | 32,107 |
+| Selected transactions removed at the close; sets short of the cap with more in the mempool; refill pulls | | 0; 0; 0 | | 0; 0; 0 |
+| Sets found invalid at apply; executions dropped; payments failed | 0; 0; 0 | 0; 0; 0 | 0; 0; 0 | 0; 0; 0 |
+| Time per ledger | 802 ms | 801 ms | 873 ms | 858 ms |
+
+- **No set of the experiment was invalid, and none was short.** That holds on 6 and on 90
+  validators, with every offered payment included. This load has no overlap between consecutive
+  sets (no selected transaction had to be removed), so the removals and the refill were not
+  exercised on a network.
+- **The leader's build is 55 ms shorter at 90 validators and the time per ledger 15 ms.** Two
+  runs of one point differed by 4 and by 14 ms in the earlier series, so the block time gain is
+  not established; it is small at most.
+- **Why the build's 55 ms do not arrive in the block time.** The followers' fetch of the set is
+  57 ms longer and the leader's way to consensus 46 ms. The base pushes its set to the peers as
+  soon as the XDR is written and only then reads it back and runs the final check: those 51 ms
+  pass while the set is already travelling. The experiment has nothing left to do after the
+  push. What counts is the time from the close of ledger N until the XDR of the next set exists,
+  and that is about the same: 125 ms in the base (176 less 51), about 110 ms for a completion.
+  After it the set needs about 0.15 s to reach the followers in both builds.
+- **The selection is made too early.** At 90 validators it is ready 0.31 s before it is needed
+  and takes 0.14 s, so its candidates are pulled about 0.45 s before the close. A third of the
+  final set arrives after that and is pulled, decoded, validated and added on the main thread at
+  the close: 60 ms, close to what the base spends on its pull, decoding and trimming together
+  (68 ms). The
+  start is timed by the time between a node's vote and its own build, which a node measures only
+  when it builds: 5 times in 450 ledgers at 90 validators.
+- **Next, by what it should buy** (not measured): time the selection's start on every node at
+  every ledger, so that it pulls about 0.2 s before the close; let the selection take a second,
+  small pull just before it selects; and the largest piece, push the selected transactions to
+  the peers while ledger N is in its ballot and send only the difference at the close. The
+  0.15 s of delivery are now the largest part of the cycle that is neither ballot nor apply.
+
+### The leader's tx set as erasure-coded pieces
+
+Runs of 2026-11-14 (experiment 7). Every run executes the load (real apply), with the settings
+of the last row of the bucket list table above: transaction meta off, 4 GB account cache,
+256-byte index pages, 16 clusters, an 800 ms target, 90 validators (30 organizations, 4
+regions) on m6id.8xlarge. **One build for every run** (`8015877d9`), so the only difference
+between the modes is `EXPERIMENTAL_TX_SET_TREE`. One run per point.
+
+**The best results: coded pieces at 8,000 and at 10,000 TPS.**
+
+| Coded pieces (16 pieces, 8 rebuild the set, 5 relays per piece) | 8,000 TPS | 10,000 TPS |
+|---|---:|---:|
+| Verdict | **PASS** | FAIL (block time p75 over its limit of 960 ms) |
+| **Time per ledger: mean / p50 / p75 / p99** | **804 / 800 / 817 / 953 ms** | **978 / 964 / 1,043 / 1,359 ms** |
+| Block time p75 / p99 of the median node, first and second window | 837 / 994 and 836 / 994 ms | 1,065 / 1,367 and 1,068 / 1,368 ms |
+| Payments per ledger (the cap is 125% of a ledger's offered load) | 6,400 (cap 8,000) | 9,674; **10,000, the cap, in every ledger** once the load is steady |
+| Payments included, of those offered; failed | **2,880,000 of 2,880,000**; 0 | **3,600,000 of 3,600,000**; 0 |
+| Leader's upload per set | 9.6 MB (80 pieces) | 15.0 MB (80 pieces) |
+| Leader's send to the set being in a follower's overlay | 104 ms | 107 ms |
+| Sets in hand within 100 / 150 / 200 ms of the send | 47% / 86% / 100% | 46% / 88% / 100% |
+| Sets a node had to ask for after the wait | 0 | 0 |
+| Pieces invalid, refused or not written; rebuilds failed | 0; 0 | 0; 0 |
+| Rebuilding a set from its pieces | 1.3 ms | 2.0 ms |
+| Tx set validation at apply / execution / commit, per ledger | 103 / 323 / 133 ms | 164 / 495 / 205 ms |
+| The same per payment | 16.0 / 50.4 / 20.7 us | 16.4 / 49.5 / 20.5 us |
+
+- **At 8,000 TPS the network is on its target**, for the first time in this fixture: the three
+  runs without the experiment took 873, 858 and 869 ms per ledger.
+- **At 10,000 TPS it carries the load at one ledger per second**: the ledgers are full, the
+  queue does not grow (10,000 payments per 1.007 s in the steady part of the load), nothing is
+  lost. It does not hold 800 ms. See "Where a ledger's time goes at 10,000 TPS" below.
+
+**Coded pieces against the spanning tree and the push to every peer**, at 8,000 TPS. "Star" is
+the branch as it was: the leader writes the whole set to all 89 peers.
+
+| 8,000 TPS, same build | Star (push to every peer) | Hash tree (fanout 9) | **Coded pieces** |
+|---|---:|---:|---:|
+| Verdict | FAIL (p75 over 960 ms on 42 and 83 of 90 nodes) | PASS | **PASS** |
+| **Time per ledger: mean / p50 / p75 / p99** | 869 / 853 / 935 / 1,104 ms | 832 / 817 / 868 / 1,055 ms | **804 / 800 / 817 / 953 ms** |
+| Block time p75 / p99 of the median node, first and second window | 960 / 1,139 and 965 / 1,140 ms | 901 / 1,136 and 900 / 1,136 ms | **837 / 994 and 836 / 994 ms** |
+| Payments per ledger | 6,926 | 6,627 | 6,400 |
+| **Leader's upload per set** | **95.7 MB** (89 copies) | 9.1 MB (9 copies) | **9.6 MB** (80 pieces) |
+| Written by all relays per set | 0 | 81 MB (80 copies; a relay 9 MB) | 163 MB (1,356 pieces; a relay 2.0 MB) |
+| **Leader's send to the set being in a follower's overlay** | 173 ms | 134 ms (72 ms from the leader, 141 ms through a relay) | **104 ms** |
+| Sets in hand within 100 / 150 / 200 / 300 ms of the send | 4% / 36% / 65% / 100% | 31% / 61% / 81% / 100% | 47% / 86% / 100% / 100% |
+| Core's wait for a set it was told of (`scp.fetch.txset`) | 157 ms | 128 ms | **66 ms** |
+| Leader's trigger to the first ballot | 289 ms | 263 ms | **137 ms** |
+| Leader: set built to consensus | 516 ms | 493 ms | **431 ms** |
+| Sets a node asked for after its 300 ms wait | no wait in star | 149 of 17,176 | **0 of 12,394** |
+| All overlay bytes written, per node | 15.7 MB/s | 16.5 MB/s | 18.7 MB/s |
+| Payments included, of 2,880,000; failed | all; 0 | all; 0 | all; 0 |
+
+- **Coded pieces: 65 ms less per ledger than the star (-7.5%), the tree 37 ms.** Since the
+  coded run sits on the target, 65 ms is the least the coding gains at this load. With shorter
+  ledgers a ledger also holds fewer payments, so apply is shorter too.
+- **Both take 90% of the leader's upload away. The tree gets a third of the way, because a node
+  still has one path to the set**: its parent. In the coded layout a node needs the 8 fastest
+  of 16 two-hop paths, and there is no slow tail: every set was in hand within 200 ms of the
+  leader's send, where the tree had 19% later than that and 149 sets that had to be asked for.
+  That tail is the tree's p99 (1,136 ms, as the star's), which the coding lowers to 994 ms.
+- **The price is bytes**: the network writes 1.8 times the tx-set bytes of the star (172 against
+  96 MB per set). Of everything the overlay writes that is 6% more per ledger.
+- **Under simulated apply the same change did not move the block time** (10,080 TPS, 90
+  validators, three runs of the tree modes on 2026-11-14: the delivery went from 168 to 131 ms
+  with the hash tree and to 84 ms with the tree by round-trip times, the block time stayed at
+  800 ms). That fixture was on its target with slack. With real apply there is none, and
+  every millisecond of delivery is on the path of the vote. The tree by round-trip times and
+  a coded layout that uses round-trip times were not run with real apply.
+
+**Coded pieces when validators withhold.** The same run with
+`EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING=29`: the 29 validators with the smallest
+node IDs, just under a third of the 90, pass no piece on. They still lead, receive and vote,
+so this is the withholding part of a Byzantine fault, not all of it. The prediction was
+written down before the run, from a model of the layout fitted to the star run.
+
+| Coded pieces, 8,000 TPS | Nobody withholding | **29 of 90 validators withholding** | Predicted | Star, nobody withholding |
+|---|---:|---:|---:|---:|
+| Verdict | PASS | **PASS** | PASS | FAIL |
+| Time per ledger: mean / p75 / p99 | 804 / 817 / 953 ms | **837 / 879 / 1,042 ms** | 815 to 850 ms | 869 / 935 / 1,104 ms |
+| Block time p75 / p99 of the median node | 837 / 994 ms | 900 / 1,131 ms | | 960 / 1,139 ms |
+| Leader's send to the set being in hand | 104 ms | **141 ms** | 130 to 150 ms | 173 ms |
+| Sets in hand within 150 / 200 / 300 ms | 86% / 100% / 100% | 54% / 92% / 100% | | 36% / 65% / 100% |
+| **Deliveries that ended with a request after the 300 ms wait** | 0 | **543 of 31,506 (1.7%)** | 1 to 3% | no wait in star |
+| Core's one-second retries | 0 | **0** | | 1 |
+| Pieces a relay passed on, per set | 1,356 | 901 | | |
+| Pieces invalid or refused; rebuilds failed | 0; 0 | 0; 0 | 0 | |
+| Payments included, of 2,880,000; failed | all; 0 | all; 0 | | all; 0 |
+
+- **With a third of the relays silent the coded network still closes every ledger without
+  Core's retry, faster than the healthy star and about as fast as the healthy tree** (832 ms).
+  98.3% of the deliveries needed no request.
+- The same fault in the hash tree was not run. The model that predicted this run gives it 28%
+  of deliveries waiting 300 ms and asking; on 7 validators under consensus, with two of them
+  withholding, the tree asked 39 times in 30 ledgers and the coded network 3 times (one run of
+  a test).
+- Not run on a network: relays that send wrong pieces, a leader that signs pieces that do not
+  fit together, more than a third withholding. Those are covered by tests with 9 overlay nodes
+  (a changed piece, a piece from a node that does not owe it, a root signed by another
+  validator or for another history of the network, a validator that may not lead, a sender
+  that floods: none is kept or passed on, and the leader's real set still arrives).
+
+**Where a ledger's time goes at 10,000 TPS** (coded pieces; the steady part of the load,
+between the readings at 150 s and at 315 s; means over all nodes).
+
+| Step, in the order of the leader's cycle | Per 10,000-payment ledger | Share of the 1,007 ms cycle | At 8,000 TPS (6,400 payments) |
+|---|---:|---:|---:|
+| The leader completes its next tx set once its ledger has closed (main thread: validity pass 33 ms, top-up from the mempool 48 ms, XDR and checks) | 146 ms | 14% | 103 ms |
+| Tx set validation at apply (apply thread and workers) | 164 ms | 16% | 103 ms |
+| Execution (apply thread; the host calls on 16 workers) | 495 ms | 49% | 323 ms |
+| Commit (always after consensus) | 205 ms | 20% | 133 ms |
+| **Sum** | **1,010 ms** (measured cycle: 1,007 ms) | | 661 ms (the cycle is the 800 ms target) |
+| *Inside the execution, not limiting any more:* | | | |
+| The set's way to the followers | 107 ms | | 104 ms |
+| Followers: set in hand to consensus | 313 ms | | 307 ms |
+| Leader: set built to consensus | 511 ms | | 431 ms |
+| Consensus to ledger closed: leader / follower | 285 / 412 ms | | 193 / 197 ms |
+
+- **The bottleneck at 10,000 TPS is the serial apply path, not consensus and not the network.**
+  The four steps of the first block follow one another and add up to the cycle within 3 ms.
+  The execution is still running when consensus arrives: of the ballot, 0.8 ms are left after
+  it (11 ms at 8,000 TPS), and a ledger closes 0.29 s (leader) to 0.41 s (follower) after
+  consensus. The ballot and the set's delivery now hide inside the execution, which is what
+  experiment 3 set out to do. The machines are not busy (6.5 of 32 CPUs).
+- **Per payment the apply path costs the same at both loads**: 16 us of validation, 50 us of
+  execution, 21 us of commit, 86 to 87 us together. So a ledger of n payments needs about
+  26 ms + 98 us x n from one close to the next (the completion of the next set included).
+- **10,000 TPS at 800 ms is missed by about 2%.** At that pace a ledger holds 8,000 payments,
+  which by the line above need 813 ms. Once a ledger takes longer than the target the next one
+  holds more payments and takes longer still, up to the cap: that is why the run sits at full
+  ledgers and 1.0 s, far from the 813 ms. The same line puts the limit of this build at about
+  9,800 TPS (two runs, one line through them: an estimate).
+- **Where the 0.86 s of apply go** was profiled at 8,000 TPS before the meta was turned off
+  (above, "What limits real apply"): the apply thread works serially, 39% of its samples copy,
+  serialize or free XDR values and 18% are `malloc` and `free`, while each of the 16 workers is
+  busy a tenth of the time. That profile was not repeated for these runs.
+
+**Next steps**, by what they should buy at 10,000 TPS (estimates from the table above, not
+measured):
+
+1. **Take the tx set validation off the apply path** (164 ms per full ledger, 16 us per
+   payment): validate a set while the previous ledger commits, when a node already holds it.
+   Even a part of it puts 10,000 TPS under 800 ms by the line above.
+2. **Commit ledger N while ledger N+1 executes** (205 ms, 21 us per payment): the bucket list
+   add and the history checkpoint do not need the apply thread's next step to wait.
+3. **The serial part of the execution** (495 ms, 50 us per payment, of which the parallel host
+   calls are a small part): the per-payment copies and allocations of the earlier profile.
+4. **Complete the next tx set earlier** (146 ms): time the early selection of experiment 6 so
+   that less is topped up at the close (its own next step), or complete it while the previous
+   ledger commits.
+5. **Measure the spread and the limit**: a second run of the star and of the coded mode, and
+   runs at 9,000 and 9,500 TPS. Every point here is one run.
+6. **The coded mode itself**: a layout that uses round-trip times (the tree by round-trip
+   times delivered in 84 ms under simulated apply, with one path per node); a bound from Core
+   on how large a set a leader may cut into pieces; whom a node asks after its wait.
+7. **More of the Byzantine picture on a network**: the tree under the same fault for a measured
+   contrast, relays that send wrong pieces, a leader that withholds from a part of the network.
+
+### Level 0 of the bucket list as shards
+
+Runs of 2026-11-15 (experiment 8), with the fixture of the 10,000 TPS run of experiment 7: 90
+validators (m6id.8xlarge) in four regions, 800 ms target, 10,000 native-asset contract payments
+per second executed for real, meta off, 16 clusters, the tx set as coded pieces, no faulty
+nodes. One package on both sides (commit `be560d831`); the only difference is
+`EXPERIMENTAL_SHARDED_TOP_BUCKET`. One run each. Timers are means per ledger pooled over the 90
+nodes between 150 s and 315 s of the load, where ledgers are full.
+
+| | Setting off | 8 shards per group |
+|---|---|---|
+| Verdict (p75 in [640, 960) ms) | FAIL | FAIL |
+| Window p75 / p99, mean over nodes | 1,059 / 1,304 ms | 1,035 / 1,356 ms |
+| Payments included and applied, of 3,600,000 | 3,600,000, 0 failed | 3,600,000, 0 failed |
+| **Level-0 add** (`bucket.batch.addtime`) | 97.6 ms | **21.1 ms (-78%)** |
+| its parts: cut / shards / sum; the file (background) | | 0.9 / 19.6 / 0.2 ms; 14.4 ms |
+| **Commit** (`ledger.apply.commit`) | 203.2 ms | **161.5 ms (-21%)** |
+| Execution (`ledger.apply.execute`) | 484.8 ms | 490.5 ms |
+| Apply in all (`ledger.ledger.close`) | 688.0 ms | 652.0 ms (-5%) |
+| Followers: consensus to close / wait for the next set | 437 / 258 ms | 404 / 286 ms |
+| Leader: build of the next set (its top-up) | 151.9 (44.4) ms | 178.0 (75.4) ms |
+| **Time between full ledgers** | 1,009 ms | **1,003.5 ms (-0.5%)** |
+| Time between ledgers, whole load to 315 s | 984 ms | 940 ms |
+| The first 125 ledgers of the load (one node): interval, payments per ledger | 939 ms, 8,800 to 9,800 | 843 ms, 8,200 to 8,700 |
+
+Every check other than the windows passed in both runs (inclusion on every node, in sync, no
+fork, error counters, no restarts).
+
+**The add does what it was meant to; the network stays saturated.**
+- The add is a fifth of what it was, on every node (20.3 to 24.0 ms per node against 92.8 to
+  114.4 ms).
+- The commit gains 42 ms, not 76. It waits for two things that run side by side: the add, and
+  the update of the in-memory Soroban state with the same entries. That update has no timer;
+  on a development machine it takes 31 ms per ledger for this load, on one thread. It is what
+  the step waits for now.
+- The time between full ledgers gains 5 ms. The 33 ms a follower gains at the close come back
+  as a longer wait for the next set: the leader's build is 26 ms longer, because without a
+  backlog the selection made during the previous ballot finds fewer transactions and the
+  serial completion adds the rest. And a full ledger here (10,000 payments, 125% of the load
+  per 800 ms) is exactly one second of the offered load: a network that closes full ledgers
+  cannot close them faster than the load fills them.
+- Before it saturates, the network with the setting keeps up with the load for about 105 s at
+  843 ms a ledger; without it, it is at 939 ms from the start. Both drift up because the close
+  after consensus grows during the load (216 to 459 ms and 267 to 436 ms over 300 ledgers).
+
+**What limits 10,000 TPS after this** (per full ledger, with the setting): execution 490 ms;
+the tx set's validation at apply 163 ms; the commit 161 ms, of which the level-0 add is now
+21 ms; the leader's build 178 ms; and whatever makes the close grow during a run.
+
+Local benchmark (a development machine, 30,000 entries per ledger, files synced; hidden tests
+tagged `[bucketbench]`): the add 71.7 ms without and 14.4 ms with 8 shards per group; about
+130 ms of thread time on 15 threads, a third of it the hash.
 
 ### Earlier benchmark: 1,000 ms target, 5,000 TPS, 48 validators, 4-core instances
 
@@ -721,10 +1153,11 @@ block_time_check.py \
 
 To reproduce:
 
-- **The load is not in this branch.** The two test-only load generator modes, `sac_setup` (creates
-  the contract instance) and `sac_payment` (the payments, each to a fresh contract address), are
-  on the branch `perf/loadgen-real-sac` of `SirTyson/stellar-core` (`e168408bb`, three commits on
-  `5d24d5494`, in `src/simulation/LoadGenerator.cpp`).
+- **The load** is two test-only load generator modes in `src/simulation/LoadGenerator.cpp`:
+  `sac_setup` (creates the contract instance) and `sac_payment` (the payments, each to a fresh
+  contract address). They came into this branch with experiment 6; the runs of 2026-11-12 used
+  the same code as the branch `perf/loadgen-real-sac` of `SirTyson/stellar-core` (`e168408bb`,
+  three commits on `5d24d5494`).
 - **The harness flags** (`--real-apply`, `--soroban-clusters`, a list of instance types, the data
   directory on the local NVMe disk, the cost parameter setting) are in pull request #5 of
   perfnet's repository (`stellar-experimental/performance-testing`), not merged yet.
@@ -735,8 +1168,47 @@ To reproduce:
   and call graphs at 199 Hz with DWARF unwinding and the package's debug symbols (the packaged
   binary has no frame pointers).
 
+**The runs with the meta off** (2026-11-13) differ from the real-apply runs above in these
+points:
+
+| | Meta off: 6 and 90 validators |
+|---|---|
+| Node settings | `--cfg METADATA_DEBUG_LEDGERS=0 --cfg DISABLE_TX_META_FOR_TESTING=true` in every run; from the third settings run on also `--cfg BUCKETLIST_DB_MEMORY_FOR_CACHING=4096 --cfg BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT=8` |
+| Builds | The measured commit of experiment 6 is `3973b9321`; the branch has one source change after it (`d33af26e3`: when a short phase pulls deeper; and a formatting commit), whose rules did not come into play in these runs. Base: `54260eafb`, package `30.0.1-3692.54260eafba.noble~perf.txset.build.settings.base~perftests` (this branch at `5d24d5494`, the load generator modes, and the account cache's hits under the shared lock). Experiment 6: `3973b9321`, package `30.0.1-3693.3973b9321a.noble~perf.txset.build.off.critical.path~perftests`. The first two settings runs: `e168408bb` |
+| Load generator | A `sac_payment` run waits 150 ledgers for its last payments (20 before). The harness's deadline for the load allows for that wait; that harness change is not published |
+| 6 validators | 2 organizations, 8,000 TPS offered, tx set cap 8,000 |
+| Timers | Read from every node's metrics while the network was up, 315 s into the load: means since the load's start, medians over the nodes. The leader's build and the timers of experiment 6: the difference between the readings at 150 s and at 315 s, over all builds of all nodes |
+| Log times, CPU | From all nodes' logs and per-thread CPU counters, as above |
+
+**The runs of experiment 7** (2026-11-14) use the fixture of the meta-off runs at 90
+validators with these differences:
+
+| | Experiment 7: 90 validators |
+|---|---|
+| Build | `8015877d9` for every run, package `30.0.1-3697.8015877d95.noble~perf.txset.spanning.tree~perftests`. That commit is this branch before its last rebase (kept as branch `perf/txset-spanning-tree-measured` of `SirTyson/stellar-core`; here it is `330d185e5`, with the same content). The branch has one source commit after it (`ea966452d`: which peer a rebuilt set is counted against, a log line, tests), which does not touch what these runs measure |
+| Node settings | Those of the meta-off runs, and `--cfg 'EXPERIMENTAL_TX_SET_TREE="star"'`, `"hash"` or `"coded"`; the fault run also `--cfg EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING=29` |
+| Offered load | 8,000 TPS (89 per validator; tx set cap 8,000) or 10,000 TPS (111; cap 10,000), for 360 s |
+| Order of the runs | Star, coded, hash tree and the fault run within 90 minutes of one morning; the 10,000 TPS run ten hours later |
+| Delivery times | The leader's send time travels with the set (in the header of a pushed frame or of a piece); a node records the difference to its own clock when the frame, or the 8th piece, has arrived. The hosts' clock offsets were under 1 ms |
+| Timers | Read from every node's metrics while the network was up: the difference between the readings at 150 s and at 315 s into the load, over all nodes. In the coded run at 8,000 TPS the first reading was taken at 205 to 244 s (an operator slip); the time per ledger and the block times do not depend on it |
+| Simulated-apply runs of the tree | 2026-11-14, 10,080 TPS, 150 ms sleep per ledger, builds `90c1ee1dc` (star), `b6f32b52b` (hash), `d2dfbe4bb` (rtt) of this experiment before it was rebased; kept as branch `perf/txset-spanning-tree-round1` of `SirTyson/stellar-core` |
+
+**The runs of experiment 8** (2026-11-15) use the fixture of experiment 7's run at 10,000 TPS:
+
+| | Experiment 8: 90 validators |
+|---|---|
+| Build | `be560d831` for both runs, package `30.0.1-3698.be560d8314.noble~perf.sharded.top.bucket.writes~perftests`. The commits after it on this branch were not on a network: fixes from a second review off the measured path (how catchup reads a file it checks, what the bucket manager waits for when it is destroyed), tests, a hidden benchmark and this text |
+| Node settings | Those of experiment 7's coded run, and `--cfg EXPERIMENTAL_SHARDED_TOP_BUCKET=8` or `=0` |
+| Offered load | 10,000 TPS (111 or 112 per validator; tx set cap 10,000), for 360 s |
+| Order of the runs | The setting on, then off, 22 minutes apart |
+| Timers | The difference between the readings at 150 s and at 315 to 320 s into the load, over all nodes |
+| A ledger's cycle | From every node's log: the time between two consensus lines, the close after consensus of the ledger before, and the time from having a ledger's set to its consensus; ledgers of at least 9,990 payments |
+
 ### Limits of these numbers
 
+- Experiment 8: one run on each side. The size of the gain in the first 105 s is one
+  observation; the level-0 add is measured on 90 nodes over 165 ledgers each. The window p99 is
+  higher with the setting (1,356 against 1,304 ms), unexplained.
 - One run on each side, plus the first run of the change without the IPC fix. The "before"
   numbers come from a single 5-minute window.
 - The run with the change is a FAIL on the inclusion check, and the 60 extra transactions are not
@@ -770,7 +1242,79 @@ Real apply:
 - After the one dropped speculative execution, `ledger.transaction.count` and the
   `ledger.apply` success counters had counted that ledger twice.
 
+Meta off, the bucket list settings and experiment 6:
+- One run per point. The block time difference between the base and experiment 6 (15 ms) is
+  inside the spread of two runs of one point in the earlier series (4 and 14 ms).
+- The meta-on runs they are set beside used another build and core's default bucket settings,
+  and meta, cache and index pages were not separated at 90 validators.
+- The load has no overlap between consecutive tx sets: no selected transaction was ever removed
+  at the close and no refill was needed. Those paths, and every case of requirement "no invalid
+  set", are covered by unit tests only.
+- Both base runs lost payments (59 and 147) and have the verdict FAIL for that. Not explained.
+  The run of experiment 6 lost none; one run, and nothing in the change is meant to affect it.
+- The two-step change was measured as one build. What each step contributes is read from the
+  timers, not from separate runs.
+- The apply numbers of the settings runs are from 6 validators.
+- The 6-validator run of experiment 6 and the base's 8,000 TPS run were launched in the same
+  minute and carry the same network passphrase. They were separate networks, and everything
+  reported here was read per instance.
+
+The tx set as coded pieces and the spanning tree:
+- One run per point. The 65 ms between the star and the coded mode are four times the spread
+  of the three runs of this fixture without the experiment (858 to 873 ms, three builds), but
+  no mode was run twice. The zones the instances landed in differ between the runs.
+- The fault run tests relays that stay silent, by a setting on 29 nodes that otherwise behave.
+  Nothing else of a Byzantine fault was run on a network.
+- The delivery time of the coded mode is taken when the 8th piece arrives, before the 1 to 2 ms
+  of rebuilding; a set that is never completed gives no sample (there were none without
+  withholders, and 1.7% with them, which were asked for instead).
+- The bottleneck table reads timers of one run; the steps were not traced, and that they follow
+  one another is inferred from their sum and from the execution ending after consensus. The apply
+  profile it points to is from an earlier build with the meta on.
+- The limit of about 9,800 TPS is a line through two runs.
+- The hash tree asked for 213 sets after its wait on a healthy network (0.7%); why was not
+  looked into.
+
 ## Known limitations of the prototype
+
+Level 0 of the bucket list as shards (experiment 8):
+- A setting, not a protocol version: a node with it and a node without it compute different
+  bucket list hashes from the first ledger that changes an entry.
+- The hash: LtHash16 with the standard size (1,024 elements of 16 bits) but ChaCha20 in place
+  of the paper's extendable-output function, and no test vectors from outside. A real version
+  needs a reviewed construction; it is also the largest cost left in the add.
+- Catchup takes a live bucket under either hash when the setting is on (it does not know a
+  bucket's level), after checking that the file is the canonical file of its records. History
+  archives hold level-0 files whose names are not their SHA-256.
+- Shards are by key, and written at the commit: not one shard per cluster written by the
+  cluster while it executes. A shard must hold the same keys in every ledger to be merged on
+  its own with the ledger before, and entries are final only after the steps that follow the
+  parallel phase.
+- The hot archive bucket list is not sharded. POSIX only. State written with the setting by one
+  commit of this branch is not promised to load with another (the digest's tag changed once).
+- Not tested: an upgrade ledger, a failing disk under the file's writer, the bucket garbage
+  collection racing a missing file. No sanitizer run.
+
+The tx set as coded pieces and the spanning tree (experiment 7):
+- No version negotiation: a node without the change reads a tagged frame, a probe or a piece as
+  a malformed set. Every node of a network needs the same mode.
+- The layout is by hash: the coded mode does not use round-trip times.
+- The network writes twice the bytes of a set per node in coded mode.
+- A hostile leader that its Core names for the slot can sign frames of up to the general limit
+  (16 MiB): it writes 10 frame sizes and the network about 178, two roots per slot. Core does
+  not yet tell the overlay how large a set can be.
+- A node connected to fewer than 8 of its 16 senders (a sparse mesh), or with another view of
+  the nodes, waits 300 ms for every set and then asks. After the wait the request goes to the
+  peer the SCP statement came from, which may not hold the set and then does not answer; the
+  next step is Core's retry after one second. The same holds below a failed relay of a tree.
+- In a tree a failed relay costs the nodes below it that wait: there is no second path.
+- A piece a relay could not write is not sent again; the code absorbs the gap. The stream
+  library drops inbound streams that are opened in a burst, so pieces can be lost in the first
+  ledgers after a start; in the runs no piece went unwritten during the load.
+- The send time and the hop count in a frame are not signed: a relay can skew the delivery
+  metric.
+- Sanitizer builds were not run for this experiment.
+
 
 Transactions to the leaders only:
 - No protocol gate and no version negotiation: a node without the change ignores the identity
@@ -790,6 +1334,30 @@ Transactions to the leaders only:
   unless validation also used the hyper-threads (`BATCH_EXECUTOR_TASKS`).
 - Copies of a transaction that reach a node after its ledger closed are counted
   (`overlay.flood.tx-late-copy`), not dropped.
+
+The next tx set selected before the close, and the smaller build:
+- The mempool has one fee order for both phases. A phase with no candidate in the mempool's top
+  (capacity plus the margin) gets none, where a build looked twice as deep before. The fix is a
+  pull per phase.
+- The start of the selection is timed by an estimate that a node only updates when it builds a
+  set itself. At 90 validators the selection is ready about 0.3 s before it is needed, and a
+  third of the set is added on the main thread at the close.
+- A Soroban phase that was completed is extended transaction by transaction: clusters are never
+  merged and no stage is added, so it can be packed less tightly than a built one. With the
+  conflict-free load of these runs it used 16 clusters where a build used 13 or 14.
+- If ledger N's set is not the one that closes, the selection made from it is dropped and the
+  set is built from scratch.
+- The read-back that is left to the leader's execution is matched by tx set hash only.
+- A phase that lost a candidate and is short pulls once more even where the mempool holds
+  nothing else of its kind (one stale classic transaction under a Soroban backlog costs a pull
+  of twice the size).
+- A completed phase that is at its capacity and lost nothing keeps the surge pricing verdict of
+  the selection, which was made on the predicted state. If everything it left out is invalid on
+  the closed ledger, the set charges the lowest included fee where a build would charge the
+  ledger's base fee. The set is valid either way.
+- No thread sanitizer run exists for this change (the build box cannot build one); its threads
+  were reviewed and run under the address sanitizer and the unit tests.
+- Not tried with classic transactions or mixed loads on a network.
 
 Leader terms and pre-validation: see [#5502](https://github.com/stellar/stellar-core/pull/5502).
 The schedule change has no protocol gate, and a term gives one node five ledgers in a row.
@@ -840,6 +1408,11 @@ Leader schedule:
 
 Unchanged from stellar-core: see [INSTALL.md](./INSTALL.md), [CONTRIBUTING.md](./CONTRIBUTING.md)
 and [`./docs`](./docs).
+
+Test status with experiment 6 (`f19140f89`, the branch's last source commit): the full test suite
+passes, also with `--all-versions` (669 test cases). The address sanitizer ran on the three test
+tags of the experiment (at `3973b9321`); there is no thread sanitizer run. A `--disable-tests`
+build still fails in `herder/HerderImpl.cpp`, in the code of the leader schedule.
 
 Test status with experiments 4 and 5 (`6ab837c27`, #5501 on top of #5502): the full test suite
 passes, also with `--all-versions`, including the Rust overlay's tests.

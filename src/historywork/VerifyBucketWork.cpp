@@ -3,11 +3,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/VerifyBucketWork.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketIndex.h"
+#include "bucket/ShardedTopBucket.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "history/HistoryArchive.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
@@ -17,9 +20,32 @@
 #include <medida/meter.h>
 
 #include <fstream>
+#include <type_traits>
 
 namespace stellar
 {
+
+namespace
+{
+// Whether `filename` is the canonical file of records with the commutative
+// hash `hash` (see ShardedTopBucket::hashOfFile). A file that is not is
+// reported by the caller as any other bucket that fails verification.
+bool
+hasCommutativeHash(std::string const& filename, uint256 const& hash)
+{
+    try
+    {
+        return ShardedTopBucket::bucketHash(
+                   ShardedTopBucket::hashOfFile(filename)) == hash;
+    }
+    catch (std::exception const& e)
+    {
+        CLOG_WARNING(History, "Not a canonical level-0 bucket file: {}",
+                     e.what());
+        return false;
+    }
+}
+}
 
 template <typename BucketT>
 VerifyBucketWork<BucketT>::VerifyBucketWork(
@@ -107,6 +133,17 @@ VerifyBucketWork<BucketT>::spawnVerifier()
                 if (vHash == hash)
                 {
                     CLOG_DEBUG(History, "Verified hash ({}) for {}",
+                               hexAbbrev(hash), filename);
+                }
+                else if (std::is_same_v<BucketT, LiveBucket> &&
+                         app.getConfig().EXPERIMENTAL_SHARDED_TOP_BUCKET > 0 &&
+                         hasCommutativeHash(filename, hash))
+                {
+                    // A level-0 bucket of the live bucket list: named by the
+                    // commutative hash of its records. (Which hash a bucket
+                    // has follows from its level; the experiment takes
+                    // either.)
+                    CLOG_DEBUG(History, "Verified commutative hash ({}) for {}",
                                hexAbbrev(hash), filename);
                 }
                 else

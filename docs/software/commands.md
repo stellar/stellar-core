@@ -537,7 +537,7 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (pay|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
+    (pay|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&completiontimeout=L&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
@@ -608,6 +608,9 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
   * when `skiplowfeetxs` is set to `true` the transactions that are not accepted by
     the node due to having too low fee to pass the rate limiting are silently
     skipped. Otherwise (by default), such transactions would cause load generation to fail.
+  * `completiontimeout` is the number of ledgers a run waits, after it has
+    submitted its last transaction, for its transactions to be applied before
+    it reports failure. The default is 20 ledgers, and 150 for `sac_payment`.
 
   Soroban load generation also makes use of the `minpercentsuccess` parameter,
   which determines the minimum percentage of Soroban transactions that must

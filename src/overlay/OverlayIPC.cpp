@@ -905,6 +905,54 @@ OverlayIPC::setTxTargets(std::optional<std::vector<NodeID>> const& targets)
     return mChannel->send(msg);
 }
 
+bool
+OverlayIPC::setTxSetTree(uint8_t mode, uint8_t fanout,
+                         std::vector<TxSetTreeSlot> const& slots,
+                         std::vector<NodeID> const& nodes)
+{
+    if (!mChannel || !mChannel->isConnected())
+    {
+        return false;
+    }
+    releaseAssert(slots.size() <= UINT8_MAX);
+    IPCMessage msg;
+    msg.type = IPCMessageType::SET_TX_SET_TREE;
+    uint32_t const count = static_cast<uint32_t>(nodes.size());
+    size_t size = 3 + 4 + static_cast<size_t>(count) * 32;
+    for (auto const& slot : slots)
+    {
+        // 255 leaders would read as "any node".
+        releaseAssert(slot.mLeaders.size() < UINT8_MAX);
+        size += 37 + slot.mLeaders.size() * 32;
+    }
+    msg.payload.resize(size);
+    auto* out = msg.payload.data();
+    *out++ = mode;
+    *out++ = fanout;
+    *out++ = static_cast<uint8_t>(slots.size());
+    for (auto const& slot : slots)
+    {
+        std::memcpy(out, &slot.mSlot, 4);
+        std::memcpy(out + 4, slot.mSeed.data(), 32);
+        out[36] = static_cast<uint8_t>(slot.mLeaders.size());
+        out += 37;
+        for (auto const& leader : slot.mLeaders)
+        {
+            std::memcpy(out, leader.ed25519().data(), 32);
+            out += 32;
+        }
+    }
+    std::memcpy(out, &count, 4);
+    out += 4;
+    for (auto const& node : nodes)
+    {
+        std::memcpy(out, node.ed25519().data(), 32);
+        out += 32;
+    }
+    std::lock_guard<std::mutex> lock(mSendMutex);
+    return mChannel->send(msg);
+}
+
 void
 OverlayIPC::setOnOverlayIdentity(OverlayIdentityCallback cb)
 {

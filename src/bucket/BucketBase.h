@@ -10,6 +10,7 @@
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-types.h"
 #include <filesystem>
+#include <future>
 #include <string>
 
 namespace asio
@@ -76,6 +77,12 @@ class BucketBase : public NonMovableOrCopyable
     Hash const mHash;
     size_t mSize{0};
 
+    // Set for a bucket that was created before its file was written (level
+    // 0 of the live bucket list with EXPERIMENTAL_SHARDED_TOP_BUCKET): ready
+    // when the file is at mFilename. `getFilename` waits for it, so that
+    // whoever is about to open the file finds it.
+    std::shared_future<void> mFileReady{};
+
     std::shared_ptr<IndexT const> mIndex{};
 
     // Unconditionally resets mIndex. Must only be called via the static
@@ -102,6 +109,16 @@ class BucketBase : public NonMovableOrCopyable
     // needs to ensure that.
     BucketBase(std::string const& filename, Hash const& hash,
                std::shared_ptr<IndexT const>&& index);
+
+    // A bucket whose file, of `fileSize` bytes, will be at `filename` when
+    // `fileReady` is.
+    BucketBase(std::string const& filename, Hash const& hash,
+               std::shared_ptr<IndexT const>&& index, size_t fileSize,
+               std::shared_future<void> fileReady);
+
+    // Blocks until the bucket's file is on disk (at once, unless the bucket
+    // was created ahead of its file). Rethrows what the writer threw.
+    void waitForFile() const;
 
     Hash const& getHash() const;
     std::filesystem::path const& getFilename() const;

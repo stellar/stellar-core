@@ -71,6 +71,32 @@ BucketBase<BucketT, IndexT>::BucketBase(std::string const& filename,
     }
 }
 
+template <class BucketT, class IndexT>
+BucketBase<BucketT, IndexT>::BucketBase(std::string const& filename,
+                                        Hash const& hash,
+                                        std::shared_ptr<IndexT const>&& index,
+                                        size_t fileSize,
+                                        std::shared_future<void> fileReady)
+    : mFilename(filename)
+    , mHash(hash)
+    , mSize(fileSize)
+    , mIndex(std::move(index))
+    , mFileReady(std::move(fileReady))
+{
+    releaseAssert(!filename.empty() && !isZero(hash));
+    releaseAssert(mFileReady.valid());
+}
+
+template <class BucketT, class IndexT>
+void
+BucketBase<BucketT, IndexT>::waitForFile() const
+{
+    if (mFileReady.valid())
+    {
+        mFileReady.get();
+    }
+}
+
 template <class BucketT, class IndexT> BucketBase<BucketT, IndexT>::BucketBase()
 {
 }
@@ -86,6 +112,9 @@ template <class BucketT, class IndexT>
 std::filesystem::path const&
 BucketBase<BucketT, IndexT>::getFilename() const
 {
+    // Whoever asks for the file's name is about to open, copy or remove the
+    // file: let them find it.
+    waitForFile();
     return mFilename;
 }
 

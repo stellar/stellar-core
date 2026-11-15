@@ -118,11 +118,17 @@ pinnedCpuOrder()
 }
 } // namespace
 
-BatchExecutor::BatchExecutor()
+BatchExecutor::BatchExecutor(bool pinWorkers)
 {
     auto pinning = pinnedCpuOrder();
     mPinCpuOrder = std::move(pinning.order);
     mPhysicalCoreCount = pinning.physicalCoreCount;
+    if (!pinWorkers)
+    {
+        // The core count still sizes the batches.
+        mPinCpuOrder.clear();
+        return;
+    }
     if (mPinCpuOrder.empty())
     {
         CLOG_WARNING(

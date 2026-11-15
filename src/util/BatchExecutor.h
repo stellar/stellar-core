@@ -36,7 +36,10 @@ namespace stellar
 class BatchExecutor : private NonMovableOrCopyable
 {
   public:
-    BatchExecutor();
+    // `pinWorkers` false: the workers are left to the scheduler. For a second
+    // executor of an app (see the class comment): its batches may overlap
+    // those of the first, and two pinned threads would then share a core.
+    explicit BatchExecutor(bool pinWorkers = true);
     // Destroys the executor and joins all worker threads.
     // No batch should be in progress - batch execution is not supposed to be
     // async.
