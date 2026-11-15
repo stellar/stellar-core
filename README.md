@@ -1,4 +1,4 @@
-# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only, next tx set selected during the previous ballot, the leader's tx set delivered as erasure-coded pieces (experimental branch)
+# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only, next tx set selected during the previous ballot, the leader's tx set delivered as erasure-coded pieces, level 0 of the bucket list written as shards under a commutative hash (experimental branch)
 
 **This branch is an experiment. It is not production code and must not run on a real network.**
 The leader schedule and the tx-set push have no feature flag and no protocol gate, and the branch
@@ -189,12 +189,36 @@ construction) plus seven experiments:
    - Wire formats, checks and limits:
      [docs/rust-overlay/txset-fetching.md](docs/rust-overlay/txset-fetching.md).
 
-Unchanged by all seven: the ballot protocol's accept, confirm and commit rules. For a valid tx
+8. **Level 0 of the live bucket list is written as shards, under a commutative hash**
+   (`EXPERIMENTAL_SHARDED_TOP_BUCKET = N`, 0 = off; `src/bucket/ShardedTopBucket.h`).
+   - Today a ledger's entries become one level-0 bucket: sorted, serialized, written and hashed
+     with SHA-256 by one thread in the ledger's commit (97 ms of a 203 ms commit at 10,000
+     payments per ledger).
+   - With the setting the hash of a level-0 bucket is the **LtHash16 of its records**
+     (`src/crypto/LtHash.h`), which does not depend on their order or on how they are split.
+     A ledger's entries are cut into shards by key (N for contract data and code, N for TTL
+     entries, N for everything else), and every shard is sorted, written and synced, merged
+     with the shard of the ledger before, hashed and indexed on its own thread; the hashes are
+     added up.
+   - What a level-0 bucket **is** does not change, so its single file (written afterwards by a
+     thread of its own, the shards interleaved by key) is byte for byte the file of today: it
+     is what spills into level 1 and what is published to history archives. **Levels 1 and
+     deeper keep SHA-256 and their buckets.**
+   - The number of shards is each node's choice and changes no hash. The setting itself
+     changes the bucket list hash of the ledger header: every node of a network has it on, or
+     none (a real version needs a protocol version; the setting is refused on the public
+     network).
+   - A node that stops between a ledger's commit and the end of the bucket's file rebuilds the
+     file at startup from the ledger's shard files.
+
+Unchanged by all eight: the ballot protocol's accept, confirm and commit rules. For a valid tx
 set, ledger state and meta are also unchanged; experiment 3 changes when a set is validated and
 executed, and what an invalid set does to the ledger; experiment 4 changes who leads; experiment
 5 changes which transactions reach a leader, and which submissions a node refuses; experiment 6
 changes which candidates a leader looks at and when it selects them, not the checks a set passes;
-experiment 7 changes which peers a set's bytes come from, not what a node does with a set.
+experiment 7 changes which peers a set's bytes come from, not what a node does with a set;
+experiment 8 changes how level 0 of the bucket list is hashed (and so the bucket list hash in
+the header) and how it gets to disk, not what it holds.
 
 ## Performance results
 
@@ -726,6 +750,59 @@ measured):
 7. **More of the Byzantine picture on a network**: the tree under the same fault for a measured
    contrast, relays that send wrong pieces, a leader that withholds from a part of the network.
 
+### Level 0 of the bucket list as shards
+
+Runs of 2026-11-15 (experiment 8), with the fixture of the 10,000 TPS run of experiment 7: 90
+validators (m6id.8xlarge) in four regions, 800 ms target, 10,000 native-asset contract payments
+per second executed for real, meta off, 16 clusters, the tx set as coded pieces, no faulty
+nodes. One package on both sides (commit `be560d831`); the only difference is
+`EXPERIMENTAL_SHARDED_TOP_BUCKET`. One run each. Timers are means per ledger pooled over the 90
+nodes between 150 s and 315 s of the load, where ledgers are full.
+
+| | Setting off | 8 shards per group |
+|---|---|---|
+| Verdict (p75 in [640, 960) ms) | FAIL | FAIL |
+| Window p75 / p99, mean over nodes | 1,059 / 1,304 ms | 1,035 / 1,356 ms |
+| Payments included and applied, of 3,600,000 | 3,600,000, 0 failed | 3,600,000, 0 failed |
+| **Level-0 add** (`bucket.batch.addtime`) | 97.6 ms | **21.1 ms (-78%)** |
+| its parts: cut / shards / sum; the file (background) | | 0.9 / 19.6 / 0.2 ms; 14.4 ms |
+| **Commit** (`ledger.apply.commit`) | 203.2 ms | **161.5 ms (-21%)** |
+| Execution (`ledger.apply.execute`) | 484.8 ms | 490.5 ms |
+| Apply in all (`ledger.ledger.close`) | 688.0 ms | 652.0 ms (-5%) |
+| Followers: consensus to close / wait for the next set | 437 / 258 ms | 404 / 286 ms |
+| Leader: build of the next set (its top-up) | 151.9 (44.4) ms | 178.0 (75.4) ms |
+| **Time between full ledgers** | 1,009 ms | **1,003.5 ms (-0.5%)** |
+| Time between ledgers, whole load to 315 s | 984 ms | 940 ms |
+| The first 125 ledgers of the load (one node): interval, payments per ledger | 939 ms, 8,800 to 9,800 | 843 ms, 8,200 to 8,700 |
+
+Every check other than the windows passed in both runs (inclusion on every node, in sync, no
+fork, error counters, no restarts).
+
+**The add does what it was meant to; the network stays saturated.**
+- The add is a fifth of what it was, on every node (20.3 to 24.0 ms per node against 92.8 to
+  114.4 ms).
+- The commit gains 42 ms, not 76. It waits for two things that run side by side: the add, and
+  the update of the in-memory Soroban state with the same entries. That update has no timer;
+  on a development machine it takes 31 ms per ledger for this load, on one thread. It is what
+  the step waits for now.
+- The time between full ledgers gains 5 ms. The 33 ms a follower gains at the close come back
+  as a longer wait for the next set: the leader's build is 26 ms longer, because without a
+  backlog the selection made during the previous ballot finds fewer transactions and the
+  serial completion adds the rest. And a full ledger here (10,000 payments, 125% of the load
+  per 800 ms) is exactly one second of the offered load: a network that closes full ledgers
+  cannot close them faster than the load fills them.
+- Before it saturates, the network with the setting keeps up with the load for about 105 s at
+  843 ms a ledger; without it, it is at 939 ms from the start. Both drift up because the close
+  after consensus grows during the load (216 to 459 ms and 267 to 436 ms over 300 ledgers).
+
+**What limits 10,000 TPS after this** (per full ledger, with the setting): execution 490 ms;
+the tx set's validation at apply 163 ms; the commit 161 ms, of which the level-0 add is now
+21 ms; the leader's build 178 ms; and whatever makes the close grow during a run.
+
+Local benchmark (a development machine, 30,000 entries per ledger, files synced; hidden tests
+tagged `[bucketbench]`): the add 71.7 ms without and 14.4 ms with 8 shards per group; about
+130 ms of thread time on 15 threads, a third of it the hash.
+
 ### Earlier benchmark: 1,000 ms target, 5,000 TPS, 48 validators, 4-core instances
 
 The measurement of experiment 3 (vote without validating the tx set, validate and execute at
@@ -1116,8 +1193,22 @@ validators with these differences:
 | Timers | Read from every node's metrics while the network was up: the difference between the readings at 150 s and at 315 s into the load, over all nodes. In the coded run at 8,000 TPS the first reading was taken at 205 to 244 s (an operator slip); the time per ledger and the block times do not depend on it |
 | Simulated-apply runs of the tree | 2026-11-14, 10,080 TPS, 150 ms sleep per ledger, builds `90c1ee1dc` (star), `b6f32b52b` (hash), `d2dfbe4bb` (rtt) of this experiment before it was rebased; kept as branch `perf/txset-spanning-tree-round1` of `SirTyson/stellar-core` |
 
+**The runs of experiment 8** (2026-11-15) use the fixture of experiment 7's run at 10,000 TPS:
+
+| | Experiment 8: 90 validators |
+|---|---|
+| Build | `be560d831` for both runs, package `30.0.1-3698.be560d8314.noble~perf.sharded.top.bucket.writes~perftests`. The commits after it on this branch were not on a network: fixes from a second review off the measured path (how catchup reads a file it checks, what the bucket manager waits for when it is destroyed), tests, a hidden benchmark and this text |
+| Node settings | Those of experiment 7's coded run, and `--cfg EXPERIMENTAL_SHARDED_TOP_BUCKET=8` or `=0` |
+| Offered load | 10,000 TPS (111 or 112 per validator; tx set cap 10,000), for 360 s |
+| Order of the runs | The setting on, then off, 22 minutes apart |
+| Timers | The difference between the readings at 150 s and at 315 to 320 s into the load, over all nodes |
+| A ledger's cycle | From every node's log: the time between two consensus lines, the close after consensus of the ledger before, and the time from having a ledger's set to its consensus; ledgers of at least 9,990 payments |
+
 ### Limits of these numbers
 
+- Experiment 8: one run on each side. The size of the gain in the first 105 s is one
+  observation; the level-0 add is measured on 90 nodes over 165 ledgers each. The window p99 is
+  higher with the setting (1,356 against 1,304 ms), unexplained.
 - One run on each side, plus the first run of the change without the IPC fix. The "before"
   numbers come from a single 5-minute window.
 - The run with the change is a FAIL on the inclusion check, and the 60 extra transactions are not
@@ -1185,6 +1276,24 @@ The tx set as coded pieces and the spanning tree:
   looked into.
 
 ## Known limitations of the prototype
+
+Level 0 of the bucket list as shards (experiment 8):
+- A setting, not a protocol version: a node with it and a node without it compute different
+  bucket list hashes from the first ledger that changes an entry.
+- The hash: LtHash16 with the standard size (1,024 elements of 16 bits) but ChaCha20 in place
+  of the paper's extendable-output function, and no test vectors from outside. A real version
+  needs a reviewed construction; it is also the largest cost left in the add.
+- Catchup takes a live bucket under either hash when the setting is on (it does not know a
+  bucket's level), after checking that the file is the canonical file of its records. History
+  archives hold level-0 files whose names are not their SHA-256.
+- Shards are by key, and written at the commit: not one shard per cluster written by the
+  cluster while it executes. A shard must hold the same keys in every ledger to be merged on
+  its own with the ledger before, and entries are final only after the steps that follow the
+  parallel phase.
+- The hot archive bucket list is not sharded. POSIX only. State written with the setting by one
+  commit of this branch is not promised to load with another (the digest's tag changed once).
+- Not tested: an upgrade ledger, a failing disk under the file's writer, the bucket garbage
+  collection racing a missing file. No sanitizer run.
 
 The tx set as coded pieces and the spanning tree (experiment 7):
 - No version negotiation: a node without the change reads a tagged frame, a probe or a piece as
