@@ -145,8 +145,6 @@ BucketManager::BucketManager(AppConnector& appConnector)
           {"bucket", "batch-archive", "addtime"}))
     , mBucketSnapMerge(
           appConnector.getMetrics().NewTimer({"bucket", "snap", "merge"}))
-    , mTopBucketGcWaitTimer(appConnector.getMetrics().NewTimer(
-          {"bucket", "top-shard", "gc-wait"}))
     , mSharedBucketsSize(
           appConnector.getMetrics().NewCounter({"bucket", "memory", "shared"}))
     , mLiveBucketListSizeCounter(
@@ -959,7 +957,9 @@ BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
     // slow disk shows in this timer.)
     if (mLiveBucketList && mConfig.EXPERIMENTAL_SHARDED_TOP_BUCKET > 0)
     {
-        auto timer = mTopBucketGcWaitTimer.TimeScope();
+        auto timer = mAppConnector.getMetrics()
+                         .NewTimer({"bucket", "top-shard", "gc-wait"})
+                         .TimeScope();
         mLiveBucketList->getLevel(0).getCurr()->waitForFile();
     }
     RecursiveMutexLocker lock(mBucketMutex);
@@ -1467,18 +1467,29 @@ BucketManager::shutdown()
 void
 BucketManager::waitForTopBucketFile()
 {
-    if (!mLiveBucketList)
+    // Every bucket made ahead of its file is in the map, whether or not it
+    // is still level 0's current bucket (a bucket list may have been assumed
+    // over it, or it belongs to a list of a test's own).
+    std::vector<std::shared_ptr<LiveBucket>> buckets;
     {
-        return;
+        RecursiveMutexLocker lock(mBucketMutex);
+        buckets.reserve(mSharedLiveBuckets.size());
+        for (auto const& [_, bucket] : mSharedLiveBuckets)
+        {
+            buckets.emplace_back(bucket);
+        }
     }
-    try
+    for (auto const& bucket : buckets)
     {
-        mLiveBucketList->getLevel(0).getCurr()->waitForFile();
-    }
-    catch (std::exception const& e)
-    {
-        CLOG_ERROR(Bucket, "Level 0's bucket file was not written: {}",
-                   e.what());
+        try
+        {
+            bucket->waitForFile();
+        }
+        catch (std::exception const& e)
+        {
+            CLOG_ERROR(Bucket, "The file of bucket {} was not written: {}",
+                       binToHex(bucket->getHash()), e.what());
+        }
     }
 }
 

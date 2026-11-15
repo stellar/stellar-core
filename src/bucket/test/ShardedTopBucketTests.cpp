@@ -446,6 +446,66 @@ TEST_CASE("the commutative hash is taken of a canonical bucket file only",
 
     REQUIRE_THROWS(ShardedTopBucket::hashOfFile(
         write(entries, "tail", std::string(3, '\0'))));
+
+    // Two metadata entries in front; one key twice, alive and then dead.
+    auto twoMeta = entries;
+    twoMeta.insert(twoMeta.begin(), entries.front());
+    REQUIRE_THROWS_WITH(
+        ShardedTopBucket::hashOfFile(write(twoMeta, "two-meta")),
+        Catch::Matchers::Contains("not first"));
+    auto liveThenDead = entries;
+    for (size_t i = 1; i < liveThenDead.size(); ++i)
+    {
+        if (liveThenDead[i].type() != DEADENTRY)
+        {
+            BucketEntry tombstone;
+            tombstone.type(DEADENTRY);
+            tombstone.deadEntry() = LedgerEntryKey(liveThenDead[i].liveEntry());
+            liveThenDead.insert(liveThenDead.begin() + i + 1, tombstone);
+            break;
+        }
+    }
+    REQUIRE(liveThenDead.size() == entries.size() + 1);
+    REQUIRE_THROWS_WITH(
+        ShardedTopBucket::hashOfFile(write(liveThenDead, "live-then-dead")),
+        Catch::Matchers::Contains("out of order"));
+}
+
+TEST_CASE("the setting over a level 0 written without it is refused at startup",
+          "[bucket][sharded-top-bucket]")
+{
+    using BucketTestUtils::BucketTestApplication;
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
+    cfg.EXPERIMENTAL_SHARDED_TOP_BUCKET = 0;
+    {
+        VirtualClock clock;
+        auto app = createTestApplication<BucketTestApplication>(clock, cfg);
+        BatchMaker maker;
+        maker.mTypes = {ACCOUNT, TRUSTLINE, DATA};
+        std::vector<LedgerEntry> init, live;
+        std::vector<LedgerKey> dead;
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            maker.make(app->getLedgerManager().getLastClosedLedgerNum() + 1, 20,
+                       init, live, dead);
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                init, live, dead);
+            BucketTestUtils::closeLedger(*app);
+        }
+    }
+    // The same state, with the setting off and then on.
+    {
+        VirtualClock clock;
+        REQUIRE_NOTHROW(
+            createTestApplication<BucketTestApplication>(clock, cfg, false));
+    }
+    cfg.EXPERIMENTAL_SHARDED_TOP_BUCKET = 4;
+    {
+        VirtualClock clock;
+        REQUIRE_THROWS_WITH(
+            createTestApplication<BucketTestApplication>(clock, cfg, false),
+            Catch::Matchers::Contains("written without the setting"));
+    }
 }
 
 TEST_CASE("level 0 is rebuilt from the shard files after a stop",

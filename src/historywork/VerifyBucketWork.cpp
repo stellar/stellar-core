@@ -25,6 +25,28 @@
 namespace stellar
 {
 
+namespace
+{
+// Whether `filename` is the canonical file of records with the commutative
+// hash `hash` (see ShardedTopBucket::hashOfFile). A file that is not is
+// reported by the caller as any other bucket that fails verification.
+bool
+hasCommutativeHash(std::string const& filename, uint256 const& hash)
+{
+    try
+    {
+        return ShardedTopBucket::bucketHash(
+                   ShardedTopBucket::hashOfFile(filename)) == hash;
+    }
+    catch (std::exception const& e)
+    {
+        CLOG_WARNING(History, "Not a canonical level-0 bucket file: {}",
+                     e.what());
+        return false;
+    }
+}
+}
+
 template <typename BucketT>
 VerifyBucketWork<BucketT>::VerifyBucketWork(
     Application& app, std::string const& bucketFile, uint256 const& hash,
@@ -115,8 +137,7 @@ VerifyBucketWork<BucketT>::spawnVerifier()
                 }
                 else if (std::is_same_v<BucketT, LiveBucket> &&
                          app.getConfig().EXPERIMENTAL_SHARDED_TOP_BUCKET > 0 &&
-                         ShardedTopBucket::bucketHash(
-                             ShardedTopBucket::hashOfFile(filename)) == hash)
+                         hasCommutativeHash(filename, hash))
                 {
                     // A level-0 bucket of the live bucket list: named by the
                     // commutative hash of its records. (Which hash a bucket

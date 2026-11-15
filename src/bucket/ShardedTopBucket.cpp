@@ -335,8 +335,9 @@ ShardedTopBucket::~ShardedTopBucket()
     // Let the file's writer finish. It uses the clock's io context, which
     // outlives the application, and nothing else of the application, parts
     // of which (the metrics, the bucket manager's config) are gone by now.
-    // The bucket manager waits for it before it removes its directories
-    // (BucketManager::waitForTopBucketFile); this is the last resort.
+    // The bucket manager waits for every such writer before it removes its
+    // directories (BucketManager::waitForTopBucketFile); this is the last
+    // resort.
     if (mFileWriter.valid())
     {
         mFileWriter.wait();
@@ -413,16 +414,16 @@ ShardedTopBucket::hashOfFile(std::string const& filename)
     // XDR form. The commutative hash alone does not tell a bucket file from
     // a file with the same records in another order, and whoever reads the
     // file (a merge, the index) relies on the order.
-    std::string raw;
+    //
+    // The file is read twice at once, record by record (it may be any size:
+    // catchup hands every live bucket that is not named by its SHA-256 to
+    // this): once decoded, once as bytes to hold the re-encoded record
+    // against.
+    std::ifstream raw(filename, std::ios::binary);
+    if (!raw)
     {
-        std::ifstream in(filename, std::ios::binary);
-        if (!in)
-        {
-            throw std::runtime_error(
-                fmt::format(FMT_STRING("could not open {}"), filename));
-        }
-        raw.assign(std::istreambuf_iterator<char>(in),
-                   std::istreambuf_iterator<char>());
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("could not open {}"), filename));
     }
     LtHash16 h;
     XDRInputFileStream in;
@@ -431,8 +432,8 @@ ShardedTopBucket::hashOfFile(std::string const& filename)
     BucketEntry prev;
     bool first = true;
     bool havePrev = false;
-    size_t pos = 0;
     std::string expected;
+    std::string found;
     BucketEntryIdCmp<LiveBucket> idCmp;
     while (in && in.readOne(be))
     {
@@ -440,14 +441,15 @@ ShardedTopBucket::hashOfFile(std::string const& filename)
         expected.clear();
         appendRecord(expected, reinterpret_cast<char const*>(rec.data()),
                      rec.size());
-        if (pos + expected.size() > raw.size() ||
-            raw.compare(pos, expected.size(), expected) != 0)
+        found.resize(expected.size());
+        raw.read(found.data(), static_cast<std::streamsize>(found.size()));
+        if (static_cast<size_t>(raw.gcount()) != found.size() ||
+            found != expected)
         {
             throw std::runtime_error(fmt::format(
                 FMT_STRING("{}: a record is not in its canonical form"),
                 filename));
         }
-        pos += expected.size();
         if (be.type() == METAENTRY)
         {
             if (!first)
@@ -470,7 +472,7 @@ ShardedTopBucket::hashOfFile(std::string const& filename)
         first = false;
         h.add(ByteSlice(rec.data(), rec.size()));
     }
-    if (pos != raw.size())
+    if (raw.peek() != std::ifstream::traits_type::eof())
     {
         throw std::runtime_error(fmt::format(
             FMT_STRING("{}: bytes after the last record"), filename));

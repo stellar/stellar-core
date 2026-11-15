@@ -14,7 +14,11 @@
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/SHA.h"
+#include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerEntryRefs.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/timer.h"
@@ -284,4 +288,55 @@ TEST_CASE("top bucket add as shards with payment-shaped batches",
                      timer("file-wait"), timer("file"));
         }
     }
+}
+
+// What the ledger commit runs beside the bucket list add (and waits for): the
+// update of the in-memory Soroban state with the same batch. Its cost grows
+// with the state: the maps it inserts into are large.
+TEST_CASE("in-memory soroban state update with payment-shaped batches",
+          "[.][bucketbench]")
+{
+    using namespace TopBucketBench;
+    VirtualClock clock;
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
+    auto app = createTestApplication(clock, cfg);
+    auto& lm = app->getLedgerManager();
+    std::optional<SorobanNetworkConfig const> sorobanConfig(
+        lm.getLastClosedSorobanNetworkConfig());
+    auto& metrics = lm.getSorobanMetrics();
+
+    InMemorySorobanState state;
+    LedgerHeader lh;
+    lh.ledgerVersion = app->getConfig().LEDGER_PROTOCOL_VERSION;
+    std::vector<LedgerKey> dead;
+    uint32_t const payments = 10000;
+    uint32_t const ledgers = 260;
+    std::vector<double> times;
+    for (uint32_t ledger = 1; ledger <= ledgers; ++ledger)
+    {
+        std::vector<LedgerEntry> init, live;
+        makeBatch(ledger, payments, init, live);
+        lh.ledgerSeq = ledger;
+        auto initRefs = toRefs(init);
+        auto liveRefs = toRefs(live);
+        auto deadRefs = toRefs(dead);
+        auto t = Clock::now();
+        state.updateState(initRefs, liveRefs, deadRefs, lh, sorobanConfig,
+                          metrics);
+        times.push_back(msSince(t));
+    }
+    auto mean = [&](size_t from, size_t to) {
+        double sum = 0;
+        for (size_t i = from; i < to; ++i)
+        {
+            sum += times[i];
+        }
+        return sum / static_cast<double>(to - from);
+    };
+    LOG_INFO(DEFAULT_LOG,
+             "SOROBANSTATE {} payments per ledger (as many new contract data "
+             "entries with their TTL): updateState mean {:.1f} ms at ledgers "
+             "1..20, {:.1f} ms at 121..140 (1.2 million entries), {:.1f} ms "
+             "at 241..260 (2.4 million entries)",
+             payments, mean(0, 20), mean(120, 140), mean(240, 260));
 }
