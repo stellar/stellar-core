@@ -18,6 +18,7 @@
 #include "main/Config.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -1925,8 +1926,8 @@ TxSetXDRFrame::toStellarMessage() const
 #endif
 
 ApplicableTxSetFrameConstPtr
-TxSetXDRFrame::prepareForApply(Application& app,
-                               LedgerHeader const& lclHeader) const
+TxSetXDRFrame::prepareForApply(Application& app, LedgerHeader const& lclHeader,
+                               size_t maxTasks) const
 {
 #ifdef BUILD_TESTS
     if (mApplicableTxSetOverride)
@@ -1952,7 +1953,8 @@ TxSetXDRFrame::prepareForApply(Application& app,
         {
             auto maybePhase = TxSetPhaseFrame::makeFromWire(
                 static_cast<TxSetPhase>(phaseId), app.getNetworkID(),
-                xdrPhases[phaseId]);
+                xdrPhases[phaseId],
+                maxTasks > 1 ? &app.getBatchExecutor() : nullptr, maxTasks);
             if (!maybePhase)
             {
                 return nullptr;
@@ -2332,7 +2334,8 @@ TxSetPhaseFrame::Iterator::operator!=(Iterator const& other) const
 
 std::optional<TxSetPhaseFrame>
 TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
-                              TransactionPhase const& xdrPhase)
+                              TransactionPhase const& xdrPhase,
+                              BatchExecutor* executor, size_t maxTasks)
 {
     auto inclusionFeeMapPtr = std::make_shared<InclusionFeeMap>();
     auto& inclusionFeeMap = *inclusionFeeMapPtr;
@@ -2399,13 +2402,35 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
         }
         TxStageFrameList stages;
         stages.reserve(xdrStages.size());
+        // Every cluster is built on its own: nothing a cluster's frames,
+        // their hashes or its checks need is shared with another cluster.
+        struct ClusterToBuild
+        {
+            xdr::xvector<TransactionEnvelope> const* mXdr;
+            TxFrameList* mFrames;
+        };
+        std::vector<ClusterToBuild> clusters;
         for (auto const& xdrStage : xdrStages)
         {
             auto& stage = stages.emplace_back();
-            stage.reserve(xdrStage.size());
-            for (auto const& xdrCluster : xdrStage)
+            stage.resize(xdrStage.size());
+            for (size_t i = 0; i < xdrStage.size(); ++i)
             {
-                auto& cluster = stage.emplace_back();
+                clusters.push_back(ClusterToBuild{&xdrStage[i], &stage[i]});
+            }
+        }
+        enum ClusterStatus : uint8_t
+        {
+            CLUSTER_OK,
+            CLUSTER_INVALID_XDR,
+            CLUSTER_NOT_SORTED
+        };
+        std::vector<uint8_t> clusterStatus(clusters.size(), CLUSTER_OK);
+        auto buildClusters = [&](size_t begin, size_t end, size_t) {
+            for (size_t c = begin; c < end; ++c)
+            {
+                auto const& xdrCluster = *clusters[c].mXdr;
+                auto& cluster = *clusters[c].mFrames;
                 cluster.reserve(xdrCluster.size());
                 for (auto const& env : xdrCluster)
                 {
@@ -2414,19 +2439,57 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                     if (!tx->XDRProvidesValidFee() ||
                         tx->getInclusionFee() <= 0)
                     {
-                        CLOG_DEBUG(Herder, "Got bad generalized txSet: "
-                                           "transaction has invalid XDR");
-                        return std::nullopt;
+                        clusterStatus[c] = CLUSTER_INVALID_XDR;
+                        break;
                     }
                     cluster.push_back(tx);
-                    inclusionFeeMap[tx] = baseFee;
                 }
-                if (!std::is_sorted(cluster.begin(), cluster.end(),
+                // (This is what computes every transaction's full hash.)
+                if (clusterStatus[c] == CLUSTER_OK &&
+                    !std::is_sorted(cluster.begin(), cluster.end(),
                                     &TxSetUtils::hashTxSorter))
                 {
-                    CLOG_DEBUG(Herder, "Got bad generalized txSet: "
-                                       "cluster is not sorted");
-                    return std::nullopt;
+                    clusterStatus[c] = CLUSTER_NOT_SORTED;
+                }
+            }
+        };
+        size_t const tasks =
+            executor ? std::min({maxTasks, executor->preferredTaskCount(),
+                                 clusters.size()})
+                     : 1;
+        if (tasks > 1)
+        {
+            executor->executeBatchOverRanges(clusters.size(), tasks,
+                                             buildClusters);
+        }
+        else
+        {
+            buildClusters(0, clusters.size(), 0);
+        }
+        // The first cluster in the set's order that is not right says why
+        // the set is refused, as when they are built one after the other.
+        for (auto status : clusterStatus)
+        {
+            if (status == CLUSTER_INVALID_XDR)
+            {
+                CLOG_DEBUG(Herder, "Got bad generalized txSet: "
+                                   "transaction has invalid XDR");
+                return std::nullopt;
+            }
+            if (status == CLUSTER_NOT_SORTED)
+            {
+                CLOG_DEBUG(Herder, "Got bad generalized txSet: "
+                                   "cluster is not sorted");
+                return std::nullopt;
+            }
+        }
+        for (auto const& stage : stages)
+        {
+            for (auto const& cluster : stage)
+            {
+                for (auto const& tx : cluster)
+                {
+                    inclusionFeeMap[tx] = baseFee;
                 }
             }
             if (!std::is_sorted(stage.begin(), stage.end(),

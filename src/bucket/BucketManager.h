@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <set>
@@ -364,6 +365,15 @@ class BucketManager : NonMovableOrCopyable
     // second vector contains all archived entries (persistent and
     // ContractCode). Note that when an entry is archived, its TTL key will be
     // included in the deleted keys vector.
+    //
+    // The keys this ledger modified are what candidates of the scan are held
+    // against (a candidate whose TTL was touched is not evicted).
+    // `getModifiedKeys` is called only if the scan has candidates: the set
+    // of every modified key is large, and most ledgers evict nothing.
+    EvictedStateVectors resolveBackgroundEvictionScan(
+        ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
+        std::function<LedgerKeySet()> const& getModifiedKeys);
+    // The same, with the set at hand.
     EvictedStateVectors
     resolveBackgroundEvictionScan(ApplyLedgerView const& lclApplyView,
                                   AbstractLedgerTxn& ltx,

@@ -22,6 +22,7 @@
 
 namespace stellar
 {
+class BatchExecutor;
 class Application;
 class AbstractLedgerView;
 class SorobanNetworkConfig;
@@ -334,8 +335,14 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     // This may *only* be called when LCL hash matches the `previousLedgerHash`
     // of this `TxSetFrame` - tx sets with a wrong ledger hash shouldn't even
     // be attempted to be interpreted.
-    ApplicableTxSetFrameConstPtr
-    prepareForApply(Application& app, LedgerHeader const& lclHeader) const;
+    //
+    // `maxTasks` > 1 lets the Soroban phase be rebuilt from its wire form by
+    // that many tasks of the application's batch executor at most (see
+    // `TxSetPhaseFrame::makeFromWire`). The default is serial, on the
+    // calling thread.
+    ApplicableTxSetFrameConstPtr prepareForApply(Application& app,
+                                                 LedgerHeader const& lclHeader,
+                                                 size_t maxTasks = 1) const;
 
     bool isGeneralizedTxSet() const;
 
@@ -495,6 +502,17 @@ class TxSetPhaseFrame
     // transactions in the same lane)
     InclusionFeeMap const& getInclusionFeeMap() const;
 
+#ifdef BUILD_TESTS
+    // `makeFromWire`, for tests of the rebuild itself.
+    static std::optional<TxSetPhaseFrame>
+    makeFromWireForTesting(TxSetPhase phase, Hash const& networkID,
+                           TransactionPhase const& xdrPhase,
+                           BatchExecutor* executor, size_t maxTasks)
+    {
+        return makeFromWire(phase, networkID, xdrPhase, executor, maxTasks);
+    }
+#endif
+
     std::optional<Resource> getTotalResources(uint32_t ledgerVersion) const;
 
   private:
@@ -533,9 +551,17 @@ class TxSetPhaseFrame
 
     // Creates a new phase from `TransactionPhase` XDR coming from a
     // `GeneralizedTransactionSet`.
+    //
+    // The clusters of a parallel phase are independent of each other: with
+    // an `executor` and `maxTasks` > 1 they are built (a frame and its full
+    // hash per transaction, the checks of its fee fields and of the
+    // cluster's order) by up to `maxTasks` tasks of the executor. The
+    // executor runs one batch at a time: only a caller that cannot overlap
+    // with another user of it may pass one.
     static std::optional<TxSetPhaseFrame>
     makeFromWire(TxSetPhase phase, Hash const& networkID,
-                 TransactionPhase const& xdrPhase);
+                 TransactionPhase const& xdrPhase,
+                 BatchExecutor* executor = nullptr, size_t maxTasks = 1);
 
     // Creates a new phase from all the transactions in the legacy
     // `TransactionSet` XDR.

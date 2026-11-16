@@ -1220,6 +1220,15 @@ BucketManager::resolveBackgroundEvictionScan(
     ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
     LedgerKeySet const& modifiedKeys)
 {
+    return resolveBackgroundEvictionScan(
+        lclApplyView, ltx, [&modifiedKeys]() { return modifiedKeys; });
+}
+
+EvictedStateVectors
+BucketManager::resolveBackgroundEvictionScan(
+    ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
+    std::function<LedgerKeySet()> const& getModifiedKeys)
+{
     ZoneScoped;
     releaseAssert(mEvictionStatistics);
     auto timer = mBucketListEvictionMetrics.blockingTime.TimeScope();
@@ -1250,6 +1259,10 @@ BucketManager::resolveBackgroundEvictionScan(
     }
 
     auto& eligibleEntries = evictionCandidates->eligibleEntries;
+    // Without a candidate there is nothing to hold the modified keys
+    // against, and the set is not built.
+    LedgerKeySet const modifiedKeys =
+        eligibleEntries.empty() ? LedgerKeySet{} : getModifiedKeys();
 
     for (auto iter = eligibleEntries.begin(); iter != eligibleEntries.end();)
     {

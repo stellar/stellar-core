@@ -404,8 +404,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             ltx.loadHeader().current().ledgerSeq++;
             auto evictedState =
-                app->getBucketManager().resolveBackgroundEvictionScan(applyView,
-                                                                      ltx, {});
+                app->getBucketManager().resolveBackgroundEvictionScan(
+                    applyView, ltx, LedgerKeySet{});
 
             applyView = app->getLedgerManager().copyApplyLedgerView();
 

@@ -2029,3 +2029,25 @@ TEST_CASE("bucket index race condition with GC", "[bucket][bucketmanager]")
     REQUIRE(bucket2->getHash() == bucketHash);
     REQUIRE(bucket2->isIndexed());
 }
+
+TEST_CASE("the modified keys are asked for only by a scan with candidates",
+          "[bucket][bucketmanager][eviction]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
+    auto app = createTestApplication(clock, cfg);
+    auto& lm = app->getLedgerManager();
+    auto applyView = lm.copyApplyLedgerView();
+    // A new network: nothing has a TTL, the scan finds no candidate.
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    ltx.loadHeader().current().ledgerSeq++;
+    bool asked = false;
+    auto evicted = app->getBucketManager().resolveBackgroundEvictionScan(
+        applyView, ltx, [&]() {
+            asked = true;
+            return LedgerKeySet{};
+        });
+    REQUIRE(!asked);
+    REQUIRE(evicted.deletedKeys.empty());
+    REQUIRE(evicted.archivedEntries.empty());
+}
