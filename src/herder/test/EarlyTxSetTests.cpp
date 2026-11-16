@@ -99,6 +99,17 @@ class EarlyTxSetTestAccess
         return herder.txSetPullCount();
     }
 
+    // What the node does with the state a speculative execution of the
+    // ledger it votes for left.
+    static void
+    executed(HerderImpl& herder, uint64_t slot, StellarValue const& value,
+             std::shared_ptr<ExecutedLedgerState const> state)
+    {
+        herder.mSpeculativeApplyValue =
+            std::make_pair(slot, Value(xdr::xdr_to_opaque(value)));
+        herder.startProposalPrevalidation(std::move(state));
+    }
+
     static void
     setStartDelay(HerderImpl& herder,
                   std::optional<std::chrono::milliseconds> delay)
@@ -2468,6 +2479,11 @@ TEST_CASE("early tx set completion costs", "[herder][.][benchmark]")
     uint32_t const reps = envInt("BENCH_REPS", 2);
     uint32_t const tasks = envInt("BENCH_TASKS", 16);
     uint32_t const clusters = envInt("BENCH_CLUSTERS", 16);
+    // BENCH_DURING_COMMIT=1: the selection is completed on the executed
+    // state of the closing ledger, before the ledger has closed
+    // (EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT). What arrives after the
+    // selection's pull is in the mempool by then.
+    bool const duringCommit = envInt("BENCH_DURING_COMMIT", 0) != 0;
     // Per repetition: a closing ledger and the next one's candidates (twice
     // as many in a backlog), at 80% of the cap as on perfnet.
     uint32_t const perLedger = cap * 8 / 10;
@@ -2560,7 +2576,8 @@ TEST_CASE("early tx set completion costs", "[herder][.][benchmark]")
         "build-trim",    "build-select",          "early-final-pass",
         "early-top-up",  "build-selection-check", "build-xdr",
         "build-handoff", "early-complete",        "build",
-        "early-pull",    "early-select",          "early-job"};
+        "early-pull",    "early-select",          "early-job",
+        "early-prepare"};
     auto clearStages = [&]() {
         for (auto const& stage : stages)
         {
@@ -2640,6 +2657,29 @@ TEST_CASE("early tx set completion costs", "[herder][.][benchmark]")
                    .push_back(static_cast<double>(job->mFinishedAfterNs) / 1e6);
         record("3. early selection (background, during the ballot)");
 
+        if (duringCommit)
+        {
+            const_cast<Config&>(app->getConfig())
+                .EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT = true;
+            mempool = closingTxs;
+            mempool.insert(mempool.end(), nextTxs.begin(), nextTxs.end());
+            auto const value = herder.makeStellarValue(
+                closing.txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
+                cfg.NODE_SEED);
+            auto const preparedBefore = txsetMeter(*app, "early-prepared");
+            bool done = false;
+            lm.startSpeculativeApply(
+                LedgerCloseData(seq, closing.txSet, value),
+                [&](std::shared_ptr<ExecutedLedgerState const> state) {
+                    clearStages();
+                    Access::executed(herder, seq, value, std::move(state));
+                    record("3b. completion on the executed state (main "
+                           "thread, while the ledger is committed)");
+                    done = true;
+                });
+            crankUntil([&]() { return done; });
+            REQUIRE(txsetMeter(*app, "early-prepared") == preparedBefore + 1);
+        }
         // The ledger closes; the rest of the candidates has arrived.
         app->getHerder().externalizeValue(closing.txSet, seq, closeTime,
                                           emptyUpgradeSteps);
@@ -2650,7 +2690,8 @@ TEST_CASE("early tx set completion costs", "[herder][.][benchmark]")
         auto next = Access::build(herder, lm.getLastClosedLedgerNum() + 1,
                                   nextCloseTime());
         REQUIRE(txsetMeter(*app, "early-completed") == completedBefore + 1);
-        record("4. completion at the close");
+        record(duringCommit ? "4. at the close: the hash, and the hand-over"
+                            : "4. completion at the close");
         included = next.txSet->sizeTxTotal();
         REQUIRE(next.applicableTxSet->checkValid(*app, 1, 1));
         REQUIRE(included == std::min<size_t>(cap, nextCount));

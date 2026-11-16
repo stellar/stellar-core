@@ -611,6 +611,38 @@ class HerderImpl : public Herder
     completeEarlyTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
                        bool pushToPeers, LedgerHeaderHistoryEntry const& lcl);
 
+    // The early selection completed while the ledger before is committed
+    // (EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT).
+    //
+    // The completion needs the state the set goes on top of. That state is
+    // final when the ledger before (N) has been executed, which, for the
+    // value that externalizes, is before its commit starts; only the hash of
+    // N's header comes out of the commit. So when N has been executed with
+    // the value the selection was made for, this node validates and tops up
+    // the selection on the executed state (see ExecutedLedgerState), checks
+    // its structure and writes its XDR with an empty previous ledger hash,
+    // on the main thread while the apply thread commits N. When N has
+    // closed with that value, completeEarlyTxSet puts the hash in and hands
+    // the set over. If N closes with another value, with an upgrade, or the
+    // limits of a set changed, what was prepared is dropped and the set is
+    // built as without an early selection.
+    struct PreparedEarlyCompletion
+    {
+        // The executed ledger; what was prepared holds on top of it if and
+        // only if it closes with `state->mValue`.
+        std::shared_ptr<ExecutedLedgerState const> state;
+        TxSetBuildLimits limits;
+        std::shared_ptr<TxSetPreparedSelection> selection;
+        TxSetCompletionStats stats;
+        PerPhaseTransactionList invalidTxPhases;
+        size_t pulls{0};
+        bool mempoolExhausted{false};
+        std::chrono::steady_clock::time_point selectedAt;
+    };
+    std::optional<PreparedEarlyCompletion> mPreparedEarlyCompletion;
+    void
+    prepareEarlyCompletion(std::shared_ptr<ExecutedLedgerState const> state);
+
     // How many transactions one pull of the mempool asks for: the capacity
     // of a set plus EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT. A set that is
     // short after validation pulls again, twice as much each time, at most
@@ -673,6 +705,10 @@ class HerderImpl : public Herder
     // execution, so that further statements for the same value don't restart
     // it.
     std::optional<std::pair<uint64, Value>> mSpeculativeApplyValue;
+
+    // The slot and value that externalized last (see valueExternalized):
+    // what the apply thread is applying, or has applied.
+    std::optional<std::pair<uint64, StellarValue>> mLastExternalized;
 
   public:
     // Called when slot `slotIndex` starts its ballot protocol with a value

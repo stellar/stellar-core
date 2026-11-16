@@ -176,6 +176,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKGROUND_OVERLAY_PROCESSING = true;
     PARALLEL_LEDGER_APPLY = true;
     EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = true;
+    EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT = false;
     EXPERIMENTAL_EARLY_TX_SET_SELECTION = true;
     EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT = 10;
     EXPERIMENTAL_TX_SET_TREE = "off";
@@ -1224,6 +1225,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY",
                  [&]() {
                      EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY = readBool(item);
+                 }},
+                {"EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT",
+                 [&]() {
+                     EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT =
+                         readBool(item);
                  }},
                 {"EXPERIMENTAL_EARLY_TX_SET_SELECTION",
                  [&]() {
@@ -2453,6 +2459,8 @@ Config::logBasicInfo() const
              "EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY="
              "{}",
              EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY ? "true" : "false");
+    LOG_INFO(DEFAULT_LOG, "EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT={}",
+             EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT ? "true" : "false");
     LOG_INFO(DEFAULT_LOG,
              "EXPERIMENTAL_EARLY_TX_SET_SELECTION={}, "
              "EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT={}",

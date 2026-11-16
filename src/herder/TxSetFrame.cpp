@@ -1081,6 +1081,95 @@ TxSetBuilder::writeSelection(
     return std::make_pair(outputTxSet, std::move(outputApplicableTxSet));
 }
 
+std::shared_ptr<TxSetPreparedSelection>
+TxSetBuilder::prepareSelection(std::vector<TxSetPhaseFrame> const& phases,
+                               Application& app,
+                               TxSetValidationContext const& ctx,
+                               ApplyTimeOffset closeTimeOffset)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+    releaseAssert(protocolVersionStartsFrom(ctx.mLcl.header.ledgerVersion,
+                                            SOROBAN_PROTOCOL_VERSION));
+    // As in writeSelection: the structure of the selection is checked on
+    // another thread while this one writes the set (both only read the
+    // selection), and waited for before anything is returned.
+    auto check = [&phases, &app, &ctx, closeTimeOffset]() {
+        return TxSetBuilder::checkSelection(phases, app, ctx,
+                                            /*isGeneralized=*/true,
+                                            closeTimeOffset);
+    };
+    std::future<TxSetValidationResult> selectionCheck;
+    try
+    {
+        selectionCheck = std::async(std::launch::async, check);
+    }
+    catch (std::system_error const&)
+    {
+        std::promise<TxSetValidationResult> done;
+        done.set_value(check());
+        selectionCheck = done.get_future();
+    }
+    auto prepared = std::make_shared<TxSetPreparedSelection>();
+    {
+        auto xdrTimer = app.getMetrics()
+                            .NewTimer({"herder", "txset", "build-xdr"})
+                            .TimeScope();
+        prepared->mPhases = phases;
+        transactionsToGeneralizedTransactionSetXDR(phases, Hash(),
+                                                   prepared->mXDR);
+    }
+    auto const result = selectionCheck.get();
+    if (result != TxSetValidationResult::VALID)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Prepared an invalid tx set, validation result: {:s}"),
+            toString(result)));
+    }
+    return prepared;
+}
+
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+TxSetBuilder::writePreparedSelection(
+    TxSetPreparedSelection& prepared, Application& app,
+    ApplyTimeOffset closeTimeOffset, TxSetReadyCallback const& onTxSetReady,
+    std::shared_ptr<TxSetSelfCheck const>& deferredSelfCheck)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+    releaseAssert(!app.getLedgerManager().isApplying());
+    auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
+    // All that was left to write.
+    prepared.mXDR.v1TxSet().previousLedgerHash = lclHeader.hash;
+    auto outputTxSet = TxSetXDRFrame::makeFromWire(std::move(prepared.mXDR));
+    if (onTxSetReady)
+    {
+        onTxSetReady(outputTxSet);
+    }
+    // What writeSelection checks of a written set before it returns.
+    if (!validateTxSetXDRStructure(outputTxSet->getGeneralizedXDR(),
+                                   lclHeader.header.ledgerVersion))
+    {
+        throw std::runtime_error(
+            "Couldn't prepare created tx set frame for apply");
+    }
+    size_t selected = 0;
+    for (auto const& phase : prepared.mPhases)
+    {
+        selected += phase.sizeTx();
+    }
+    if (outputTxSet->sizeTxTotal() != selected)
+    {
+        throw std::runtime_error("Created invalid tx set frame - shape is "
+                                 "mismatched after writing.");
+    }
+    deferredSelfCheck = TxSetBuilder::makeSelfCheck(
+        app, outputTxSet, lclHeader, prepared.mPhases, closeTimeOffset);
+    std::unique_ptr<ApplicableTxSetFrame> applicable(new ApplicableTxSetFrame(
+        app, lclHeader, prepared.mPhases, outputTxSet->getContentsHash()));
+    return std::make_pair(outputTxSet, std::move(applicable));
+}
+
 uint32_t
 TxSetBuildLimits::maxTxSetSizeOps() const
 {

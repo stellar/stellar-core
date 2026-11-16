@@ -540,6 +540,16 @@ class Config : public std::enable_shared_from_this<Config>
     // APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION on.
     bool EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY;
 
+    // The node that selected its next transaction set early (see
+    // EXPERIMENTAL_EARLY_TX_SET_SELECTION) completes it while the current
+    // ledger is committed instead of after it has closed: on the state the
+    // ledger's execution left, with everything of the set written but the
+    // hash of the ledger it goes on top of, which is put in when the ledger
+    // has closed. Transactions that arrive during the commit wait for the
+    // set after. Needs speculative ledger apply. Changes when a leader does
+    // its work, not what a valid set is.
+    bool EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT;
+
     // The node that expects to lead the next ledger selects its transaction
     // set while the current ledger is still in its ballot, from the current
     // ledger's set and the last closed state, and completes it when the

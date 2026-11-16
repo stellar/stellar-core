@@ -866,6 +866,15 @@ using TxSetCandidateSource =
 
 // The steps `makeTxSetFromTransactions` is made of, for callers that run them
 // apart from each other.
+// A selection whose set is written but for the hash of the ledger it goes on
+// top of (see TxSetBuilder::prepareSelection).
+struct TxSetPreparedSelection
+{
+    std::vector<TxSetPhaseFrame> mPhases;
+    // previousLedgerHash is empty until the set is written out.
+    GeneralizedTransactionSet mXDR;
+};
+
 class TxSetBuilder
 {
   public:
@@ -958,6 +967,29 @@ class TxSetBuilder
                    bool enforceTxsApplyOrder = false
 #endif
     );
+
+    // `writeSelection` in two steps, for a selection that is complete before
+    // the ledger it goes on top of has closed (see
+    // HerderImpl::prepareEarlyCompletion).
+    //
+    // `prepareSelection` validates the structure of the selection on the
+    // ledger `ctx` describes (the state the closing ledger's execution left)
+    // and writes the set's XDR with an empty previous ledger hash. Throws if
+    // the check fails. It reads nothing of the last closed ledger and may
+    // run while a ledger is applied. Generalized sets only. Main thread.
+    static std::shared_ptr<TxSetPreparedSelection>
+    prepareSelection(std::vector<TxSetPhaseFrame> const& phases,
+                     Application& app, TxSetValidationContext const& ctx,
+                     ApplyTimeOffset closeTimeOffset);
+    // `writePreparedSelection` puts the hash of the LCL into that XDR and
+    // goes on as `writeSelection` does with a deferred self check, which it
+    // returns: the caller must have made sure that the LCL is the ledger
+    // the selection was prepared on. Consumes `prepared`. Main thread.
+    static std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+    writePreparedSelection(
+        TxSetPreparedSelection& prepared, Application& app,
+        ApplyTimeOffset closeTimeOffset, TxSetReadyCallback const& onTxSetReady,
+        std::shared_ptr<TxSetSelfCheck const>& deferredSelfCheck);
 
   private:
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
