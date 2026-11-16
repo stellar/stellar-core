@@ -150,6 +150,10 @@ struct TxSetValidationContext
     // others are added to it. Only read while the validation tasks run, and
     // only written by the calling thread.
     TxValidationCache* mValidationCache{nullptr};
+    // The executor the tasks run on; null for the application's. A caller
+    // that may overlap with another user of the application's executor
+    // (which runs one batch at a time) brings one of its own.
+    BatchExecutor* mExecutor{nullptr};
 
     // The LCL as seen by the main thread. Main thread only.
     static TxSetValidationContext forLCL(Application& app);
@@ -864,8 +868,6 @@ struct TxSetCandidateBatch
 using TxSetCandidateSource =
     std::function<std::optional<TxSetCandidateBatch>()>;
 
-// The steps `makeTxSetFromTransactions` is made of, for callers that run them
-// apart from each other.
 // A selection whose set is written but for the hash of the ledger it goes on
 // top of (see TxSetBuilder::prepareSelection).
 struct TxSetPreparedSelection
@@ -874,6 +876,9 @@ struct TxSetPreparedSelection
     // previousLedgerHash is empty until the set is written out.
     GeneralizedTransactionSet mXDR;
 };
+
+// The steps `makeTxSetFromTransactions` is made of, for callers that run them
+// apart from each other.
 
 class TxSetBuilder
 {

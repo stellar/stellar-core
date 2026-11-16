@@ -2609,6 +2609,7 @@ TEST_CASE("early tx set completion costs", "[herder][.][benchmark]")
         auto const closingTxs = range(base, perLedger);
         auto const nextTxs = range(base + perLedger, nextCount);
         size_t const earlyCount = nextCount * (100 - latePercent) / 100;
+        uint64_t duringCommitBefore = 0;
 
         // The closing ledger's set, built from the mempool: a plain build.
         // In a backlog the mempool holds twice the cap behind it.
@@ -2666,24 +2667,30 @@ TEST_CASE("early tx set completion costs", "[herder][.][benchmark]")
             auto const value = herder.makeStellarValue(
                 closing.txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
                 cfg.NODE_SEED);
-            auto const preparedBefore = txsetMeter(*app, "early-prepared");
             bool done = false;
             lm.startSpeculativeApply(
                 LedgerCloseData(seq, closing.txSet, value),
                 [&](std::shared_ptr<ExecutedLedgerState const> state) {
-                    clearStages();
                     Access::executed(herder, seq, value, std::move(state));
-                    record("3b. completion on the executed state (main "
-                           "thread, while the ledger is committed)");
                     done = true;
                 });
             crankUntil([&]() { return done; });
-            REQUIRE(txsetMeter(*app, "early-prepared") == preparedBefore + 1);
+            // The completion runs when the ledger externalizes (below),
+            // while the apply thread commits it.
+            clearStages();
+            duringCommitBefore = txsetMeter(*app, "early-prepared");
         }
         // The ledger closes; the rest of the candidates has arrived.
         app->getHerder().externalizeValue(closing.txSet, seq, closeTime,
                                           emptyUpgradeSteps);
         REQUIRE(lm.getLastClosedLedgerNum() == seq);
+        if (duringCommit)
+        {
+            REQUIRE(txsetMeter(*app, "early-prepared") ==
+                    duringCommitBefore + 1);
+            record("3b. completion on the executed state (main thread, "
+                   "while the ledger is committed)");
+        }
         mempool = nextTxs;
         clearStages();
         auto const completedBefore = txsetMeter(*app, "early-completed");

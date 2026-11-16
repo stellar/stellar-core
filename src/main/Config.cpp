@@ -2461,6 +2461,14 @@ Config::logBasicInfo() const
              EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY ? "true" : "false");
     LOG_INFO(DEFAULT_LOG, "EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT={}",
              EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT ? "true" : "false");
+    if (EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT &&
+        !EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY)
+    {
+        LOG_WARNING(DEFAULT_LOG,
+                    "EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT has no effect "
+                    "without EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY (and an "
+                    "early tx set selection)");
+    }
     LOG_INFO(DEFAULT_LOG,
              "EXPERIMENTAL_EARLY_TX_SET_SELECTION={}, "
              "EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT={}",

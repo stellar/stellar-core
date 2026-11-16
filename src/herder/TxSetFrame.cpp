@@ -32,6 +32,7 @@
 
 #include <Tracy.hpp>
 #include <algorithm>
+#include <atomic>
 #include <future>
 #include <limits>
 #include <list>
@@ -2515,8 +2516,12 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
             CLUSTER_NOT_SORTED
         };
         std::vector<uint8_t> clusterStatus(clusters.size(), CLUSTER_OK);
-        auto buildClusters = [&](size_t begin, size_t end, size_t) {
-            for (size_t c = begin; c < end; ++c)
+        // A task takes the next cluster no task has taken: there may be
+        // more clusters than tasks, and they differ in size.
+        std::atomic<size_t> nextCluster{0};
+        auto buildClusters = [&](size_t, size_t, size_t) {
+            for (size_t c = nextCluster.fetch_add(1); c < clusters.size();
+                 c = nextCluster.fetch_add(1))
             {
                 auto const& xdrCluster = *clusters[c].mXdr;
                 auto& cluster = *clusters[c].mFrames;
@@ -2548,15 +2553,15 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                      : 1;
         if (tasks > 1)
         {
-            executor->executeBatchOverRanges(clusters.size(), tasks,
-                                             buildClusters);
+            executor->executeBatchOverRanges(tasks, tasks, buildClusters);
         }
         else
         {
             buildClusters(0, clusters.size(), 0);
         }
         // The first cluster in the set's order that is not right says why
-        // the set is refused, as when they are built one after the other.
+        // the set is refused (a debug log line; built one after the other, a
+        // stage out of order was named before a bad cluster after it).
         for (auto status : clusterStatus)
         {
             if (status == CLUSTER_INVALID_XDR)

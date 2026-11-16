@@ -975,6 +975,7 @@ HerderImpl::shutdown()
     stopProposalPrevalidation(nullptr);
     stopEarlyTxSetSelection();
     mPreparedEarlyCompletion.reset();
+    mExecutedForEarlyCompletion.reset();
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
@@ -1253,6 +1254,20 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // This call may trigger application of buffered ledgers and in some
         // cases a ledger trigger
         processExternalized(slotIndex, value, isLatestSlot);
+    }
+
+    // The ledger's apply (for a value that was executed speculatively: its
+    // commit) has been handed to the apply thread. If this node completed
+    // the execution before and waits to complete its next set on it (see
+    // prepareEarlyCompletion), this is the time.
+    if (mExecutedForEarlyCompletion)
+    {
+        auto state = std::move(mExecutedForEarlyCompletion);
+        mExecutedForEarlyCompletion.reset();
+        if (state->mLedgerSeq == slotIndex && state->mValue == value)
+        {
+            prepareEarlyCompletion(std::move(state));
+        }
     }
 }
 
@@ -1547,7 +1562,21 @@ HerderImpl::startProposalPrevalidation(
         // this state, instead of when the ledger has closed.
         if (mApp.getConfig().EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT)
         {
-            prepareEarlyCompletion(std::move(state));
+            // Once the ledger has externalized with the executed value, and
+            // not before: until then this thread has the ledger's consensus
+            // to run, and the state may not be the ledger's.
+            if (mLastExternalized &&
+                mLastExternalized->first == state->mLedgerSeq)
+            {
+                if (mLastExternalized->second == state->mValue)
+                {
+                    prepareEarlyCompletion(std::move(state));
+                }
+            }
+            else
+            {
+                mExecutedForEarlyCompletion = std::move(state);
+            }
         }
         return;
     }
@@ -3579,6 +3608,14 @@ HerderImpl::earlyTxSetStartDelay() const
         // Nothing measured yet: start at once.
         return milliseconds::zero();
     }
+    if (mApp.getConfig().EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT)
+    {
+        // The selection is needed when the ledger has been executed and has
+        // externalized, a commit earlier than the build that the delay
+        // below is aimed at; what arrives after it is added then, by the
+        // top-up.
+        return milliseconds::zero();
+    }
     // The earlier of what the build did lately and what it did last time,
     // less a selection that takes as long as the slower of the two, with a
     // quarter to spare, and 30 ms for the hand-over.
@@ -3822,59 +3859,83 @@ HerderImpl::prepareEarlyCompletion(
     auto mark = [&](char const* name) {
         metrics.NewMeter({"herder", "txset", name}, "txset").Mark();
     };
-    // (The caller has checked that the state is of the ledger and the value
-    // the selection was planned for, that the value has no upgrades and that
-    // the ledger applied its set.)
-    auto const job = mEarlyTxSet;
-    if (!job || !job->mDone.load() || mTxSetSelfCheckFailed ||
+    // The selection must (still) be the one planned for the ledger after the
+    // executed one, closing with the executed value.
+    if (!state || state->mTxSetSkipped || !state->mValue.upgrades.empty() ||
+        !mEarlyTxSetPlan || !mEarlyTxSetPlan->planned ||
+        mEarlyTxSetPlan->slotIndex != state->mLedgerSeq ||
+        !(mEarlyTxSetPlan->stellarValue == state->mValue) ||
+        mTxSetSelfCheckFailed ||
         buildsLegacyTxSet(state->mHeader->ledgerVersion) ||
         !state->mPreviousLedger->hasSorobanConfig())
     {
-        // Nothing to complete yet: completeEarlyTxSet does it at the close,
-        // if the selection is there by then.
         return;
     }
-    // Whether the ledger has externalized by now, and with which value.
-    bool const externalized =
-        mLastExternalized && mLastExternalized->first == state->mLedgerSeq;
-    if (externalized && !(mLastExternalized->second == state->mValue))
+    auto const job = mEarlyTxSet;
+    if (!job || !job->mDone.load())
     {
-        // Not with the value that was executed: nothing to build on.
+        // completeEarlyTxSet does it at the close, if the selection is there
+        // by then.
+        mark("early-prepare-not-ready");
         return;
     }
-    // The validation below may use the batch executor, which runs one batch
-    // at a time, if the apply thread does not use it meanwhile. The apply
-    // thread uses it to execute a ledger, not to commit one. It is not
-    // executing now (this is called when a speculative execution has
-    // finished). If the ledger has externalized with the executed value, all
-    // the apply thread has left to do is the commit. If it has not
-    // externalized, nothing is handed to the apply thread before this
-    // function returns: that is done by this thread. In any other case (a
-    // ledger being applied that is not this one) the validation stays on
-    // this thread.
-    size_t const validationTasks =
-        (externalized || !mLedgerManager.isApplying())
-            ? mApp.getBatchExecutor().preferredTaskCount()
-            : 1;
     // A set is selected within the limits of the ledger it goes on top of:
     // here, those the executed ledger's header shows and the configuration
     // of the ledger before (the value has no upgrades).
     TxSetBuildLimits limits;
     limits.mLclHeader = *state->mHeader;
     limits.mSorobanConfig = &state->mPreviousLedger->getSorobanConfig();
+    // The selection stays with the job: if nothing comes of this, it is
+    // completed at the close as without the setting.
     std::shared_ptr<EarlyTxSetSelection> early;
     {
         std::lock_guard<std::mutex> lock(job->mMutex);
-        if (!job->mSelection ||
-            job->mSelection->mLedgerSeq != state->mLedgerSeq + 1 ||
-            !limits.sameAs(job->mSelection->mLimits))
+        early = job->mSelection;
+    }
+    if (!early || early->mLedgerSeq != state->mLedgerSeq + 1 ||
+        !limits.sameAs(early->mLimits))
+    {
+        mark("early-prepare-not-ready");
+        return;
+    }
+    // The close time of the set is not known yet. A transaction whose
+    // validity depends on it (time bounds, a minimum sequence age) cannot be
+    // judged here, neither as valid nor as invalid: if the selection or a
+    // candidate of the top-up is one, nothing is prepared.
+    auto dependsOnCloseTime = [](TxFrameList const& txs) {
+        return std::any_of(
+            txs.begin(), txs.end(), [](TransactionFrameBasePtr const& tx) {
+                return txValidityDependsOnCloseTime(tx->getEnvelope());
+            });
+    };
+    bool closeTimeDependent = dependsOnCloseTime(early->mLeftovers);
+    for (auto const& phase : early->mPhases)
+    {
+        for (auto const& tx : phase)
         {
-            return;
+            closeTimeDependent =
+                closeTimeDependent ||
+                txValidityDependsOnCloseTime(tx->getEnvelope());
         }
-        early = std::move(job->mSelection);
+    }
+    if (closeTimeDependent)
+    {
+        mark("early-prepare-skipped");
+        return;
     }
     auto timer =
         metrics.NewTimer({"herder", "txset", "early-prepare"}).TimeScope();
+    // The validation runs on an executor of this function's own: the
+    // application's runs one batch at a time, and the apply thread may be
+    // using it (for a ledger queued behind the one it commits, or for
+    // another speculative execution).
+    if (!mEarlyCompletionExecutor)
+    {
+        mEarlyCompletionExecutor =
+            std::make_unique<BatchExecutor>(/*pinWorkers=*/false);
+        mEarlyCompletionExecutor->setPreferredTaskCount(
+            mApp.getConfig().BATCH_EXECUTOR_TASKS);
+    }
     // The executed ledger as the ledger the set goes on top of. Its hash is
     // not known yet and nothing below reads it.
     LedgerHeaderHistoryEntry executed;
@@ -3882,10 +3943,9 @@ HerderImpl::prepareEarlyCompletion(
     TxSetValidationContext ctx{
         executed, limits.mSorobanConfig,
         [state, &metrics]() { return state->makeView(metrics); },
-        validationTasks};
-    // The close time of the set is not known either. It only matters to
-    // transactions whose validity depends on it, and a completion that holds
-    // one is not prepared (below).
+        mEarlyCompletionExecutor->preferredTaskCount()};
+    ctx.mExecutor = mEarlyCompletionExecutor.get();
+    // (Any close time will do for transactions that do not depend on it.)
     auto const closeTimeOffset = getConsensusTime(state->mValue)
                                      .next(state->mHeader->ledgerVersion)
                                      .toApplyTime() -
@@ -3895,18 +3955,22 @@ HerderImpl::prepareEarlyCompletion(
     prepared.limits = limits;
     prepared.selectedAt = early->mSelectedAt;
     prepared.invalidTxPhases.resize(early->mPhases.size());
-    auto seen = std::move(early->mSeen);
+    auto seen = early->mSeen;
     bool leftoversGiven = false;
     // The executed ledger's transactions are still in the mempool: a pull
     // looks past that many more.
     size_t const stillInMempool = state->mTxHashes->size();
     TxSetCandidateSource const moreCandidates =
         [&]() -> std::optional<TxSetCandidateBatch> {
+        if (closeTimeDependent)
+        {
+            return std::nullopt;
+        }
         if (!leftoversGiven)
         {
             leftoversGiven = true;
             return std::make_optional(
-                TxSetCandidateBatch{std::move(early->mLeftovers), false});
+                TxSetCandidateBatch{early->mLeftovers, false});
         }
         if (prepared.mempoolExhausted || prepared.pulls >= MAX_TX_SET_PULLS)
         {
@@ -3922,31 +3986,22 @@ HerderImpl::prepareEarlyCompletion(
                                                   tx->getFullHash()) != 0;
                                    }),
                     fresh.end());
+        if (dependsOnCloseTime(fresh))
+        {
+            closeTimeDependent = true;
+            return std::nullopt;
+        }
         ++prepared.pulls;
         prepared.mempoolExhausted = !full;
         return std::make_optional(TxSetCandidateBatch{std::move(fresh), true});
     };
+    std::vector<TxSetPhaseFrame> phases;
     try
     {
-        auto const phases = TxSetBuilder::completeSelection(
+        phases = TxSetBuilder::completeSelection(
             early->mPhases, early->mHadTxNotFittingLane, moreCandidates, mApp,
             limits, ctx, closeTimeOffset, prepared.invalidTxPhases,
             prepared.stats, early->mSelectionSeed);
-        for (auto const& phase : phases)
-        {
-            for (auto const& tx : phase)
-            {
-                if (txValidityDependsOnCloseTime(tx->getEnvelope()))
-                {
-                    // Validated for a close time that may not be the set's:
-                    // the set is built when the ledger has closed.
-                    mark("early-prepare-skipped");
-                    return;
-                }
-            }
-        }
-        prepared.selection =
-            TxSetBuilder::prepareSelection(phases, mApp, ctx, closeTimeOffset);
     }
     catch (std::exception const& e)
     {
@@ -3955,6 +4010,30 @@ HerderImpl::prepareEarlyCompletion(
                      "of ledger {} failed: {}",
                      state->mLedgerSeq + 1, state->mLedgerSeq, e.what());
         mark("early-prepare-failed");
+        return;
+    }
+    if (closeTimeDependent)
+    {
+        mark("early-prepare-skipped");
+        return;
+    }
+    try
+    {
+        prepared.selection =
+            TxSetBuilder::prepareSelection(phases, mApp, ctx, closeTimeOffset);
+    }
+    catch (std::exception const& e)
+    {
+        // As when the completion at the close makes something that is not a
+        // valid set: nothing of it is proposed, and from now on this node
+        // builds and checks every set in line.
+        CLOG_ERROR(Herder,
+                   "The TX set completed for ledger {} during the commit of "
+                   "ledger {} is not valid: {}",
+                   state->mLedgerSeq + 1, state->mLedgerSeq, e.what());
+        CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
+        mark("early-failed");
+        mTxSetSelfCheckFailed = true;
         return;
     }
     mark("early-prepared");
@@ -3977,6 +4056,13 @@ HerderImpl::completeEarlyTxSet(uint32_t ledgerSeq, ConsensusTime closeTime,
     stopEarlyTxSetSelection();
     if (!plan || !plan->planned || mLedgerManager.isApplying())
     {
+        if (prepared)
+        {
+            metrics
+                .NewMeter({"herder", "txset", "early-prepared-discarded"},
+                          "txset")
+                .Mark();
+        }
         return std::nullopt;
     }
     auto mark = [&](char const* name) {

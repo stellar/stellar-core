@@ -2267,7 +2267,8 @@ TEST_CASE("the next set is completed while the ledger before is committed",
     auto closingA = paymentWithSeq(app, a, aSeq + 1);
     auto nextA = paymentWithSeq(app, a, aSeq + 2);
     auto plainB = paymentWithSeq(app, b, b.getLastSequenceNumber() + 1);
-    // Arrives after the selection and before the ledger is executed.
+    // Arrives after the selection, before the ledger has been executed and
+    // has externalized.
     auto lateC = paymentWithSeq(app, c, c.getLastSequenceNumber() + 1);
     // Arrives while the ledger is committed.
     auto laterD = paymentWithSeq(app, d, d.getLastSequenceNumber() + 1);
@@ -2276,6 +2277,7 @@ TEST_CASE("the next set is completed while the ledger before is committed",
     auto const preparedBefore = meterNow("early-prepared");
     auto const usedBefore = meterNow("early-prepared-used");
     auto const discardedBefore = meterNow("early-prepared-discarded");
+    auto const skippedBefore = meterNow("early-prepare-skipped");
     auto const completedBefore = meterNow("early-completed");
     auto const passedBefore = meterNow("self-check-passed");
     auto setting = [&](bool on) {
@@ -2284,14 +2286,16 @@ TEST_CASE("the next set is completed while the ledger before is committed",
     };
     // The node votes for `closing`, selects the next set, and executes
     // `closing`; what its execution left goes to the herder.
-    auto selectAndExecute = [&]() {
-        f.mMempool = {closingA, nextA, plainB};
-        f.selectEarly(closing);
-        f.mMempool = {closingA, nextA, plainB, lateC};
-        auto state = f.speculate(closing, /*prevalidate=*/true);
-        REQUIRE(state);
-        REQUIRE(!state->mTxSetSkipped);
-    };
+    auto selectAndExecute =
+        [&](std::vector<TransactionFrameBasePtr> more = {}) {
+            f.mMempool = {closingA, nextA, plainB};
+            f.mMempool.insert(f.mMempool.end(), more.begin(), more.end());
+            f.selectEarly(closing);
+            f.mMempool.push_back(lateC);
+            auto state = f.speculate(closing, /*prevalidate=*/true);
+            REQUIRE(state);
+            REQUIRE(!state->mTxSetSkipped);
+        };
     auto hashesOf = [](std::vector<TransactionFrameBasePtr> const& txs) {
         std::set<Hash> res;
         for (auto const& tx : txs)
@@ -2300,42 +2304,53 @@ TEST_CASE("the next set is completed while the ledger before is committed",
         }
         return res;
     };
+    auto seqInLedger = [&](TestAccount& acc) {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        return stellar::loadAccount(ltx, acc.getPublicKey())
+            .current()
+            .data.account()
+            .seqNum;
+    };
+    // The set as written, on the ledger that closed.
+    auto checkBuilt = [&](auto const& built,
+                          std::vector<TransactionFrameBasePtr> const& txs) {
+        REQUIRE(built.second);
+        REQUIRE(txHashes(built.second) == hashesOf(txs));
+        REQUIRE(built.first->previousLedgerHash() ==
+                f.lm().getLastClosedLedgerHeader().hash);
+        REQUIRE(built.second->checkValid(app, 0, 0));
+        REQUIRE(built.first->getContentsHash() ==
+                built.second->getContentsHash());
+        // The XDR that was written before the hash was known reads back as
+        // the same set.
+        auto readBack =
+            TxSetXDRFrame::makeFromWire(built.first->getGeneralizedXDR())
+                ->prepareForApply(app,
+                                  f.lm().getLastClosedLedgerHeader().header);
+        REQUIRE(readBack);
+        REQUIRE(txHashes(readBack) == txHashes(built.second));
+    };
 
-    SECTION("with the setting")
+    SECTION("executed first, then externalized")
     {
         setting(true);
         selectAndExecute();
-        // Completed on the executed state, before the ledger has closed.
-        REQUIRE(meterNow("early-prepared") == preparedBefore + 1);
-        REQUIRE(f.lm().getLastClosedLedgerNum() + 1 == f.nextSeq());
+        // Not before the ledger has externalized: until then the node has
+        // the ledger's consensus to run.
+        REQUIRE(meterNow("early-prepared") == preparedBefore);
 
-        SECTION("the ledger closes with the value that was executed")
+        SECTION("with the value that was executed")
         {
-            f.mMempool = {closingA, nextA, plainB, lateC, laterD};
             f.externalize(closing);
+            // Completed when it externalized; what comes after that waits
+            // for the next set.
+            REQUIRE(meterNow("early-prepared") == preparedBefore + 1);
             f.mMempool = {nextA, plainB, lateC, laterD};
             auto const seq = f.nextSeq();
             auto built = Access::build(herder, seq, f.nextCloseTime());
-            REQUIRE(built.second);
             REQUIRE(meterNow("early-prepared-used") == usedBefore + 1);
             REQUIRE(meterNow("early-completed") == completedBefore + 1);
-            // What was there when the ledger had been executed, and not
-            // what came during its commit.
-            REQUIRE(txHashes(built.second) == hashesOf({nextA, plainB, lateC}));
-            // On top of the ledger that closed, and valid there.
-            REQUIRE(built.first->previousLedgerHash() ==
-                    f.lm().getLastClosedLedgerHeader().hash);
-            REQUIRE(built.second->checkValid(app, 0, 0));
-            REQUIRE(built.first->getContentsHash() ==
-                    built.second->getContentsHash());
-            // The XDR that was written before the hash was known reads back
-            // as the same set.
-            auto readBack =
-                TxSetXDRFrame::makeFromWire(built.first->getGeneralizedXDR())
-                    ->prepareForApply(
-                        app, f.lm().getLastClosedLedgerHeader().header);
-            REQUIRE(readBack);
-            REQUIRE(txHashes(readBack) == txHashes(built.second));
+            checkBuilt(built, {nextA, plainB, lateC});
             f.crankUntil([&]() {
                 return meterNow("self-check-passed") == passedBefore + 1;
             });
@@ -2343,45 +2358,99 @@ TEST_CASE("the next set is completed while the ledger before is committed",
             // And it applies.
             f.externalize(built.first);
             REQUIRE(f.lm().getLastClosedLedgerNum() == seq);
-            auto seqInLedger = [&](TestAccount& acc) {
-                LedgerTxn ltx(app.getLedgerTxnRoot());
-                return stellar::loadAccount(ltx, acc.getPublicKey())
-                    .current()
-                    .data.account()
-                    .seqNum;
-            };
             REQUIRE(seqInLedger(a) == aSeq + 2);
             REQUIRE(seqInLedger(c) == lateC->getSeqNum());
             REQUIRE(seqInLedger(d) == laterD->getSeqNum() - 1);
         }
-        SECTION("the ledger closes with another value")
+        SECTION("with another value")
         {
             auto other = makeUnvalidatedTxSet(app, {closingA, plainB});
-            f.mMempool = {closingA, nextA, plainB, lateC};
             f.externalize(other);
-            REQUIRE(meterNow("early-prepared-discarded") ==
-                    discardedBefore + 1);
+            // Nothing was prepared, and nothing is used.
+            REQUIRE(meterNow("early-prepared") == preparedBefore);
             f.mMempool = {nextA, lateC};
             auto built = Access::build(herder, f.nextSeq(), f.nextCloseTime());
-            REQUIRE(built.second);
             REQUIRE(meterNow("early-prepared-used") == usedBefore);
-            REQUIRE(txHashes(built.second) == hashesOf({nextA, lateC}));
-            REQUIRE(built.second->checkValid(app, 0, 0));
+            REQUIRE(meterNow("early-prepared-discarded") == discardedBefore);
+            checkBuilt(built, {nextA, lateC});
+        }
+    }
+    SECTION("externalized first, then executed")
+    {
+        setting(true);
+        f.mMempool = {closingA, nextA, plainB};
+        f.selectEarly(closing);
+        f.mMempool.push_back(lateC);
+        // The node votes for the value and starts executing it; the value
+        // externalizes before the execution's result is taken.
+        auto const value = f.valueFor(closing);
+        auto const seq = f.nextSeq();
+        Access::setVotedValue(herder, seq, value);
+        f.lm().startSpeculativeApply(
+            LedgerCloseData(seq, closing, value),
+            [&](std::shared_ptr<ExecutedLedgerState const> state) {
+                Access::start(herder, state);
+            });
+        herder.getHerderSCPDriver().valueExternalized(
+            seq, xdr::xdr_to_opaque(value));
+        REQUIRE(meterNow("early-prepared") == preparedBefore);
+        f.crankUntil([&]() { return f.lm().getLastClosedLedgerNum() == seq; });
+        REQUIRE(meterNow("early-prepared") == preparedBefore + 1);
+        f.mMempool = {nextA, plainB, lateC, laterD};
+        auto built = Access::build(herder, f.nextSeq(), f.nextCloseTime());
+        REQUIRE(meterNow("early-prepared-used") == usedBefore + 1);
+        checkBuilt(built, {nextA, plainB, lateC});
+    }
+    SECTION("a transaction whose validity depends on the close time")
+    {
+        setting(true);
+        PreconditionsV2 cond;
+        cond.timeBounds.activate().maxTime =
+            f.lm().getLastClosedLedgerHeader().header.scpValue.closeTime + 3600;
+        auto boundedD = transactionWithV2Precondition(app, d, 1, 100, cond);
+        REQUIRE(txValidityDependsOnCloseTime(boundedD->getEnvelope()));
+
+        SECTION("in the selection")
+        {
+            selectAndExecute({boundedD});
+            f.externalize(closing);
+            // Not judged without the close time: nothing is prepared, and
+            // the selection is completed at the close as without the setting.
+            REQUIRE(meterNow("early-prepared") == preparedBefore);
+            REQUIRE(meterNow("early-prepare-skipped") == skippedBefore + 1);
+            f.mMempool = {nextA, plainB, boundedD, lateC};
+            auto built = Access::build(herder, f.nextSeq(), f.nextCloseTime());
+            REQUIRE(meterNow("early-prepared-used") == usedBefore);
+            REQUIRE(meterNow("early-completed") == completedBefore + 1);
+            checkBuilt(built, {nextA, plainB, boundedD, lateC});
+        }
+        SECTION("among what arrived later")
+        {
+            f.mMempool = {closingA, nextA, plainB};
+            f.selectEarly(closing);
+            f.mMempool.push_back(boundedD);
+            auto state = f.speculate(closing, /*prevalidate=*/true);
+            REQUIRE(state);
+            f.externalize(closing);
+            REQUIRE(meterNow("early-prepared") == preparedBefore);
+            REQUIRE(meterNow("early-prepare-skipped") == skippedBefore + 1);
+            f.mMempool = {nextA, plainB, boundedD};
+            auto built = Access::build(herder, f.nextSeq(), f.nextCloseTime());
+            REQUIRE(meterNow("early-prepared-used") == usedBefore);
+            REQUIRE(meterNow("early-completed") == completedBefore + 1);
+            checkBuilt(built, {nextA, plainB, boundedD});
         }
     }
     SECTION("without the setting the set is completed at the close")
     {
         setting(false);
         selectAndExecute();
-        REQUIRE(meterNow("early-prepared") == preparedBefore);
-        f.mMempool = {closingA, nextA, plainB, lateC, laterD};
         f.externalize(closing);
+        REQUIRE(meterNow("early-prepared") == preparedBefore);
         f.mMempool = {nextA, plainB, lateC, laterD};
         auto built = Access::build(herder, f.nextSeq(), f.nextCloseTime());
-        REQUIRE(built.second);
         REQUIRE(meterNow("early-prepared-used") == usedBefore);
         REQUIRE(meterNow("early-completed") == completedBefore + 1);
-        REQUIRE(txHashes(built.second) ==
-                hashesOf({nextA, plainB, lateC, laterD}));
+        checkBuilt(built, {nextA, plainB, lateC, laterD});
     }
 }

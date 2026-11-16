@@ -209,9 +209,9 @@ TxSetUtils::getInvalidTxListWithErrors(
     // runs one batch at a time, so a caller that may overlap with another
     // user of it (see `TxSetValidationContext::forLCL`) asks for one task,
     // which runs on the calling thread.
+    auto& executor = ctx.mExecutor ? *ctx.mExecutor : app.getBatchExecutor();
     auto taskCount = std::max<size_t>(
-        1,
-        std::min(app.getBatchExecutor().preferredTaskCount(), ctx.mMaxTasks));
+        1, std::min(executor.preferredTaskCount(), ctx.mMaxTasks));
 
     std::vector<std::unique_ptr<AbstractLedgerView const>> ledgerViews;
     ledgerViews.emplace_back(std::move(ledgerView));
@@ -229,7 +229,7 @@ TxSetUtils::getInvalidTxListWithErrors(
     TxValidationCache const* const cache = ctx.mValidationCache;
     std::vector<uint8_t> fromCache(cache ? txs.size() : 0, 0);
 
-    app.getBatchExecutor().executeBatchOverRanges(
+    executor.executeBatchOverRanges(
         txs.size(), taskCount,
         [&appConnector, &txs, &ledgerViews, &txValidationResult, cache,
          &fromCache, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,

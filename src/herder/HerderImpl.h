@@ -14,6 +14,7 @@
 #include "herder/Upgrades.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "overlay/NetworkConstants.h"
+#include "util/BatchExecutor.h"
 #include "util/Timer.h"
 #include "util/UnorderedMap.h"
 #include "util/XDROperators.h"
@@ -621,8 +622,9 @@ class HerderImpl : public Herder
     // the value the selection was made for, this node validates and tops up
     // the selection on the executed state (see ExecutedLedgerState), checks
     // its structure and writes its XDR with an empty previous ledger hash,
-    // on the main thread while the apply thread commits N. When N has
-    // closed with that value, completeEarlyTxSet puts the hash in and hands
+    // on the main thread while the apply thread commits N (when N has
+    // externalized with that value, whichever of the two comes last). When N
+    // has closed with that value, completeEarlyTxSet puts the hash in and hands
     // the set over. If N closes with another value, with an upgrade, or the
     // limits of a set changed, what was prepared is dropped and the set is
     // built as without an early selection.
@@ -640,6 +642,12 @@ class HerderImpl : public Herder
         std::chrono::steady_clock::time_point selectedAt;
     };
     std::optional<PreparedEarlyCompletion> mPreparedEarlyCompletion;
+    // The executed state of a ledger that had not externalized when its
+    // execution finished: the completion is prepared when it externalizes
+    // with that value (valueExternalized).
+    std::shared_ptr<ExecutedLedgerState const> mExecutedForEarlyCompletion;
+    // What the preparation's validation runs on (see prepareEarlyCompletion).
+    std::unique_ptr<BatchExecutor> mEarlyCompletionExecutor;
     void
     prepareEarlyCompletion(std::shared_ptr<ExecutedLedgerState const> state);
 
