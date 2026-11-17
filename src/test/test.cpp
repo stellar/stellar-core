@@ -847,6 +847,17 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.NETWORK_PASSPHRASE = "(V) (;,,;) (V)";
 
+        // STELLAR_TEST_SHARDED_TOP_BUCKET=N runs every test that takes its
+        // config from here with level 0 of the live bucket list written as
+        // shards under the commutative hash (see ShardedTopBucket). Tests
+        // that expect the SHA-256 of a level-0 bucket's file fail with it;
+        // everything else is expected to pass.
+        if (auto const* shards = getenv("STELLAR_TEST_SHARDED_TOP_BUCKET"))
+        {
+            thisConfig.EXPERIMENTAL_SHARDED_TOP_BUCKET =
+                static_cast<uint32_t>(std::stoul(shards));
+        }
+
         std::ostringstream dbname;
         switch (mode)
         {

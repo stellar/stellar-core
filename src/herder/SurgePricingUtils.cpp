@@ -146,13 +146,17 @@ std::vector<TransactionFrameBasePtr>
 SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     std::vector<TransactionFrameBasePtr> const& txs,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    std::optional<size_t> seed)
 {
     ZoneScoped;
 
-    SurgePricingPriorityQueue queue(
-        /* isHighestPriority */ true, laneConfig,
-        stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+    size_t const tieBreakSeed =
+        seed ? *seed
+             : stellar::rand_uniform<size_t>(
+                   0, std::numeric_limits<size_t>::max());
+    SurgePricingPriorityQueue queue(/* isHighestPriority */ true, laneConfig,
+                                    tieBreakSeed);
 
     bool allFit = true;
     auto res = queue.countTxsResources(txs, ledgerVersion);

@@ -4114,5 +4114,171 @@ TEST_CASE("received tx set processing costs", "[txset][.][benchmark]")
     }
 }
 
+TEST_CASE("a parallel phase is rebuilt from wire the same by one task or many",
+          "[txset]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+    auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
+
+    // 3 stages of 1, 4 and 7 clusters, of 1 to 40 transactions each.
+    std::vector<std::vector<size_t>> const shape{
+        {5}, {1, 40, 3, 17}, {8, 8, 1, 2, 30, 4, 9}};
+    int accountIndex = 0;
+    auto makeTx = [&](uint32_t fee) {
+        auto account = root->create(
+            "wire account " + std::to_string(accountIndex++), minBalance * 100);
+        return transactionFromOperations(
+            *app, account.getSecretKey(), account.getLastSequenceNumber() + 1,
+            {payment(root->getPublicKey(), 1)}, fee);
+    };
+    TxStageFrameList stages;
+    for (auto const& stageShape : shape)
+    {
+        auto& stage = stages.emplace_back();
+        for (auto clusterSize : stageShape)
+        {
+            auto& cluster = stage.emplace_back();
+            for (size_t i = 0; i < clusterSize; ++i)
+            {
+                cluster.emplace_back(makeTx(1000));
+            }
+            std::sort(cluster.begin(), cluster.end(),
+                      &TxSetUtils::hashTxSorter);
+        }
+        std::sort(stage.begin(), stage.end(), [](auto const& a, auto const& b) {
+            return TxSetUtils::hashTxSorter(a.front(), b.front());
+        });
+    }
+    std::sort(stages.begin(), stages.end(), [](auto const& a, auto const& b) {
+        return TxSetUtils::hashTxSorter(a.front().front(), b.front().front());
+    });
+    auto toXDR = [](TxStageFrameList const& from) {
+        TransactionPhase phase(1);
+        phase.parallelTxsComponent().baseFee.activate() = 100;
+        for (auto const& stage : from)
+        {
+            auto& xdrStage =
+                phase.parallelTxsComponent().executionStages.emplace_back();
+            for (auto const& cluster : stage)
+            {
+                auto& xdrCluster = xdrStage.emplace_back();
+                for (auto const& tx : cluster)
+                {
+                    xdrCluster.emplace_back(tx->getEnvelope());
+                }
+            }
+        }
+        return phase;
+    };
+    auto hashes = [](TxSetPhaseFrame const& phase) {
+        std::vector<std::vector<std::vector<Hash>>> res;
+        for (auto const& stage : phase.getParallelStages())
+        {
+            auto& stageHashes = res.emplace_back();
+            for (auto const& cluster : stage)
+            {
+                auto& clusterHashes = stageHashes.emplace_back();
+                for (auto const& tx : cluster)
+                {
+                    clusterHashes.emplace_back(tx->getFullHash());
+                }
+            }
+        }
+        return res;
+    };
+    auto& executor = app->getBatchExecutor();
+    auto parse = [&](TransactionPhase const& phase, size_t tasks) {
+        executor.setPreferredTaskCountForTesting(std::max<size_t>(1, tasks));
+        return TxSetPhaseFrame::makeFromWireForTesting(
+            TxSetPhase::SOROBAN, app->getNetworkID(), phase,
+            tasks > 1 ? &executor : nullptr, tasks);
+    };
+
+    auto const good = toXDR(stages);
+    auto const serial = parse(good, 1);
+    REQUIRE(serial);
+    REQUIRE(serial->isParallel());
+    auto const expected = hashes(*serial);
+    REQUIRE(expected.size() == shape.size());
+    for (size_t tasks : {2, 3, 5, 12, 16})
+    {
+        INFO("tasks " << tasks);
+        auto const parallel = parse(good, tasks);
+        REQUIRE(parallel);
+        REQUIRE(hashes(*parallel) == expected);
+        for (auto const& stage : parallel->getParallelStages())
+        {
+            for (auto const& cluster : stage)
+            {
+                for (auto const& tx : cluster)
+                {
+                    REQUIRE(parallel->getInclusionFeeMap().at(tx) ==
+                            serial->getInclusionFeeMap().begin()->second);
+                }
+            }
+        }
+    }
+
+    // (The stages were sorted by hash: find the one with the most clusters.)
+    size_t wide = 0;
+    for (size_t i = 0; i < stages.size(); ++i)
+    {
+        if (stages[i].size() > stages[wide].size())
+        {
+            wide = i;
+        }
+    }
+    REQUIRE(stages[wide].size() >= 3);
+
+    // What one task refuses, many refuse.
+    auto refusedByAll = [&](TxStageFrameList const& bad) {
+        auto const phase = toXDR(bad);
+        for (size_t tasks : {1, 2, 5, 16})
+        {
+            INFO("tasks " << tasks);
+            REQUIRE(!parse(phase, tasks));
+        }
+    };
+    {
+        INFO("a cluster out of order, the last of the set");
+        auto bad = stages;
+        auto& cluster = bad.back().back();
+        if (cluster.size() < 2)
+        {
+            cluster = bad.back().front();
+        }
+        REQUIRE(cluster.size() >= 2);
+        std::swap(cluster.front(), cluster.back());
+        refusedByAll(bad);
+    }
+    {
+        INFO("a transaction without a fee, in the middle of the set");
+        auto bad = stages;
+        // (The fee is zeroed in the envelope: the builder of test
+        // transactions replaces a zero fee by a default.)
+        auto env = bad[wide][2].front()->getEnvelope();
+        env.v1().tx.fee = 0;
+        bad[wide][2].front() = TransactionFrameBase::makeTransactionFromWire(
+            app->getNetworkID(), env);
+        REQUIRE(bad[wide][2].front()->getInclusionFee() <= 0);
+        refusedByAll(bad);
+    }
+    {
+        INFO("the clusters of a stage out of order");
+        auto bad = stages;
+        std::swap(bad[wide].front(), bad[wide].back());
+        refusedByAll(bad);
+    }
+    {
+        INFO("the stages out of order");
+        auto bad = stages;
+        std::swap(bad.front(), bad.back());
+        refusedByAll(bad);
+    }
+}
+
 } // namespace
 } // namespace stellar

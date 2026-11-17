@@ -91,6 +91,15 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
 {
 }
 
+LiveBucketIndex::LiveBucketIndex(
+    BucketManager& bm, std::unique_ptr<InMemoryIndex const> inMemoryIndex)
+    : mInMemoryIndex(std::move(inMemoryIndex))
+    , mCacheHitMeter(bm.getCacheHitMeter())
+    , mCacheMissMeter(bm.getCacheMissMeter())
+{
+    releaseAssertOrThrow(mInMemoryIndex);
+}
+
 void
 LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
                                       Config const& cfg) const
@@ -200,13 +209,27 @@ LiveBucketIndex::markBloomMiss() const
 std::shared_ptr<BucketEntry const>
 LiveBucketIndex::getCachedEntry(LedgerKey const& k) const
 {
-    if (shouldUseCache() && isCachedType(k))
+    if (mDiskIndex && isCachedType(k))
     {
-        SharedLockExclusive lock(mCacheMutex);
-        auto cachePtr = mCache->maybeGet(k);
+        // Lookups only read the cache (`peek` records nothing), so they run
+        // under the shared lock, side by side: ledger apply loads accounts
+        // from many threads at once, and each load asks the cache of every
+        // bucket on its way down the bucket list. Only inserting an entry
+        // takes the lock exclusively (maybeAddToCache). What a lookup gives
+        // up is the access time of the entry it hits: when the cache is
+        // smaller than the bucket's accounts, eviction goes by when an entry
+        // was put in, not by when it was last read.
+        SharedLockShared lock(mCacheMutex);
+        if (!mCache)
+        {
+            return nullptr;
+        }
+        auto cachePtr = mCache->peek(k);
         if (cachePtr)
         {
             mCacheHitMeter.Mark();
+            // The entry is shared; the copy of the pointer is taken under
+            // the lock.
             return *cachePtr;
         }
 

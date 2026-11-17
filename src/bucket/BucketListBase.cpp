@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "bucket/ShardedTopBucket.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
@@ -209,6 +210,22 @@ BucketLevel<LiveBucket>::prepareFirstLevel(Application& app,
         BucketListBase<LiveBucket>::shouldMergeWithEmptyCurr(currLedger, mLevel)
             ? std::make_shared<LiveBucket>()
             : mCurr;
+
+    // The ledger's entries as shards, written in parallel, under the
+    // commutative hash.
+    if (auto shardsPerGroup = app.getConfig().EXPERIMENTAL_SHARDED_TOP_BUCKET;
+        shardsPerGroup > 0)
+    {
+        if (!mShardedTop || mShardedTop->shardsPerGroup() != shardsPerGroup)
+        {
+            mShardedTop =
+                std::make_shared<ShardedTopBucket>(app, shardsPerGroup);
+        }
+        setNextInMemory(
+            mShardedTop->addBatch(app, currLedger, currLedgerProtocol, curr,
+                                  inputVectors..., countMergeEvents, doFsync));
+        return;
+    }
 
     // On startup, the current bucket may not be initialized in memory, so
     // fallback to normal prepare
@@ -764,6 +781,10 @@ BucketListBase<BucketT>::addBatchInternal(Application& app, uint32_t currLedger,
              * else spilled/added to it.
              */
 
+            // (With EXPERIMENTAL_SHARDED_TOP_BUCKET level 0's current bucket
+            // may still be on its way to disk: the merge that starts below
+            // reads its file.)
+            mLevels[i - 1].getCurr()->waitForFile();
             auto snap = mLevels[i - 1].snap();
             mLevels[i].commit();
             mLevels[i].prepare(app, currLedger, currLedgerProtocol, snap,

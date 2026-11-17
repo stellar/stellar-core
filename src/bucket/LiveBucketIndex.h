@@ -113,6 +113,11 @@ class LiveBucketIndex : public NonMovableOrCopyable
                     std::vector<BucketEntry> const& inMemoryState,
                     BucketMetadata const& metadata);
 
+    // An index that was built elsewhere (shard by shard, see
+    // ShardedTopBucket).
+    LiveBucketIndex(BucketManager& bm,
+                    std::unique_ptr<InMemoryIndex const> inMemoryIndex);
+
     // Initializes the random eviction cache if it has not already been
     // initialized. The random eviction cache itself has an entry limit, but we
     // expose a memory limit in the validator config. To account for this, we

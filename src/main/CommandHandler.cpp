@@ -1161,6 +1161,10 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParam<uint32_t>(map, "maxfeerate");
         cfg.skipLowFeeTxs =
             parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
+        // Ledgers to wait, after the last submission, for the load to be
+        // applied; 0 keeps the mode's default.
+        cfg.completionTimeoutLedgers =
+            parseOptionalParamOrDefault<uint32_t>(map, "completiontimeout", 0);
 
         if (cfg.isSoroban())
         {

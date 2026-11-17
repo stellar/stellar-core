@@ -9,6 +9,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 
 #include "ledger/LedgerHashUtils.h"
+#include <functional>
 #include <unordered_set>
 
 namespace stellar
@@ -149,10 +150,27 @@ class InMemoryBucketState : public NonMovableOrCopyable
     using InMemorySet = std::unordered_set<InternalInMemoryBucketEntry,
                                            InternalInMemoryBucketEntryHash>;
 
+    // Every entry, or, when the state is sharded (below), one entry of it:
+    // enough for `begin() != end()` to say whether the state holds anything,
+    // which is all the iterators are used for.
     InMemorySet mEntries;
+
+    // A sharded state: every entry is in the set of its key's shard, and a
+    // lookup goes to that set alone. The sets are built by as many threads
+    // (see ShardedTopBucket) and never change afterwards.
+    std::vector<InMemorySet> mShards;
+    std::function<size_t(LedgerKey const&)> mShardOf;
 
   public:
     using IterT = InMemorySet::const_iterator;
+    using SetT = InMemorySet;
+
+    // Adds an entry to a set that is being built for `setShards`.
+    static void insertInto(SetT& set, BucketEntry const& be);
+
+    // Makes this (empty) state a sharded one.
+    void setShards(std::vector<SetT>&& shards,
+                   std::function<size_t(LedgerKey const&)> shardOf);
 
     // Insert a LedgerEntry (INIT/LIVE) into the cache.
     void insert(BucketEntry const& be);
@@ -183,6 +201,20 @@ class InMemoryBucketState : public NonMovableOrCopyable
 #endif
 };
 
+// What one shard contributes to the index of a bucket that is built shard by
+// shard (see ShardedTopBucket): its entries, their counts, the pools its new
+// liquidity pool entries belong to, and how many bytes of the bucket file its
+// entries of each type take (their XDR and the 4 bytes in front of each).
+struct InMemoryIndexShard
+{
+    InMemoryBucketState::SetT entries;
+    BucketEntryCounters counters;
+    AssetPoolIDMap assetPoolIDMap;
+    std::map<LedgerEntryType, std::streamoff> typeBytes;
+
+    void add(BucketEntry const& be, size_t xdrSize);
+};
+
 class InMemoryIndex
 {
   private:
@@ -194,6 +226,14 @@ class InMemoryIndex
 
   public:
     using IterT = InMemoryBucketState::IterT;
+
+    // The index of the bucket whose entries are those of `shards`, which a
+    // lookup of key k finds in shard `shardOf(k)`. The type ranges are those
+    // of the bucket's file: the entries of all shards sorted by key behind
+    // the metadata entry.
+    InMemoryIndex(std::vector<InMemoryIndexShard>&& shards,
+                  std::function<size_t(LedgerKey const&)> shardOf,
+                  BucketMetadata const& metadata, bool hasMetaEntry);
 
     InMemoryIndex(BucketManager const& bm,
                   std::filesystem::path const& filename, SHA256* hasher);

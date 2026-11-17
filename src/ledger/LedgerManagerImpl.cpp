@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
+#include "bucket/ShardedTopBucket.h"
 #include "catchup/AssumeStateWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -619,6 +620,11 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
     releaseAssert(latestLedgerHeader.has_value());
 
+    if (mApp.getConfig().EXPERIMENTAL_SHARDED_TOP_BUCKET > 0)
+    {
+        ShardedTopBucket::prepareForRestart(mApp, has,
+                                            latestLedgerHeader->ledgerVersion);
+    }
     auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
     auto pubmissing =
         mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
@@ -1796,7 +1802,10 @@ LedgerManagerImpl::validateTxSetForApply(LedgerCloseData const& ledgerData,
     uint64_t sigCacheMisses = 0;
     PubKeyUtils::getVerifySigCacheCounts(sigCacheHits, sigCacheMisses);
     auto result = TxSetValidationResult::VALID;
-    auto applicable = txSet->prepareForApply(mApp, lcl.header);
+    // The set from its wire form, its clusters in parallel: this thread is
+    // the one user of the batch executor here, as for the validation below,
+    // and within the same bound.
+    auto applicable = txSet->prepareForApply(mApp, lcl.header, ctx->mMaxTasks);
     if (applicable)
     {
         auto const closeTimeOffset =
@@ -2975,6 +2984,15 @@ LedgerManagerImpl::getLCLView() const
     return std::make_unique<ImmutableLedgerView>(copyImmutableLedgerView());
 }
 
+ImmutableLedgerDataPtr
+LedgerManagerImpl::getLastClosedLedgerState() const
+{
+    releaseAssert(!mApp.threadIsType(Application::ThreadType::APPLY));
+    SharedLockShared guard(mLastClosedLedgerStateMutex);
+    releaseAssert(mLastClosedLedgerState);
+    return mLastClosedLedgerState;
+}
+
 ApplyLedgerView
 LedgerManagerImpl::copyApplyLedgerView() const
 {
@@ -3834,8 +3852,11 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         // because it is still being modified by the eviction flow.
         // `getAllTTLKeysWithoutSealing` must be called at the right time
         // _after_ all operations have been applied, but _before_ evictions.
+        // The keys this ledger modified are collected (a sorted set of all
+        // of them) only if the scan has candidates to hold against them.
         evictedState = mApp.getBucketManager().resolveBackgroundEvictionScan(
-            lclApplyView, ltx, ltx.getAllKeysWithoutSealing());
+            lclApplyView, ltx,
+            [&ltx]() { return ltx.getAllKeysWithoutSealing(); });
 
         if (protocolVersionStartsFrom(
                 initialLedgerVers,

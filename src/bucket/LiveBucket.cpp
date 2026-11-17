@@ -561,6 +561,16 @@ LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
 {
 }
 
+LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
+                       std::shared_ptr<LiveBucket::IndexT const>&& index,
+                       size_t fileSize, std::shared_future<void> fileReady,
+                       uint32_t bucketVersion)
+    : BucketBase(filename, hash, std::move(index), fileSize,
+                 std::move(fileReady))
+    , mKnownBucketVersion(bucketVersion)
+{
+}
+
 LiveBucket::LiveBucket() : BucketBase()
 {
     // Empty bucket is trivially stored in memory
@@ -575,6 +585,10 @@ LiveBucket::LiveBucket(std::unique_ptr<std::vector<BucketEntry>> entries)
 uint32_t
 LiveBucket::getBucketVersion() const
 {
+    if (mKnownBucketVersion)
+    {
+        return *mKnownBucketVersion;
+    }
     LiveBucketInputIterator it(shared_from_this());
     return it.getMetadata().ledgerVersion;
 }
@@ -585,6 +599,32 @@ LiveBucket::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
 {
     releaseAssert(mIndex);
     mIndex->maybeInitializeCache(totalBucketListAccountsSizeBytes, cfg);
+}
+
+std::vector<BucketEntry>
+LiveBucket::mergeEntriesInMemory(BucketManager& bucketManager,
+                                 uint32_t maxProtocolVersion,
+                                 std::vector<BucketEntry> const& oldEntries,
+                                 std::vector<BucketEntry> const& newEntries,
+                                 MergeCounters& mc)
+{
+    std::vector<BucketEntry> mergedEntries;
+    mergedEntries.reserve(oldEntries.size() + newEntries.size());
+
+    // First level never has shadows
+    std::vector<LiveBucketInputIterator> shadowIterators{};
+    bool keepShadowedLifecycleEntries = updateMergeCountersForProtocolVersion(
+        mc, maxProtocolVersion, shadowIterators);
+
+    MemoryMergeInput<LiveBucket> inputSource(oldEntries, newEntries);
+    std::function<void(BucketEntry const&)> putFunc =
+        [&mergedEntries](BucketEntry const& entry) {
+            mergedEntries.emplace_back(entry);
+        };
+
+    mergeInternal(bucketManager, inputSource, putFunc, maxProtocolVersion, mc,
+                  shadowIterators, keepShadowedLifecycleEntries);
+    return mergedEntries;
 }
 
 std::shared_ptr<LiveBucket>
@@ -602,9 +642,6 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
     auto const& oldEntries = oldBucket->getInMemoryEntries();
     auto const& newEntries = newBucket->getInMemoryEntries();
 
-    std::vector<BucketEntry> mergedEntries;
-    mergedEntries.reserve(oldEntries.size() + newEntries.size());
-
     // Prepare metadata for the merged bucket
     BucketMetadata meta;
     meta.ledgerVersion = maxProtocolVersion;
@@ -616,20 +653,9 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
         meta.ext.bucketListType() = BucketListType::LIVE;
     }
 
-    // First level never has shadows
-    std::vector<LiveBucketInputIterator> shadowIterators{};
     MergeCounters mc;
-    bool keepShadowedLifecycleEntries = updateMergeCountersForProtocolVersion(
-        mc, maxProtocolVersion, shadowIterators);
-
-    MemoryMergeInput<LiveBucket> inputSource(oldEntries, newEntries);
-    std::function<void(BucketEntry const&)> putFunc =
-        [&mergedEntries](BucketEntry const& entry) {
-            mergedEntries.emplace_back(entry);
-        };
-
-    mergeInternal(bucketManager, inputSource, putFunc, maxProtocolVersion, mc,
-                  shadowIterators, keepShadowedLifecycleEntries);
+    std::vector<BucketEntry> mergedEntries = mergeEntriesInMemory(
+        bucketManager, maxProtocolVersion, oldEntries, newEntries, mc);
 
     if (countMergeEvents)
     {

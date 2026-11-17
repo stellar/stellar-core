@@ -226,6 +226,15 @@ impl<P: Copy + Eq + Hash> TxRouter<P> {
         self.node_of_peer.get(peer)
     }
 
+    /// The connected peer of every validator that proved who it is. (If a
+    /// validator has two such peers, one of them.)
+    pub fn identified_peers(&self) -> HashMap<NodeId, P> {
+        self.node_of_peer
+            .iter()
+            .map(|(peer, node)| (*node, *peer))
+            .collect()
+    }
+
     /// The peer is gone. Whatever was sent to it may not have arrived, and a
     /// restarted node has an empty mempool: forget what it was sent.
     pub fn peer_disconnected(&mut self, peer: &P) {

@@ -252,7 +252,8 @@ BucketManager::getBucketDir() const
 
 BucketManager::~BucketManager()
 {
-
+    // The writer of level 0's file writes into the directories that go next.
+    waitForTopBucketFile();
     deleteTmpDirAndUnlockBucketDir();
 }
 
@@ -455,6 +456,30 @@ BucketManager::adoptFileAsBucket(
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
                                      mSharedLiveBuckets, mLiveBucketFutures,
                                      std::move(inMemoryState));
+}
+
+std::shared_ptr<LiveBucket>
+BucketManager::adoptLiveBucketAheadOfItsFile(
+    uint256 const& hash, std::shared_ptr<LiveBucketIndex const> index,
+    size_t fileSize, std::shared_future<void> fileReady, uint32_t bucketVersion,
+    bool& created)
+{
+    RecursiveMutexLocker lock(mBucketMutex);
+    std::shared_ptr<LiveBucket> b =
+        getBucketByHashInternal(hash, mSharedLiveBuckets);
+    if (b)
+    {
+        maybeSetIndex(b, std::move(index));
+        created = false;
+        return b;
+    }
+    created = true;
+    b = std::make_shared<LiveBucket>(bucketFilename(hash), hash,
+                                     std::move(index), fileSize,
+                                     std::move(fileReady), bucketVersion);
+    mSharedLiveBuckets.emplace(hash, b);
+    updateSharedBucketSize();
+    return b;
 }
 
 template <>
@@ -924,6 +949,19 @@ void
 BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
 {
     ZoneScoped;
+    // With EXPERIMENTAL_SHARDED_TOP_BUCKET level 0's current bucket may still
+    // be on its way to disk. Until it is there, a restart rebuilds it from
+    // the ledger's shard files and the bucket before it, which is no longer
+    // referenced: it must not be dropped yet. (Before taking the bucket
+    // mutex. The caller holds the ledger state mutex, on the main thread: a
+    // slow disk shows in this timer.)
+    if (mLiveBucketList && mConfig.EXPERIMENTAL_SHARDED_TOP_BUCKET > 0)
+    {
+        auto timer = mAppConnector.getMetrics()
+                         .NewTimer({"bucket", "top-shard", "gc-wait"})
+                         .TimeScope();
+        mLiveBucketList->getLevel(0).getCurr()->waitForFile();
+    }
     RecursiveMutexLocker lock(mBucketMutex);
     auto referenced = getAllReferencedBuckets(has, lock);
     auto blReferenced = getBucketListReferencedBuckets();
@@ -1182,6 +1220,15 @@ BucketManager::resolveBackgroundEvictionScan(
     ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
     LedgerKeySet const& modifiedKeys)
 {
+    return resolveBackgroundEvictionScan(
+        lclApplyView, ltx, [&modifiedKeys]() { return modifiedKeys; });
+}
+
+EvictedStateVectors
+BucketManager::resolveBackgroundEvictionScan(
+    ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
+    std::function<LedgerKeySet()> const& getModifiedKeys)
+{
     ZoneScoped;
     releaseAssert(mEvictionStatistics);
     auto timer = mBucketListEvictionMetrics.blockingTime.TimeScope();
@@ -1212,6 +1259,10 @@ BucketManager::resolveBackgroundEvictionScan(
     }
 
     auto& eligibleEntries = evictionCandidates->eligibleEntries;
+    // Without a candidate there is nothing to hold the modified keys
+    // against, and the set is not built.
+    LedgerKeySet const modifiedKeys =
+        eligibleEntries.empty() ? LedgerKeySet{} : getModifiedKeys();
 
     for (auto iter = eligibleEntries.begin(); iter != eligibleEntries.end();)
     {
@@ -1324,6 +1375,14 @@ BucketManager::checkForMissingBucketsFiles(HistoryArchiveState const& has)
     std::vector<std::string> result;
     std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result),
                  [&](std::string b) {
+                     // (A level-0 bucket made with
+                     // EXPERIMENTAL_SHARDED_TOP_BUCKET may still be on its
+                     // way to disk.)
+                     if (auto live =
+                             getBucketIfExists<LiveBucket>(hexToBin256(b)))
+                     {
+                         live->waitForFile();
+                     }
                      auto filename = bucketFilename(b);
                      return !isZero(hexToBin256(b)) && !fs::exists(filename);
                  });
@@ -1416,6 +1475,35 @@ void
 BucketManager::shutdown()
 {
     mIsShutdown = true;
+}
+
+void
+BucketManager::waitForTopBucketFile()
+{
+    // Every bucket made ahead of its file is in the map, whether or not it
+    // is still level 0's current bucket (a bucket list may have been assumed
+    // over it, or it belongs to a list of a test's own).
+    std::vector<std::shared_ptr<LiveBucket>> buckets;
+    {
+        RecursiveMutexLocker lock(mBucketMutex);
+        buckets.reserve(mSharedLiveBuckets.size());
+        for (auto const& [_, bucket] : mSharedLiveBuckets)
+        {
+            buckets.emplace_back(bucket);
+        }
+    }
+    for (auto const& bucket : buckets)
+    {
+        try
+        {
+            bucket->waitForFile();
+        }
+        catch (std::exception const& e)
+        {
+            CLOG_ERROR(Bucket, "The file of bucket {} was not written: {}",
+                       binToHex(bucket->getHash()), e.what());
+        }
+    }
 }
 
 bool

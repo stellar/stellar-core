@@ -540,8 +540,80 @@ class Config : public std::enable_shared_from_this<Config>
     // APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION on.
     bool EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY;
 
+    // The node that selected its next transaction set early (see
+    // EXPERIMENTAL_EARLY_TX_SET_SELECTION) completes it while the current
+    // ledger is committed instead of after it has closed: on the state the
+    // ledger's execution left, with everything of the set written but the
+    // hash of the ledger it goes on top of, which is put in when the ledger
+    // has closed. Transactions that arrive during the commit wait for the
+    // set after. Needs speculative ledger apply. Changes when a leader does
+    // its work, not what a valid set is.
+    bool EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT;
+
+    // The node that expects to lead the next ledger selects its transaction
+    // set while the current ledger is still in its ballot, from the current
+    // ledger's set and the last closed state, and completes it when the
+    // current ledger has closed: every selected transaction is validated
+    // against the closed ledger and the set is topped up from the mempool
+    // (see herder/EarlyTxSetSelection.h). Without it the set is built when
+    // the current ledger has closed. Only from
+    // APPLY_TIME_TX_SET_VALIDATION_PROTOCOL_VERSION on.
+    bool EXPERIMENTAL_EARLY_TX_SET_SELECTION;
+
+    // How much more than a transaction set can hold a leader pulls from the
+    // mempool for a build, in percent of the set's capacity. A build whose
+    // set is short after validation pulls again, so the margin only decides
+    // how often that happens.
+    uint32_t EXPERIMENTAL_TX_SET_PULL_MARGIN_PERCENT;
+
+    // How the round's leader gets its transaction set to the other nodes
+    // (experimental; see overlay/src/flood/txset_tree.rs):
+    //  "off"  - it writes the set to every peer (as before).
+    //  "star" - the same, with a header that says when it was sent, so that
+    //           the delivery can be measured like a tree's.
+    //  "hash" - down a spanning tree that every node derives from the nodes
+    //           of the leader schedule and the slot's seed: the leader writes
+    //           the set to its children only, and every node passes it on to
+    //           its own.
+    //  "rtt"  - down a tree the leader lays out by its round-trip times to
+    //           its peers; the order travels with the set.
+    //  "coded" - as erasure-coded pieces: the leader cuts the set into 16
+    //           pieces of which any 8 rebuild it (fewer in a small network),
+    //           signs the root of their Merkle tree and sends every piece
+    //           to its own relays; a node gets its pieces from as many
+    //           different senders, so up to half of them can fail or lie
+    //           without the node having to wait and ask.
+    // Every node of a network should use the same value: a node relays in
+    // "hash", "rtt" and "coded" only, and only what fits its own mode.
+    std::string EXPERIMENTAL_TX_SET_TREE;
+
+    // Children per node in that tree. 0 = the smallest number that reaches
+    // every node in two hops (9 for 90 nodes).
+    uint32_t EXPERIMENTAL_TX_SET_TREE_FANOUT;
+
+    // For tests and fault runs: the validators with the N smallest node IDs
+    // among the nodes of the leader schedule pass nothing on (tree frames or
+    // pieces). They still lead, receive and vote. 0 = nobody (default).
+    uint32_t EXPERIMENTAL_TX_SET_TREE_WITHHOLDERS_FOR_TESTING;
+
+    // EXPERIMENTAL_TX_SET_TREE as the overlay's mode byte.
+    uint8_t txSetTreeMode() const;
+
     // Allow downloading of transaction sets in parallel with SCP (experimental)
     bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
+
+    // Experimental: level 0 of the live bucket list is hashed with a
+    // commutative hash (LtHash16 over the bucket's records) instead of the
+    // SHA-256 of its file, and a ledger's entries are written as shards, in
+    // parallel; the bucket's file is written afterwards, off the path of the
+    // ledger close (see bucket/ShardedTopBucket.h). 0 = off. N > 0: N shards
+    // for contract data and code, N for TTL entries and N for all other
+    // entries.
+    //
+    // This changes the bucket list hash in the ledger header: every node of
+    // a network must have it on, or every node off. The number of shards is
+    // each node's own choice and changes no hash.
+    uint32_t EXPERIMENTAL_SHARDED_TOP_BUCKET;
 
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
