@@ -8,7 +8,9 @@ name: Soroban settings sync
 
 on:
   schedule:
-    - cron: '30 15 * * *'
+    # 09:10 UTC: about 1 am Pacific (1:10 PST, 2:10 PDT), a few minutes past the
+    # hour when GitHub's scheduled-run queue is busiest.
+    - cron: '10 9 * * *'
   workflow_dispatch:
 
 permissions:
