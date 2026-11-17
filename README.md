@@ -1,4 +1,4 @@
-# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only, next tx set selected during the previous ballot, the leader's tx set delivered as erasure-coded pieces, level 0 of the bucket list written as shards under a commutative hash (experimental branch)
+# stellar-core: leader schedule with terms, leader tx-set push, apply-time tx-set validation, transactions sent to the leaders only, next tx set selected during the previous ballot, the leader's tx set delivered as erasure-coded pieces, level 0 of the bucket list written as shards under a commutative hash, the leader's next tx set completed while the ledger before is committed (experimental branch)
 
 **This branch is an experiment. It is not production code and must not run on a real network.**
 The leader schedule and the tx-set push have no feature flag and no protocol gate, and the branch
@@ -211,14 +211,36 @@ construction) plus seven experiments:
    - A node that stops between a ledger's commit and the end of the bucket's file rebuilds the
      file at startup from the ledger's shard files.
 
-Unchanged by all eight: the ballot protocol's accept, confirm and commit rules. For a valid tx
+9. **The next tx set is completed while the ledger before is committed, and two serial steps
+   of apply are made cheap** (`EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT` for the first; the
+   other two are always on).
+   - *The leader's completion during the commit.* A node that selected its next set early
+     (experiment 6) completed it when the ledger before had closed: a validity pass on the
+     closed ledger, a top-up, a check of the selection and the set's XDR, 178 ms on the path
+     of the next ledger. Of the closed ledger that work needs the state, which is final when
+     the ledger has been executed, and the hash of its header, which comes out of the commit.
+     With the setting the node completes the selection on the state the execution left, once
+     the ledger has externalized with the executed value, on its main thread while the apply
+     thread commits; when the ledger has closed, it puts the hash in and hands the set over.
+     Transactions that arrive during the commit wait for the set after. Nothing is prepared
+     when a transaction's validity depends on the close time (time bounds, a minimum sequence
+     age).
+   - *The tx set from wire in parallel.* A node rebuilt a received set one transaction at a
+     time (a frame and a full hash each); the clusters of the Soroban phase are now rebuilt by
+     tasks of the batch executor when the set is validated at apply.
+   - *No key set for an eviction scan without candidates.* The commit built a sorted set of
+     every key the ledger modified, to hold eviction candidates against, before it was known
+     whether the scan had any.
+
+Unchanged by all nine: the ballot protocol's accept, confirm and commit rules. For a valid tx
 set, ledger state and meta are also unchanged; experiment 3 changes when a set is validated and
 executed, and what an invalid set does to the ledger; experiment 4 changes who leads; experiment
 5 changes which transactions reach a leader, and which submissions a node refuses; experiment 6
 changes which candidates a leader looks at and when it selects them, not the checks a set passes;
 experiment 7 changes which peers a set's bytes come from, not what a node does with a set;
 experiment 8 changes how level 0 of the bucket list is hashed (and so the bucket list hash in
-the header) and how it gets to disk, not what it holds.
+the header) and how it gets to disk, not what it holds; experiment 9 changes when a leader
+completes its set and which of the waiting transactions it holds, not what a valid set is.
 
 ## Performance results
 
@@ -750,6 +772,58 @@ measured):
 7. **More of the Byzantine picture on a network**: the tree under the same fault for a measured
    contrast, relays that send wrong pieces, a leader that withholds from a part of the network.
 
+### The next tx set completed during the commit, and a cheaper apply
+
+Runs of 2026-11-17 (experiment 9), with the fixture of experiment 8's run with shards: 90
+validators (m6id.8xlarge) in four regions, 800 ms target, 10,000 native-asset contract
+payments per second executed for real, meta off, 16 clusters, the tx set as coded pieces, no
+faulty nodes, level 0 as 8 shards per group. One package for the two runs of this experiment
+(commit `e691422bb`), which differ in `EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT` only; the
+first column is experiment 8's run, two days earlier, on this branch's base. One run each.
+Timers are means per ledger pooled over the 90 nodes between 150 s and 315 s of the load.
+
+| | Before (experiment 8) | Wire rebuild in parallel, no eviction key set | And the set completed during the commit |
+|---|---|---|---|
+| **Verdict** (p75 in [640, 960) ms, p99 at most 1,600 ms) | FAIL, 0 of 90 nodes | FAIL, 12 to 14 of 90 nodes | **PASS, 90 of 90 nodes** |
+| Window p75 / p99, median over nodes | 1,035 / 1,356 ms | 966 / 1,190 ms | **876 / 1,060 ms** |
+| Payments included and applied, of 3,600,000 | 3,600,000, 0 failed | 3,600,000, 0 failed | 3,600,000, 0 failed |
+| **Time between ledgers** | 1,002.6 ms | 924.1 ms | **833.2 ms** |
+| Payments per ledger | 9,988 (the cap) | 9,247 | 8,338 |
+| Tx set validation at apply | 162.8 ms, 16.3 us per payment | 124.9 ms, 13.5 us | 114.1 ms, 13.7 us |
+| Execution in all (validation included) | 490.5 ms, 49.1 us | 434.6 ms, 47.0 us | 398.6 ms, 47.8 us |
+| Commit | 161.5 ms, 16.2 us | 123.7 ms, 13.4 us | 113.2 ms, 13.6 us |
+| **The leader's work at the close** | 178.0 ms | 171.3 ms | **40.2 ms** |
+| The completion, during the commit | | | 172.3 ms |
+
+Every check other than the windows passed in all three runs. **This is the first run of the
+branch that holds the 800 ms target at 10,000 TPS with real apply.**
+
+- The two apply changes make a payment a sixth cheaper to validate and to commit. The network
+  goes from saturated (full ledgers, a second apart) to almost keeping up.
+- The completion during the commit takes 131 ms of serial work off the leader's path after
+  the close. The network settles at 833 ms, with ledgers that hold the load of 833 ms, and a
+  shorter cycle makes every ledger smaller and so cheaper again.
+- With the setting the leader's completion (172 ms, on its main thread from the moment the
+  ledger externalizes) is 60 ms longer than the commit beside it (113 ms): the leader now
+  takes a ledger's close 50 ms later than without the setting, while followers take it 28 ms
+  earlier. Two thirds of the completion is the top-up.
+
+Local measurements (a development machine with the CPU of the network's nodes):
+- `apply-load`, 10,000 payments per ledger, one per transaction, 16 clusters: ledger close
+  415 to 369 ms (-11%) with the two apply changes; with level 0 as shards 386 to 348 ms. Base
+  and change in turn, three rounds of 40 ledgers.
+- The hidden benchmark "early tx set completion costs": the leader's work at the close 74 to
+  13 ms; the completion during the commit 99 ms.
+
+**Where a ledger's apply goes** (the same `apply-load` run, before this experiment's changes,
+wall time per ledger; 413.5 ms in all): the tx set's validation 111 ms (rebuilding it from
+wire 21); fees and sequence numbers 33; the contract executions on 16 threads 52; the serial
+steps around them 83 (pre-apply 36, writing the changes into the ledger transaction 25,
+refunds 17, staging 5); the commit 120 (the level-0 add 71 without shards and 18 with; the key
+set for the eviction scan 23; the ledger transaction's commit 20). The contract execution is
+an eighth of apply; what this experiment does not touch is the serial per-transaction work on
+the apply thread, 111 ms.
+
 ### Level 0 of the bucket list as shards
 
 Runs of 2026-11-15 (experiment 8), with the fixture of the 10,000 TPS run of experiment 7: 90
@@ -1204,7 +1278,21 @@ validators with these differences:
 | Timers | The difference between the readings at 150 s and at 315 to 320 s into the load, over all nodes |
 | A ledger's cycle | From every node's log: the time between two consensus lines, the close after consensus of the ledger before, and the time from having a ledger's set to its consensus; ledgers of at least 9,990 payments |
 
+**The runs of experiment 9** (2026-11-17) use the fixture of experiment 8's run with shards:
+
+| | Experiment 9: 90 validators |
+|---|---|
+| Build | `e691422bb` for both runs, package `30.0.1-3700.e691422bbb.noble~perf.apply.serial.overhead~perftests`; the commit after it is this text |
+| Node settings | Those of experiment 8 with `--cfg EXPERIMENTAL_SHARDED_TOP_BUCKET=8`, and `--cfg EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT=true` or `=false` |
+| Offered load | 10,000 TPS (111 or 112 per validator; tx set cap 10,000), for 360 s |
+| Order of the runs | The setting on, then off, 22 minutes apart |
+| Timers | The difference between the readings at 150 s and at 315 s into the load, over all nodes |
+
 ### Limits of these numbers
+
+- Experiment 9: one run per column, and the first column is another day's run on another
+  package. With the two apply changes alone the p75 limit is missed by 6 ms on most nodes:
+  a second run could fall on either side.
 
 - Experiment 8: one run on each side. The size of the gain in the first 105 s is one
   observation; the level-0 add is measured on 90 nodes over 165 ledgers each. The window p99 is
@@ -1276,6 +1364,19 @@ The tx set as coded pieces and the spanning tree:
   looked into.
 
 ## Known limitations of the prototype
+
+The next tx set completed during the commit (experiment 9):
+- Nothing is prepared when the selection or a candidate has time bounds or a minimum sequence
+  age: such a transaction cannot be judged before the close time is known. The load of these
+  runs has none; traffic that carries `maxTime` gets today's completion at the close.
+  Preparing for a range of close times would lift this.
+- Transactions that arrive while a ledger is committed wait one set longer.
+- The completion blocks the leader's main thread for as long as it takes (172 ms at 10,000
+  TPS), now longer than the commit it runs beside.
+- No retry when the early selection is not ready at that moment: the set is then completed at
+  the close.
+- Not tested: limits that change between the completion and the close, a failing completion,
+  two speculative executions outstanding. No sanitizer run.
 
 Level 0 of the bucket list as shards (experiment 8):
 - A setting, not a protocol version: a node with it and a node without it compute different
