@@ -141,21 +141,31 @@ jobs:
     # Covers anything that stops a scheduled sync: the script refusing to guess
     # (e.g. isNonUpgradeableConfigSettingEntry moved, or testnet having a setting
     # the latest stellar-xdr doesn't know), RPC or download failures, or the PR
-    # step. Modeled on stellar/quickstart's notify job: hand-started runs are
-    # watched by whoever started them, and a cache entry keyed on the error
-    # posts each distinct failure once rather than every day until it's fixed.
+    # step. Posts with the org's Slack bot the way other stellar repos do
+    # (e.g. stellar/dashboard), so the bot must be a member of SLACK_CHANNEL.
+    # Like stellar/quickstart's notify job, hand-started runs are watched by
+    # whoever started them, and a cache entry keyed on the error posts each
+    # distinct failure once rather than every day until it's fixed.
     - name: Key the failure notice by its error
       id: notify_key
       if: failure() && github.event_name == 'schedule'
       continue-on-error: true
+      env:
+        SLACK_CHANNEL: alerts-core-team
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
         ERROR=$({ grep '^error: ' "$RUNNER_TEMP/errors.txt" 2>/dev/null || true; } | tail -1 | sed 's/^error: //')
+        # Built with jq so the error text can't break the message's JSON.
+        PAYLOAD=$(jq -nc --arg channel "$SLACK_CHANNEL" --arg error "$ERROR" --arg run_url "$RUN_URL" \
+          '{channel: $channel,
+            text: (":red_circle: Soroban settings sync failed; testnet_settings_upgrade.json may be out of date with testnet. <\($run_url)|run>"
+                   + (if $error != "" then "\n> \($error)" else "" end))}')
         {
-          echo "error<<EOF"
-          echo "$ERROR"
-          echo "EOF"
+          echo "payload=$PAYLOAD"
           echo "key=soroban-settings-sync-notify-$(printf '%s' "${ERROR:-unknown}" | sha256sum | cut -c1-16)"
         } >> "$GITHUB_OUTPUT"
+        mkdir -p .notify_cache
+        date -u +%Y-%m-%dT%H:%M:%SZ > .notify_cache/timestamp
 
     - name: Check whether this failure was already reported
       id: notify_cache
@@ -166,30 +176,21 @@ jobs:
         path: .notify_cache
         key: ${{ steps.notify_key.outputs.key }}
 
+    # errors: true makes a refused post (e.g. not_in_channel) fail this step, so
+    # it isn't recorded as reported below.
     - name: Notify Slack on failure
+      id: notify_slack
       if: failure() && github.event_name == 'schedule' && steps.notify_cache.outputs.cache-hit != 'true'
       continue-on-error: true
-      env:
-        slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-        error: ${{ steps.notify_key.outputs.error }}
-        run_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      run: |
-        if [ -z "$slack_webhook_url" ]
-        then
-          echo "SLACK_WEBHOOK_URL is not set; not notifying Slack"
-          exit 0
-        fi
-        payload="$(jq -n --arg error "$error" --arg run_url "$run_url" \
-          '{text: (":red_circle: Soroban settings sync failed; testnet_settings_upgrade.json may be out of date with testnet. <\($run_url)|run>"
-                   + (if $error != "" then "\n> \($error)" else "" end))}')"
-        curl -fsS --retry 3 -X POST "$slack_webhook_url" \
-          -H 'Content-Type: application/json' \
-          -d "$payload"
-        mkdir -p .notify_cache
-        date -u +%Y-%m-%dT%H:%M:%SZ > .notify_cache/timestamp
+      uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+      with:
+        method: chat.postMessage
+        token: ${{ secrets.SLACK_BOT_TOKEN }}
+        errors: true
+        payload: ${{ steps.notify_key.outputs.payload }}
 
     - name: Remember that this failure was reported
-      if: failure() && github.event_name == 'schedule' && steps.notify_cache.outputs.cache-hit != 'true' && hashFiles('.notify_cache/timestamp') != ''
+      if: failure() && github.event_name == 'schedule' && steps.notify_slack.outcome == 'success'
       continue-on-error: true
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
