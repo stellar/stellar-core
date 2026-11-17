@@ -1266,7 +1266,20 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         mExecutedForEarlyCompletion.reset();
         if (state->mLedgerSeq == slotIndex && state->mValue == value)
         {
-            prepareEarlyCompletion(std::move(state));
+            // Not from here: this is called from inside SCP, before the
+            // statement that says this node externalized has been sent, and
+            // the completion pulls the mempool and takes its time.
+            mApp.postOnMainThread(
+                [this, state = std::move(state)]() mutable {
+                    if (mApp.isStopping() || !mLastExternalized ||
+                        mLastExternalized->first != state->mLedgerSeq ||
+                        !(mLastExternalized->second == state->mValue))
+                    {
+                        return;
+                    }
+                    prepareEarlyCompletion(std::move(state));
+                },
+                "complete the next tx set on the executed state");
         }
     }
 }
@@ -3608,12 +3621,16 @@ HerderImpl::earlyTxSetStartDelay() const
         // Nothing measured yet: start at once.
         return milliseconds::zero();
     }
-    if (mApp.getConfig().EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT)
+    if (mApp.getConfig().EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT &&
+        mApp.getConfig().EXPERIMENTAL_SPECULATIVE_LEDGER_APPLY &&
+        mEarlyPrepareLikely)
     {
         // The selection is needed when the ledger has been executed and has
         // externalized, a commit earlier than the build that the delay
         // below is aimed at; what arrives after it is added then, by the
-        // top-up.
+        // top-up. Only while completions are being prepared: a selection
+        // that is completed at the close after all (a transaction with time
+        // bounds, say) is better made as late as the delay below makes it.
         return milliseconds::zero();
     }
     // The earlier of what the build did lately and what it did last time,
@@ -3877,6 +3894,7 @@ HerderImpl::prepareEarlyCompletion(
         // completeEarlyTxSet does it at the close, if the selection is there
         // by then.
         mark("early-prepare-not-ready");
+        mEarlyPrepareLikely = false;
         return;
     }
     // A set is selected within the limits of the ledger it goes on top of:
@@ -3896,6 +3914,7 @@ HerderImpl::prepareEarlyCompletion(
         !limits.sameAs(early->mLimits))
     {
         mark("early-prepare-not-ready");
+        mEarlyPrepareLikely = false;
         return;
     }
     // The close time of the set is not known yet. A transaction whose
@@ -3921,6 +3940,7 @@ HerderImpl::prepareEarlyCompletion(
     if (closeTimeDependent)
     {
         mark("early-prepare-skipped");
+        mEarlyPrepareLikely = false;
         return;
     }
     auto timer =
@@ -4010,11 +4030,13 @@ HerderImpl::prepareEarlyCompletion(
                      "of ledger {} failed: {}",
                      state->mLedgerSeq + 1, state->mLedgerSeq, e.what());
         mark("early-prepare-failed");
+        mEarlyPrepareLikely = false;
         return;
     }
     if (closeTimeDependent)
     {
         mark("early-prepare-skipped");
+        mEarlyPrepareLikely = false;
         return;
     }
     try
@@ -4037,6 +4059,7 @@ HerderImpl::prepareEarlyCompletion(
         return;
     }
     mark("early-prepared");
+    mEarlyPrepareLikely = true;
     mPreparedEarlyCompletion.emplace(std::move(prepared));
 }
 

@@ -648,6 +648,10 @@ class HerderImpl : public Herder
     std::shared_ptr<ExecutedLedgerState const> mExecutedForEarlyCompletion;
     // What the preparation's validation runs on (see prepareEarlyCompletion).
     std::unique_ptr<BatchExecutor> mEarlyCompletionExecutor;
+    // Whether the last attempt to complete a selection during the commit
+    // prepared one (true before the first). While it did, the early
+    // selection starts when the node votes (earlyTxSetStartDelay).
+    bool mEarlyPrepareLikely{true};
     void
     prepareEarlyCompletion(std::shared_ptr<ExecutedLedgerState const> state);
 

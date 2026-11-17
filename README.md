@@ -1282,7 +1282,7 @@ validators with these differences:
 
 | | Experiment 9: 90 validators |
 |---|---|
-| Build | `e691422bb` for both runs, package `30.0.1-3700.e691422bbb.noble~perf.apply.serial.overhead~perftests`; the commit after it is this text |
+| Build | `e691422bb` for both runs, package `30.0.1-3700.e691422bbb.noble~perf.apply.serial.overhead~perftests`. The commits after it were not on a network: this text, and fixes from a second review off the path the runs took (the completion is posted to the main thread instead of run inside SCP's externalize call when the execution finishes before the ledger externalizes; the early selection starts at the vote only while completions are being prepared) |
 | Node settings | Those of experiment 8 with `--cfg EXPERIMENTAL_SHARDED_TOP_BUCKET=8`, and `--cfg EXPERIMENTAL_COMPLETE_TX_SET_DURING_COMMIT=true` or `=false` |
 | Offered load | 10,000 TPS (111 or 112 per validator; tx set cap 10,000), for 360 s |
 | Order of the runs | The setting on, then off, 22 minutes apart |
