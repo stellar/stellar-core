@@ -12,7 +12,8 @@ instances**: at 48 validators (16 organizations) and 8,000 TPS, and at the goal 
 - **48 validators, 8,000 TPS:** with both experiments every window is on target (block time p75
   804-805 ms) and a node's overlay traffic is 6.2 MB/s. Without them the branch drifts and misses
   its second window (846, then 869 ms) at 21 MB/s.
-- **90 validators, 10,000 TPS:** not reached yet. With both experiments the first window is at 980
+- **90 validators, 10,000 TPS:** not reached with these two (it is with the ninth experiment,
+  below, and with real execution). With both experiments the first window is at 980
   ms (limit 960), a ledger every 0.90 s, 15.7 MB/s per node; with leader terms and pre-validation
   alone it is at 1,032 ms, 1.02 s per ledger and 43 MB/s.
 
@@ -43,13 +44,38 @@ the followers but the serial apply path: validation, execution and commit of a l
 0.86 s. Results, the comparison tables and the bottlenecks:
 [The leader's tx set as erasure-coded pieces](#the-leaders-tx-set-as-erasure-coded-pieces).
 
+**With level 0 of the bucket list written as shards under a commutative hash** (the eighth
+experiment, 2026-11-15, the same fixture at 10,000 TPS, one run on each side): the level-0 add
+of a ledger goes from 97.6 to 21.1 ms and the commit from 203 to 162 ms. The network stays
+saturated: full ledgers 1,009 and 1,004 ms apart, block time p75 1,059 and 1,035 ms, both runs
+outside the window. Results:
+[Level 0 of the bucket list as shards](#level-0-of-the-bucket-list-as-shards).
+
+**With the leader's next tx set completed while the ledger before is committed, and two serial
+steps of apply made cheap** (the ninth experiment, 2026-11-17, the same fixture with 8 shards,
+one run per point): the 90 validators **hold the 800 ms target at 10,000 TPS with real
+execution**, the first run of this branch that does. Block time p75 876 ms and p99 1,060 ms on
+the median node, verdict PASS on 90 of 90 nodes, a ledger every 833 ms with 8,338 payments, all
+3,600,000 payments applied on every node.
+- The two apply changes alone (a received tx set rebuilt in parallel, no key set for an
+  eviction scan without candidates) make a payment a sixth cheaper to validate and to commit:
+  a ledger every 924 ms instead of 1,003 ms, block time p75 966 ms against a limit of 960 ms.
+- Completing the set during the commit takes the leader's work after the close from 171 to
+  40 ms.
+- It does not engage when a waiting transaction has time bounds or a minimum sequence age,
+  which the load of these runs has not. The completion (172 ms on the leader's main thread) is
+  now longer than the commit it runs beside (113 ms).
+
+Results:
+[The next tx set completed during the commit, and a cheaper apply](#the-next-tx-set-completed-during-the-commit-and-a-cheaper-apply).
+
 The earlier benchmark (48 validators, 5,000 TPS, 1,000 ms, 4-core instances) is kept below.
 
 ## What this branch is
 
 It is the overlay-v2 stack up to [#5459](https://github.com/stellar/stellar-core/pull/5459)
 (Rust overlay over QUIC, millisecond close times, compressed tx-set responses, leader-only tx-set
-construction) plus seven experiments:
+construction) plus nine experiments:
 
 1. **No nomination** ([#5495](https://github.com/stellar/stellar-core/pull/5495)). The SCP
    nomination phase is deleted and replaced by a leader schedule that every node computes locally.
