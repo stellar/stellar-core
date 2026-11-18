@@ -1,0 +1,200 @@
+name: Soroban settings sync
+
+# Opens a PR rewriting soroban-settings/testnet_settings_upgrade.json with
+# testnet's live Soroban settings (see scripts/sync-soroban-settings.sh), so
+# that after a protocol upgrade or settings change on testnet, applying the
+# file after a network reset reproduces testnet's current settings. Closes
+# that PR again if testnet goes back to matching the file before it's merged.
+
+on:
+  schedule:
+    # 09:10 UTC: about 1 am Pacific (1:10 PST, 2:10 PDT), a few minutes past the
+    # hour when GitHub's scheduled-run queue is busiest.
+    - cron: '10 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  sync-settings:
+    # Scheduled runs only upstream; forks can still dispatch it by hand.
+    if: github.repository == 'stellar/stellar-core' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    env:
+      SETTINGS_FILE: soroban-settings/testnet_settings_upgrade.json
+    steps:
+    # No credentials are left in .git/config: the only step that writes to the
+    # repo sets them up for itself, so the downloaded stellar-xdr never runs
+    # where it could use them.
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    # The latest release rather than a pinned one; the sync script checks it
+    # against testnet and fails if it's too old to know testnet's settings.
+    # The token is only for gh's API calls; the binary isn't run here.
+    - name: Install the latest stellar-xdr
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        fail() { echo "error: $*" | tee -a "$RUNNER_TEMP/errors.txt" >&2; exit 1; }
+        TAG=$(gh release view -R stellar/rs-stellar-xdr --json tagName --jq .tagName) \
+          || fail "could not find the latest stellar/rs-stellar-xdr release"
+        mkdir -p "$HOME/.local/bin"
+        gh release download "$TAG" -R stellar/rs-stellar-xdr \
+          -p "stellar-xdr-${TAG#v}-x86_64-unknown-linux-gnu" -O "$HOME/.local/bin/stellar-xdr" \
+          || fail "could not download stellar-xdr $TAG for x86_64 Linux"
+        chmod +x "$HOME/.local/bin/stellar-xdr"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Copy live settings into the settings file
+      run: |
+        set -o pipefail
+        stellar-xdr version
+        # stderr also goes to a file so a failure notice can quote the error.
+        ./scripts/sync-soroban-settings.sh \
+          --file "$SETTINGS_FILE" 2> >(tee "$RUNNER_TEMP/errors.txt" >&2) | tee "$RUNNER_TEMP/sync.txt"
+
+    - name: Open, update or close the PR
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BASE: ${{ github.ref_name }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        WORKFLOW: ${{ github.workflow }}
+      run: |
+        # One bot branch per base, so a run started from another branch can't
+        # force-push over the open PR against the default branch. A hash of the
+        # base keeps distinct bases (release/x vs release-x) apart.
+        BRANCH="bot/sync-soroban-settings-testnet"
+        if [ "$BASE" != "$DEFAULT_BRANCH" ]
+        then
+          BRANCH="$BRANCH-$(printf '%s' "$BASE" | sha256sum | cut -c1-12)"
+        fi
+
+        # The bot's own open PR, not a fork's PR that happens to use the same
+        # branch name.
+        OPEN_PR=$(gh pr list --head "$BRANCH" --base "$BASE" --state open \
+          --json number,isCrossRepository \
+          --jq '[.[] | select(.isCrossRepository | not) | .number] | first // empty')
+
+        if git diff --quiet -- "$SETTINGS_FILE"
+        then
+          echo "$SETTINGS_FILE is up to date"
+          # Testnet went back to matching the file, so an open PR would now
+          # propose settings testnet no longer has.
+          if [ -n "$OPEN_PR" ]
+          then
+            gh pr close "$OPEN_PR" --delete-branch --comment \
+              "Testnet's settings match \`$SETTINGS_FILE\` on \`$BASE\` again, so this is no longer needed. Closed by the \`$WORKFLOW\` workflow."
+          fi
+          exit 0
+        fi
+
+        PROTOCOL=$(sed -n 's/^.* is on protocol \([0-9][0-9]*\) .*$/\1/p' "$RUNNER_TEMP/sync.txt")
+        TITLE="Sync $(basename "$SETTINGS_FILE") with testnet (protocol $PROTOCOL)"
+        BODY="$RUNNER_TEMP/body.md"
+        {
+          echo "Testnet is on protocol $PROTOCOL, and its live Soroban settings differ from \`$SETTINGS_FILE\`, so this copies them over. Opened by the \`$WORKFLOW\` workflow."
+          echo
+          echo "**Reviewer:** check that every change below is intended on testnet (a protocol upgrade or an approved settings upgrade), not a one-off experiment. The file covers upgradeable settings only; frozen-ledger-keys and freeze-bypass lists aren't in it."
+          echo
+          echo '```'
+          cat "$RUNNER_TEMP/sync.txt"
+          echo '```'
+        } > "$BODY"
+
+        # Skip the push only if the bot branch already has this file and is
+        # still one commit on top of the current base. If the base has moved
+        # (say, someone edited the file on it), merging the old bot commit
+        # could combine both edits, so the commit is rebuilt on the new base.
+        gh auth setup-git
+        if [ -n "$OPEN_PR" ] &&
+           git fetch origin "$BRANCH" 2>/dev/null &&
+           [ "$(git rev-parse FETCH_HEAD^)" = "$(git rev-parse HEAD)" ] &&
+           git diff --quiet FETCH_HEAD -- "$SETTINGS_FILE"
+        then
+          echo "$BRANCH already has this change on top of $BASE"
+        else
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "$BRANCH"
+          git add -- "$SETTINGS_FILE"
+          git commit -q -m "$TITLE" \
+            -m "Copies testnet's live upgradeable Soroban settings into the file."
+          git push -f origin "$BRANCH"
+        fi
+
+        # Updated even when nothing was pushed, so a description left stale by
+        # an earlier failed edit gets fixed.
+        if [ -z "$OPEN_PR" ]
+        then
+          gh pr create --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$BODY"
+        else
+          gh pr edit "$OPEN_PR" --title "$TITLE" --body-file "$BODY"
+        fi
+
+    # Covers anything that stops a scheduled sync: the script refusing to guess
+    # (e.g. isNonUpgradeableConfigSettingEntry moved, or testnet having a setting
+    # the latest stellar-xdr doesn't know), RPC or download failures, or the PR
+    # step. Posts with the org's Slack bot the way other stellar repos do
+    # (e.g. stellar/dashboard), so the bot must be a member of SLACK_CHANNEL.
+    # Like stellar/quickstart's notify job, hand-started runs are watched by
+    # whoever started them, and a cache entry keyed on the error posts each
+    # distinct failure once rather than every day until it's fixed.
+    - name: Key the failure notice by its error
+      id: notify_key
+      if: failure() && github.event_name == 'schedule'
+      continue-on-error: true
+      env:
+        SLACK_CHANNEL: alerts-core-team
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        ERROR=$({ grep '^error: ' "$RUNNER_TEMP/errors.txt" 2>/dev/null || true; } | tail -1 | sed 's/^error: //')
+        # Built with jq so the error text can't break the message's JSON.
+        PAYLOAD=$(jq -nc --arg channel "$SLACK_CHANNEL" --arg error "$ERROR" --arg run_url "$RUN_URL" \
+          '{channel: $channel,
+            text: (":red_circle: Soroban settings sync failed; testnet_settings_upgrade.json may be out of date with testnet. <\($run_url)|run>"
+                   + (if $error != "" then "\n> \($error)" else "" end))}')
+        {
+          echo "payload=$PAYLOAD"
+          echo "key=soroban-settings-sync-notify-$(printf '%s' "${ERROR:-unknown}" | sha256sum | cut -c1-16)"
+        } >> "$GITHUB_OUTPUT"
+        mkdir -p .notify_cache
+        date -u +%Y-%m-%dT%H:%M:%SZ > .notify_cache/timestamp
+
+    - name: Check whether this failure was already reported
+      id: notify_cache
+      if: failure() && github.event_name == 'schedule'
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .notify_cache
+        key: ${{ steps.notify_key.outputs.key }}
+
+    # errors: true makes a refused post (e.g. not_in_channel) fail this step, so
+    # it isn't recorded as reported below.
+    - name: Notify Slack on failure
+      id: notify_slack
+      if: failure() && github.event_name == 'schedule' && steps.notify_cache.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+      with:
+        method: chat.postMessage
+        token: ${{ secrets.SLACK_BOT_TOKEN }}
+        errors: true
+        payload: ${{ steps.notify_key.outputs.payload }}
+
+    - name: Remember that this failure was reported
+      if: failure() && github.event_name == 'schedule' && steps.notify_slack.outcome == 'success'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .notify_cache
+        key: ${{ steps.notify_key.outputs.key }}

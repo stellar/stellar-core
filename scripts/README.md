@@ -85,6 +85,12 @@ then parse the path of log files, bucket directory, and SQL DB. All these fields
 in case the script has some issues, so please read through that doc before attempting to use this script. This script should be run from the directory that contains your stellar-core binary. This script also queries the SDF Horizon for the sequence number of the account, so if the SDF Horizon instance is unavailable, then you'll need to provide the account's sequence number manually.
 - Usage - Ex. `sh ../scripts/settings-helper.sh SCSQHJIUGUGTH2P4K6AOFTEW4HUMI2BRTUBBDDXMQ4FLHXCX25W3PGBJ testnet ../soroban-settings/testnet_settings_phase2.json 100`. The first argument is the secret key of the source account that will be used for the transactions to set up the upgrade, the second argument is the network (one of pubnet|testnet|futurenet), the third is the path to the JSON file with the proposed settings, and the fourth is any additional resource fee you want to add to your transactions.
 
+### Sync Soroban Settings
+- Name - `sync-soroban-settings.sh`
+- Prequisites - `stellar-xdr`, `curl`, `jq`, `xxd`
+- Description - Rewrites a settings file with testnet's live upgradeable Soroban settings, read through its RPC, so that applying the file after a network reset reproduces testnet's current settings, including cost types and settings added by protocol upgrades. The setting types come from `stellar-xdr`, and the non-upgradeable ones are read from `SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry` in `src/ledger/NetworkConfig.cpp`, so it fails rather than guessing if either is out of date. The `Soroban settings sync` GitHub workflow runs it daily against testnet and opens a PR when the file changes.
+- Usage - `./scripts/sync-soroban-settings.sh --file soroban-settings/testnet_settings_upgrade.json`. It only ever reads from testnet.
+
 ### Histogram Generator
 - Name - `HistogramGenerator.py`
 - Description - A Python script that takes Hubble transaction data as input and outputs histograms containing information about the resource usage of those transactions. This script enables easy updating of transaction resource distributions in [Supercluster](https://github.com/stellar/supercluster), but some may find it more broadly helpful for understanding real-world usage of the Stellar network.
