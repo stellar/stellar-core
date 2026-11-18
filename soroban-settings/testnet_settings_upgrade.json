@@ -7,24 +7,24 @@
       "contract_compute_v0": {
         "ledger_max_instructions": "580000000",
         "tx_max_instructions": "400000000",
-        "fee_rate_per_instructions_increment": "7",
+        "fee_rate_per_instructions_increment": "3",
         "tx_memory_limit": 41943040
       }
     },
     {
       "contract_ledger_cost_v0": {
-        "ledger_max_disk_read_entries": 1000,
+        "ledger_max_disk_read_entries": 2000,
         "ledger_max_disk_read_bytes": 400000,
-        "ledger_max_write_ledger_entries": 1000,
-        "ledger_max_write_bytes": 286720,
+        "ledger_max_write_ledger_entries": 2000,
+        "ledger_max_write_bytes": 297000,
         "tx_max_disk_read_entries": 200,
         "tx_max_disk_read_bytes": 200000,
         "tx_max_write_ledger_entries": 200,
         "tx_max_write_bytes": 132096,
-        "fee_disk_read_ledger_entry": "1563",
-        "fee_write_ledger_entry": "2500",
-        "fee_disk_read1_kb": "447",
-        "soroban_state_target_size_bytes": "4000000000",
+        "fee_disk_read_ledger_entry": "781",
+        "fee_write_ledger_entry": "1250",
+        "fee_disk_read1_kb": "223",
+        "soroban_state_target_size_bytes": "7000000000",
         "rent_fee1_kb_soroban_state_size_low": "-17000",
         "rent_fee1_kb_soroban_state_size_high": "10000",
         "soroban_state_rent_fee_growth_factor": 5000
@@ -32,20 +32,20 @@
     },
     {
       "contract_historical_data_v0": {
-        "fee_historical1_kb": "4059"
+        "fee_historical1_kb": "2029"
       }
     },
     {
       "contract_events_v0": {
         "tx_max_contract_events_size_bytes": 16384,
-        "fee_contract_events1_kb": "5000"
+        "fee_contract_events1_kb": "2500"
       }
     },
     {
       "contract_bandwidth_v0": {
-        "ledger_max_txs_size_bytes": 266240,
+        "ledger_max_txs_size_bytes": 864000,
         "tx_max_size_bytes": 132096,
-        "fee_tx_size1_kb": "406"
+        "fee_tx_size1_kb": "203"
       }
     },
     {
@@ -97,13 +97,13 @@
         },
         {
           "ext": "v0",
-          "const_term": "40256",
+          "const_term": "44420",
           "linear_term": "0"
         },
         {
           "ext": "v0",
-          "const_term": "377551",
-          "linear_term": "4059"
+          "const_term": "706689",
+          "linear_term": "4229"
         },
         {
           "ext": "v0",
@@ -142,7 +142,7 @@
         },
         {
           "ext": "v0",
-          "const_term": "4716",
+          "const_term": "5771",
           "linear_term": "0"
         },
         {
@@ -152,12 +152,12 @@
         },
         {
           "ext": "v0",
-          "const_term": "4256",
+          "const_term": "10293",
           "linear_term": "0"
         },
         {
           "ext": "v0",
-          "const_term": "884",
+          "const_term": "2100",
           "linear_term": "0"
         },
         {
@@ -322,7 +322,7 @@
         },
         {
           "ext": "v0",
-          "const_term": "2458985",
+          "const_term": "3110211",
           "linear_term": "0"
         },
         {
@@ -347,7 +347,7 @@
         },
         {
           "ext": "v0",
-          "const_term": "7873219",
+          "const_term": "9836091",
           "linear_term": "0"
         },
         {
@@ -427,7 +427,7 @@
         },
         {
           "ext": "v0",
-          "const_term": "61",
+          "const_term": "34237",
           "linear_term": "0"
         },
         {
@@ -437,7 +437,7 @@
         },
         {
           "ext": "v0",
-          "const_term": "1150435",
+          "const_term": "1467330",
           "linear_term": "0"
         },
         {
@@ -479,6 +479,51 @@
           "ext": "v0",
           "const_term": "1185193",
           "linear_term": "41568084"
+        },
+        {
+          "ext": "v0",
+          "const_term": "849110",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "1505271",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "2625760",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "37888",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "47691",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "66346",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "685165",
+          "linear_term": "6103"
+        },
+        {
+          "ext": "v0",
+          "const_term": "983619",
+          "linear_term": "6103"
+        },
+        {
+          "ext": "v0",
+          "const_term": "1437210",
+          "linear_term": "6102"
         }
       ]
     },
@@ -913,6 +958,51 @@
           "ext": "v0",
           "const_term": "73061",
           "linear_term": "229779"
+        },
+        {
+          "ext": "v0",
+          "const_term": "24656",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "43088",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "73808",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "4104",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "5128",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "7176",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "0",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "0",
+          "linear_term": "0"
+        },
+        {
+          "ext": "v0",
+          "const_term": "0",
+          "linear_term": "0"
         }
       ]
     },
@@ -943,13 +1033,13 @@
     },
     {
       "contract_parallel_compute_v0": {
-        "ledger_max_dependent_tx_clusters": 2
+        "ledger_max_dependent_tx_clusters": 3
       }
     },
     {
       "contract_ledger_cost_ext_v0": {
         "tx_max_footprint_entries": 400,
-        "fee_write1_kb": "875"
+        "fee_write1_kb": "437"
       }
     },
     {
