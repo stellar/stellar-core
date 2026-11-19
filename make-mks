@@ -58,7 +58,6 @@ listall() {
 (cd lib
  echo "$message"
  echo SOCI_FILES = $(listall soci/src/backends/sqlite3 soci/src/core)
- echo SOCI_PG_FILES = $(listall soci/src/backends/postgresql)
 
  echo SQLITE3_FILES = $(listall sqlite | grep -v shell)
  echo UTIL_FILES = $(listall util http httpthreaded)

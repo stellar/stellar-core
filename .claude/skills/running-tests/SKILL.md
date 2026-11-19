@@ -182,16 +182,6 @@ The full test suite should be run with all protocol versions:
 ALL_VERSIONS=1 NUM_PARTITIONS=$(nproc) make check
 ```
 
-### SQLite-Only Testing (No Postgres)
-
-To test with SQLite only (faster, no Postgres dependency):
-
-```bash
-./configure --disable-postgres --enable-ccache --enable-sdfprefs
-make clean && make -j $(nproc)
-NUM_PARTITIONS=$(nproc) make check
-```
-
 ## Level 3b: Transaction Metadata Baseline Check
 
 This validates that transaction test execution produces the same metadata hashes

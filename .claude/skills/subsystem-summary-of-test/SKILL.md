@@ -21,7 +21,7 @@ The `src/test/` directory contains test infrastructure, helpers, and utilities u
   - Node seed derived deterministically from instance number + command-line seed
   - Single-node quorum with `UNSAFE_QUORUM = true`
   - `NETWORK_PASSPHRASE = "(V) (;,,;) (V)"`
-  - DB can be in-memory SQLite, file-backed SQLite, or PostgreSQL
+  - DB can be in-memory or file-backed SQLite
 
 ### Version Testing Helpers
 The framework supports running tests across multiple protocol versions:
