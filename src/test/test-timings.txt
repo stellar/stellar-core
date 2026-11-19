@@ -1,0 +1,698 @@
+# seconds	test name (all-version total)
+496.012	create offer
+307.013	pathpayment
+242.446	txenvelope
+238.133	claimableBalance
+154.685	overlay parallel processing
+123.273	revoke from pool
+121.426	update sponsorship
+107.071	herder externalizes values
+106.895	liquidity pool trade
+80.832	ledger state update flow with parallel apply
+73.124	History publish with restart
+70.213	txresults
+69.186	pathpayment strict send
+68.166	allow trust
+64.952	PendingEnvelopes recvSCPEnvelope
+62.222	liquidity pool withdraw
+60.950	set options
+57.686	change trust pool share trustline
+57.460	soroban transaction validation
+56.855	payment
+55.940	sponsor future reserves
+54.410	eviction scan
+47.394	soroban cache population
+46.551	Retriggering catchups after trimming mBufferedLedgers
+46.148	do not load outdated values
+45.955	bucket entry counters
+43.185	loadPoolShareTrustLinesByAccountAndAsset
+39.176	bl cache
+36.334	basic contract invocation
+35.206	METADATA_DEBUG_LEDGERS works
+34.823	getNodeWeight
+33.382	scanForLiveEntriesOfType randomized testing
+33.150	loadPoolShareTrustLinesByAccountAndAsset does not load outdated versions
+33.143	liabilities
+32.026	archival meta
+31.465	detect dead nodes in quorum set
+29.280	Soroban authorization
+27.421	generate load with unique accounts
+27.319	transaction envelope bridge
+24.591	Time sliced dynamic topology survey
+23.860	Catchup with protocol upgrade
+21.120	Searchable BucketListDB snapshots
+21.030	LedgerTxn load
+20.794	key-value lookup
+20.088	CKMSSample gamma distribution
+19.904	liabilities match created offer
+17.659	state archival
+17.618	TCPPeer read malformed messages
+16.168	DownloadApplyTxsWork handles apply failure
+15.737	available balance and limit
+15.645	soroban txs each parameter surge priced
+15.493	surge pricing with DEX separation holds invariants
+15.038	hot archive bucket tombstones expire at bottom level
+13.708	topology survey
+13.140	Soroban footprint validation
+12.689	State archival eviction invariant
+12.133	bucketmanager reattach HAS from publish queue to finished merge
+11.802	bucket list shadowing pre/post proto 12
+11.431	disconnected topology recovery
+11.330	Soroban operation source created and removed in classic phase
+10.715	TCPPeer message size cap keyed on protocol version
+10.687	Soroban delegated signer authentication
+10.616	TCPPeer message size cap follows protocol upgrade mid-connection
+10.561	CKMSSample uniform distribution
+10.444	TCPPeer lifetime
+10.137	TCPPeer drop at capacity
+10.018	inflation
+9.995	parallel txs
+9.684	Soroban tx source account merged in classic phase
+9.369	bucketmanager reattach to running merge
+9.274	SCP checkpoint
+9.241	authorized to maintain liabilities
+9.185	Soroban classic account authentication
+8.976	merge
+8.920	classic phase bumps sequence of Soroban tx source account
+8.739	state archival operation errors
+8.593	offline self-check works
+8.362	path payment uses all offers in a loop
+8.309	generate soroban load
+8.109	soroban txs accepted by the network
+8.109	applicable txset validation - Soroban resources
+7.928	merge account then SAC payment scenarios
+7.749	upgrade invalid during ledger close
+7.729	Catchup failure recovery with buffered checkpoint
+7.262	txset
+6.907	bucket list
+6.444	balance with liabilities
+6.282	LedgerTxn loadBestOffer
+6.271	contract storage
+6.210	frozen ledger keys DEX offer operations
+6.131	upgrade base reserve
+5.887	RunCommandWork test
+5.753	Soroban pre-apply removes pre-auth tx signers
+5.741	bucketmanager reattach to finished merge
+5.686	offer crossing with minimal receive cap
+5.642	outbound queue filtering
+5.530	refund to source in tx1 and SAC transfer from same account in tx2
+5.492	surge pricing
+5.263	LedgerTxn loadOffersByAccountAndAsset
+5.180	bucket tombstones mutually-annihilate init entries
+5.123	SCP State
+5.048	HAS in publishqueue remains in pristine state until publish
+4.813	txset base fee
+4.691	transaction queue with fee-bump
+4.672	Soroban tx source account with low balance left after fee
+4.463	ApplyCheckpointWork rejects malformed ms close time ledger headers
+4.386	persistent entry archival
+4.323	merging bucket entries
+4.303	validate return values
+4.133	History catchup with extra validation
+4.055	replace by fee
+4.010	tx set hits overlay byte limit during construction
+3.990	verify checkpoints command - wait condition
+3.757	classic phase bumps sequence of soroban source account
+3.688	History bucket verification
+3.659	non-fee source account is recipient of payment in both classic and soroban
+3.650	Change ordering of buffered ledgers
+3.533	SCP timing config affects consensus behavior
+3.445	trustline deletion then SAC payment
+3.408	fee bump transactions
+3.407	LedgerCloseMetaStream file descriptor - LIVE_NODE
+3.396	classic phase raises threshold of Soroban tx source account
+3.360	network does not externalize non-canonical empty tx set
+3.332	fee bump inner account merged then used as inner account on soroban fee bump
+3.241	EventsAreConsistentWithEntryDiffs invariant
+3.220	trigger next ledger side effects
+3.087	getledgerentry
+3.022	frozen ledger keys config setting upgrades
+2.991	change trust
+2.980	History catchup over empty-tx-set ledgers
+2.962	check single ledger header work
+2.951	History catchup rejects forged tx sets for empty-tx-set ledgers
+2.948	binary fuse filter peeling failure retries
+2.939	merging hot archive bucket entries
+2.825	processing of next slot happens after apply
+2.744	payment fees
+2.704	Asymmetric quorum timeouts
+2.672	Tx results verification
+2.664	LedgerTxn loadAllOffers
+2.656	do not flood too many transactions with DEX separation
+2.475	live bucket tombstones expire at bottom level
+2.368	create account
+2.298	Soroban TransactionQueue limits
+2.296	overly large soroban values are handled gracefully
+2.284	LedgerTxn loadPoolShareTrustLinesByAccountAndAsset
+2.265	History publish and catchup over sub-second ledgers
+2.264	Trustline stellar asset contract
+2.202	txset with PreconditionsV2
+2.188	file backed buckets
+2.125	liquidity pool deposit
+2.118	frozen ledger keys DEX path payments
+2.090	payment events
+2.042	multiple soroban ops in a tx
+2.021	BucketListIsConsistentWithDatabase succeed
+1.993	LedgerTxn in memory order book
+1.986	Fair nomination win rates
+1.959	getPeersToSend
+1.937	network config snapshots Soroban state size
+1.921	ItemFetcher fetches
+1.917	classic payment to soroban fee bump account
+1.909	generalized tx set XDR conversion
+1.893	TransactionQueue limiter with DEX separation
+1.832	parallel tx set building
+1.779	manualclose
+1.765	refund still happens on bad auth
+1.757	Unresponsive quorum timeouts
+1.733	clawback
+1.706	LedgerTxn eraseWithoutLoading
+1.687	Soroban extension for non-Soroban tx
+1.684	source account of first tx is in second txs footprint
+1.684	fee bump refund account merged
+1.601	ms close times support subsecond ledgers
+1.601	set trustline flags
+1.575	freeze bypass txs config setting upgrades
+1.557	manageOffer overlay validation
+1.554	refund test with closeLedger
+1.548	Publish works correctly post shadow removal
+1.543	base reserve
+1.541	manage data
+1.530	quorum intersection interruption v2
+1.511	LedgerTxn createWithoutLoading and updateWithoutLoading
+1.490	History prefix catchup
+1.467	bump sequence
+1.464	applicable txset validation - transactions belong to correct phase
+1.455	next peer strategy
+1.443	refund is sent to fee-bump source
+1.428	merge event reconciler
+1.398	LedgerTxn round trip
+1.296	bucketmanager do not leak empty-merge futures
+1.295	loadgen in overlay-only mode
+1.253	LedgerTxn loadHeader
+1.245	Soroban non-refundable resource fees are stable
+1.243	clawbackClaimableBalance
+1.235	Ledger chain verification
+1.233	refund account merged
+1.202	merging bucket entries with initentry
+1.189	classic phase sets master weight of soroban source account to 0
+1.188	do not evict outdated keys
+1.186	quorum criticality check interruption v2
+1.178	upgrades affect in-memory Soroban state state size
+1.176	LedgerTxn erase
+1.173	TransactionQueue base
+1.150	classic payment source same as soroban fee bump source
+1.143	Soroban custom account authentication
+1.142	BucketList state consistency invariant
+1.105	Introduce and fix gap without starting catchup
+1.094	single entry bubbling up
+1.086	shutdown while process running
+1.065	Catchup fatal failure
+1.057	ProcessManager::tryProcessShutdown test
+1.055	in-memory state size tracking
+1.054	History publish to multiple archives
+1.014	bucket persistence over app restart
+1.007	autorestore contract instance
+1.002	online self-check runs on a schedule
+0.996	operation destination frozen
+0.982	loopback peer flow control activation
+0.954	scanForLiveEntriesOfType loser tree unit tests
+0.933	TransactionQueue complex scenarios
+0.930	pathpayment strict send uses all offers in a loop
+0.914	resource fee exceeds uint32
+0.895	Receive trigger and checkpoint ledger out of order
+0.875	generate load in protocol 1
+0.870	generalized tx set fees
+0.865	source trustline frozen
+0.862	network externalizes empty-tx-set on missing value
+0.855	Externalize gap while catchup work is running
+0.824	drop peers that dont respect capacity
+0.806	query server historical snapshots
+0.802	TransactionQueue limits
+0.792	BucketList check bucket sizes
+0.788	bucketmanager ownership
+0.752	BucketListIsConsistentWithDatabase empty ledgers
+0.752	mixed pregen and synthetic soroban in overlay-only mode
+0.749	Herder properly validates when tx set is missing
+0.742	TransactionQueue reset and rebuild on upgrades
+0.707	list upgrades just before upgrade time
+0.693	Access deactivated entry
+0.692	TCPPeer serializes handshake reads
+0.688	readonly ttl bumps across threads and stages
+0.682	purge slots of ledgers pending application
+0.665	bucketmanager missing buckets fail
+0.665	tx queue source account limit
+0.663	overlay pull mode
+0.657	list upgrades when no time set for upgrade
+0.655	generalized tx set with multiple txs per source account
+0.651	list upgrades at upgrade time
+0.611	manage buy offer failure modes
+0.596	merging bucket entries with initentry with shadows
+0.594	quick restart
+0.586	LedgerTxn rollback into LedgerTxn
+0.582	LedgerTxn commit into LedgerTxn
+0.565	LedgerTxn queryInflationWinners
+0.564	messagelimiter
+0.538	autorestore with storage resize
+0.519	do not flood too many transactions
+0.503	handshake messages reserve peer read capacity
+0.499	parallel txs hit declared readBytes
+0.494	slots purged while externalized ledgers are queued to apply
+0.492	cycle4 topology
+0.483	TransactionQueue hitting the rate limit
+0.470	overlay validation handles ed25519 signed payload signers
+0.467	sliding window percentiles - alternating frequencies and patterns
+0.461	BasicWork test
+0.459	flow control when out of sync
+0.443	LedgerTxnEntry and LedgerTxnHeader move assignment
+0.438	manage buy offer matches manage sell offer when executing entirely
+0.438	manage buy offer matches manage sell offer when executing partially
+0.438	TransactionQueue with PreconditionsV2
+0.433	source account frozen
+0.426	sliding window percentiles - gamma at high frequency
+0.424	do not flood too many soroban transactions
+0.411	frozen ledger keys apply time validation
+0.409	generalized tx set applied to ledger
+0.407	drop peers that overflow capacity
+0.404	Ledger Manager applies upgrades properly
+0.392	LedgerTxnRoot prefetch classic entries
+0.389	ApplyCheckpointWork rejects malformed empty-tx-set ledger headers
+0.380	Inflation changes are consistent
+0.377	Account balances changed without inflation
+0.375	Account balances unchanged without inflation
+0.375	generalized tx set XDR validation
+0.374	apply buffered ledgers after repeated out-of-sync
+0.374	freeze bypass tx hash allows frozen key access at validation time
+0.372	Tracker works
+0.366	inflation total coins
+0.350	manage buy offer matches manage sell offer when not executing
+0.341	far-future slots cleanup
+0.338	applicable txset validation - Soroban phase version is correct
+0.333	LedgerTxn rollback and commit deactivate
+0.329	contract errors cause transaction to fail
+0.328	merges proceed old-style despite newer shadows
+0.327	loopback peer with 0 port
+0.319	confirm and clear sponsor
+0.319	drop idle flow-controlled peers
+0.317	manage buy offer exactly crosses existing offers
+0.313	SCP state restore with missing tx set
+0.313	charge rent fees for storage resize
+0.312	loopback peer hello
+0.311	manage buy offer with zero liabilities
+0.311	query server with zero snapshot ledgers
+0.310	surge pricing with DEX separation
+0.307	allow inbound pending peers up to max
+0.304	flow control byte capacity
+0.304	loopback peer send auth before hello
+0.304	tx set fee totals saturate on overflow
+0.299	contract constructor support
+0.299	quorum tracker
+0.295	in-memory index construction
+0.286	autorestore from another contract
+0.284	peers during auth
+0.281	Stellar asset contract transfer to muxed contract (CAP-0084)
+0.276	manage buy offer liabilities
+0.273	ConservationOfLumens snapshot invariant detects bucket corruption
+0.273	Upgrade setup with metrics reset
+0.266	reject peers beyond max - preferred peer wins
+0.262	fuzz overlay smoke
+0.260	LedgerTxn create
+0.259	upgrade flags
+0.256	Multi-byte payment transactions are valid
+0.253	SCP message capture from previous ledger
+0.252	Create account then add signers and subentries
+0.244	frozen ledger keys in Soroban footprint
+0.242	parse peer record
+0.239	parallel restore and update
+0.236	postgres smoketest
+0.235	getRangeForType bounds verification
+0.234	quorum tracker closest validators
+0.234	History publish
+0.234	new QIC on same app run multiple times in a row
+0.222	ledger entry size limit enforced
+0.222	quorum intersection interruption
+0.218	manage buy offer releases liabilities before modify
+0.216	work with children
+0.214	TXs not evicted from queue on protocol upgrade
+0.213	read-only bumps across threads
+0.212	apply generated parallel tx sets
+0.210	LedgerTxn unsealHeader
+0.205	Failed write still causes ttl observation
+0.204	initialize existing history store fails
+0.201	parallel restore and extend op
+0.200	Invariant for liabilities
+0.200	broadcast() broadcasts
+0.200	triggerPeerResolution() async resolution
+0.197	hot archive bucket lookups
+0.196	Stellar asset contract transfer with CAP-67 address types
+0.195	ledgerheaders migration works correctly
+0.195	upgrade state size window
+0.192	invariant check concurrent with state advance
+0.191	create and invoke external ref contract
+0.191	modify soroban network config
+0.187	Module cache cost with restore gaps
+0.184	storeConfigPeers() adds
+0.184	storeConfigPeers() update type
+0.183	Module cache miss on immediate execution
+0.182	failed auth
+0.178	onBucketApply fail succeed
+0.175	InMemoryLedgerTxn close multiple ledgers with merges
+0.171	LedgerTxn addChild
+0.169	Soroban tx filtering
+0.165	reusable module cache
+0.165	skip list
+0.161	XDR protocol 23 compatibility validation
+0.159	put in first stage and then update value in second stage
+0.157	late joining node reaches consensus
+0.156	Total coins change without inflation
+0.155	allow inbound pending peers over max if possibly preferred
+0.154	ConditionalWork test
+0.154	create in first stage delete in second stage
+0.153	work scheduling compare trees
+0.152	WorkSequence test
+0.152	background reads pause until main thread processes AUTH
+0.151	populateSignatureCache tests
+0.148	basic snapshot copy semantics and isolation
+0.148	sane quorum set
+0.144	reject peers beyond max
+0.144	Fee pool change without inflation
+0.144	TCPPeer can communicate
+0.143	database is purged at overlay start
+0.138	allow outbound pending peers up to max
+0.137	onOperationApply fail succeed
+0.137	drop peers who straggle
+0.136	RandomPeerSource::nextAttemptCutoff also limits maxFailures
+0.135	reject peers who dont handshake quickly
+0.135	shared virtual time advances only when all apps idle
+0.134	delete in first stage extend in second stage
+0.133	bucket merge map
+0.128	Queue purging after write completion
+0.126	hot archive accepts multiple archives and restores for same key
+0.125	delete non existent entry with parallel apply
+0.124	slot herder policy
+0.123	CheckpointBuilder
+0.123	backtraces work
+0.121	schema parity across DB backends
+0.118	fuzz tx smoke
+0.117	complex contract
+0.117	work scheduling and run count
+0.112	Native stellar asset contract
+0.110	settings upgrade
+0.108	p24 upgrade fixes corrupted hot archive entries
+0.107	accept preferred peer even when strict
+0.107	cannot close ledger with unsupported ledger version
+0.107	info reports the ms close time
+0.106	ContractData key with same ScVal
+0.105	purge peer table
+0.105	remove applied
+0.105	transaction queue starting sequence boundary
+0.104	quorum intersection 3-org 2-node 2-of-3 asymmetric
+0.103	disable eviction scan
+0.102	exclude transactions by operation type
+0.102	getUpperBoundCloseTimeOffset under sub-second ledgers
+0.100	LedgerTxn loadWithoutRecord
+0.100	quorum intersection 3-org 3-node closed one-way ring
+0.100	quorum intersection 3-org 3-node open line
+0.099	module cache rebuild on incremental wasm uploads
+0.099	virtual time with background work
+0.098	merges refuse to exceed max protocol version
+0.098	serialize bucket indexes
+0.098	LedgerTxn generalized ledger entries
+0.097	quorum intersection 6-org 3-node fully-connected
+0.097	quorum intersection 8-org core-and-periphery balanced
+0.097	reject peers with the same nodeid
+0.096	upgrade to 24 and then latest from 23 and check feePool
+0.095	deprecated banned account endpoints return warnings
+0.095	quorum intersection 3-org 3-node closed ring
+0.094	configuration initialized in version upgrade
+0.093	ConservationOfLumens snapshot invariant validates corrupted total lumens
+0.093	claimable balance absBefore under sub-second ledgers
+0.093	quorum intersection 4-org fully-connected - elide all minquorums
+0.091	bucket output iterator rejects wrong-version entries
+0.091	combineCandidates with mismatched previousLedgerHash candidate
+0.091	quorum intersection 3-org 2-node open line
+0.091	quorum intersection criticality
+0.091	quorum intersection finds smaller SCC with quorums
+0.089	quorum intersection 6-node with subquorums
+0.089	upgrade to version 26 and check cost types
+0.088	quorum non intersection 6-node
+0.087	Vm instantiation tightening
+0.087	quorum intersection 8-org core-and-periphery unbalanced
+0.086	Module cache across protocol versions
+0.086	quorum non intersection basic 6-node
+0.086	quorum plausible non intersection
+0.085	quorum non intersection 6-node with subquorums
+0.084	reject peers with incompatible overlay versions
+0.083	PendingEnvelopes recvSCPEnvelope without parallel tx set download
+0.083	compute CatchupRange from CatchupConfiguration
+0.082	Module cache
+0.082	TCPPeer rejects ordinary messages between HELLO and AUTH
+0.082	quorum no-quorum threshold exceeds degree
+0.082	reject non preferred peer
+0.081	minSeqAge under sub-second ledgers
+0.081	quorum intersection 6-org 1-node 4-null qsets
+0.081	toXdr
+0.081	toggleoverlayonlymode
+0.080	quorum intersection 3-org 2-node closed one-way ring
+0.079	upgrade to version 30 and check cost types
+0.077	Soroban max tx set size upgrade applied to ledger
+0.077	background signature verification with missing account
+0.077	soroban metrics published at ledger close
+0.073	Database splitting migration works correctly
+0.073	multiple version of same key in a single eviction scan
+0.073	quorum non intersection basic 4-node
+0.071	deauth removes offers on frozen account
+0.071	upgrade to version 25 and check cost types
+0.070	tx fuzz regression preserves setup ledger entries
+0.069	quorum intersection 8-org core-and-periphery dangling
+0.068	timer cancels
+0.067	endpoints reject requests before setReady
+0.065	buying liabilities plus refund is greater than INT64_MAX
+0.064	Work batching
+0.064	quorum intersection basic 4-node
+0.064	transaction validation diagnostics
+0.064	txset - correct apply order
+0.061	failure diagnostics
+0.061	sponsorship can be removed with frozen sponsor
+0.060	version test
+0.059	quorum intersection 4-org 1-node 4-null qsets
+0.058	loadgen Wasm executes properly
+0.058	reject banned peers
+0.056	bucket index race condition with GC
+0.055	transaction time bounds under sub-second ledgers
+0.051	upgrades endpoint sets nomination timeout and expiration minutes
+0.050	settings upgrade command line utils
+0.049	GET_SCP_STATE rate limiting
+0.048	OrderBookIsNotCrossed properly throws if order book is crossed
+0.048	soroban txs not allowed before protocol upgrade
+0.046	config upgrade validation
+0.046	query rate limit window under sub-second close times
+0.045	ledgerheader
+0.045	subprocess storm
+0.043	XDR protocol 22 compatibility validation
+0.042	config upgrades applied to ledger
+0.041	reject peers with differing network passphrases
+0.039	genesisledger
+0.039	getInvalidTxListWithErrors returns no duplicates
+0.038	frozen ledger keys config setting does not exist prior to p26
+0.037	Create account then decrease balance below minimum
+0.036	Account below minimum balance decreases
+0.036	Account below minimum balance increases but stays below minimum
+0.036	Create account above minimum balance
+0.036	Create account below minimum balance
+0.036	only enable registered invariants
+0.035	do not flood invalid transactions
+0.035	reject peers with invalid cert
+0.033	no duplicate register
+0.033	virtual event dispatch order and times
+0.030	no duplicate enable
+0.030	sponsorship invariant
+0.030	subprocess
+0.029	enable registered invariants regex
+0.028	subprocess redirect to new file
+0.027	subprocess fails
+0.027	upgrade scheduling under sub-second ledgers
+0.025	sliding window percentiles - uniform at high frequency
+0.024	BatchExecutor runs many successive batches
+0.024	database on-disk smoketest
+0.024	freeze bypass txs config setting does not exist prior to p26
+0.024	subprocess redirect to existing file
+0.023	loadRandomPeers
+0.023	sqlite MVCC test
+0.022	Trigger validity check for each entry type
+0.022	bucketUpdatePeriod arithmetic
+0.022	checkpoint containing ledger
+0.022	sliding window percentiles - constant
+0.021	Soroban TransactionQueue pre-protocol-20
+0.021	validate upgrades when no time set for upgrade
+0.020	validate upgrades at upgrade time
+0.020	validate upgrades just before upgrade time
+0.017	InMemoryLedgerTxn filtering
+0.017	failed flow control admission stops preprocessing
+0.017	uint128_t
+0.017	unauthenticated peer cannot trigger background signature verification
+0.016	CatchupRange starting on checkpoint boundary still replays it
+0.016	noisy binary search
+0.013	HistoryArchiveState get_put
+0.013	XDRSHA256 is identical to byte SHA256
+0.013	sliding window percentiles - gamma at medium frequency
+0.012	XDRBLAKE2 is identical to byte BLAKE2
+0.012	config upgrade validation for protocol 23
+0.011	BatchExecutor runs many successive range batches
+0.011	InMemoryLedgerTxn getOffersByAccountAndAsset
+0.011	XDR shortHash is identical to byte shortHash
+0.011	revocation result test across validators
+0.010	HistoryManager compress
+0.010	pool share revocation order test
+0.009	InMemoryLedgerTxn getPoolShareTrustLinesByAccountAndAsset
+0.008	Modify ClaimableBalanceEntry
+0.008	outbound tx queue byte limit bounds bytes retained by transport
+0.007	Create account with no subentries
+0.007	percentile calculation - gamma
+0.007	schema test
+0.006	BucketList sizeOf and oldestLedgerIn relations
+0.006	BucketList sizes at ledger 1
+0.006	InMemoryLedgerTxn simulate buckets
+0.006	database smoketest
+0.006	parallel Soroban settings upgrade
+0.006	protocol 23 upgrade sets default SCP timing values
+0.006	upgrades serialization roundtrip
+0.005	LedgerTxn best offers cache eviction
+0.005	ballot protocol core5
+0.004	BucketList deepest curr accumulates
+0.004	BucketList snap reaches steady state
+0.004	Create account then increase liabilities without changing balance
+0.004	OrderBookIsNotCrossed in-memory order book is consistent with application behaviour
+0.003	BatchExecutor basic tests
+0.003	Pubkey signature
+0.003	StrKey tests
+0.003	fuzz soroban_expr smoke
+0.002	huge divide
+0.002	operation filter configuration
+0.001	Ed25519 test vectors from Zcash
+0.001	filesystem durable rename
+0.001	fuzz soroban_wasmi smoke
+0.001	load example configs
+0.001	scheduler load shedding -- overload
+0.001	sliding window percentiles - low frequency alternating patterns
+0.001	sliding window percentiles - uniform at medium frequency
+0.000	Adjust Offer
+0.000	BLAKE2 tests
+0.000	BitSet basics
+0.000	BitSet difference
+0.000	BitSet intersection
+0.000	BitSet large bitsets
+0.000	BitSet symmetric difference
+0.000	BitSet union
+0.000	Check price error bounds
+0.000	Comparison of offers meets ordering requirements
+0.000	Ed25519 test vectors from IACR 2020/1244
+0.000	Exchange
+0.000	Exchange with liquidity pools
+0.000	ExchangeV10
+0.000	FILTERED_G_ADDRESSES configuration
+0.000	HKDF test vector
+0.000	HMAC test vector
+0.000	Hash(x) signature
+0.000	Proper handling of non-current ledger value
+0.000	RandomEvictionCache works as a cache
+0.000	SHA256 tests
+0.000	Serialization round trip
+0.000	Stateful BLAKE2 tests
+0.000	Stateful SHA256 tests
+0.000	TransactionQueue Key Filtering
+0.000	VirtualClock from_time_t
+0.000	VirtualClock isoStringToTm
+0.000	VirtualClock systemPointToISOString
+0.000	VirtualClock to_time_t
+0.000	XDR accumulator
+0.000	XDR field extractor
+0.000	XDR field resolver
+0.000	XDR matcher
+0.000	XDROutputFileStream fail modes
+0.000	application major version numbers
+0.000	arbitrage tx identification
+0.000	bad validators configs
+0.000	balance
+0.000	ballot protocol core3
+0.000	ballot protocol self-emits CONFIRM after federated accept-commit on structurally-valid value
+0.000	base64 roundtrip
+0.000	base64 rust identity
+0.000	big divide
+0.000	bigDivide 128bit by 64bit
+0.000	bigSquareRoot tests
+0.000	binary fuse filter duplicate removal
+0.000	binary fuse filter error retry
+0.000	binary fuse filter rejects malformed serialized filters
+0.000	binary fuse filter requires at least two key hashes
+0.000	cache empty - RandCache
+0.000	cache erase_if removes all nodes - RandCache
+0.000	cache erase_if removes no nodes - RandCache
+0.000	cache erase_if removes some nodes - RandCache
+0.000	cache keeps last read items - RandCache
+0.000	cache keeps last read items with maybeGet - RandCache
+0.000	cache keeps most added items - RandCache
+0.000	cache replace element - RandCache
+0.000	close time helpers
+0.000	create peer record
+0.000	decode_b32
+0.000	decode_b64
+0.000	decode_b64 with iterators
+0.000	drop tx set on download timeout
+0.000	encode_b32
+0.000	encode_b64
+0.000	encoded_size32
+0.000	encoded_size64
+0.000	filesystem findfiles
+0.000	filesystem locks
+0.000	filesystem remoteName
+0.000	fuzz overlay corpus
+0.000	fuzz soroban_expr corpus
+0.000	fuzz soroban_wasmi corpus
+0.000	fuzz tx corpus
+0.000	getMiscDBName handles various file extensions
+0.000	getPoolWithdrawalAmount
+0.000	hex tests
+0.000	incoming PREPARE with non-tx-set-invalid value is dropped
+0.000	incoming PREPARE with structurally valid prepared value is accepted
+0.000	key string roundtrip
+0.000	liquidity pool id
+0.000	load validators config
+0.000	meta stream contains reasonable meta
+0.000	nesting level
+0.000	nomination tests core5
+0.000	nomination times out structurally-valid value into empty tx set
+0.000	nomination weight
+0.000	percentile calculation - R test vectors
+0.000	percentile calculation - constant
+0.000	percentile calculation - uniform
+0.000	pointToTm tmToSystemPoint stuff
+0.000	private addresses
+0.000	random
+0.000	reject all low quality validators config
+0.000	remove password from database connection string
+0.000	request parser accepts valid GET
+0.000	request parser accepts valid POST
+0.000	request parser rejects malformed Content-Length
+0.000	resolve node id
+0.000	scheduler basic functionality
+0.000	secret resolution
+0.000	setConfirmPrepared stalls on kStructurallyValidValue value
+0.000	sign tests
+0.000	skip validator checks
+0.000	sliding window percentiles - gamma at low frequency
+0.000	sliding window percentiles - uniform at low frequency
+0.000	standalone quorum intersection check
+0.000	status add
+0.000	status add two different
+0.000	status empty on start
+0.000	status remove
+0.000	status should be replaced
+0.000	sums of nanoseconds do not overflow
+0.000	topology encrypted response memory check
+0.000	txset nomination
+0.000	uint128_t carry tests with positive arg
+0.000	updateRoundLeaders handles zero weight nodes
+0.000	v blocking distance
+0.000	validate upgrade expiration logic
+0.000	vblocking and quorum
