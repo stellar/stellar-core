@@ -1835,8 +1835,8 @@ TxSetPhaseFrame::checkValidWithResult(
     }
 
     auto invalid = TxSetUtils::getInvalidTxListWithErrors(
-        *this, app, accountFeeMap, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset);
+        TxFrameList(begin(), end()), app, accountFeeMap,
+        lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
     if (invalid.first.empty())
     {
         releaseAssert(invalid.second == TxSetValidationResult::VALID);

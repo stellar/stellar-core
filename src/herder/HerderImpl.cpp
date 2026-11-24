@@ -2776,6 +2776,7 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
                                    bool queueRebuildNeeded)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     if (externalizedTxSet == nullptr)
     {
         CLOG_DEBUG(Herder,
@@ -2798,14 +2799,24 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
             mSorobanTransactionQueue->resetAndRebuild(keys);
         }
 
-        auto txs = queue.getTransactions(lhhe.header);
+        // Skip revalidating the queue if more ledgers are still being applied
+        // (which may happen when several ledgers were queued for apply at
+        // once, e.g. when recovering sync). The LCL state is about to be
+        // replaced, so the validation would be mostly wasted; the queue will
+        // be revalidated once the last queued ledger closes.
+        // NB: `updateTransactionQueue` is called on the main thread, as well
+        // as `isApplying`, so there is no race condition risk here.
+        if (!mLedgerManager.isApplying())
+        {
+            auto txs = queue.getTransactions(lhhe.header);
 
-        auto invalidTxs = TxSetUtils::getInvalidTxListWithErrors(
-                              txs, mApp, accountFeeMap, 0,
-                              getUpperBoundCloseTimeOffset(
-                                  mApp, getApplyTime(lhhe.header.scpValue)))
-                              .first;
-        queue.ban(invalidTxs);
+            auto invalidTxs = TxSetUtils::getInvalidTxListWithErrors(
+                                  txs, mApp, accountFeeMap, 0,
+                                  getUpperBoundCloseTimeOffset(
+                                      mApp, getApplyTime(lhhe.header.scpValue)))
+                                  .first;
+            queue.ban(invalidTxs);
+        }
 
         queue.rebroadcast();
     };
