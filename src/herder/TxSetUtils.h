@@ -47,9 +47,11 @@ class TxSetUtils
 
     // Returns transactions from a TxSet that are invalid along with the
     // aggregate validation result for the set.
-    template <typename TxContainer>
+    // NB: this assumes that all the transaction envelopes are unique in `txs`
+    // (which is always the case, as the envelopes come either from tx queue,
+    // or generated from TxSet XDR).
     static TxFrameListWithErrors
-    getInvalidTxListWithErrors(TxContainer const& txs, Application& app,
+    getInvalidTxListWithErrors(TxFrameList const& txs, Application& app,
                                UnorderedMap<AccountID, int64_t>& accountFeeMap,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset);
