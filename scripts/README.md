@@ -2,10 +2,17 @@
 This folder is for storing any scripts that may be helpful for using stellar-core.
 
 ## List of scripts
-- [Overlay survey](#overlay-survey)
-- [Diff Tracy CSV](#diff-tracy-csv)
-- [Parse Backtrace Dump](#parse-backtrace-dump)
-- [Histogram Generator](#histogram-generator)
+- [Description](#description)
+- [List of scripts](#list-of-scripts)
+  - [Overlay survey](#overlay-survey)
+    - [Attaching to a Running Survey](#attaching-to-a-running-survey)
+  - [Diff Tracy CSV](#diff-tracy-csv)
+  - [Parse Backtrace Dump](#parse-backtrace-dump)
+  - [Test Coverage](#test-coverage)
+  - [Stellar Core Debug Info](#stellar-core-debug-info)
+  - [Soroban Settings Helper](#soroban-settings-helper)
+  - [Histogram Generator](#histogram-generator)
+- [Style guide](#style-guide)
 
 ### Overlay survey 
 - Name - `OverlaySurvey.py`
@@ -65,6 +72,32 @@ Use the `--startPhase` option to attach the script to an already running survey.
 ./src/stellar-core(+0xa44fe7) [0x55c7cd7f5fe7]
 ./src/stellar-core(+0x34f0c1) [0x55c7cd1000c1]"
 ```
+
+### Test Coverage
+
+- Name - `TestCoverage.py`
+- Description - A Python script that analyzes per-test LLVM coverage profiles (one `.profraw` per test) and selects a high ROI subset of tests that reaches target coverage percentages (branches/lines/functions) of the full-suite covered universe while minimizing total runtime.
+
+- Prerequisites
+  - A test list CSV and corresponding `.profraw` files produced by using the `-r covtest` reporter
+    - for example generated with `src/stellar-core test -r covtest --ll FATAL --all-versions "[tx]"`
+  - LLVM tools on PATH (defaults are `llvm-profdata-20` and `llvm-cov-20`).
+  - Python dependencies: `pip install pyroaring joblib polars-lts-cpu tree-sitter tree_sitter_cpp`
+
+- Input CSV format
+  - 3 columns per line: `test_name`, `profraw_path`, `duration`
+  - Duration is interpreted as microseconds.
+
+- Usage
+
+  See all options with `python3 scripts/TestCoverage.py --help`
+
+  Typical usage, to generate candidates.csv:
+
+  `python3 scripts/TestCoverage.py --test-list profraw.csv --branch-threshold 90 --function-threshold 95 --line-threshold 65 --exclude-regex '/lib/' --exclude-regex 'test' --exclude-regex 'Backtrace'`
+
+  Update Catch2 test tags in-place based on the selected candidates list (tagging slow tests with `[acceptance]` tag):
+    `python3 scripts/TestCoverage.py --test-list profraw.csv --update-tests-tags update-only`
 
 ### Stellar Core Debug Info
 
