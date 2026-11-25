@@ -437,9 +437,8 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
         // Helper to execute SQL on a session
         auto execSQL = [&](std::string const& sql, SessionWrapper& session) {
             auto prep = db.getPreparedStatement(sql, session);
-            auto& st = prep.statement();
-            st.define_and_bind();
-            st.execute(true);
+            prep.define_and_bind();
+            prep.execute(true);
         };
 
         // Helper to count rows in a table
@@ -448,10 +447,9 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
             int count = 0;
             auto prep = db.getPreparedStatement("SELECT COUNT(*) FROM " + table,
                                                 session);
-            auto& st = prep.statement();
-            st.exchange(soci::into(count));
-            st.define_and_bind();
-            st.execute(true);
+            prep.exchange(soci::into(count));
+            prep.define_and_bind();
+            prep.execute(true);
             return count;
         };
 
@@ -464,10 +462,9 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
                 "name='" +
                     table + "'",
                 session);
-            auto& st = prep.statement();
-            st.exchange(soci::into(count));
-            st.define_and_bind();
-            st.execute(true);
+            prep.exchange(soci::into(count));
+            prep.define_and_bind();
+            prep.execute(true);
             return count > 0;
         };
 
@@ -529,10 +526,9 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
                 "SELECT state FROM storestate WHERE statename = "
                 "'lastclosedledgerheader'",
                 db.getSession());
-            auto& st = prep.statement();
-            st.exchange(soci::into(result));
-            st.define_and_bind();
-            st.execute(true);
+            prep.exchange(soci::into(result));
+            prep.define_and_bind();
+            prep.execute(true);
             REQUIRE(result == headerEncoded);
         }
 
@@ -566,11 +562,10 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
             int port = 0;
             auto prep = db.getPreparedStatement("SELECT ip, port FROM peers",
                                                 db.getMiscSession());
-            auto& st = prep.statement();
-            st.exchange(soci::into(ip));
-            st.exchange(soci::into(port));
-            st.define_and_bind();
-            st.execute(true);
+            prep.exchange(soci::into(ip));
+            prep.exchange(soci::into(port));
+            prep.define_and_bind();
+            prep.execute(true);
             REQUIRE(ip == "127.0.0.1");
             REQUIRE(port == 11625);
         }
@@ -580,10 +575,9 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
                 "SELECT state FROM slotstate WHERE statename = "
                 "'ledgerupgrades'",
                 db.getMiscSession());
-            auto& st = prep.statement();
-            st.exchange(soci::into(state));
-            st.define_and_bind();
-            st.execute(true);
+            prep.exchange(soci::into(state));
+            prep.define_and_bind();
+            prep.execute(true);
             REQUIRE(state == "testvalue");
         }
     }
