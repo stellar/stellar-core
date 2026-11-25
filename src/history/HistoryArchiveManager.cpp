@@ -197,7 +197,8 @@ HistoryArchiveManager::getCheckLedgerHeaderWork(
 }
 
 bool
-HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
+HistoryArchiveManager::initializeHistoryArchive(std::string const& arch,
+                                                bool idempotent) const
 {
     auto archive = getHistoryArchive(arch);
     if (!archive)
@@ -215,6 +216,13 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
         ws.executeWork<GetHistoryArchiveStateWork>(0, archive, "hist-init", 0);
     if (getHas->getState() == BasicWork::State::WORK_SUCCESS)
     {
+        if (idempotent)
+        {
+            CLOG_INFO(History,
+                      "History archive '{}' already initialized; skipping",
+                      arch);
+            return true;
+        }
         CLOG_ERROR(History, "History archive '{}' already initialized!", arch);
         return false;
     }
