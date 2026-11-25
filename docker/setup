@@ -7,7 +7,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 
 # We need apt-transport-https for adding apt.stellar.org in the Dockerfile
-apt-get install -y wget curl python3-six python3-colorama python3-pip postgresql-client sqlite3 apt-transport-https gnupg2
+apt-get install -y wget curl python3-six python3-colorama python3-pip sqlite3 apt-transport-https gnupg2
 
 if grep "VERSION_CODENAME=jammy" /etc/os-release; then
   echo "Setting up LLVM repo in the 22.04 Ubuntu base"
@@ -51,4 +51,3 @@ rm -rf /usr/lib/llvm-5.0/build /usr/share/llvm-5.0/cmake
 rm -rf /usr/lib/llvm-5.0/lib/*.a ./lib/x86_64-linux-gnu/*.a
 rm -rf /usr/lib/llvm-5.0/bin/{opt,lli,llc,llvm-tblgen,bugpoint}
 rm -rf /usr/local/lib/python2.7/dist-packages/awscli/examples
-rm -rf /usr/share/postgresql/*/man

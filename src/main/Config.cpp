@@ -2371,6 +2371,11 @@ Config::logBasicInfo() const
 void
 Config::validateConfig(ValidationThresholdLevels thresholdLevel)
 {
+    if (!DATABASE.value.starts_with("sqlite3://"))
+    {
+        throw std::invalid_argument("DATABASE must use sqlite3://");
+    }
+
     std::set<NodeID> nodes;
     LocalNode::forAllNodes(QUORUM_SET, [&](NodeID const& n) {
         nodes.insert(n);

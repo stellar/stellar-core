@@ -62,10 +62,9 @@ RUN apt-get update \
 RUN apt-get update && \
     apt-get -y install \
     git build-essential pkg-config autoconf automake libtool bison flex sed perl \
-    libpq-dev parallel curl ccache bear \
+    parallel curl ccache bear \
     cpp-14 gcc-14 g++-14 libstdc++-14-dev \
     clang-20 llvm-20 libc++-20-dev clang-format-20 clangd-20 libc++abi-20-dev libclang-rt-20-dev \
-    postgresql \
     jq ripgrep vim emacs-nox uftrace
 
 # Set up locale

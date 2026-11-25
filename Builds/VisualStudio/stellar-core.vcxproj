@@ -5,8 +5,8 @@
       <Configuration>DebugCurrV</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="DebugNoPostgres|x64">
-      <Configuration>DebugNoPostgres</Configuration>
+    <ProjectConfiguration Include="DebugSQLite|x64">
+      <Configuration>DebugSQLite</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="DebugNextV|x64">
@@ -44,7 +44,7 @@
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
@@ -73,7 +73,7 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'" Label="PropertySheets">
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'" Label="PropertySheets">
@@ -97,7 +97,7 @@
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
     <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
@@ -124,8 +124,8 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
@@ -140,7 +140,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
@@ -187,8 +187,8 @@ exit /b 0
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
@@ -203,7 +203,7 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
@@ -246,13 +246,13 @@ exit /b 0
       </Message>
     </PreLinkEvent>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
@@ -319,8 +319,8 @@ exit /b 0
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
@@ -333,7 +333,7 @@ exit /b 0
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
@@ -382,8 +382,8 @@ exit /b 0
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;XDRPP_STRONG_ORDER=1;_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
@@ -396,7 +396,7 @@ exit /b 0
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
@@ -795,63 +795,63 @@ exit /b 0
     <ClCompile Include="..\..\lib\xdrpp\tests\arpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\autocheck.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\cereal.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\compare.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\listener.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\marshal.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\msgsock.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\printer.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\srpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
     </ClCompile>
@@ -1347,7 +1347,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
       <AdditionalInputs>..\..\src\protocol-curr\xdr\Stellar-SCP.x;..\..\src\protocol-curr\xdr\Stellar-contract-config-setting.x;..\..\src\protocol-curr\xdr\Stellar-contract.x;..\..\src\protocol-curr\xdr\Stellar-ledger-entries.x;..\..\src\protocol-curr\xdr\Stellar-ledger.x;..\..\src\protocol-curr\xdr\Stellar-transaction.x;..\..\src\protocol-curr\xdr\Stellar-types.x%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
@@ -1371,7 +1371,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
       <Message>running xdrc</Message>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
@@ -1383,7 +1383,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger.h ../../src/protocol-curr/xdr/Stellar-ledger.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger.h ../../src/protocol-curr/xdr/Stellar-ledger.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger.h ../../src/protocol-curr/xdr/Stellar-ledger.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger.h ../../src/protocol-curr/xdr/Stellar-ledger.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger.h ../../src/protocol-curr/xdr/Stellar-ledger.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger.h ../../src/protocol-curr/xdr/Stellar-ledger.x</Command>
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h</Outputs>
@@ -1396,7 +1396,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-transaction.h ../../src/protocol-curr/xdr/Stellar-transaction.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-transaction.h ../../src/protocol-curr/xdr/Stellar-transaction.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-transaction.h ../../src/protocol-curr/xdr/Stellar-transaction.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-transaction.h ../../src/protocol-curr/xdr/Stellar-transaction.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-transaction.h ../../src/protocol-curr/xdr/Stellar-transaction.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-transaction.h ../../src/protocol-curr/xdr/Stellar-transaction.x</Command>
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-transaction.h</Outputs>
@@ -1409,7 +1409,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-types.h ../../src/protocol-curr/xdr/Stellar-types.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-types.h ../../src/protocol-curr/xdr/Stellar-types.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-types.h ../../src/protocol-curr/xdr/Stellar-types.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-types.h ../../src/protocol-curr/xdr/Stellar-types.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-types.h ../../src/protocol-curr/xdr/Stellar-types.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-types.h ../../src/protocol-curr/xdr/Stellar-types.x</Command>
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-types.h</Outputs>
@@ -1422,7 +1422,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-overlay.h ../../src/protocol-curr/xdr/Stellar-overlay.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-overlay.h ../../src/protocol-curr/xdr/Stellar-overlay.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-overlay.h ../../src/protocol-curr/xdr/Stellar-overlay.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-overlay.h ../../src/protocol-curr/xdr/Stellar-overlay.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-overlay.h ../../src/protocol-curr/xdr/Stellar-overlay.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-overlay.h ../../src/protocol-curr/xdr/Stellar-overlay.x</Command>
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h</Outputs>
@@ -1434,7 +1434,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h ../../src/protocol-curr/xdr/Stellar-ledger-entries.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h ../../src/protocol-curr/xdr/Stellar-ledger-entries.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h ../../src/protocol-curr/xdr/Stellar-ledger-entries.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h ../../src/protocol-curr/xdr/Stellar-ledger-entries.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h ../../src/protocol-curr/xdr/Stellar-ledger-entries.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h ../../src/protocol-curr/xdr/Stellar-ledger-entries.x</Command>
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h</Outputs>
@@ -1447,7 +1447,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-SCP.h ../../src/protocol-curr/xdr/Stellar-SCP.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-SCP.h ../../src/protocol-curr/xdr/Stellar-SCP.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-SCP.h ../../src/protocol-curr/xdr/Stellar-SCP.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-SCP.h ../../src/protocol-curr/xdr/Stellar-SCP.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-SCP.h ../../src/protocol-curr/xdr/Stellar-SCP.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-SCP.h ../../src/protocol-curr/xdr/Stellar-SCP.x</Command>
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-SCP.h</Outputs>
@@ -1459,7 +1459,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract.h ../../src/protocol-curr/xdr/Stellar-contract.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract.h ../../src/protocol-curr/xdr/Stellar-contract.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract.h ../../src/protocol-curr/xdr/Stellar-contract.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract.h ../../src/protocol-curr/xdr/Stellar-contract.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract.h ../../src/protocol-curr/xdr/Stellar-contract.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract.h ../../src/protocol-curr/xdr/Stellar-contract.x</Command>
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</Outputs>
@@ -1472,7 +1472,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h ../../src/protocol-curr/xdr/Stellar-contract-config-setting.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h ../../src/protocol-curr/xdr/Stellar-contract-config-setting.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h ../../src/protocol-curr/xdr/Stellar-contract-config-setting.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h ../../src/protocol-curr/xdr/Stellar-contract-config-setting.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h ../../src/protocol-curr/xdr/Stellar-contract-config-setting.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h ../../src/protocol-curr/xdr/Stellar-contract-config-setting.x</Command>
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</Outputs>
@@ -1493,14 +1493,14 @@ exit /b 0
       </AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
       </AdditionalInputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">wsl sed -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">wsl sed -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">wsl sed -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">wsl sed -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">Generating StellarCoreVersion.cpp</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">Generating StellarCoreVersion.cpp</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">Generating StellarCoreVersion.cpp</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">Generating StellarCoreVersion.cpp</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">../../src/main/StellarCoreVersion.cpp</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">../../src/main/StellarCoreVersion.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">
       </AdditionalInputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">../../src/main/StellarCoreVersion.cpp</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">../../src/main/StellarCoreVersion.cpp</Outputs>
@@ -1522,8 +1522,8 @@ exit /b 0
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\..\bin\cxxbridge.exe</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">$(OutDir)\..\bin\cxxbridge.exe</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
@@ -1546,11 +1546,9 @@ exit /b 0
     <None Include="..\..\src\rust\src\soroban_test_wasm.rs" />
     <None Include="..\..\src\scp\readme.md" />
     <None Include="..\..\src\test\check-nondet" />
-    <None Include="..\..\src\test\run-selftest-nopg" />
-    <None Include="..\..\src\test\run-selftest-pg" />
-    <None Include="..\..\src\test\selftest-nopg" />
+    <None Include="..\..\src\test\run-selftest" />
     <None Include="..\..\src\test\selftest-parallel" />
-    <None Include="..\..\src\test\selftest-pg" />
+    <None Include="..\..\src\test\selftest" />
     <None Include="..\..\ci-build.sh" />
     <None Include="..\..\src\transactions\readme.md" />
     <None Include="..\..\src\util\LogPartitions.def" />
@@ -1563,7 +1561,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">wsl bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">wsl bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">wsl bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">wsl bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">wsl bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">wsl bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
     </CustomBuild>
     <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryScanner.ll">
@@ -1575,7 +1573,7 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">wsl flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">wsl flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">wsl flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">wsl flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugSQLite|x64'">wsl flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">wsl flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
     </CustomBuild>
     <None Include="libmedida\libmedida.vcxproj" />
@@ -1595,14 +1593,6 @@ exit /b 0
     </ProjectReference>
     <ProjectReference Include="libsoci\libsoci.vcxproj">
       <Project>{bbd512eb-db2a-4fa1-bdb8-3ba3d2fcf51b}</Project>
-    </ProjectReference>
-    <ProjectReference Include="libsoci_postgresql\libsoci_postgresql.vcxproj">
-      <Project>{af73d670-3d56-4949-bec5-b8e5f7bca2e5}</Project>
-      <Private>false</Private>
-      <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
-      <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
-      <LinkLibraryDependencies>true</LinkLibraryDependencies>
-      <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
     </ProjectReference>
     <ProjectReference Include="libsoci_sqlite3\libsoci_sqlite3.vcxproj">
       <Project>{ae4b5814-d3d5-431f-9792-88689d1bc708}</Project>

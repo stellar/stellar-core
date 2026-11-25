@@ -46,15 +46,6 @@ We maintain a pre-configured Docker configuration ready for development with VSC
 
 See the [dev container's README](.devcontainer/README.md) for more detail.
 
-## Runtime dependencies
-
-`stellar-core` does not have many dependencies.
-
-If core was configured (see below) to work with Postgresql, a local Postgresql server
- will need to be deployed to the same host.
-
-To install Postgresql, follow instructions from the [Postgresql download page](https://www.postgresql.org/download/).
-
 ## Build Dependencies
 
 - c++ toolchain and headers that supports c++20
@@ -62,7 +53,6 @@ To install Postgresql, follow instructions from the [Postgresql download page](h
     - `g++` >= 14.0
 - `pkg-config`
 - `bison` and `flex`
-- `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
 - `clang-format-20` (for `make format` to work)
 - `sed` and `perl`
@@ -117,7 +107,7 @@ sudo apt install gcc-14 g++-14
 ```zsh
 # common packages
 sudo apt-get update
-sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel sed perl
+sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex parallel sed perl
 # if using clang
 sudo apt-get -y install clang-20 llvm-20
 # clang with libc++
@@ -178,11 +168,10 @@ When building on MacOS, here's some dependencies you'll need:
 - Install xcode
 - Install [Rust](#installing-rust)
 - Install [homebrew](https://brew.sh)
-- `brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils`
+- `brew install libsodium libtool autoconf automake pkg-config openssl parallel ccache bison gnu-sed perl coreutils`
 
 You'll also need to configure pkg-config by adding the following to your shell (`.zshenv` or `.zshrc`):
 ```zsh
-export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
 export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
 export PATH="$(brew --prefix bison)/bin:$PATH"
 ```
